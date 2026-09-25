@@ -1,0 +1,29 @@
+{
+  "name": "simple-minds-ai",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "description": "Perpetual AI Training: harvest -> curate -> reward -> immutable dataset snapshot -> validated plan -> baseline eval -> train (stub kernels) -> candidate eval -> promote/reject, all with full provenance. Phase 2.",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "chat": "node src/chat/chat-server.js",
+    "crawl": "node src/harness/crawler.js",
+    "curate": "node src/services/curator.js --file data/raw/sample.ndjson",
+    "score": "node src/reward/reward-scorer.js",
+    "plan": "node src/services/planner.js",
+    "train": "node src/cli/train.js",
+    "evaluate": "node src/cli/evaluate.js",
+    "promote": "node src/cli/promote.js",
+    "reject": "node src/cli/reject.js",
+    "perpetual": "node src/cli/perpetual.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@apollo/server": "^4.11.0",
+    "express": "^4.19.2",
+    "graphql": "^16.9.0"
+  }
+}

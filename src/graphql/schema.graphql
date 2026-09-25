@@ -1,0 +1,297 @@
+"""
+SimpleMindsAI — GraphQL buffer + registry schema.
+
+Three layers, deliberately typed so the UI *cannot* confuse real vs synthetic,
+and so training provenance is a first-class citizen:
+
+Prompt        = an input the model should learn to respond to (transient)
+Completion    = a target answer for a Prompt (transient; provenance tracked)
+RewardScore   = RLAIF critic score (transient; provenance: critic/rubric version)
+TrainingLog   = legacy run log (transient buffer's durable runs.ndjson)
+
+Phase 2 additions — the PERPETUAL TRAINING registry. These are durable,
+append-only, and describe the EXPERIMENTAL lifecycle, not the buffer belt:
+DatasetSnapshot   immutable, hash-sealed dataset file              (requirement #2)
+ModelRecord        checkpoint registry with status machine          (requirement #6)
+TrainingRunV2      full run record (baseline/trained eval, delta)   (requirement #7)
+EvaluationRecord   deterministic eval result on the immutable set   (requirement #4/#5)
+"""
+
+scalar DateTime
+
+type Prompt {
+  id: ID!
+  text: String!
+  domain: String
+  source: String
+  rawText: String      # pre-cleaning text, kept only for debugging
+  hash: String!        # dedup key
+  deduped: Boolean!    # true if this ingest hit an identical existing prompt
+  rewardScore: Float   # best score across all its completions (null = untouched by critic)
+  completions: [Completion!]!
+  trainedAt: DateTime
+  trainedRef: String   # training runId that consumed this prompt
+  createdAt: DateTime!
+}
+
+type Completion {
+  id: ID!
+  promptId: ID!
+  text: String!
+  model: String        # which model wrote it (critical for provenance)
+  origin: String       # "raw" | "curated" | "synthetic" | "replay"
+  rewardScore: Float
+  createdAt: DateTime!
+}
+
+type GuardrailOutput {
+  passed: Boolean!
+  heuristicPenalty: Float
+  reason: String
+}
+
+type RewardScore {
+  id: ID!
+  completionId: ID!
+  score: Float!        # 0..10
+  rationale: String
+  criticModel: String!
+  criticVersion: String   # provenance spine
+  rubricVersion: String   # provenance spine
+  guardrailResult: GuardrailOutput
+  createdAt: DateTime!
+}
+
+"""Legacy run log (transient). New runs live in TrainingRunV2."""
+type TrainingLog {
+  id: ID!
+  runId: String!
+  startedAt: DateTime!
+  finishedAt: DateTime
+  datasetRefs: [String!]!  # prompt ids / JSONL file refs consumed this run
+  recordsTrained: Int
+  avgLoss: Float
+  avgReward: Float
+  note: String
+}
+
+"""
+Immutable dataset snapshot (requirement #2). Once written, the file is never
+touched again; TrainingRunV2 records the exact datasetId+Version it consumed.
+"""
+type DatasetSnapshot {
+  datasetId: ID!
+  datasetVersion: String!
+  source: String!
+  recordCount: Int!
+  syntheticCount: Int!
+  syntheticShare: Float!
+  file: String!
+  hash: String!
+  categories: [DomainCount!]
+  createdAt: DateTime!
+}
+
+"""
+Checkpoint registry (requirement #6). Status is derived from the last event:
+candidate -> promoted | rejected. activeModel() returns the newest promoted.
+"""
+type ModelRecord {
+  modelId: ID!
+  kind: String!          # "base" | "stub" | (future) onnx | ...
+  baseModel: String!
+  parentModelId: ID
+  trainingRunId: ID
+  datasetId: ID
+  checkpointPath: String
+  status: String!        # candidate | promoted | rejected
+  evaluationScore: Float # score100 from the deciding evaluation
+  createdAt: DateTime!
+}
+
+type RunEvent {
+  status: String!
+  at: DateTime!
+  note: String
+}
+
+"""Full durable TrainingRun (requirement #7)."""
+type TrainingRunV2 {
+  runId: ID!
+  status: String!           # created | running | evaluating | promoted | rejected | failed
+  startedAt: DateTime!
+  completedAt: DateTime
+  baseModel: String!
+  resultModelId: ID
+  datasetId: ID
+  datasetVersion: String
+  datasetFile: String
+  recordCount: Int
+  criticModel: String
+  criticVersion: String
+  rubricVersion: String
+  curriculumVersion: String
+  trainerVersion: String
+  trainerKind: String
+  examplesProcessed: Int
+  baselineScore: Float
+  trainedScore: Float
+  evaluationDelta: Float
+  promotionStatus: String
+  note: String
+  events: [RunEvent!]!
+}
+
+"""Deterministic evaluation (requirement #4/#5)."""
+type EvaluationRecord {
+  evalRunId: ID!
+  modelId: ID!
+  kind: String!          # baseline | candidate
+  datasetId: ID!
+  datasetVersion: String!
+  evaluatorVersion: String!
+  score: Float!          # 0..1 token-F1
+  score100: Float!       # 0..100
+  createdAt: DateTime!
+}
+
+type PromptPage {
+  items: [Prompt!]!
+  nextCursor: String
+}
+
+type DomainCount {
+  domain: String!
+  count: Int!
+}
+
+type BufferStats {
+  totalPrompts: Int!
+  trainedPrompts: Int!
+  untrainedPrompts: Int!
+  totalCompletions: Int!
+  rewardCount: Int!
+  byDomain: [DomainCount!]!
+  avgReward: Float
+  duplicationIndex: Float!  # 0=none .. 1=everything duplicated (collapse detector)
+}
+
+input PromptInput {
+  text: String!
+  domain: String
+  source: String
+  rawText: String
+}
+
+input CompletionInput {
+  promptId: ID!
+  text: String!
+  model: String
+  origin: String
+}
+
+input GuardrailInput {
+  passed: Boolean
+  heuristicPenalty: Float
+  reason: String
+}
+
+input ScoreInput {
+  completionId: ID!
+  score: Float!
+  rationale: String
+  criticModel: String
+  criticVersion: String
+  rubricVersion: String
+  guardrailResult: GuardrailInput
+}
+
+input ConsumeInput {
+  limit: Int!
+  after: String
+}
+
+input CommitInput {
+  ids: [ID!]!
+  runId: String!
+}
+
+input RunInput {
+  runId: String!
+  startedAt: String!
+  datasetRefs: [String!]!
+  recordsTrained: Int
+  avgLoss: Float
+  avgReward: Float
+  finishedAt: String
+  note: String
+}
+
+input SnapshotInput {
+  source: String!
+}
+
+input ModelInput {
+  kind: String!
+  baseModel: String!
+  parentModelId: ID
+  trainingRunId: ID
+  datasetId: ID
+  checkpointPath: String
+}
+
+input EvalInput {
+  evalRunId: ID
+  modelId: ID!
+  kind: String!
+  datasetId: ID!
+  datasetVersion: String!
+  score: Float!
+  evaluatorVersion: String!
+}
+
+input RunEventInput {
+  runId: ID!
+  status: String!
+  note: String
+}
+
+type Query {
+  stats: BufferStats!
+  prompts(after: String, limit: Int, trained: Boolean): PromptPage!
+  completions(promptId: ID!): [Completion!]!
+  trainingLogs: [TrainingLog!]!
+
+  """Pull the next batch of UNTRAINED prompts (streaming loop uses this). Pure read."""
+  consumeBatch(input: ConsumeInput!): PromptPage!
+
+  """Phase 2 registry queries."""
+  datasetSnapshots: [DatasetSnapshot!]!
+  models: [ModelRecord!]!
+  model(modelId: ID!): ModelRecord
+  activeModel: ModelRecord
+  trainingRuns: [TrainingRunV2!]!
+  trainingRun(runId: ID!): TrainingRunV2
+  evaluations: [EvaluationRecord!]!
+}
+
+type Mutation {
+  ingestPrompt(input: PromptInput!): Prompt!
+  ingestCompletion(input: CompletionInput!): Completion!
+  scoreCompletion(input: ScoreInput!): RewardScore!
+
+  """Mark ids as trained for runId — the exactly-once boundary."""
+  commitConsumption(input: CommitInput!): Boolean!
+
+  recordTrainingRun(input: RunInput!): TrainingLog!
+  purgeBuffer: Boolean!
+
+  """Phase 2 registry mutations."""
+  createDatasetSnapshot(input: SnapshotInput!): DatasetSnapshot!
+  registerModel(input: ModelInput!): ModelRecord!
+  recordEvaluation(input: EvalInput!): EvaluationRecord!
+  promoteModel(modelId: ID!): ModelRecord!
+  rejectModel(modelId: ID!): ModelRecord!
+  runEvent(input: RunEventInput!): TrainingRunV2!
+  recoverInterruptedRuns: [ID!]!
+}
