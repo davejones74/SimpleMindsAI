@@ -32,6 +32,16 @@ bin/
 ### Node ###
 node_modules/
 
+### Python ###
+python/.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Scratch output from the Phase 1 proofs: committed checkpoints are derived
+# artifacts of `sma init`, not source. Re-runnable from the pinned config.
+python/scratch/
+
 ### Runtime data ###
 data/
 .env

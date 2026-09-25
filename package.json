@@ -3,7 +3,7 @@
   "version": "0.2.0",
   "private": true,
   "type": "module",
-  "description": "Perpetual AI Training: harvest -> curate -> reward -> immutable dataset snapshot -> validated plan -> baseline eval -> train (stub kernels) -> candidate eval -> promote/reject, all with full provenance. Phase 2.",
+  "description": "SimpleMindsAI Node data plane: harvest -> curate -> review -> immutable snapshot -> validated plan -> baseline eval -> train -> candidate eval -> promote/reject, with full provenance. The student is a causal LM pre-trained from random initialization by the Python compute plane in python/; this package owns the corpus and the ledger, never the GPU.",
   "engines": {
     "node": ">=20"
   },

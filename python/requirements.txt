@@ -1,0 +1,27 @@
+# SimpleMindsAI — Python compute plane
+#
+# torch comes from the PyTorch CUDA 13.0 index, NOT PyPI (the PyPI wheel for
+# this interpreter is CPU-only). Install with:
+#
+#   pip install --index-url https://download.pytorch.org/whl/cu130 -r requirements.txt
+#
+# Verify torch-2.14.0+cu130-cp314-cp314-win_amd64 is what actually landed.
+
+# --- CUDA runtime -------------------------------------------------------
+--extra-index-url https://download.pytorch.org/whl/cu130
+torch==2.14.0+cu130
+
+# --- model / tokenizer --------------------------------------------------
+transformers==5.17.0
+tokenizers==0.23.2
+safetensors==0.8.0
+accelerate==1.15.0
+huggingface_hub==1.33.0
+
+# --- tests --------------------------------------------------------------
+pytest==9.1.1
+
+# --- training optimiser (Phase 1: the 62M dev config does not need 8-bit ---
+# --- Adam; it is only exercised by the 3B memory preflight, so it is      ---
+# --- intentionally not pinned as a hard dependency yet)                  ---
+# bitsandbytes==0.50.2
