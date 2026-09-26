@@ -25,7 +25,7 @@ Python 3.14.6, Node ≥20, torch 2.14.0+cu130, transformers 5.17.0).
 | | |
 |---|---|
 | Node data plane | 24/24 `node:test` tests pass |
-| Python compute plane | 73/73 pytest tests pass |
+| Python compute plane | 100/100 pytest tests pass |
 | Checkpoint `v001` | committed, 62M params, provenance recorded |
 | Checkpoint `v002` | committed, 60 real steps, 74/74 params moved, 2 buffers unchanged |
 
@@ -306,12 +306,12 @@ python -m venv .venv
 pip install --index-url https://download.pytorch.org/whl/cu130 torch
 pip install -r requirements.txt
 
-python -m pytest                                  # 73 tests
-python -m sma.brain init   --config small --out scratch\models
-python -m sma.brain status --out scratch\models
+python -m pytest                                  # 100 tests
+python -m sma.brain init   --config small --out $SMA_STORE
+python -m sma.brain status --out $SMA_STORE
 ```
 
-`init` writes `scratch/models/v001/` containing `model.safetensors` (123,687,776 bytes),
+`init` writes `$SMA_STORE/v001/` containing `model.safetensors` (123,687,776 bytes),
 tokenizer, `config.json`, `generation_config.json`, `init-manifest.json`, `provenance.json`, and
 `COMMITTED`. It fetches exactly 5 files and 0 weight bytes.
 
@@ -319,7 +319,7 @@ Training a child version:
 
 ```bash
 python -m sma.brain train --parent v001 --corpus sma\fixtures\tiny_en.txt `
-    --out scratch\models --lr 1e-4 --steps 60
+    --out $SMA_STORE --lr 1e-4 --steps 60
 ```
 
 `--lr` is **required and has no default**, on purpose. The correct learning rate depends on
@@ -334,7 +334,7 @@ To continue an interrupted run, pass a larger `--steps` and name the version to 
 
 ```bash
 python -m sma.brain train --parent v002 --corpus sma\fixtures\tiny_en.txt `
-    --out scratch\models --lr 1e-4 --steps 120 --resume-from v002
+    --out $SMA_STORE --lr 1e-4 --steps 120 --resume-from v002
 ```
 
 Resume **refuses** to proceed if the corpus `datasetHash` or any config field other than `steps`
@@ -413,16 +413,74 @@ the 17.2 MB tokenizer. Every claim about how a brain was made and trained is rev
 This includes the SHA-256 of all 76 tensors, so a reviewer can check the manifest against a
 downloaded artifact without trusting the uploader.
 
-**Tier 2 — out of git history.** The weight file itself, published as a **GitHub Release
-asset** (still GitHub, still versioned, still fetchable through the API) or via Git LFS. The
-committed hashes verify it bit-for-bit, which is a stronger statement than "trust the blob that
-happens to be in the tree."
+**Tier 2 — out of git history.** The weight file itself, on a durable volume outside the working
+tree, and published as a **GitHub Release asset** (still GitHub, still versioned, still fetchable
+through the API) or via Git LFS. The committed hashes verify it bit-for-bit, which is a stronger
+statement than "trust the blob that happens to be in the tree."
 
 Optimizer moments are a third thing and deliberately in neither: they are ~2× the fp32 weights,
 they are a torch pickle rather than a reviewable record, and they describe a *run that may
 continue* rather than a version that is immutable once committed. They live in
-`scratch/models/_runs/<version>.train-state.pt`, outside the version directory. Keeping them
-inside would have made every 62M checkpoint 724 MiB instead of 252 MiB.
+`$SMA_STORE/_runs/<version>.train-state.pt`, outside the version directory. Keeping them inside
+would have made every 62M checkpoint 724 MiB instead of 252 MiB.
+
+### Where the weights actually live
+
+`$SMA_STORE` is the single knob, resolved in this order:
+
+1. an explicit `--out`
+2. the `SMA_STORE` environment variable
+3. `~/.sma/store`
+
+Defaulting **outside the working tree** is deliberate, for two reasons that cost real time to
+learn. A directory named `scratch` is a promise that someone will delete it, and the append-only
+model lineage is the one thing that must not be disposable — a re-clone or a re-provisioned deploy
+wipes it without erroring. And on a server the checkout is often read-only, ephemeral, or on a
+different host than the weights; coupling them makes the weights a deployment artifact rather
+than a fact.
+
+```
+$SMA_STORE/                    the store — one root, resolved from SMA_STORE
+  v001/  v002/                 complete version directories, bytes and record together
+  _runs/                       optimizer state, outside the version dirs
+  active.json                  the one mutable name: what a server serves now
+  exports/                     content-addressed copies, for distribution
+
+models/                        in git: the record, ~175 KB for the whole lineage
+  v001/  v002/                 manifests, provenance, train state, diffs, COMMITTED
+```
+
+A version directory is never split. Both halves must arrive together for `from_pretrained` to
+work at all, and keeping them whole is what lets `staging_dir` + `COMMITTED` mean *all or
+nothing*; a manifest in one place and weights in another reintroduces exactly the torn state
+that design exists to prevent. The `models/` mirror is a **verified copy** for review, never a
+second source of truth: `mirror_record` hashes on the way across and re-checks after the write,
+and `verify_mirror` compares **symmetrically**, so a file invented in the mirror or a weight file
+strayed into it is reported as drift rather than believed.
+
+```bash
+python -m sma.brain active --sync --set v002   # mirror records, pin the server pointer
+python -m sma.brain active                      # what is serving, and is the mirror honest
+```
+
+### Deploying
+
+`active` is the only deliberately mutable name in the system, and it exists purely for
+deployment: *which brain is this server serving right now*. It is kept strictly separate from
+identity — `vNNN` and the content address never move — and it must never appear in a manifest,
+because a manifest that claims to be active is a manifest that can lie. Activity is a property of
+a deployment, not of a weight file.
+
+```bash
+export SMA_STORE=/var/lib/sma          # durable volume, not the checkout
+python -m sma.brain status             # serve from here
+python -m sma.brain active             # confirm which version this host will serve
+```
+
+For an off-host server, `export` writes a content-addressed copy with `SHA256SUMS`; ship that
+instead of the repo, let the server `verify-export` it, and then point `SMA_STORE` at the result.
+The server then serves that immutable directory — export is a transport step, never a per-request
+one.
 
 ### Naming
 
@@ -475,6 +533,40 @@ a replacement.
 
 For 3B this also forces sharding, because a GitHub Release asset caps at 2 GB — 5.73 GB does not
 fit in one. `safetensors` shards natively, and shards follow the same naming scheme.
+
+### Export: distribution, never serving
+
+```bash
+python -m sma.brain export --version v002 --dest $SMA_STORE/exports
+python -m sma.brain verify-export --path $SMA_STORE/exports/simpleminds-62m-20260925-51240e176ed9
+```
+
+`export` copies a committed version into a directory named for its content address. The name goes
+on the **directory**, not on the weight file, so the export is still an ordinary transformers
+checkpoint that `from_pretrained` accepts unchanged — renaming `model.safetensors` to
+`simpleminds-...safetensors` would have made the content address and the standard loader mutually
+exclusive. Verified on the real `v002`: loads to 61,839,744 parameters, fp32, tokenizer intact.
+
+It writes `SHA256SUMS` over every copied file, and refuses to overwrite an existing export — a
+content address that is already present *should* be byte-identical, so clobbering it would mean
+something upstream is already wrong. It re-derives the artifact name from the copied manifest and
+aborts if the copy does not hash to the name it is filed under, so a truncated copy fails at
+export rather than at whoever's downloading it. `EXPORT.json` is written *after* the sums and is
+therefore absent from them, because it carries a timestamp and including it would make two exports
+of identical bytes produce different sums files.
+
+**Chat, eval and generate do not read exports.** Every consumer goes through
+`store.resolve_version_dir(root, version)` and loads the immutable `vNNN` directory:
+
+```
+$SMA_STORE/v002/                                    canonical, hash-verified, what serving loads
+$SMA_STORE/exports/simpleminds-.../                a copy, for machines without the store
+```
+
+This is structural, not stylistic. Serving from the export would mean two 247 MB copies of the same
+weights and a permanent obligation to prove they agree — a second thing that can be wrong, in
+exchange for nothing. The export exists to get bytes across a network boundary, and that is the
+only job it has.
 
 ---
 
@@ -734,13 +826,12 @@ python/                        compute plane
   sma/arch.py                  SmolLM3 construction, validation, parameter accounting
   sma/proof.py                 config-only fetch, AST audit, tensor hashes, loss signature
   sma/store.py                 immutable versions, atomic commit, durability, heartbeat,
-                              content-addressed artifact naming
+                              content-addressed naming, export + verify
   sma/data.py                  ingestion, content hashes, concatenate-chunk packing, split
   sma/train.py                 precision model, guards, instrumentation, resumable train state
   sma/brain.py                 CLI and the one-JSON-object subprocess contract
   sma/fixtures/tiny_en.txt     deterministic corpus (original prose — no licensing question)
-  tests/                       73 pytest tests (32 proof/init, 25 training/check-7,
-                              16 publication naming)
+  tests/                       100 pytest tests (32 proof/init, 25 training/check-7, 43 publication/store)
 
 src/
   harness/ services/           crawl, curate, plan, ollama-client

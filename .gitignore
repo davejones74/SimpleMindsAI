@@ -38,9 +38,20 @@ __pycache__/
 *.pyc
 .pytest_cache/
 
-# Scratch output from the Phase 1 proofs: committed checkpoints are derived
-# artifacts of `sma init`, not source. Re-runnable from the pinned config.
+# The weight store. Outside the working tree by default (~/.sma/store, or
+# $SMA_STORE) because "scratch" is a promise that someone will delete it, and
+# the append-only model lineage is the one thing that must not be disposable.
+# A server's checkout is often read-only, ephemeral, or on a different host
+# than the weights.
+#
+# The *record* -- manifests, provenance, train state, diffs, COMMITTED -- is
+# mirrored into models/ and IS tracked. That is the part a reviewer reads, and
+# it is what makes an untracked weight file verifiable rather than merely
+# claimed. ~175 KB for the whole v001+v002 lineage.
 python/scratch/
+models/**/model.safetensors
+models/**/*.pt
+models/**/tokenizer.json
 
 ### Runtime data ###
 data/

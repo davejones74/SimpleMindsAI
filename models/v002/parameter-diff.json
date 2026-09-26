@@ -1,0 +1,317 @@
+{
+  "buffers": {
+    "compared": 2,
+    "drifted": [],
+    "driftedCount": 0,
+    "onlyAfter": [],
+    "onlyBefore": []
+  },
+  "parameters": {
+    "changed": [
+      {
+        "maxAbsDelta": 0.0031964611262083054,
+        "name": "model.embed_tokens.weight"
+      },
+      {
+        "maxAbsDelta": 0.002158522605895996,
+        "name": "model.layers.0.input_layernorm.weight"
+      },
+      {
+        "maxAbsDelta": 0.003177328035235405,
+        "name": "model.layers.0.mlp.down_proj.weight"
+      },
+      {
+        "maxAbsDelta": 0.003244580700993538,
+        "name": "model.layers.0.mlp.gate_proj.weight"
+      },
+      {
+        "maxAbsDelta": 0.003159632906317711,
+        "name": "model.layers.0.mlp.up_proj.weight"
+      },
+      {
+        "maxAbsDelta": 0.002873063087463379,
+        "name": "model.layers.0.post_attention_layernorm.weight"
+      },
+      {
+        "maxAbsDelta": 0.0031827623024582863,
+        "name": "model.layers.0.self_attn.k_proj.weight"
+      },
+      {
+        "maxAbsDelta": 0.00263034924864769,
+        "name": "model.layers.0.self_attn.o_proj.weight"
+      },
+      {
+        "maxAbsDelta": 0.0032514147460460663,
+        "name": "model.layers.0.self_attn.q_proj.weight"
+      },
+      {
+        "maxAbsDelta": 0.0024932492524385452,
+        "name": "model.layers.0.self_attn.v_proj.weight"
+      },
+      {
+        "maxAbsDelta": 0.002262592315673828,
+        "name": "model.layers.1.input_layernorm.weight"
+      },
+      {
+        "maxAbsDelta": 0.003279229626059532,
+        "name": "model.layers.1.mlp.down_proj.weight"
+      },
+      {
+        "maxAbsDelta": 0.0032266490161418915,
+        "name": "model.layers.1.mlp.gate_proj.weight"
+      },
+      {
+        "maxAbsDelta": 0.0031492095440626144,
+        "name": "model.layers.1.mlp.up_proj.weight"
+      },
+      {
+        "maxAbsDelta": 0.0029000043869018555,
+        "name": "model.layers.1.post_attention_layernorm.weight"
+      },
+      {
+        "maxAbsDelta": 0.0032071396708488464,
+        "name": "model.layers.1.self_attn.k_proj.weight"
+      },
+      {
+        "maxAbsDelta": 0.0023254682309925556,
+        "name": "model.layers.1.self_attn.o_proj.weight"
+      },
+      {
+        "maxAbsDelta": 0.0032815763261169195,
+        "name": "model.layers.1.self_attn.q_proj.weight"
+      },
+      {
+        "maxAbsDelta": 0.0023116767406463623,
+        "name": "model.layers.1.self_attn.v_proj.weight"
+      },
+      {
+        "maxAbsDelta": 0.0022435784339904785,
+        "name": "model.layers.2.input_layernorm.weight"
+      },
+      {
+        "maxAbsDelta": 0.0031893905252218246,
+        "name": "model.layers.2.mlp.down_proj.weight"
+      },
+      {
+        "maxAbsDelta": 0.0032241307199001312,
+        "name": "model.layers.2.mlp.gate_proj.weight"
+      },
+      {
+        "maxAbsDelta": 0.003168415278196335,
+        "name": "model.layers.2.mlp.up_proj.weight"
+      },
+      {
+        "maxAbsDelta": 0.002873539924621582,
+        "name": "model.layers.2.post_attention_layernorm.weight"
+      },
+      {
+        "maxAbsDelta": 0.003346238285303116,
+        "name": "model.layers.2.self_attn.k_proj.weight"
+      },
+      {
+        "maxAbsDelta": 0.0024876128882169724,
+        "name": "model.layers.2.self_attn.o_proj.weight"
+      },
+      {
+        "maxAbsDelta": 0.003217315301299095,
+        "name": "model.layers.2.self_attn.q_proj.weight"
+      },
+      {
+        "maxAbsDelta": 0.0022883862257003784,
+        "name": "model.layers.2.self_attn.v_proj.weight"
+      },
+      {
+        "maxAbsDelta": 0.002317190170288086,
+        "name": "model.layers.3.input_layernorm.weight"
+      },
+      {
+        "maxAbsDelta": 0.0032380223274230957,
+        "name": "model.layers.3.mlp.down_proj.weight"
+      },
+      {
+        "maxAbsDelta": 0.0032418537884950638,
+        "name": "model.layers.3.mlp.gate_proj.weight"
+      },
+      {
+        "maxAbsDelta": 0.0032106339931488037,
+        "name": "model.layers.3.mlp.up_proj.weight"
+      },
+      {
+        "maxAbsDelta": 0.0027626752853393555,
+        "name": "model.layers.3.post_attention_layernorm.weight"
+      },
+      {
+        "maxAbsDelta": 0.003058016300201416,
+        "name": "model.layers.3.self_attn.k_proj.weight"
+      },
+      {
+        "maxAbsDelta": 0.002533277962356806,
+        "name": "model.layers.3.self_attn.o_proj.weight"
+      },
+      {
+        "maxAbsDelta": 0.003108736127614975,
+        "name": "model.layers.3.self_attn.q_proj.weight"
+      },
+      {
+        "maxAbsDelta": 0.002404360566288233,
+        "name": "model.layers.3.self_attn.v_proj.weight"
+      },
+      {
+        "maxAbsDelta": 0.0021549463272094727,
+        "name": "model.layers.4.input_layernorm.weight"
+      },
+      {
+        "maxAbsDelta": 0.0032343491911888123,
+        "name": "model.layers.4.mlp.down_proj.weight"
+      },
+      {
+        "maxAbsDelta": 0.0032435283064842224,
+        "name": "model.layers.4.mlp.gate_proj.weight"
+      },
+      {
+        "maxAbsDelta": 0.0032233819365501404,
+        "name": "model.layers.4.mlp.up_proj.weight"
+      },
+      {
+        "maxAbsDelta": 0.00298464298248291,
+        "name": "model.layers.4.post_attention_layernorm.weight"
+      },
+      {
+        "maxAbsDelta": 0.0033489218913018703,
+        "name": "model.layers.4.self_attn.k_proj.weight"
+      },
+      {
+        "maxAbsDelta": 0.0026063593104481697,
+        "name": "model.layers.4.self_attn.o_proj.weight"
+      },
+      {
+        "maxAbsDelta": 0.0032502864487469196,
+        "name": "model.layers.4.self_attn.q_proj.weight"
+      },
+      {
+        "maxAbsDelta": 0.0026063285768032074,
+        "name": "model.layers.4.self_attn.v_proj.weight"
+      },
+      {
+        "maxAbsDelta": 0.0022972822189331055,
+        "name": "model.layers.5.input_layernorm.weight"
+      },
+      {
+        "maxAbsDelta": 0.0032242867164313793,
+        "name": "model.layers.5.mlp.down_proj.weight"
+      },
+      {
+        "maxAbsDelta": 0.0032350197434425354,
+        "name": "model.layers.5.mlp.gate_proj.weight"
+      },
+      {
+        "maxAbsDelta": 0.0032830731943249702,
+        "name": "model.layers.5.mlp.up_proj.weight"
+      },
+      {
+        "maxAbsDelta": 0.0030689239501953125,
+        "name": "model.layers.5.post_attention_layernorm.weight"
+      },
+      {
+        "maxAbsDelta": 0.0032869577407836914,
+        "name": "model.layers.5.self_attn.k_proj.weight"
+      },
+      {
+        "maxAbsDelta": 0.0026727961376309395,
+        "name": "model.layers.5.self_attn.o_proj.weight"
+      },
+      {
+        "maxAbsDelta": 0.003288052976131439,
+        "name": "model.layers.5.self_attn.q_proj.weight"
+      },
+      {
+        "maxAbsDelta": 0.002781083807349205,
+        "name": "model.layers.5.self_attn.v_proj.weight"
+      },
+      {
+        "maxAbsDelta": 0.002575516700744629,
+        "name": "model.layers.6.input_layernorm.weight"
+      },
+      {
+        "maxAbsDelta": 0.003232150338590145,
+        "name": "model.layers.6.mlp.down_proj.weight"
+      },
+      {
+        "maxAbsDelta": 0.003257289994508028,
+        "name": "model.layers.6.mlp.gate_proj.weight"
+      },
+      {
+        "maxAbsDelta": 0.003280365839600563,
+        "name": "model.layers.6.mlp.up_proj.weight"
+      },
+      {
+        "maxAbsDelta": 0.0029453039169311523,
+        "name": "model.layers.6.post_attention_layernorm.weight"
+      },
+      {
+        "maxAbsDelta": 0.0032500457018613815,
+        "name": "model.layers.6.self_attn.k_proj.weight"
+      },
+      {
+        "maxAbsDelta": 0.0027469415217638016,
+        "name": "model.layers.6.self_attn.o_proj.weight"
+      },
+      {
+        "maxAbsDelta": 0.0033070240169763565,
+        "name": "model.layers.6.self_attn.q_proj.weight"
+      },
+      {
+        "maxAbsDelta": 0.002952616661787033,
+        "name": "model.layers.6.self_attn.v_proj.weight"
+      },
+      {
+        "maxAbsDelta": 0.002446293830871582,
+        "name": "model.layers.7.input_layernorm.weight"
+      },
+      {
+        "maxAbsDelta": 0.0032953363843262196,
+        "name": "model.layers.7.mlp.down_proj.weight"
+      },
+      {
+        "maxAbsDelta": 0.0032462291419506073,
+        "name": "model.layers.7.mlp.gate_proj.weight"
+      },
+      {
+        "maxAbsDelta": 0.0032992102205753326,
+        "name": "model.layers.7.mlp.up_proj.weight"
+      },
+      {
+        "maxAbsDelta": 0.0029985904693603516,
+        "name": "model.layers.7.post_attention_layernorm.weight"
+      },
+      {
+        "maxAbsDelta": 0.0032043643295764923,
+        "name": "model.layers.7.self_attn.k_proj.weight"
+      },
+      {
+        "maxAbsDelta": 0.002883646637201309,
+        "name": "model.layers.7.self_attn.o_proj.weight"
+      },
+      {
+        "maxAbsDelta": 0.0031795036047697067,
+        "name": "model.layers.7.self_attn.q_proj.weight"
+      },
+      {
+        "maxAbsDelta": 0.0027813795022666454,
+        "name": "model.layers.7.self_attn.v_proj.weight"
+      },
+      {
+        "maxAbsDelta": 0.003306865692138672,
+        "name": "model.norm.weight"
+      }
+    ],
+    "changedCount": 74,
+    "compared": 74,
+    "onlyAfter": [],
+    "onlyBefore": [],
+    "shapeMismatch": [],
+    "tolerance": 1e-07,
+    "unchanged": [],
+    "unchangedCount": 0
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "checkpointDtype": "float32",
+  "configName": "small",
+  "createdAt": "2026-09-26T00:47:08Z",
+  "datasetHash": "346b9979ea045cb5e5abef6fc25c9e8a2b4d1df21c6d420c36d86b1cc52b2503",
+  "initialisationType": "TRAINED",
+  "parentInitialisationType": "RANDOM",
+  "parentVersion": "v001",
+  "pretrainedWeightsUsed": false,
+  "schema": "sma/provenance@1",
+  "stepsCompleted": 60,
+  "tokenizerHash": "ab4da6b2aa68247e9c0fa9b97fc7fcc796505038d01f7e144522a65ce0dbd2e5",
+  "tokensSeen": 30720,
+  "trainingRunId": "8b409a1c6383",
+  "version": "v002"
+}

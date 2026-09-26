@@ -75,10 +75,10 @@ def tokenizer(tmp_path_factory):
     config+tokenizer only. Never fetches weights, so this fixture is itself
     consistent with the no-pretrained-weights rule.
     """
-    from sma import proof
+    from sma import proof, store
     from transformers import AutoTokenizer
 
-    existing = REPO_ROOT / "python" / "scratch" / "models" / "v001"
+    existing = store.store_root() / "v001"
     if (existing / "tokenizer.json").exists():
         return AutoTokenizer.from_pretrained(str(existing))
     cache = tmp_path_factory.mktemp("reference")

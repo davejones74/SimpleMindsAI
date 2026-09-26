@@ -1,0 +1,67 @@
+{
+  "architecture": {
+    "architectures": [
+      "SmolLM3ForCausalLM"
+    ],
+    "attentionBias": false,
+    "attentionDropout": 0.0,
+    "bosTokenId": null,
+    "configName": "small",
+    "eosTokenId": 128001,
+    "gqaRatio": 3,
+    "headDim": 64,
+    "hiddenAct": "silu",
+    "hiddenSize": 384,
+    "initializerRange": 0.02,
+    "intermediateSize": 1024,
+    "layerTypes": [
+      "full_attention"
+    ],
+    "maxPositionEmbeddings": 2048,
+    "mlpBias": false,
+    "modelClass": "SmolLM3ForCausalLM",
+    "modelType": "smollm3",
+    "noRopeLayerIndices": [
+      3,
+      7
+    ],
+    "noRopeLayerInterval": 4,
+    "noRopeLayers": [
+      1,
+      1,
+      1,
+      0,
+      1,
+      1,
+      1,
+      0
+    ],
+    "numAttentionHeads": 6,
+    "numHiddenLayers": 8,
+    "numKeyValueHeads": 2,
+    "padTokenId": 128004,
+    "rmsNormEps": 1e-06,
+    "ropeScaling": null,
+    "ropeTheta": 5000000.0,
+    "ropeType": "default",
+    "slidingWindow": null,
+    "tieWordEmbeddings": true,
+    "torchDtype": "bfloat16",
+    "useSlidingWindow": false,
+    "vocabSize": 128256
+  },
+  "architectureReferenceRepo": "HuggingFaceTB/SmolLM3-3B-Base",
+  "configName": "small",
+  "createdAt": "2026-09-25T22:41:29Z",
+  "initialisationType": "RANDOM",
+  "parentVersion": null,
+  "pretrainedWeightsUsed": false,
+  "schema": "sma/provenance@1",
+  "sizes": {
+    "parametersTotal": 61839744,
+    "parametersTrainable": 61839744,
+    "parametersUniqueByStorage": 61839744
+  },
+  "trainingRunId": null,
+  "version": "v001"
+}

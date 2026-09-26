@@ -30,6 +30,70 @@ from typing import Any, Dict, Iterator, Optional
 COMMITTED_MARKER = "COMMITTED"
 TMP_SUFFIX = ".tmp"
 
+# The auditable record of a version: small text, safe in git, worthless without
+# the weights it describes. An explicit allowlist rather than an exclusion rule,
+# so a file added later is neither silently committed nor silently dropped.
+RECORD_FILES = (
+    "init-manifest.json",
+    "provenance.json",
+    "train-state.json",
+    "parameter-diff.json",
+    "config.json",
+    "generation_config.json",
+    COMMITTED_MARKER,
+)
+
+# A "record" bigger than this is a mistake worth failing on. The real ones are
+# 1 KB - 100 KB. If this ever trips, something binary leaked into the allowlist.
+RECORD_MAX_BYTES = 1 << 20
+
+# The tokenizer is deliberately NOT mirrored per version. It is byte-identical
+# across every version of a lineage -- 17.2 MB each time would be pure
+# duplication in git history for a file that never changes.
+
+
+# ------------------------------------------------------------- store root
+#
+# The store lives OUTSIDE the working tree, always. Two reasons, both learned
+# the hard way:
+#
+#   - A directory named "scratch" is a promise that someone will delete it. The
+#     append-only model lineage is the one thing that must not be disposable,
+#     and a checkout that gets re-cloned or a deploy that gets re-provisioned
+#     will happily wipe it.
+#   - On a server the repo is often read-only, ephemeral, or on a different host
+#     than the weights. Coupling them makes the weights a deployment artifact.
+#
+# SMA_STORE is the single knob. Default is per-user and outside any repo, so a
+# fresh clone never silently adopts a different lineage than the one in use.
+
+
+def store_root(explicit: Optional[Path] = None) -> Path:
+    """Resolve the canonical store location: argument, then env, then default."""
+    if explicit:
+        return Path(explicit)
+    env = os.environ.get("SMA_STORE")
+    if env:
+        return Path(env)
+    return Path.home() / ".sma" / "store"
+
+
+# ---------------------------------------------------------- the git mirror
+#
+# Git tracks a *copy* of the small text of each version; the store keeps the
+# authoritative whole. ~150 KB duplicated per version buys two things that
+# cannot be had otherwise:
+#
+#   - Version directories stay whole, so atomic commit still means all-or-nothing.
+#     Splitting the record from the weights would reintroduce exactly the torn
+#     state that staging_dir and COMMITTED exist to prevent.
+#   - The history of how every brain was made is reviewable in a diff, without
+#     a 247 MB binary in every version of the repository.
+#
+# The mirror is verified against the store on every write, so it cannot drift
+# into being a second, unverified source of truth.
+
+
 
 # --------------------------------------------------------------- durability
 #
@@ -286,6 +350,292 @@ def artifact_name(manifest: Dict[str, Any]) -> str:
 
 def artifact_name_for_version(root: Path, version: str) -> str:
     return artifact_name(read_json(Path(root) / version / "init-manifest.json"))
+
+
+# ----------------------------------------------------------------- loading
+#
+# ONE rule for every consumer: weights are loaded from the immutable version
+# directory, never from an export. Chat, eval, generate and the Node worker all
+# go through `resolve_version_dir`.
+#
+# This is a structural decision, not a preference. An export is a *copy* made
+# for distribution, so serving from it would create a second 247 MB copy of
+# the same weights and a permanent obligation to prove the two agree. The
+# version directory is the canonical, hash-verified artifact; the export exists
+# only to get bytes to a machine that has no repository.
+
+
+def resolve_version_dir(root: Path, version: str) -> Path:
+    """The single path every consumer loads weights from."""
+    path = Path(root) / version
+    if not path.is_dir():
+        raise FileNotFoundError(f"no such version: {path}")
+    if not is_committed(path):
+        raise ValueError(
+            f"{version} is not committed ({COMMITTED_MARKER} missing); "
+            "refusing to load a possibly incomplete checkpoint"
+        )
+    return path
+
+
+def weight_files(path: Path) -> list:
+    """The safetensors weight file(s): one, or many if sharded."""
+    found = sorted(Path(path).glob("*.safetensors"))
+    if not found:
+        raise FileNotFoundError(f"{path} contains no .safetensors weight file")
+    return found
+
+
+def file_sha256(path: Path, chunk: int = 1 << 20) -> str:
+    h = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for block in iter(lambda: fh.read(chunk), b""):
+            h.update(block)
+    return h.hexdigest()
+
+
+# ----------------------------------------------------------------- export
+#
+# The artifact name becomes a *directory* name rather than a file prefix, so
+# the export is still an ordinary transformers checkpoint that
+# `from_pretrained` accepts unchanged. Renaming model.safetensors to
+# `simpleminds-...safetensors` would have made the content address and the
+# loader mutually exclusive.
+#
+# Serving does not use this. See `resolve_version_dir`.
+
+
+def export_version(root: Path, version: str, out_dir: Path) -> Dict[str, Any]:
+    """Copy one committed version to a content-addressed export directory.
+
+    Refuses to overwrite. A content-addressed name that already exists should
+    already be byte-identical, so clobbering it would mean something upstream
+    is wrong -- and silently replacing a distributed artifact is exactly the
+    failure this whole naming scheme exists to make impossible.
+    """
+    src = resolve_version_dir(root, version)
+    manifest = read_json(src / "init-manifest.json")
+    name = artifact_name(manifest)
+
+    dest = Path(out_dir) / name
+    if dest.exists():
+        raise FileExistsError(
+            f"{dest} already exists. The name is content-addressed, so an existing "
+            f"export is already byte-identical; refusing rather than overwriting."
+        )
+
+    tmp = Path(str(dest) + TMP_SUFFIX)
+    if tmp.exists():
+        shutil.rmtree(tmp)
+    tmp.mkdir(parents=True)
+
+    try:
+        for child in sorted(src.iterdir()):
+            if child.is_file():
+                shutil.copy2(child, tmp / child.name)
+
+        # The copy must still hash to the name it is filed under. A truncated
+        # or altered copy is caught here rather than by whoever downloads it.
+        copied = read_json(tmp / "init-manifest.json")
+        recomputed = artifact_name(copied)
+        if recomputed != name:
+            raise ValueError(f"exported copy hashes to {recomputed}, expected {name}")
+
+        sums = [
+            f"{file_sha256(child)}  {child.name}"
+            for child in sorted(tmp.iterdir())
+            if child.is_file()
+        ]
+        (tmp / "SHA256SUMS").write_text("\n".join(sums) + "\n", encoding="utf-8")
+
+        # Written after SHA256SUMS and therefore absent from it, on purpose:
+        # it carries an export timestamp, so including it would make the sums
+        # file differ between two exports of identical bytes.
+        write_json(
+            tmp / "EXPORT.json",
+            {
+                "schema": "sma/export@1",
+                "artifactName": name,
+                "sourceVersion": version,
+                "sourcePath": str(src),
+                "exportedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                "weightFingerprint": weight_fingerprint(manifest),
+                "parameterCount": (manifest.get("sizes") or {}).get("parametersUniqueByStorage"),
+                "files": sorted(p.name for p in tmp.iterdir() if p.is_file()),
+            },
+        )
+
+        for child in sorted(tmp.iterdir()):
+            if child.is_file():
+                fsync_file(child)
+        fsync_dir(tmp)
+        os.replace(tmp, dest)
+        fsync_dir(Path(out_dir))
+    except BaseException:
+        shutil.rmtree(tmp, ignore_errors=True)
+        raise
+
+    return {
+        "artifactName": name,
+        "path": str(dest),
+        "sourceVersion": version,
+        "files": sorted(p.name for p in dest.iterdir() if p.is_file()),
+        "bytes": sum(p.stat().st_size for p in dest.iterdir() if p.is_file()),
+    }
+
+
+def verify_export(path: Path) -> Dict[str, Any]:
+    """Re-check an export's SHA256SUMS. This is what a downloader runs."""
+    path = Path(path)
+    sums_path = path / "SHA256SUMS"
+    if not sums_path.is_file():
+        raise FileNotFoundError(f"{sums_path} missing; not an export, or an incomplete one")
+
+    checked, bad = [], []
+    for line in sums_path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        expected, _, filename = line.partition("  ")
+        target = path / filename
+        if not target.is_file():
+            bad.append({"file": filename, "reason": "missing"})
+            continue
+        actual = file_sha256(target)
+        if actual != expected:
+            bad.append({"file": filename, "reason": "hash mismatch", "expected": expected, "actual": actual})
+        else:
+            checked.append(filename)
+
+    return {"path": str(path), "verified": checked, "failed": bad, "ok": not bad}
+
+
+# ------------------------------------------------------------ record mirror
+
+
+def mirror_record(root: Path, version: str, repo_models: Path) -> Dict[str, Any]:
+    """Copy a version's small text into the git-tracked mirror, verified.
+
+    The mirror is a convenience for review, not a second source of truth. Every
+    file is hashed on the way across and re-checked after the write, so it
+    cannot quietly diverge from the store it describes.
+    """
+    src = resolve_version_dir(root, version)
+    dest = Path(repo_models) / version
+
+    expected: Dict[str, str] = {}
+    for name in RECORD_FILES:
+        candidate = src / name
+        if not candidate.is_file():
+            continue
+        size = candidate.stat().st_size
+        if size > RECORD_MAX_BYTES:
+            raise ValueError(
+                f"{name} is {size:,} bytes, over the {RECORD_MAX_BYTES:,} record cap; "
+                "something binary has leaked into the record allowlist"
+            )
+        expected[name] = file_sha256(candidate)
+
+    if "init-manifest.json" not in expected:
+        raise FileNotFoundError(f"{version} has no init-manifest.json; refusing to mirror")
+
+    dest.mkdir(parents=True, exist_ok=True)
+    for name, digest in expected.items():
+        target = dest / name
+        tmp = target.with_name(f".{name}.writing")
+        shutil.copy2(src / name, tmp)
+        if file_sha256(tmp) != digest:
+            tmp.unlink(missing_ok=True)
+            raise ValueError(f"{name} changed during the copy; mirror not written")
+        os.replace(tmp, target)
+
+    for name, digest in expected.items():
+        if file_sha256(dest / name) != digest:
+            raise ValueError(f"mirror verification failed for {name}")
+
+    return {"version": version, "path": str(dest), "files": sorted(expected), "bytes": sum(
+        (dest / n).stat().st_size for n in expected
+    )}
+
+
+def verify_mirror(root: Path, repo_models: Path) -> Dict[str, Any]:
+    """Check every git-tracked record against the store it claims to describe.
+
+    Symmetric on purpose. Checking only what the store happens to hold would
+    let the mirror accumulate invented content and still report clean, which
+    makes it a second, unverified source of truth -- precisely the failure this
+    mirror exists to avoid.
+    """
+    repo_models = Path(repo_models)
+    results, drifted = [], []
+    for version in list_versions(root):
+        src = Path(root) / version
+        dest = repo_models / version
+        if not dest.is_dir():
+            continue
+
+        for name in RECORD_FILES:
+            a, b = src / name, dest / name
+            if not a.is_file() and not b.is_file():
+                continue
+            if a.is_file() and not b.is_file():
+                drifted.append({"version": version, "file": name, "reason": "missing from mirror"})
+            elif b.is_file() and not a.is_file():
+                drifted.append({"version": version, "file": name, "reason": "not in store"})
+            elif file_sha256(a) != file_sha256(b):
+                drifted.append({"version": version, "file": name, "reason": "differs from store"})
+
+        # Anything else in the mirror is unrequested content. A weight file
+        # copied here by accident, or a hand-written claim, must not pass as
+        # if it were part of the reviewed record.
+        for stray in sorted(p for p in dest.iterdir() if p.is_file()):
+            if stray.name in RECORD_FILES:
+                continue
+            drifted.append({"version": version, "file": stray.name, "reason": "not a record file"})
+
+        results.append(version)
+
+    return {"store": str(root), "mirror": str(repo_models), "checked": results, "drifted": drifted, "ok": not drifted}
+
+
+# ------------------------------------------------------- deployment pointer
+#
+# `active` is the one deliberately MUTABLE name in the system, and it exists
+# only for deployment: "which brain is the server serving right now."
+#
+# It is kept strictly separate from identity. `vNNN` and the content address
+# never move; `active` moves, and records what it moved to and when. It must
+# never appear in a manifest, because a manifest that says "I am active" is a
+# manifest that can lie -- activity is a property of a deployment, not of a
+# weight file.
+
+
+def active_pointer_path(root: Path) -> Path:
+    return Path(root) / "active.json"
+
+
+def set_active(root: Path, version: str) -> Dict[str, Any]:
+    path = resolve_version_dir(root, version)
+    manifest = read_json(path / "init-manifest.json")
+    payload = {
+        "schema": "sma/active@1",
+        "version": version,
+        "artifactName": artifact_name(manifest),
+        "weightFingerprint": weight_fingerprint(manifest),
+        "activatedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    }
+    write_json(active_pointer_path(root), payload)
+    return payload
+
+
+def active_version(root: Path) -> Optional[str]:
+    """The version a server should serve, or None if nothing is activated."""
+    path = active_pointer_path(root)
+    if not path.is_file():
+        return None
+    try:
+        return read_json(path).get("version")
+    except (json.JSONDecodeError, OSError):
+        return None
 
 
 # ---------------------------------------------------------------- heartbeat

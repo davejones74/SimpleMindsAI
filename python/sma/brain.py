@@ -26,7 +26,13 @@ import time
 from pathlib import Path
 from typing import Any, Dict
 
-DEFAULT_OUT = Path("data/models")
+from .store import store_root
+
+# The store root is resolved at *parse* time from SMA_STORE rather than at
+# import time, so a caller or a test can change the environment and be
+# honoured. Import-time capture would silently pin the wrong lineage.
+DEFAULT_EXPORT = Path("data/exports")
+DEFAULT_REPO_MODELS = Path("../models")
 
 
 def _log(msg: str) -> None:
@@ -178,6 +184,73 @@ def cmd_status(args: argparse.Namespace) -> Dict[str, Any]:
         "nextVersion": store.next_version(root),
         "versions": versions,
     }
+
+
+# ------------------------------------------------------------- publication
+
+
+def cmd_export(args: argparse.Namespace) -> Dict[str, Any]:
+    """Copy a committed version out under its content-addressed name.
+
+    This exists to move bytes to a machine without the repository. Serving --
+    chat, eval, generate -- deliberately does not go through it; those load the
+    immutable version directory, which is canonical. An export is a copy, and
+    a second copy of the same weights is a second thing that can be wrong.
+    """
+    from . import store
+
+    result = store.export_version(Path(args.out), args.version, Path(args.dest))
+    _log(f"exported {result['sourceVersion']} -> {result['path']}")
+    _log(f"  {result['bytes']:,} bytes, {len(result['files'])} files")
+    return {"ok": True, "verb": "export", **result}
+
+
+def cmd_verify_export(args: argparse.Namespace) -> Dict[str, Any]:
+    from . import store
+
+    result = store.verify_export(Path(args.path))
+    if not result["ok"]:
+        _log(f"FAILED: {len(result['failed'])} file(s) did not verify")
+    return {"ok": result["ok"], "verb": "verify-export", **result}
+
+
+def cmd_active(args: argparse.Namespace) -> Dict[str, Any]:
+    """Show, set, or sync the deployment pointer and the git record mirror."""
+    from . import store
+
+    root = Path(args.out)
+    result: Dict[str, Any] = {
+        "ok": True,
+        "verb": "active",
+        "store": str(root),
+        "mirror": args.models,
+    }
+
+    if args.sync:
+        mirrored = [store.mirror_record(root, v, Path(args.models)) for v in store.list_versions(root)]
+        result["mirrored"] = mirrored
+        _log(f"mirrored {len(mirrored)} version record(s) into {args.models}")
+
+    check = store.verify_mirror(root, Path(args.models))
+    result["mirrorCheck"] = check
+    if check["drifted"]:
+        _log(f"WARNING: {len(check['drifted'])} mirrored file(s) differ from the store")
+
+    if args.set_to:
+        pointer = store.set_active(root, args.set_to)
+        result["activated"] = pointer
+        _log(f"active -> {pointer['version']} ({pointer['artifactName']})")
+    else:
+        current = store.active_version(root)
+        result["activeVersion"] = current
+        if current:
+            try:
+                result["artifactName"] = store.artifact_name_for_version(root, current)
+            except (FileNotFoundError, ValueError):
+                pass
+        _log(f"active = {current or '(none set)'}")
+
+    return result
 
 
 # ------------------------------------------------------------- not yet here
@@ -448,22 +521,22 @@ def build_parser() -> argparse.ArgumentParser:
     from . import configs
 
     p = argparse.ArgumentParser(prog="python -m sma.brain", description=__doc__)
-    p.add_argument("--out", default=str(DEFAULT_OUT), help="brain version root")
+    p.add_argument("--out", default=str(store_root()), help="brain version root")
     sub = p.add_subparsers(dest="verb", required=True)
 
     def common(sp):
-        sp.add_argument("--out", default=str(DEFAULT_OUT))
+        sp.add_argument("--out", default=str(store_root()))
 
     sp = sub.add_parser("init", help="randomly initialise a new brain version")
     sp.add_argument("--config", default="small", choices=list(configs.CONFIG_NAMES))
     sp.add_argument("--seed", type=int, default=0)
     sp.add_argument("--repo", default=configs.ARCH_REFERENCE_REPO)
     sp.add_argument("--version", default=None, help="explicit version name; default is next free vNNN")
-    sp.add_argument("--out", default=str(DEFAULT_OUT))
+    sp.add_argument("--out", default=str(store_root()))
     sp.set_defaults(func=cmd_init)
 
     sp = sub.add_parser("status", help="list brain versions")
-    sp.add_argument("--out", default=str(DEFAULT_OUT))
+    sp.add_argument("--out", default=str(store_root()))
     sp.set_defaults(func=cmd_status)
 
     sp = sub.add_parser("train", help="train a child version from a parent")
@@ -471,7 +544,7 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--corpus", required=True, nargs="+", help="fixture .txt or .jsonl")
     sp.add_argument("--config", default="small", choices=list(configs.CONFIG_NAMES))
     sp.add_argument("--version", default=None, help="default is next free vNNN")
-    sp.add_argument("--out", default=str(DEFAULT_OUT))
+    sp.add_argument("--out", default=str(store_root()))
     sp.add_argument(
         "--lr",
         type=float,
@@ -506,6 +579,29 @@ def build_parser() -> argparse.ArgumentParser:
         sp = sub.add_parser(name, help=helptext)
         common(sp)
         sp.set_defaults(func=fn)
+
+    sp = sub.add_parser(
+        "export",
+        help="copy a committed version to a content-addressed directory (distribution, not serving)",
+    )
+    common(sp)
+    sp.add_argument("--version", required=True, help="committed version to export, e.g. v002")
+    sp.add_argument("--dest", default=str(DEFAULT_EXPORT), help="export root directory")
+    sp.set_defaults(func=cmd_export)
+
+    sp = sub.add_parser("verify-export", help="re-check an export's SHA256SUMS")
+    sp.add_argument("--path", required=True, help="export directory to verify")
+    sp.set_defaults(func=cmd_verify_export)
+
+    act = sub.add_parser(
+        "active",
+        help="show or set which version a server serves (the one mutable pointer)",
+    )
+    common(act)
+    act.add_argument("--set", dest="set_to", default=None, help="activate this committed version")
+    act.add_argument("--models", default=str(DEFAULT_REPO_MODELS), help="git-tracked record mirror")
+    act.add_argument("--sync", action="store_true", help="mirror every version's record into git")
+    act.set_defaults(func=cmd_active)
 
     return p
 
