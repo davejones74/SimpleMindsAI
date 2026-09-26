@@ -11,13 +11,14 @@ Node invokes this as a subprocess. stdout carries exactly one JSON object;
 stderr carries logs; a non-zero exit means failure and the caller must treat
 the run as failed. There is deliberately no fallback path.
 
-Phase 1 implements `init` and `status`. `train`/`eval`/`generate` land in
-the next step and are stubbed here so the contract is visible early.
+Phase 1 implements `init`, `status` and `train`. `eval` and `generate` are
+still stubbed so the contract is visible early.
 """
 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import sys
@@ -176,8 +177,254 @@ def cmd_status(args: argparse.Namespace) -> Dict[str, Any]:
 # ------------------------------------------------------------- not yet here
 
 
+def _resolve_device(requested: str) -> str:
+    import torch
+
+    if requested == "auto":
+        return "cuda" if torch.cuda.is_available() else "cpu"
+    return requested
+
+
 def cmd_train(args: argparse.Namespace) -> Dict[str, Any]:
-    raise NotImplementedError("train lands in the next Phase 1 step")
+    """Phase 1 check 5: real optimization, published atomically or not at all."""
+    from transformers import AutoModelForCausalLM, AutoTokenizer
+
+    from . import proof, store, train as train_mod
+
+    root = Path(args.out)
+    parent = args.parent
+    parent_dir = store.version_path(root, parent)
+    if not store.is_committed(parent_dir):
+        raise FileNotFoundError(
+            f"parent {parent} is not committed ({parent_dir}); refusing to train from it"
+        )
+
+    version = args.version or store.next_version(root)
+    device = _resolve_device(args.device)
+    t0 = time.perf_counter()
+    _log(f"train {version} from {parent} on {device} for {args.steps} step(s)")
+
+    # Our own checkpoint on local disk. The audit allows a filesystem path and
+    # forbids a Hub id, which is exactly this case.
+    os.environ["HF_HUB_OFFLINE"] = "1"
+    os.environ["TRANSFORMERS_OFFLINE"] = "1"
+
+    tokenizer = AutoTokenizer.from_pretrained(parent_dir)
+    tokenizer_file = parent_dir / "tokenizer.json"
+    if not tokenizer_file.is_file():
+        raise FileNotFoundError(f"parent has no tokenizer.json: {tokenizer_file}")
+
+    # Load straight into fp32: the parent is bf16 and upcasting is lossless, and
+    # this avoids loading-then-converting.
+    model = AutoModelForCausalLM.from_pretrained(parent_dir, dtype="auto")
+    # Promote to fp32 masters *before* snapshotting. Diffing bf16 against fp32
+    # would show every parameter as changed purely from dtype rounding, and check 7
+    # would pass without a single real update.
+    model = model.float()
+
+    audit = proof.audit_from_pretrained_usage(Path(__file__).parent)
+    if audit["violations"]:
+        raise AssertionError(
+            "pretrained-weight loads found in the model path: "
+            + json.dumps(audit["violations"], indent=2)
+        )
+
+    from . import data as data_mod
+
+    documents = data_mod.load_documents([Path(p) for p in args.corpus])
+    _log(f"ingested {len(documents)} document(s) from {len(args.corpus)} path(s)")
+
+    # Check 7 baselines, taken on the same fp32 masters the optimizer will update.
+    before_params = train_mod.named_parameter_snapshots(model)
+    before_buffers = train_mod.named_buffer_snapshots(model)
+    _log(f"snapshotted {len(before_params)} parameters and {len(before_buffers)} buffers")
+
+    cfg = train_mod.TrainConfig(
+        learningRate=args.lr,
+        steps=args.steps,
+        sequenceLength=args.seq_len,
+        microBatchSize=args.micro_batch,
+        gradAccumSteps=args.grad_accum,
+        warmupSteps=args.warmup,
+        gradClip=None if args.grad_clip <= 0 else args.grad_clip,
+        validationBlocks=args.val_blocks,
+        seed=args.seed,
+        computeDtype=args.compute_dtype,
+        logEvery=args.log_every,
+        spikeFactor=args.spike_factor,
+    )
+    cfg.validate()
+
+    resume_state = None
+    optimizer_state = None
+    if args.resume_from:
+        # Both halves are needed: the JSON carries the config/dataset identity the
+        # guard checks, the pickle carries the optimizer moments. Neither alone can
+        # resume, and silently resuming without the moments would restart AdamW's
+        # accumulators from zero.
+        resume_json = store.read_json(
+            store.version_path(root, args.resume_from) / "train-state.json"
+        )
+        resume_blob_path = root / "_runs" / f"{args.resume_from}.train-state.pt"
+        if not resume_blob_path.is_file():
+            raise FileNotFoundError(
+                f"no resume state for {args.resume_from} at {resume_blob_path}"
+            )
+        blob = train_mod.load_train_state(resume_blob_path)
+        resume_state = resume_json
+        optimizer_state = blob["optimizer"]
+        _log(
+            f"resuming {args.resume_from} from step {resume_json['stepsCompleted']} "
+            f"({len(blob['optimizer']['state'])} optimizer tensors)"
+        )
+
+    try:
+        result, train_state, optimizer = train_mod.train(
+            model=model,
+            tokenizer=tokenizer,
+            documents=documents,
+            cfg=cfg,
+            parent_version=parent,
+            new_version=version,
+            tokenizer_path=tokenizer_file,
+            device=device,
+            resume=resume_state,
+            optimizer_state=optimizer_state,
+            log=_log,
+        )
+    except train_mod.NumericalFailure as exc:
+        # Invariant 9: a failed run must never become the active brain. Nothing has
+        # been written yet, so there is nothing to roll back.
+        _log(f"GUARD TRIPPED, nothing published: {exc}")
+        return {
+            "ok": False,
+            "verb": "train",
+            "published": False,
+            "parentVersion": parent,
+            "error": str(exc),
+            "kind": "numerical_failure",
+        }
+
+    after_params = train_mod.named_parameter_snapshots(model)
+    after_buffers = train_mod.named_buffer_snapshots(model)
+    param_diff = train_mod.diff_tensors(before_params, after_params, tolerance=args.min_delta)
+    buffer_diff = train_mod.assert_buffers_unchanged(before_buffers, after_buffers)
+    _log(
+        f"check 7: {param_diff['changedCount']}/{param_diff['compared']} parameters "
+        f"changed; {len(buffer_diff['drifted'])} buffer(s) drifted"
+    )
+
+    # Identify the run by what it consumed, not by its version name: two runs can
+    # both target v004 and differ in corpus, config or parent.
+    run_id = hashlib.sha256(
+        json.dumps(
+            {
+                "parent": parent,
+                "config": train_state["config"],
+                "packing": train_state["packing"],
+            },
+            sort_keys=True,
+        ).encode("utf-8")
+    ).hexdigest()[:12]
+
+    # --- publish atomically; staging is discarded if anything below throws ---
+    with store.staging_dir(root, version) as tmp:
+        model.save_pretrained(tmp, safe_serialization=True)
+        tokenizer.save_pretrained(tmp)
+        # The readable state stays in the version: it is provenance, and the README
+        # requires the config, dataset hash and RNG states on every checkpoint.
+        store.write_json(tmp / "train-state.json", train_state)
+        store.write_json(tmp / "parameter-diff.json", {"parameters": param_diff, "buffers": buffer_diff})
+        store.write_json(
+            tmp / "provenance.json",
+            {
+                "schema": "sma/provenance@1",
+                "version": version,
+                "configName": args.config,
+                "parentVersion": parent,
+                "trainingRunId": run_id,
+                "initialisationType": "TRAINED",
+                "pretrainedWeightsUsed": False,
+                "parentInitialisationType": "RANDOM",
+                "checkpointDtype": str(next(model.parameters()).dtype).replace("torch.", ""),
+                "datasetHash": train_state["packing"]["datasetHash"],
+                "tokenizerHash": train_state["packing"]["tokenizerHash"],
+                "stepsCompleted": train_state["stepsCompleted"],
+                "tokensSeen": train_state["tokensSeen"],
+                "createdAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            },
+        )
+        manifest = store.read_json(parent_dir / "init-manifest.json")
+        manifest = dict(manifest)
+        manifest["version"] = version
+        manifest["parentVersion"] = parent
+        manifest["derivedFrom"] = parent
+        manifest["initialisationType"] = "TRAINED"
+        manifest["trainedSteps"] = train_state["stepsCompleted"]
+        manifest["tensorHashesAfterTraining"] = proof.tensor_hashes(model)
+        store.write_json(tmp / "init-manifest.json", manifest)
+
+    store.commit_marker(
+        root / version,
+        {
+            "parentVersion": parent,
+            "stepsCompleted": train_state["stepsCompleted"],
+            "finalTrainLoss": result.finalTrainLoss,
+        },
+    )
+
+    # Optimizer moments live outside the version directory, deliberately. They are
+    # ~8x the size of the fp32 weights for a 62M model, they are a torch pickle
+    # rather than a reviewable record, and they describe a *run* that may continue,
+    # not a version that is immutable once committed. Putting them in the version
+    # would make every checkpoint 724 MiB instead of 230 MiB and would mean
+    # checking a binary blob into git to satisfy provenance that the JSON
+    # already carries.
+    runs_dir = root / "_runs"
+    runs_dir.mkdir(parents=True, exist_ok=True)
+    resume_blob = runs_dir / f"{version}.train-state.pt"
+    train_mod.save_train_state(resume_blob, train_state, optimizer)
+    _log(f"committed {version} (resume state -> {resume_blob.name})")
+
+
+    return {
+        "ok": True,
+        "verb": "train",
+        "version": version,
+        "parentVersion": parent,
+        "trainingRunId": run_id,
+        "published": True,
+        "device": device,
+        "checkpointDtype": str(next(model.parameters()).dtype).replace("torch.", ""),
+        "initialTrainLoss": result.initialTrainLoss,
+        "finalTrainLoss": result.finalTrainLoss,
+        "initialValidationLoss": result.initialValidationLoss,
+        "finalValidationLoss": result.finalValidationLoss,
+        "stepsCompleted": train_state["stepsCompleted"],
+        "tokensSeen": result.tokensSeen,
+        "datasetHash": train_state["packing"]["datasetHash"],
+        "blockCount": train_state["packing"]["blockCount"],
+        "durationMs": int((time.perf_counter() - t0) * 1000),
+        "checks": {
+            "check5_ran": {"ok": True, "steps": train_state["stepsCompleted"]},
+            "check7_parametersChanged": {
+                "ok": param_diff["unchangedCount"] == 0 and not param_diff["onlyBefore"]
+                and not param_diff["onlyAfter"]
+                and not param_diff["shapeMismatch"],
+                "compared": param_diff["compared"],
+                "changed": param_diff["changedCount"],
+                "unchanged": param_diff["unchangedCount"],
+                "unchangedNames": [u["name"] for u in param_diff["unchanged"]],
+                "minDelta": min((c["maxAbsDelta"] for c in param_diff["changed"]), default=0.0),
+                "maxDelta": max((c["maxAbsDelta"] for c in param_diff["changed"]), default=0.0),
+            },
+            "check7_buffersUnchanged": {
+                "ok": not buffer_diff["drifted"],
+                "compared": buffer_diff["compared"],
+                "drifted": buffer_diff["drifted"],
+            },
+        },
+    }
 
 
 def cmd_eval(args: argparse.Namespace) -> Dict[str, Any]:
@@ -213,8 +460,40 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--out", default=str(DEFAULT_OUT))
     sp.set_defaults(func=cmd_status)
 
+    sp = sub.add_parser("train", help="train a child version from a parent")
+    sp.add_argument("--parent", required=True, help="committed parent version, e.g. v001")
+    sp.add_argument("--corpus", required=True, nargs="+", help="fixture .txt or .jsonl")
+    sp.add_argument("--config", default="small", choices=list(configs.CONFIG_NAMES))
+    sp.add_argument("--version", default=None, help="default is next free vNNN")
+    sp.add_argument("--out", default=str(DEFAULT_OUT))
+    sp.add_argument(
+        "--lr",
+        type=float,
+        required=True,
+        help="learning rate. Required, with no default, on purpose: see the README "
+        "section on loss instability before picking a value.",
+    )
+    sp.add_argument("--steps", type=int, default=60)
+    sp.add_argument("--seq-len", type=int, default=128)
+    sp.add_argument("--micro-batch", type=int, default=2)
+    sp.add_argument("--grad-accum", type=int, default=2)
+    sp.add_argument("--warmup", type=int, default=10)
+    sp.add_argument("--val-blocks", type=int, default=2)
+    sp.add_argument("--grad-clip", type=float, default=1.0, help="0 disables clipping")
+    sp.add_argument("--spike-factor", type=float, default=2.5, help="0 disables spike detection")
+    sp.add_argument("--min-delta", type=float, default=1e-7, help="check 7 materiality floor")
+    sp.add_argument("--seed", type=int, default=0)
+    sp.add_argument("--device", default="auto", help="auto | cpu | cuda")
+    sp.add_argument("--compute-dtype", default="bfloat16", choices=["bfloat16", "float32"])
+    sp.add_argument("--log-every", type=int, default=1)
+    sp.add_argument(
+        "--resume-from",
+        default=None,
+        help="version whose train state to continue from; pair with a larger --steps",
+    )
+    sp.set_defaults(func=cmd_train)
+
     for name, fn, helptext in (
-        ("train", cmd_train, "train a child version from a parent"),
         ("eval", cmd_eval, "evaluate a version"),
         ("generate", cmd_generate, "greedy/sample decode from a version"),
     ):
