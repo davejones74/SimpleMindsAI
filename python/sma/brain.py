@@ -162,7 +162,13 @@ def cmd_status(args: argparse.Namespace) -> Dict[str, Any]:
             "hasTrainState": (path / "train-state.pt").exists(),
         }
         if manifest_path.exists():
-            entry["manifest"] = store.read_json(manifest_path)
+            manifest = store.read_json(manifest_path)
+            entry["manifest"] = manifest
+            try:
+                entry["artifactName"] = store.artifact_name(manifest)
+            except ValueError as exc:
+                entry["artifactName"] = None
+                entry["artifactNameError"] = str(exc)
         versions.append(entry)
 
     return {

@@ -25,7 +25,7 @@ Python 3.14.6, Node ≥20, torch 2.14.0+cu130, transformers 5.17.0).
 | | |
 |---|---|
 | Node data plane | 24/24 `node:test` tests pass |
-| Python compute plane | 57/57 pytest tests pass |
+| Python compute plane | 73/73 pytest tests pass |
 | Checkpoint `v001` | committed, 62M params, provenance recorded |
 | Checkpoint `v002` | committed, 60 real steps, 74/74 params moved, 2 buffers unchanged |
 
@@ -306,7 +306,7 @@ python -m venv .venv
 pip install --index-url https://download.pytorch.org/whl/cu130 torch
 pip install -r requirements.txt
 
-python -m pytest                                  # 57 tests
+python -m pytest                                  # 73 tests
 python -m sma.brain init   --config small --out scratch\models
 python -m sma.brain status --out scratch\models
 ```
@@ -432,15 +432,46 @@ answer *which exact weights produced this loss number*, and a name that moves un
 answer that. `latest` also invites pull-and-assume-reproducible, which this project cannot offer.
 
 ```
-internal identity    vNNN                                      append-only, immutable
-artifact name        smai-smollm3-<size>-<YYYYMMDD>-<hash12>     immutable, content-addressed
-release pointer      latest                                    only ever advances, never in a manifest
+internal identity    vNNN                                   append-only, immutable
+artifact name        simpleminds-<size>-<YYYYMMDD>-<hash12>  immutable, content-addressed
+release pointer      latest                                 only ever advances, never in a manifest
 ```
 
-The 12-hex suffix is the point: the name *proves* which weights it is. If the hash does not match
-the file, the name is a lie and verification fails loudly. The canonical `vNNN` remains the
-internal identity so `store.py`'s immutability rules and the manifest chain stay authoritative;
-the artifact name is a publication concern layered on top, not a replacement.
+Computed by `store.artifact_name()`, not by hand, and reported by `status`:
+
+```
+v001  ->  simpleminds-62m-20260925-875995abf068
+v002  ->  simpleminds-62m-20260925-51240e176ed9
+```
+
+The 12-hex suffix is the point: the name *proves* which weights it is. A downloader recomputes
+it from the weight file, and a mismatch fails loudly. It is hashed over the `name -> digest`
+**pairs** rather than the bare digests, because this model records 76 tensors but only **59
+distinct digests** — the 17 RMSNorm weights all hold `1.0`. Where digests repeat, a digest-only
+hash cannot distinguish a correct manifest from one that assigned every value to the wrong
+tensor. The date is the version's own `createdAt`, never today's, so the name is reproducible
+from committed metadata alone.
+
+#### The name does not credit SmolLM3, deliberately
+
+An earlier draft called these `smai-smollm3-...`. That was wrong for a reason that is not
+cosmetic: this project's entire claim is that **no pretrained weights were used**, so putting
+another model's name in the headline of the artifact invites precisely the misreading the
+[proof obligations](#proof-obligations) exist to prevent. A reader who sees `smollm3` in a
+filename has been told a fine-tune happened, whatever the manifest says afterwards.
+
+The architecture genuinely *is* SmolLM3, and that is not being hidden — it is recorded in
+`config.json`, `provenance.json` and `architectureReferenceRepo`, which is where lineage belongs
+and where it is verifiable. The rule this repo follows elsewhere applies here too: **the
+artifact's identity is this project's work; the borrowed architecture is metadata.** Pretending
+the architecture is something else would be the actual dishonesty.
+
+`tests/test_publication.py::test_artifact_name_does_not_credit_a_third_party_model` enforces
+this, so a future rename that reintroduces it fails rather than shipping.
+
+The canonical `vNNN` remains the internal identity so `store.py`'s immutability rules and the
+manifest chain stay authoritative; the artifact name is a publication concern layered on top, not
+a replacement.
 
 For 3B this also forces sharding, because a GitHub Release asset caps at 2 GB — 5.73 GB does not
 fit in one. `safetensors` shards natively, and shards follow the same naming scheme.
@@ -533,6 +564,14 @@ than pretending. NTFS still orders metadata through `os.replace`.
 
 **`snapshot_download(local_dir=...)` writes hub bookkeeping** under `.cache/huggingface/`. It is
 filtered out of `filesDownloaded` so the manifest lists only artifacts actually requested.
+
+**`tensors` and `tensorHashesAfterTraining` have two different shapes.** `tensors` is a flat
+`name -> digest` map; `tensorHashesAfterTraining` nests the same map beside an `aliasedTensors`
+list. An untrained version has only the first, a trained version has both, so any consumer of
+"the tensor hashes" has to know which. Found while naming artifacts, which needed to hash the
+weights. `store._tensor_hash_map()` normalizes it and prefers the trained hashes — those are the
+bytes a release asset contains — but **this should be flattened to one shape before Phase 2.**
+Two shapes for one field is one more thing every consumer has to know.
 
 ---
 
@@ -694,12 +733,14 @@ python/                        compute plane
   sma/configs.py               3B source of truth, derived 62M config, expected counts
   sma/arch.py                  SmolLM3 construction, validation, parameter accounting
   sma/proof.py                 config-only fetch, AST audit, tensor hashes, loss signature
-  sma/store.py                 immutable versions, atomic commit, durability, heartbeat
+  sma/store.py                 immutable versions, atomic commit, durability, heartbeat,
+                              content-addressed artifact naming
   sma/data.py                  ingestion, content hashes, concatenate-chunk packing, split
   sma/train.py                 precision model, guards, instrumentation, resumable train state
   sma/brain.py                 CLI and the one-JSON-object subprocess contract
   sma/fixtures/tiny_en.txt     deterministic corpus (original prose — no licensing question)
-  tests/                       57 pytest tests (32 proof/init, 25 training/check-7)
+  tests/                       73 pytest tests (32 proof/init, 25 training/check-7,
+                              16 publication naming)
 
 src/
   harness/ services/           crawl, curate, plan, ollama-client

@@ -18,6 +18,7 @@ must not record a model in the registry until it sees that marker.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import shutil
@@ -189,6 +190,102 @@ def write_json(path: Path, payload: Dict[str, Any]) -> None:
 def read_json(path: Path) -> Dict[str, Any]:
     with open(path, "r", encoding="utf-8") as fh:
         return json.load(fh)
+
+
+# ------------------------------------------------------- publication naming
+#
+# The canonical identity of a brain version is its vNNN directory, and that
+# stays authoritative. This is a second, *derived* name for the one case a
+# vNNN cannot serve: publishing a weight file to somebody who has no checkout.
+# A release asset needs a name a stranger can verify on its own, and "v002"
+# does not say which weights it is.
+#
+#     simpleminds-<size>-<YYYYMMDD>-<hash12>
+#
+# The 12-hex suffix is not decoration, it is the reason the name is worth
+# having: a downloader recomputes it from the weights, and a mismatch fails
+# loudly. That is what makes it a content address rather than a label.
+#
+# It deliberately does not name the architecture. "smollm3-..." would put a
+# third party's model in the headline of work whose entire claim is that no
+# pretrained weights were used -- the name would contradict the invariant it
+# is supposed to advertise. The architecture is recorded honestly in
+# config.json, provenance.json and architectureReferenceRepo instead, which is
+# where lineage belongs. Branding the artifact with someone else's model would
+# be the exact misreading the proof obligations exist to prevent.
+
+
+def size_label(parameter_count: int) -> str:
+    """61_839_744 -> "62m". Rounded, because a size tag is a label."""
+    n = int(parameter_count)
+    if n < 1_000_000_000:
+        return f"{round(n / 1_000_000)}m"
+    return f"{round(n / 1_000_000_000)}b"
+
+
+def _tensor_hash_map(manifest: Dict[str, Any]) -> Dict[str, str]:
+    """Normalize the two shapes this manifest field has taken.
+
+    `tensors` is a flat name -> digest map. `tensorHashesAfterTraining` is
+    nested, carrying `aliasedTensors` beside it. An untrained version has
+    only the former; a trained version has both. The *trained* hashes win,
+    because they describe the bytes actually in the weight file, and a
+    release asset contains those.
+
+    The asymmetry is a wart in the schema, not an intentional distinction,
+    and it should be flattened before Phase 2 -- two shapes for one field
+    is one more thing a consumer has to know.
+    """
+    for key in ("tensorHashesAfterTraining", "tensors"):
+        block = manifest.get(key)
+        if not isinstance(block, dict) or not block:
+            continue
+        inner = block.get("tensors")
+        if isinstance(inner, dict) and inner:
+            return inner
+        if key == "tensors":
+            return block
+    return {}
+
+
+def weight_fingerprint(manifest: Dict[str, Any]) -> str:
+    """SHA-256 over the recorded tensor hashes, as 12 hex characters.
+
+    Hashes the `name -> digest` pairs rather than the bare digests, and the
+    distinction is load-bearing here: 76 tensor entries in this model yield
+    only 59 distinct digests, because the 17 RMSNorm weights all initialize
+    to 1.0 and the 2 RoPE buffers are a closed form of head_dim and
+    rope_theta. Given repeated digests, a digest-only hash cannot tell a
+    correct manifest from one that assigned every value to the wrong tensor.
+    Binding the name in means it can.
+    """
+    tensors = _tensor_hash_map(manifest)
+    if not tensors:
+        raise ValueError("manifest records no tensor hashes; cannot name the artifact")
+    canonical = "".join(f"{name}={tensors[name]}\n" for name in sorted(tensors))
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:12]
+
+
+def artifact_name(manifest: Dict[str, Any]) -> str:
+    """Content-addressed publication name for one committed version.
+
+    Derived entirely from the manifest, so it is reproducible from the
+    committed metadata alone. The date is the version's `createdAt`, never
+    today: a name that depended on when it was asked for would not be a
+    content address.
+    """
+    created = str(manifest.get("createdAt") or "")
+    stamp = created[:10].replace("-", "")
+    if len(stamp) != 8 or not stamp.isdigit():
+        raise ValueError(f"manifest createdAt is not ISO-8601: {created!r}")
+    params = (manifest.get("sizes") or {}).get("parametersUniqueByStorage")
+    if not params:
+        raise ValueError("manifest records no parameter count; cannot name the artifact")
+    return f"simpleminds-{size_label(params)}-{stamp}-{weight_fingerprint(manifest)}"
+
+
+def artifact_name_for_version(root: Path, version: str) -> str:
+    return artifact_name(read_json(Path(root) / version / "init-manifest.json"))
 
 
 # ---------------------------------------------------------------- heartbeat
