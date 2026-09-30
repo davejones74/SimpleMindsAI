@@ -1,0 +1,31 @@
+# Byte stability across the Windows dev box and the Linux/ROCm deploy host.
+#
+# This project is deliberately hardware-portable: development runs on Windows
+# (RTX 4090, autocrlf=true) and deployment runs on Ubuntu (ROCm). Several
+# tracked files are hashed BYTE-FOR-BYTE and compared across hosts:
+#
+#   - the corpus fixture, whose contentHash feeds datasetHash
+#   - every model record mirrored into models/ (manifests, provenance,
+#     train-state, config), re-checked by store.verify_mirror
+#   - the tokenizer (tokenizerHash)
+#
+# If the Windows checkout silently converted those files to CRLF, the bytes
+# would differ from the Linux host and from the authoritative store, and a
+# mirror check would (correctly) report drift that is really just a line-ending
+# artifact. Normalize text to LF in the working tree on every platform so the
+# hash is a function of content alone.
+* text=auto eol=lf
+
+# Weight and optimizer state are content-addressed binary blobs. Never
+# line-ending-convert or text-diff them. (They are gitignored from the tree, but
+# a mis-staged or exported copy must not be silently mangled.)
+*.safetensors binary
+*.pt binary
+*.bin binary
+*.gguf binary
+
+# Keep the git-tracked record set unambiguously text even if a future file is
+# empty or has no detectable content, so it can never fall back to CRLF.
+models/** text eol=lf
+models/**/COMMITTED text eol=lf
+*.json text eol=lf

@@ -670,3 +670,88 @@ class Heartbeat:
             return time.time() - Path(path).stat().st_mtime
         except FileNotFoundError:
             return float("inf")
+
+
+# ------------------------------------------------------------------ run lock
+#
+# "Is a run already writing this version's state?" has to be answerable before
+# a resume is allowed, because two processes resuming the same committed
+# boundary would interleave optimizer moments and RNG state into one corrupt
+# pickle. This is a different guarantee from `Heartbeat`: a heartbeat proves a
+# long run is *alive*, this proves *exclusive* ownership.
+#
+# `O_CREAT | O_EXCL` is atomic -- exactly one process creates the file, every
+# other gets EEXIST -- so the lock is a filesystem primitive, not a
+# best-effort flag. A killed process leaves the lock behind, so a lock older
+# than RUN_LOCK_STALE_S is treated as abandoned and taken over, using the same
+# clock as the heartbeat. A crash therefore self-heals instead of wedging the
+# lineage forever.
+#
+# The stale window is deliberately long (a day). A 3B run legitimately holds
+# this lock for days, so a short window would let a second process steal it out
+# from under a live run. The trade-off is that a *crashed* run blocks a resume
+# for up to that window; the lock is cheap to clear by hand and is never the
+# only thing standing between two runs.
+
+RUN_LOCK_STALE_S = 24 * 60 * 60
+
+
+def run_lock_path(root: Path, version: str) -> Path:
+    return Path(root) / "_runs" / f"{version}.lock"
+
+
+def run_lock_active(root: Path, version: str, stale_s: float = RUN_LOCK_STALE_S) -> bool:
+    """True if a live (non-stale) run currently owns this version's state.
+
+    The "no active conflicting run" check for the cross-vendor resume
+    preflight. An absent lock, or one abandoned past the stale window, counts
+    as inactive.
+    """
+    path = run_lock_path(root, version)
+    if not path.exists():
+        return False
+    return Heartbeat.age_s(path) <= stale_s
+
+
+@contextmanager
+def run_lock(
+    root: Path, version: str, stale_s: float = RUN_LOCK_STALE_S
+) -> Iterator[Path]:
+    """Exclusively own a version's run state for the duration of the block.
+
+    Yields the lock path. The lock is removed on clean exit and on exception
+    (so a failed run does not wedge the version). A lock that is already held
+    by a live run raises, because silently sharing optimizer state is exactly
+    the corruption this exists to prevent.
+    """
+    path = run_lock_path(root, version)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "pid": os.getpid(),
+        "version": version,
+        "at": time.time(),
+        "iso": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    }
+
+    def _acquire() -> None:
+        try:
+            fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        except FileExistsError:
+            if run_lock_active(root, version, stale_s):
+                raise RuntimeError(
+                    f"another run already holds {path}; refusing to start a "
+                    f"second run against {version}"
+                )
+            # Abandoned by a killed process: clear and retake.
+            path.unlink(missing_ok=True)
+            fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            json.dump(payload, fh)
+            fh.flush()
+            os.fsync(fh.fileno())
+
+    _acquire()
+    try:
+        yield path
+    finally:
+        path.unlink(missing_ok=True)

@@ -21,7 +21,6 @@ the active brain.
 from __future__ import annotations
 
 import contextlib
-import platform
 import random
 import time
 from dataclasses import dataclass, field, asdict
@@ -102,15 +101,12 @@ class TrainConfig:
 
 
 def environment() -> Dict[str, Any]:
-    import transformers
+    # Vendor-neutral. This records the accelerator *vendor* ("cuda" / "rocm" /
+    # "cpu") plus the runtime version, not a CUDA-only "cudaAvailable" flag that
+    # is true-by-design under ROCm. See sma/portability.py.
+    from . import portability
 
-    return {
-        "python": platform.python_version(),
-        "torch": torch.__version__,
-        "transformers": transformers.__version__,
-        "cudaAvailable": torch.cuda.is_available(),
-        "device": "cuda" if torch.cuda.is_available() else "cpu",
-    }
+    return portability.runtime_environment()
 
 
 def capture_rng_state() -> Dict[str, Any]:

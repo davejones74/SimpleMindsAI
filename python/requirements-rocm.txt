@@ -1,0 +1,34 @@
+# SimpleMindsAI — Python compute plane, AMD ROCm backend.
+#
+# For the Ryzen AI HX 370 / 890M (gfx1151) deployment host. Installs the
+# vendor-neutral dependencies, then the ROCm build of torch:
+#
+#   pip install -r requirements-rocm.txt
+#
+# The exact ROCm/torch pin below is the AMD multi-arch gfx1151 candidate and
+# MUST be verified against the target host's ROCm release and kernel before it
+# is trusted — the ROCm wheel set is tied to the driver/kernel version, and a
+# mismatched pin installs but then fails at import or reports no device. See
+# the ROCm install docs referenced in the README; replace the pin here with the
+# one the host actually supports and commit that change.
+#
+# After install, confirm the backend and that the GPU is really targeted:
+#
+#   python -c "import torch; print(torch.version.hip, torch.cuda.get_device_properties(0).gcnArchName)"
+#   python -m sma.brain preflight        # full platform + bf16 + parity report
+#
+# Notes for this backend:
+#   - The torch device type is still "cuda" under ROCm (the namespace is kept
+#     for compatibility); the vendor is recorded as backend="rocm" in
+#     provenance, which is why that field exists separately from `device`.
+#   - 8-bit Adam (bitsandbytes) is NVIDIA-only and has no ROCm equivalent. The
+#     3B memory preflight must use Adafactor here instead.
+#   - This is an APU: the device reports a shared memory carve-out as its
+#     `total_memory`, not a dedicated VRAM budget. Do not size a 3B run against
+#     it as if it were a discrete card.
+
+-r requirements.txt
+
+# --- ROCm runtime -------------------------------------------------------
+--extra-index-url https://repo.amd.com/rocm/whl-multi-arch/
+torch[device-gfx1151]==2.12.0+rocm7.14.0

@@ -303,13 +303,22 @@ Server-free one-shot CLIs: `train`, `evaluate`, `promote`, `reject`, `perpetual`
 cd python
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-pip install --index-url https://download.pytorch.org/whl/cu130 torch
-pip install -r requirements.txt
+
+# pick exactly ONE backend profile (torch is not in the common requirements):
+#   -cuda : NVIDIA RTX 4090 dev box
+#   -rocm : AMD Ryzen AI HX 370 / 890M (gfx1151) deployment host
+pip install -r requirements-cuda.txt      # NVIDIA
+# pip install -r requirements-rocm.txt    # AMD ROCm
 
 python -m pytest                                  # 100 tests
 python -m sma.brain init   --config small --out $SMA_STORE
 python -m sma.brain status --out $SMA_STORE
 ```
+
+The backend in use is recorded with every train state as
+`environment.backend` (`cuda` / `rocm` / `cpu`). Under ROCm the torch device
+type is still `cuda`, so `environment.device` and `environment.backend` differ
+on purpose — that pair is what makes a run's provenance unambiguous.
 
 `init` writes `$SMA_STORE/v001/` containing `model.safetensors` (123,687,776 bytes),
 tokenizer, `config.json`, `generation_config.json`, `init-manifest.json`, `provenance.json`, and

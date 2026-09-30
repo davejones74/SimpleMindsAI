@@ -1,0 +1,17 @@
+# SimpleMindsAI — Python compute plane, NVIDIA CUDA backend.
+#
+# For the RTX 4090 development machine. Installs the vendor-neutral
+# dependencies, then the CUDA build of torch:
+#
+#   pip install -r requirements-cuda.txt
+#
+# torch comes from the PyTorch CUDA 13.0 index, NOT PyPI (the PyPI wheel for
+# a given interpreter may be CPU-only). Verify the wheel that actually landed:
+#
+#   python -c "import torch; print(torch.__version__)"   # e.g. 2.14.0+cu130
+
+-r requirements.txt
+
+# --- CUDA runtime -------------------------------------------------------
+--extra-index-url https://download.pytorch.org/whl/cu130
+torch==2.14.0+cu130

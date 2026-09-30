@@ -1,15 +1,18 @@
-# SimpleMindsAI — Python compute plane
+# SimpleMindsAI — Python compute plane, vendor-neutral dependencies.
 #
-# torch comes from the PyTorch CUDA 13.0 index, NOT PyPI (the PyPI wheel for
-# this interpreter is CPU-only). Install with:
+# This file intentionally does NOT install torch. The accelerator runtime is
+# hardware-specific and must be chosen explicitly, so that "which GPU am I
+# running on" is never an accident of a default install. Pick exactly one:
 #
-#   pip install --index-url https://download.pytorch.org/whl/cu130 -r requirements.txt
+#   NVIDIA CUDA (the RTX 4090 development machine):
+#       pip install -r requirements-cuda.txt
 #
-# Verify torch-2.14.0+cu130-cp314-cp314-win_amd64 is what actually landed.
-
-# --- CUDA runtime -------------------------------------------------------
---extra-index-url https://download.pytorch.org/whl/cu130
-torch==2.14.0+cu130
+#   AMD ROCm (the Ryzen AI HX 370 / 890M deployment host):
+#       pip install -r requirements-rocm.txt
+#
+# Everything below is pure-Python or vendor-neutral and is shared by both
+# backends. The detected backend is recorded in every train state's
+# `environment.backend` field as "cuda", "rocm", or "cpu".
 
 # --- model / tokenizer --------------------------------------------------
 transformers==5.17.0
@@ -24,4 +27,6 @@ pytest==9.1.1
 # --- training optimiser (Phase 1: the 62M dev config does not need 8-bit ---
 # --- Adam; it is only exercised by the 3B memory preflight, so it is      ---
 # --- intentionally not pinned as a hard dependency yet)                  ---
-# bitsandbytes==0.50.2
+# NOTE: 8-bit Adam via bitsandbytes is NVIDIA/CUDA-only. It has no ROCm     ---
+# equivalent, so the ROCm 3B memory preflight must fall back to Adafactor.  ---
+# bitsandbytes==0.50.2   # CUDA only — do not install on the ROCm host

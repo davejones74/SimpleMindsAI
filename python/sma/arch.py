@@ -19,7 +19,6 @@ truncated init would produce. `proof.py` records the real initializer.
 
 from __future__ import annotations
 
-import os
 from typing import Any, Dict
 
 import torch
@@ -203,25 +202,3 @@ def architecture_report(name: str) -> Dict[str, Any]:
         "torchDtype": str(config_dtype(config)).replace("torch.", ""),
         "architectures": list(config.architectures),
     }
-
-
-def cuda_report() -> Dict[str, Any]:
-    """Device facts the memory preflight depends on."""
-    report = {
-        "torchVersion": torch.__version__,
-        "cudaAvailable": torch.cuda.is_available(),
-        "bf16Supported": False,
-        "deviceName": None,
-        "capability": None,
-        "totalVramBytes": None,
-    }
-    if torch.cuda.is_available():
-        props = torch.cuda.get_device_properties(0)
-        report.update(
-            bf16Supported=torch.cuda.is_bf16_supported(),
-            deviceName=props.name,
-            capability=f"{props.major}.{props.minor}",
-            totalVramBytes=props.total_memory,
-        )
-    report["envOffline"] = os.environ.get("HF_HUB_OFFLINE")
-    return report
