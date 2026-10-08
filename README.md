@@ -24,14 +24,16 @@ Python 3.14.6, Node ≥20, torch 2.14.0+cu130, transformers 5.17.0).
 
 | | |
 |---|---|
-| Node data plane | 24/24 `node:test` tests pass |
-| Python compute plane | 100/100 pytest tests pass |
+| Node data plane | 36/36 `node:test` tests pass |
+| Python compute plane | 135/135 pytest tests pass |
 | Checkpoint `v001` | committed, 62M params, provenance recorded |
 | Checkpoint `v002` | committed, 60 real steps, 74/74 params moved, 2 buffers unchanged |
 
-Phase 1 is partially complete. Random initialization, atomic commit, the no-pretrained-weights
-proof, provenance, and **real optimization with resumable state** are done and tested.
-Evaluation, version comparison, and generation are not.
+Phase 1 is complete at 62M. Random initialization, atomic commit, the no-pretrained-weights proof,
+provenance, **real optimization with resumable state**, evaluation, version comparison, and
+generation are done and tested. Chat is now served by the long-lived Python student worker, and the
+promotion gate is causal-LM loss on a frozen evaluation set (see
+[Chat, the student worker, and the loss gate](#chat-the-student-worker-and-the-loss-gate)).
 
 ### What `v002` does and does not prove
 
@@ -123,7 +125,7 @@ deliberately unimplemented.
 | 3 | `v001` is saved and published atomically with a `COMMITTED` marker | done |
 | 4 | No pretrained neural weights were loaded (all six obligations above) | done |
 | 5 | `train` runs real optimization on the fixture corpus and produces `v002` | done |
-| 6 | `v002` reloads from disk into a fresh process | done — 74 persisted tensors re-hash byte-identical; 2 non-persistent RoPE buffers recomputed by the loader |
+| 6 | `v002` reloads from disk into a fresh process | done — 74 persisted tensors re-hash byte-identical; 2 non-persistent RoPE buffers recomputed by the loader and reconciled to their recorded digest at the recorded dtype |
 | 7 | Every trainable parameter changes materially; buffers stay put | done |
 | 8 | Evaluation produces a loss number | done — `v001` scores 11.836, inside the `[10.5, 12.5]` init band |
 | 9 | Loss decreases in the expected direction | done — `v002` 8.836 < `v001` 11.836 on the identical frozen set |
@@ -208,17 +210,29 @@ The fp32-master requirement is not hypothetical: see
                                │   │ consumeBatch (REVIEWED only) + commitConsumption
   SUBSYSTEM C (train & chat)   │   ▼
   ┌──────────────┐  ┌────────────────────┐  ┌──────────────────────┐
-  │ cli/train.js │─▶│ dataset/snapshot.js│─▶│ PYTHON WORKER        │
-  │ orchestrator │  │ immutable records  │  │ sma.brain (subprocess)│
-  └──────────────┘  └────────────────────┘  │ init/train/eval/     │
-                                            │ generate → JSON      │
-  ┌──────────────┐  ┌────────────────────┐  └──────────┬───────────┘
-  │ chat-server  │─▶│ brain.js           │◀────────────┘
-  │ chat UI      │  │ the trained model  │  (Ollama fallback: REMOVE)
-  └──────────────┘  └────────────────────┘
+  │ cli/train.js │─▶│ dataset/snapshot.js│─▶│ PYTHON COMPUTE PLANE  │
+  │ orchestrator │  │ immutable records  │  │ sma.brain (one-shot) │
+  └──────┬───────┘  └────────────────────┘  │ init/train/eval/diff │
+         │                                  │ generate → JSON      │
+         │                                  └──────────┬───────────┘
+         ▼                                             │
+  ┌────────────────────┐  ┌────────────────────┐       │ active.json
+  │ loss-evaluator.js  │  │ python-promotion.js│       │ (committed vNNN)
+  │ parent vs candidate│─▶│ loss gate → switch │       │
+  │ same frozen set    │  └─────────┬──────────┘       ▼
+  └────────────────────┘            │        ┌──────────────────────┐
+                                    │        │ sma.student          │
+  ┌──────────────┐  ┌────────────────┴───┐    │ long-lived worker    │
+  │ chat-server  │─▶│ brain.js           │───▶│ framed stdio; keeps  │
+  │ chat UI      │  │ the student (only) │    │ the active brain hot │
+  └──────────────┘  └────────────────────┘    └──────────────────────┘
                      evaluation-set.js (frozen, leak-guarded)
                      registry-store.js (append-only ledger, RUN.lock)
 ```
+
+There is **no teacher fallback**: `brain.js` talks only to `sma.student`, and if that worker is
+unavailable the chat route returns an explicit `503` rather than asking DeepSeek to answer as the
+student.
 
 ### The training unit is an article, not a pair
 
@@ -281,18 +295,23 @@ human-controlled; sampling is a throughput measure, not a transfer of authority.
 
 ```bash
 npm install
-npm test                 # 24 node:test tests, no GPU or Ollama needed
+npm test                 # 36 node:test tests (24 core + 12 worker/promotion)
 
 npm start                # GraphQL buffer  → http://localhost:4000/graphql
 $env:OLLAMA_FIXTURE="true"; $env:OLLAMA_MODEL="deepseek-r1:8b"; npm run crawl
 npm run curate           # raw docs → ollama(clean) → buffer
 npm run plan             # LLM is advisory; must pass the deterministic gate
 npm run train            # NOTE: stub trainer — no real backprop yet
-npm run chat             # http://localhost:8787
+npm run chat             # http://localhost:8787 — serves the active Python student
 ```
 
 `npm run train` currently computes statistics and calls the stub trainer. **It does not train a
-neural network.** This is the single most important caveat in this README.
+neural network.** Real training is the Python CLI (`python -m sma.brain train`). This is the single
+most important caveat in this README.
+
+`npm run chat` does not fall back to a teacher: it starts the Python student worker, loads the
+`COMMITTED` version named by `$SMA_STORE/active.json`, and returns `503` if no version is active or
+the worker is down.
 
 Server-free one-shot CLIs: `train`, `evaluate`, `promote`, `reject`, `perpetual`
 (`PERPETUAL_CYCLES=n`, `OLLAMA_FIXTURE=true` for CI).
@@ -310,9 +329,12 @@ python -m venv .venv
 pip install -r requirements-cuda.txt      # NVIDIA
 # pip install -r requirements-rocm.txt    # AMD ROCm
 
-python -m pytest                                  # 100 tests
+python -m pytest                                  # 135 tests
 python -m sma.brain init   --config small --out $SMA_STORE
 python -m sma.brain status --out $SMA_STORE
+
+# chat worker (framed stdio; Node spawns this, you rarely run it directly)
+python -m sma.student --out $SMA_STORE
 ```
 
 The backend in use is recorded with every train state as
@@ -356,15 +378,78 @@ or frozen eval set; with `--verify-weights` it also re-hashes the loaded tensors
 manifest. `generate` decodes from a committed version. `diff` compares two versions by tensor name
 in fp32 and reports architecture parity, per-parameter deltas, buffer drift and both eval losses.
 
-Note on `--verify-weights`: only the 74 *persisted* tensors can be verified byte-for-byte. The two
-RoPE `inv_freq` buffers are registered `persistent=False`, so no safetensors file stores them; the
-loader recomputes them (as fp32, where the init-time model held them in the build dtype). They are
-reported separately as derived tensors rather than counted as a false mismatch.
+Note on `--verify-weights`: the init manifest hashes **76** entries (74 parameters + 2 non-persistent
+RoPE buffers). Only the **74** *persisted* tensors can be verified byte-for-byte on reload; the
+loader omits the **2** `persistent=False` buffers from every safetensors file and recomputes them in
+fp32 (the init-time model held them in the build dtype, bf16). Those 2 are therefore reported
+separately as derived tensors — never counted as a false mismatch — and are independently verified:
+casting each reloaded buffer back to its **recorded dtype** must reproduce the manifest digest
+byte-for-byte, which proves the buffer was reconstructed faithfully while explicitly handling the
+dtype difference. The report exposes `recordedCount: 76`, `persistedCount: 74`, `derivedTensors: 2`,
+`derivedReconstructed`, and `verifiedAll`.
 
 ### The subprocess contract
 
 Python emits **exactly one JSON object on stdout**; all progress goes to stderr. Node invokes it
 as a subprocess and treats stdout as the entire result. Python never writes the Node registry.
+
+---
+
+## Chat, the student worker, and the loss gate
+
+### One resident student, no teacher in the loop
+
+`python -m sma.student` is a **long-lived** process, separate from the one-shot `sma.brain` CLI.
+It keeps the active brain loaded between chat turns and speaks a framed protocol:
+
+```
+stdin   one JSON request per line   {"id": n, "op": "load|generate|reload|version|ping|shutdown", ...}
+stdout  exactly one JSON response per line, echoing `id`
+stderr  logs only, never parsed
+```
+
+Node's `StudentWorker` (`src/brain/student-worker.js`) owns the child's lifecycle: one in-flight
+request at a time matched by id, per-request timeouts, crash detection that rejects every pending
+request and restarts with backoff, and a clean shutdown. `brain.js` talks **only** to this worker.
+If it is not running, `respond()` throws and the chat route returns `503` — it never asks the
+teacher to impersonate the student. A regression test reads `brain.js` and fails if the words
+Ollama/DeepSeek reappear in its code.
+
+Version safety falls out of the existing store rules: the worker loads through
+`store.resolve_version_dir`, which **refuses any version without a `COMMITTED` marker**, so a
+partially written checkpoint can never be served. A version switch is a two-step, fail-safe move:
+fully load the new checkpoint into a local, then swap it over the resident model — a failed load
+leaves the previous brain serving.
+
+### The promotion gate is causal-LM loss, not token-F1
+
+Token-F1 over short completions was never a brain-quality signal, and its zero default could
+promote a model that had not improved. The authoritative gate for the real brain now scores
+**parent and candidate with the same Python code on the same frozen evaluation set**
+(`sma.brain eval --eval-set … --verify-weights`), and promotes only when:
+
+- both losses are present and finite,
+- both were measured on the **same** `datasetHash` (comparable),
+- `parentLoss − candidateLoss >= PROMOTE_MIN_LOSS_DELTA`, and
+- `candidateLoss <= PROMOTE_MAX_LOSS`.
+
+Missing, invalid, non-finite, or incomparable results produce `not_evaluated` — never a promotion.
+On `promoted` the active pointer (`$SMA_STORE/active.json`) moves to the candidate and the resident
+worker is reloaded so the **next** chat turn is answered by the new brain; on `rejected` or
+`not_evaluated` the pointer does not move. Token-F1 remains available as a **supplementary**
+indicator only.
+
+Measured on the frozen `data/evaluation/eval-001.jsonl` (science Q/A), CPU:
+
+| version | trained steps | eval loss | note |
+|---|---|---|---|
+| `v001` | 0 | 11.9452 | within the init band |
+| `v002` | 60 | 11.5915 | improvement 0.3537 → promotable |
+
+Regression tests drive the real store copy: a **worse** candidate (`v001` over `v002`) is rejected
+and the active pointer is unchanged; a **better** candidate (`v002` over `v001`) is promoted, the
+pointer moves, and the running worker serves `v002` on the next request; an **unevaluable**
+candidate is `not_evaluated` and changes nothing.
 
 ---
 
@@ -782,19 +867,19 @@ replay *possible* without implementing replay:
 
 Real, unfixed, and listed so they are not mistaken for intended behavior.
 
-1. **A zero-score model is promoted.** `evaluator.js:111` tests
-   `cand >= promoteMinScore && delta >= promoteMinDelta` with both defaults at `0`
-   (`config.js:56-57`). A model scoring 0.0 that improves by 0.0 is **PROMOTED**. The docstring
-   above it (line 98) claims "non-zero absolute score" — the code does not enforce that. *No test
-   covers the zero case*; the lifecycle tests pass legitimately because their fake completer returns
-   the reference text, giving a real score of 1.0. Fixing this means deciding whether promotion
-   should be gated on causal-LM loss rather than token-F1, which changes the evaluator.
+1. ~~**A zero-score model is promoted.**~~ **Resolved for the real brain.** Promotion is now gated
+   by causal-LM loss in `src/training/loss-evaluator.js` + `src/training/python-promotion.js`
+   (`not_evaluated` on missing/invalid/non-finite/incomparable results). The legacy token-F1
+   `evaluator.js:111` path still exists but is **supplementary only** and is no longer the gate for
+   a real brain version. Regression tests cover reject / promote / unevaluable.
 2. **`RUN.lock` goes stale after 10 minutes.** Unsuitable for multi-day training. The Python
    `store.py` already provides a heartbeat; the Node side does not use it yet.
 3. **`dataset/snapshot.js` materializes entire datasets in memory.** Fine for thousands of rows,
    fatal for a million-article corpus. Must become a descriptor handoff to the Python worker.
-4. **The Ollama/DeepSeek brain fallback still exists** in `brain/brain.js`. Delete it once the
-   trained model can serve chat. DeepSeek must never be the brain.
+4. ~~**The Ollama/DeepSeek brain fallback still exists** in `brain/brain.js`.~~ **Resolved.**
+   `brain/brain.js` now talks only to the Python student worker and throws if it is unavailable; a
+   regression test fails if Ollama/DeepSeek reappear in its code. DeepSeek remains a teacher/critic
+   only.
 5. **`TeacherClient` has no `complete` implementation.**
 6. `promptsPage` cursor plus trained-filter can skip rows; move to a keyset cursor as the buffer
    grows.
@@ -848,18 +933,23 @@ python/                        compute plane
   sma/data.py                  ingestion, content hashes, concatenate-chunk packing, split
   sma/train.py                 precision model, guards, instrumentation, resumable train state
   sma/brain.py                 CLI and the one-JSON-object subprocess contract
+  sma/student.py               long-lived chat worker (framed stdio, hot active brain)
   sma/fixtures/tiny_en.txt     deterministic corpus (original prose — no licensing question)
-  tests/                       100 pytest tests (32 proof/init, 25 training/check-7, 43 publication/store)
+  tests/                       135 pytest tests (proof/init, training/check-7, publication/store,
+                               phase-1 checks 6/8/9/10/11, student worker)
 
 src/
-  harness/ services/           crawl, curate, plan, ollama-client
+  harness/ services/           crawl, curate, plan, ollama-client (teacher/critic only)
   storage/                     buffer-store, registry-store (append-only ledger, RUN.lock)
   dataset/                     snapshot, evaluation-set (frozen, leak-guarded)
-  training/                    lifecycle, trainer-interface (stub), evaluator, model-handle
-  brain/ chat/ reward/         brain.js, chat server, reward scorer (advisory only)
+  training/                    lifecycle, trainer-interface (stub), evaluator, model-handle,
+                               loss-evaluator + python-promotion (authoritative loss gate)
+  brain/ chat/ reward/         python-cli + student-worker + brain.js (student only), chat server,
+                               reward scorer (advisory only)
   curriculum/ graphql/ cli/    validation gate, schema, one-shot runners
 
-test/                          24 node:test tests
+test/                          36 node:test tests (core + worker/promotion regression)
+test-support/                  shared Python-prerequisite test helpers (not auto-discovered)
 ```
 
 Phase 0 concepts worth preserving during the migration: exactly-once consumption via

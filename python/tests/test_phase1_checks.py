@@ -82,6 +82,12 @@ def test_check6_fresh_process_reproduces_persisted_tensor_digests():
     }
     assert all(d["persistent"] is False for d in derived.values())
     assert all(d["loadedDtype"] == "float32" for d in derived.values())
+    # The dtype difference is reconciled, not ignored: casting the reloaded fp32
+    # buffer back to the recorded (bf16) dtype must reproduce the manifest digest.
+    assert weights["derivedReconstructed"] is True
+    assert weights["verifiedAll"] is True
+    assert all(d["reconstructed"] is True for d in derived.values())
+    assert all(d["recordedDtype"] == "bfloat16" for d in derived.values())
 
 
 @needs_store

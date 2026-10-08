@@ -51,10 +51,25 @@ export const config = {
   allowedCategories: env("ALLOWED_CATEGORIES", "reasoning,coding,general,science,history,howto,fiction,factcheck").split(","),
   curriculumMaxSyntheticShare: num("CURRICULUM_MAX_SYNTHETIC_SHARE", 0.20),
 
+  // ---- Python compute plane (the student worker and loss evaluation) ----
+  pythonBin: env("SMA_PYTHON", null), // null => resolvePythonBin() picks the venv / PATH
+  pythonStore: env("SMA_STORE", null), // null => ~/.sma/store
+  studentDevice: env("SMA_DEVICE", "auto"), // auto | cpu | cuda
+
   // ---- Evaluation ----
   evalDatasetId: env("EVAL_DATASET_ID", "eval-001"),
-  promoteMinDelta: num("PROMOTE_MIN_DELTA", 0), // delta >= this => promote (0 = no regression allowed)
-  promoteMinScore: num("PROMOTE_MIN_SCORE", 0), // absolute floor for a candidate to be promotable
+  promoteMinDelta: num("PROMOTE_MIN_DELTA", 0), // legacy token-F1 delta (supplementary only)
+  promoteMinScore: num("PROMOTE_MIN_SCORE", 0), // legacy token-F1 floor (supplementary only)
+
+  // ---- Loss-based promotion gate (authoritative for the real brain) ----
+  // improvement = parentLoss - candidateLoss; promote iff improvement >= delta
+  // and candidateLoss <= maxLoss and both losses are finite.
+  promoteMinLossDelta: num("PROMOTE_MIN_LOSS_DELTA", 0),
+  promoteMaxLoss: num("PROMOTE_MAX_LOSS", Number.POSITIVE_INFINITY),
+  promoteRequireFinite: bool("PROMOTE_REQUIRE_FINITE", true),
+  promoteEvalSeqLen: num("PROMOTE_EVAL_SEQ_LEN", 32),
+  promoteEvalMicroBatch: num("PROMOTE_EVAL_MICRO_BATCH", 2),
+  promoteEvalSet: env("PROMOTE_EVAL_SET", null), // frozen eval-set .jsonl path (required to compare)
 
   // ---- Training run ----
   batchSize: num("BATCH_SIZE", 64),

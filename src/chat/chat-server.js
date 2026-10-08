@@ -24,6 +24,14 @@ app.use(express.static(path.join(__dirname, "public")));
 
 const store = await BufferStore.open();
 
+// Start the resident student worker and load the active committed brain. If no
+// version is active yet, the worker has nothing to load and chat answers 503.
+try {
+  await chatBrain.start();
+} catch (err) {
+  console.error(`[brain] student worker unavailable at boot: ${err.message}`);
+}
+
 app.post("/api/chat", async (req, res) => {
   const message = String(req.body?.message ?? "").trim();
   if (!message) return res.status(400).json({ error: "message required" });
@@ -32,7 +40,7 @@ app.post("/api/chat", async (req, res) => {
     maybeCaptureSynthetic({
       promptText: message,
       replyText: out.reply,
-      model: chatBrain.mode === "vanilla" ? chatBrain.checkpointPath ?? "vanilla-brained" : chatBrain.ollama.model,
+      model: out.version ?? "student",
       store,
     })
       .then((r) => {
@@ -41,14 +49,20 @@ app.post("/api/chat", async (req, res) => {
       .catch((err) => console.error(`[synthetic] capture failed: ${err.message}`));
     res.json({ ...out, message });
   } catch (err) {
-    res.status(502).json({ error: err.message });
+    const unavailable = !chatBrain.worker.available || /unavailable/.test(err.message);
+    res.status(unavailable ? 503 : 502).json({ error: err.message, mode: chatBrain.mode });
   }
 });
 
 app.get("/api/identity", (_req, res) => {
-  res.json({ mode: chatBrain.mode, model: chatBrain.ollama.model, checkpoint: chatBrain.checkpointPath });
+  res.json({
+    mode: chatBrain.mode,
+    version: chatBrain.version,
+    artifactName: chatBrain.artifactName,
+    available: chatBrain.worker.available,
+  });
 });
 
 app.listen(port, () =>
-  console.log(`chat UI -> http://localhost:${port}  (brain mode: ${chatBrain.mode})`)
+  console.log(`chat UI -> http://localhost:${port}  (brain mode: ${chatBrain.mode}, version: ${chatBrain.version ?? "none"})`)
 );

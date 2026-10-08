@@ -1,58 +1,77 @@
-import { readFile } from "node:fs/promises";
-import { OllamaClient } from "../services/ollama-client.js";
-
-const SYSTEM_BIAS = [
-  "You are SimpleMindsAI's current brain.",
-  "Answer helpfully, factually, and briefly. Do not output chain-of-thought.",
-].join(" ");
+import { StudentWorker } from "./student-worker.js";
 
 /**
- * Brain — the ONE integration seam for whatever model you end up training.
+ * Brain — the ONE integration seam for the trained student model.
  *
- * Right now it has two modes:
- *   "ollama"   → prototype fallback: routes chat through deepseek-r1 so the UI
- *                and the loop are testable before the vanilla model exists.
- *   "vanilla"  → your trained model. `load()` reads a checkpoint JSONL/weights
- *                file; `respond()` is where your tokenizer + sampler + forward
- *                pass plug in. The chat server only ever calls `respond()`.
+ * There is no teacher fallback. The brain is the Python student worker and
+ * nothing else: if the worker is not loaded, `respond()` rejects with an
+ * explicit error instead of quietly routing the question to Ollama/DeepSeek.
+ * That fallback is exactly what the README forbids — a chat turn must come from
+ * the student brain or not at all.
  *
- * When the vanilla model is live, the reinforcement loop's critic scores its
- * completions — and ONLY high-scoring ones (origin: "synthetic") feed back into
- * the buffer as extra targets, capped by the planner's maxSyntheticShare. That
- * cap lives in run-train/planner, not here.
+ * Version safety is delegated to the worker: it loads a version through
+ * `store.resolve_version_dir`, which refuses anything without a COMMITTED
+ * marker, so a partially written checkpoint can never be served. Promotion
+ * swaps the active pointer and the chat server calls `reload()`.
+ *
+ * The chat server only ever calls `respond()`.
  */
 export class Brain {
   constructor(opts = {}) {
-    this.mode = opts.mode ?? process.env.BRAIN_MODE ?? "ollama";
-    this.ollama = new OllamaClient(opts.ollama ?? {});
-    this.weights = null;
-    this.checkpointPath = opts.checkpointPath ?? null;
+    this.mode = "student";
+    this.worker = opts.worker ?? new StudentWorker(opts);
+    this.version = null;
+    this.artifactName = null;
   }
 
-  async load(checkpointPath = this.checkpointPath) {
-    if (!checkpointPath) return false;
-    this.weights = JSON.parse(await readFile(checkpointPath, "utf8"));
-    this.checkpointPath = checkpointPath;
-    return true;
+  async start() {
+    await this.worker.start();
+    await this.loadActive();
+    return this;
   }
 
-  async respond(message) {
+  /** Load whichever committed version the active pointer names. */
+  async loadActive() {
+    const out = await this.worker.load();
+    this.version = out.version;
+    this.artifactName = out.artifactName ?? null;
+    return out;
+  }
+
+  /** Safe switch: re-read the active pointer and swap the resident model. */
+  async reload() {
+    const out = await this.worker.reload();
+    this.version = out.version;
+    this.artifactName = out.artifactName ?? null;
+    return out;
+  }
+
+  async respond(message, opts = {}) {
     const t0 = performance.now();
-    if (this.mode === "ollama") {
-      const { text } = await this.ollama.chat({ messages: [
-        { role: "system", content: SYSTEM_BIAS },
-        { role: "user", content: message },
-      ] });
-      return { reply: text, latencyMs: Math.round(performance.now() - t0), mode: this.mode };
+    if (!this.worker.available) {
+      throw new Error(
+        "student brain unavailable: the Python student worker is not running; " +
+        "there is no teacher fallback by design",
+      );
     }
+    let out;
+    try {
+      out = await this.worker.generate(String(message), opts);
+    } catch (err) {
+      throw new Error(`student brain failed to answer: ${err.message}`);
+    }
+    return {
+      reply: out.text,
+      latencyMs: Math.round(performance.now() - t0),
+      mode: this.mode,
+      version: out.version ?? this.version,
+      artifactName: out.artifactName ?? this.artifactName,
+      generatedTokens: out.generatedTokens,
+    };
+  }
 
-    // ---- VANILLA BRAIN PLACEHOLDER -------------------------------------
-    // Replace: tokenize(message) -> forward() -> sample(top-k) -> detokenize.
-    // `this.weights` is whatever you persisted; keep the contract: return string.
-    const hash = String([...message].reduce((a, c) => a + c.charCodeAt(0), 0));
-    const reply = `[brain:${this.mode} | ckpt:${this.checkpointPath ?? "none"} | id#${hash}] ` +
-      `weights loaded=${!!this.weights}. No vanilla inference wired yet — patch src/brain/brain.js respond().`;
-    return { reply, latencyMs: Math.round(performance.now() - t0), mode: this.mode };
+  async stop() {
+    await this.worker.shutdown();
   }
 }
 

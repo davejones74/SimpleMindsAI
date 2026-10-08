@@ -545,6 +545,17 @@ def _pack_paths(
     return blocks, record
 
 
+def _torch_dtype(name: Optional[str]):
+    """Map a manifest dtype string to a torch dtype, or None if unknown."""
+    import torch
+
+    if not name:
+        return None
+    return {"bfloat16": torch.bfloat16, "float16": torch.float16, "float32": torch.float32}.get(
+        name.removeprefix("torch.")
+    )
+
+
 def _verify_weights(model: Any, manifest: Dict[str, Any]) -> Dict[str, Any]:
     """Re-hash the loaded tensors and compare to the recorded manifest.
 
@@ -553,11 +564,15 @@ def _verify_weights(model: Any, manifest: Dict[str, Any]) -> Dict[str, Any]:
     the exact digests the manifest committed.
 
     Only tensors that are actually *persisted* in the checkpoint can make that
-    claim. The RoPE cache buffers are registered with ``persistent=False``, so
-    every safetensors file omits them and the loader recomputes them from config
-    (as fp32, whereas the init-time model held them in the build dtype, bf16).
-    They are therefore reported as derived/excluded rather than counted as a
-    failure - there is nothing on disk for them to match.
+    byte-level claim. The RoPE cache buffers are registered with
+    ``persistent=False``, so every safetensors file omits them and the loader
+    recomputes them from config (in fp32, whereas the init-time model held them
+    in the build dtype, bf16). They cannot match a raw fp32 hash, but they are
+    not unverifiable either: casting the reloaded buffer back to the *recorded*
+    dtype must reproduce the manifest digest exactly. That reconciles the dtype
+    difference and proves the buffer was reconstructed faithfully rather than
+    merely present. Both facts are reported, and neither is counted as a
+    persisted-tensor mismatch.
     """
     from . import proof, store
 
@@ -576,17 +591,30 @@ def _verify_weights(model: Any, manifest: Dict[str, Any]) -> Dict[str, Any]:
         digest = entry_rec["sha256"] if isinstance(entry_rec, dict) else entry_rec
         entry = actual.get(name)
         if name in derived_names:
+            recorded_dtype = entry_rec.get("dtype") if isinstance(entry_rec, dict) else None
+            loaded = None
+            try:
+                loaded = model.get_buffer(name)
+            except AttributeError:
+                loaded = None
+            reconstructed = None
+            if loaded is not None and isinstance(entry_rec, dict):
+                torch_dtype = _torch_dtype(recorded_dtype)
+                if torch_dtype is not None:
+                    reconstructed = proof.tensor_sha256(loaded.to(torch_dtype)) == digest
             derived.append(
                 {
                     "name": name,
                     "persistent": False,
                     "recordedSha256": digest,
                     "loadedSha256": entry["sha256"] if entry else None,
-                    "recordedDtype": (entry_rec.get("dtype") if isinstance(entry_rec, dict) else None),
+                    "recordedDtype": recorded_dtype,
                     "loadedDtype": entry["dtype"] if entry else None,
+                    "reconstructed": reconstructed,
                     "reason": (
-                        "non-persistent buffer: not stored in the checkpoint, "
-                        "recomputed by the loader, so it is excluded from byte-level provenance"
+                        "non-persistent buffer: not stored in the checkpoint, recomputed "
+                        "by the loader; reconciles to the manifest digest when cast to the "
+                        "recorded dtype"
                     ),
                 }
             )
@@ -603,8 +631,12 @@ def _verify_weights(model: Any, manifest: Dict[str, Any]) -> Dict[str, Any]:
         for name in actual
         if name in persisted and name not in recorded
     )
+    persisted_ok = not mismatched and not missing and not unexpected
+    derived_ok = all(d.get("reconstructed") for d in derived)
     return {
-        "verified": not mismatched and not missing and not unexpected,
+        "verified": persisted_ok,
+        "derivedReconstructed": derived_ok,
+        "verifiedAll": persisted_ok and derived_ok,
         "recordedCount": len(recorded),
         "persistedCount": len(recorded) - len(derived),
         "actualCount": len(actual),
@@ -640,6 +672,11 @@ def cmd_eval(args: argparse.Namespace) -> Dict[str, Any]:
             raise AssertionError(
                 f"{args.version} weights do not match its manifest: "
                 f"{len(weights['mismatched'])} mismatch, {len(weights['missing'])} missing"
+            )
+        if not weights["derivedReconstructed"]:
+            raise AssertionError(
+                f"{args.version} non-persistent buffers did not reconcile to their "
+                "manifest digests at the recorded dtype"
             )
 
     if args.eval_set:
@@ -702,6 +739,52 @@ def cmd_eval(args: argparse.Namespace) -> Dict[str, Any]:
     }
 
 
+def generate_text(
+    model: Any,
+    tokenizer: Any,
+    *,
+    prompt: str,
+    max_new_tokens: int = 32,
+    temperature: float = 0.0,
+    top_p: float = 0.95,
+    seed: Optional[int] = 0,
+    device: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Run one generation pass and return the decoded result.
+
+    Shared by the one-shot `generate` verb and the long-lived student worker so
+    both decode identically. Sampling is greedy unless temperature > 0.
+    """
+    import torch
+
+    gen_kwargs: Dict[str, Any] = {"max_new_tokens": int(max_new_tokens)}
+    if temperature and temperature > 0:
+        if seed is not None:
+            torch.manual_seed(seed)
+            if torch.cuda.is_available():
+                torch.cuda.manual_seed_all(seed)
+        gen_kwargs.update(do_sample=True, temperature=float(temperature), top_p=float(top_p))
+        mode = "sample"
+    else:
+        gen_kwargs.update(do_sample=False)
+        mode = "greedy"
+
+    inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
+    prompt_tokens = int(inputs["input_ids"].shape[1])
+
+    with torch.no_grad():
+        output = model.generate(**inputs, **gen_kwargs)
+
+    new_tokens = output[0][prompt_tokens:]
+    text = tokenizer.decode(new_tokens, skip_special_tokens=True)
+    return {
+        "text": text,
+        "mode": mode,
+        "promptTokens": prompt_tokens,
+        "generatedTokens": int(new_tokens.shape[0]),
+    }
+
+
 def cmd_generate(args: argparse.Namespace) -> Dict[str, Any]:
     """Check 11: generation runs from a committed checkpoint.
 
@@ -709,8 +792,6 @@ def cmd_generate(args: argparse.Namespace) -> Dict[str, Any]:
     of training; the point is that the plumbing loads the immutable directory and
     decodes. The prompt is echoed so a caller can tell it is the same request.
     """
-    import torch
-
     from . import store
 
     root = Path(args.out)
@@ -718,27 +799,16 @@ def cmd_generate(args: argparse.Namespace) -> Dict[str, Any]:
     model, tokenizer, version_dir = _load_version_for_serving(root, args.version, device)
     model.eval()
 
-    if args.seed is not None:
-        torch.manual_seed(args.seed)
-        if torch.cuda.is_available():
-            torch.cuda.manual_seed_all(args.seed)
-
-    inputs = tokenizer(args.prompt, return_tensors="pt").to(device)
-    prompt_tokens = int(inputs["input_ids"].shape[1])
-
-    gen_kwargs: Dict[str, Any] = {"max_new_tokens": args.max_new_tokens}
-    if args.temperature > 0:
-        gen_kwargs.update(do_sample=True, temperature=args.temperature, top_p=args.top_p)
-        mode = "sample"
-    else:
-        gen_kwargs.update(do_sample=False)
-        mode = "greedy"
-
-    with torch.no_grad():
-        output = model.generate(**inputs, **gen_kwargs)
-
-    new_tokens = output[0][prompt_tokens:]
-    text = tokenizer.decode(new_tokens, skip_special_tokens=True)
+    result = generate_text(
+        model,
+        tokenizer,
+        prompt=args.prompt,
+        max_new_tokens=args.max_new_tokens,
+        temperature=args.temperature,
+        top_p=args.top_p,
+        seed=args.seed,
+        device=device,
+    )
 
     manifest = store.read_json(version_dir / "init-manifest.json")
     try:
@@ -746,7 +816,7 @@ def cmd_generate(args: argparse.Namespace) -> Dict[str, Any]:
     except ValueError:
         artifact = None
 
-    _log(f"generate {args.version}: {int(new_tokens.shape[0])} new token(s) ({mode})")
+    _log(f"generate {args.version}: {result['generatedTokens']} new token(s) ({result['mode']})")
 
     return {
         "ok": True,
@@ -755,11 +825,11 @@ def cmd_generate(args: argparse.Namespace) -> Dict[str, Any]:
         "artifactName": artifact,
         "device": device,
         "dtype": str(next(model.parameters()).dtype).replace("torch.", ""),
-        "mode": mode,
+        "mode": result["mode"],
         "prompt": args.prompt,
-        "text": text,
-        "promptTokens": prompt_tokens,
-        "generatedTokens": int(new_tokens.shape[0]),
+        "text": result["text"],
+        "promptTokens": result["promptTokens"],
+        "generatedTokens": result["generatedTokens"],
     }
 
 
