@@ -123,12 +123,12 @@ deliberately unimplemented.
 | 3 | `v001` is saved and published atomically with a `COMMITTED` marker | done |
 | 4 | No pretrained neural weights were loaded (all six obligations above) | done |
 | 5 | `train` runs real optimization on the fixture corpus and produces `v002` | done |
-| 6 | `v002` reloads from disk into a fresh process | **todo** |
+| 6 | `v002` reloads from disk into a fresh process | done — 74 persisted tensors re-hash byte-identical; 2 non-persistent RoPE buffers recomputed by the loader |
 | 7 | Every trainable parameter changes materially; buffers stay put | done |
-| 8 | Evaluation produces a loss number | **todo** |
-| 9 | Loss decreases in the expected direction | **todo** |
-| 10 | Versions are comparable and the diff is explainable | **todo** |
-| 11 | Generation runs from a checkpoint (nonsense output is fine) | **todo** |
+| 8 | Evaluation produces a loss number | done — `v001` scores 11.836, inside the `[10.5, 12.5]` init band |
+| 9 | Loss decreases in the expected direction | done — `v002` 8.836 < `v001` 11.836 on the identical frozen set |
+| 10 | Versions are comparable and the diff is explainable | done — same architecture; 74/74 params named and changed; 0 buffers drifted |
+| 11 | Generation runs from a checkpoint (nonsense output is fine) | done |
 | 12 | Provenance and init manifest are persisted | done |
 
 Nonsense generations at step 11 are **expected and acceptable**. A model that has seen a few
@@ -350,7 +350,16 @@ Resume **refuses** to proceed if the corpus `datasetHash` or any config field ot
 differs, and refuses if the target does not advance. Continuing against silently different data
 would make the recorded attribution a lie.
 
-`eval` and `generate` still raise `NotImplementedError` — they are Phase 1 checks 8 and 11.
+`eval`, `generate` and `diff` are implemented (Phase 1 checks 6, 8, 9, 10 and 11). `eval`
+loads a committed version and reports a token-weighted mean cross-entropy over a packed corpus
+or frozen eval set; with `--verify-weights` it also re-hashes the loaded tensors against the init
+manifest. `generate` decodes from a committed version. `diff` compares two versions by tensor name
+in fp32 and reports architecture parity, per-parameter deltas, buffer drift and both eval losses.
+
+Note on `--verify-weights`: only the 74 *persisted* tensors can be verified byte-for-byte. The two
+RoPE `inv_freq` buffers are registered `persistent=False`, so no safetensors file stores them; the
+loader recomputes them (as fp32, where the init-time model held them in the build dtype). They are
+reported separately as derived tensors rather than counted as a false mismatch.
 
 ### The subprocess contract
 

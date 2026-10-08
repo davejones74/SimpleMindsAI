@@ -212,6 +212,49 @@ def _finite(t: torch.Tensor) -> bool:
     return bool(torch.isfinite(t).all())
 
 
+def mean_cross_entropy(
+    model: torch.nn.Module,
+    blocks: torch.Tensor,
+    *,
+    device: str,
+    micro_batch_size: int,
+    compute_dtype: str = "float32",
+) -> Optional[float]:
+    """Token-weighted mean next-token cross-entropy over fixed-length blocks.
+
+    Weighted by token count rather than by the mean of batch means: a short
+    final batch is smaller, and averaging batch means would silently over-weight
+    it. This is exactly the reduction the training loop's validation uses,
+    exposed as a function so evaluation and training cannot drift apart — the
+    promotion gate compares parent and candidate through this one path.
+
+    Returns None for an empty block set.
+    """
+    if blocks.numel() == 0:
+        return None
+    was_training = model.training
+    model.eval()
+    device_type = torch.device(device).type
+    weighted = 0.0
+    tokens = 0
+    with torch.no_grad():
+        for i in range(0, blocks.shape[0], micro_batch_size):
+            batch = blocks[i : i + micro_batch_size].to(device)
+            if compute_dtype == "float32":
+                ctx = contextlib.nullcontext()
+            else:
+                ctx = torch.autocast(
+                    device_type=device_type, dtype=getattr(torch, compute_dtype)
+                )
+            with ctx:
+                loss = float(model(input_ids=batch, labels=batch).loss)
+            weighted += loss * int(batch.numel())
+            tokens += int(batch.numel())
+    if was_training:
+        model.train()
+    return weighted / tokens
+
+
 def train(
     *,
     model: torch.nn.Module,
@@ -342,24 +385,13 @@ def train(
         return torch.autocast(device_type=device_type, dtype=autocast_dtype)
 
     def evaluate() -> Optional[float]:
-        if val_blocks.numel() == 0:
-            return None
-        was_training = model.training
-        model.eval()
-        weighted = 0.0
-        tokens = 0
-        with torch.no_grad():
-            for i in range(0, val_blocks.shape[0], cfg.microBatchSize):
-                batch = val_blocks[i : i + cfg.microBatchSize].to(device)
-                with autocast():
-                    loss = float(model(input_ids=batch, labels=batch).loss)
-                # Weight by tokens, not by batch. A short final batch is smaller,
-                # and averaging batch means would silently over-weight it.
-                weighted += loss * int(batch.numel())
-                tokens += int(batch.numel())
-        if was_training:
-            model.train()
-        return weighted / tokens
+        return mean_cross_entropy(
+            model,
+            val_blocks,
+            device=device,
+            micro_batch_size=cfg.microBatchSize,
+            compute_dtype=cfg.computeDtype,
+        )
 
     # Baseline before any update: the honest "before" number. Measured through the
     # same autocast path as the training steps, or it is not a comparable baseline.

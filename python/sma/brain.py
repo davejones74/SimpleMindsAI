@@ -4,15 +4,15 @@ SimpleMindsAI compute-plane CLI.
     python -m sma.brain init    --config small --out data/models
     python -m sma.brain status  --out data/models
     python -m sma.brain train   --config small --parent v001 --out data/models
-    python -m sma.brain eval    --version v001 --out data/models
+    python -m sma.brain eval    --version v001 --out data/models --corpus corpus.txt
     python -m sma.brain generate --version v002 --prompt "..."
+    python -m sma.brain diff    --a v001 --b v002 --out data/models
 
 Node invokes this as a subprocess. stdout carries exactly one JSON object;
 stderr carries logs; a non-zero exit means failure and the caller must treat
 the run as failed. There is deliberately no fallback path.
 
-Phase 1 implements `init`, `status` and `train`. `eval` and `generate` are
-still stubbed so the contract is visible early.
+Phase 1 implements `init`, `status`, `train`, `eval`, `generate` and `diff`.
 """
 
 from __future__ import annotations
@@ -506,12 +506,376 @@ def cmd_train(args: argparse.Namespace) -> Dict[str, Any]:
     }
 
 
+def _safe_read_json(path: Path) -> Dict[str, Any]:
+    from . import store
+
+    if Path(path).is_file():
+        return store.read_json(path)
+    return {}
+
+
+def _load_version_for_serving(
+    root: Path, version: str, device: str
+) -> tuple[Any, Any, Path]:
+    """Load a committed version the one legal way: from its immutable directory.
+
+    Chat, eval, generate and diff all resolve through `store.resolve_version_dir`,
+    never through an export. The dtype is left at whatever the checkpoint stores
+    so a hash check sees the real bytes; callers upcast to fp32 themselves when
+    they want numerically comparable math across versions.
+    """
+    from transformers import AutoModelForCausalLM, AutoTokenizer
+
+    from . import store
+
+    version_dir = store.resolve_version_dir(root, version)
+    tokenizer = AutoTokenizer.from_pretrained(version_dir)
+    model = AutoModelForCausalLM.from_pretrained(version_dir, dtype="auto")
+    model = model.to(device)
+    return model, tokenizer, version_dir
+
+
+def _pack_paths(
+    tokenizer: Any, paths: list, seq_len: int, tokenizer_path: Path
+):
+    from . import data as data_mod
+
+    documents = data_mod.load_documents([Path(p) for p in paths])
+    blocks, record = data_mod.pack(tokenizer, documents, seq_len, tokenizer_path)
+    return blocks, record
+
+
+def _verify_weights(model: Any, manifest: Dict[str, Any]) -> Dict[str, Any]:
+    """Re-hash the loaded tensors and compare to the recorded manifest.
+
+    This is what makes check 6 a statement about the bytes on disk rather than
+    about the loader returning without raising: a fresh process must reproduce
+    the exact digests the manifest committed.
+
+    Only tensors that are actually *persisted* in the checkpoint can make that
+    claim. The RoPE cache buffers are registered with ``persistent=False``, so
+    every safetensors file omits them and the loader recomputes them from config
+    (as fp32, whereas the init-time model held them in the build dtype, bf16).
+    They are therefore reported as derived/excluded rather than counted as a
+    failure - there is nothing on disk for them to match.
+    """
+    from . import proof, store
+
+    recorded = store._tensor_hash_map(manifest)
+    actual = proof.tensor_hashes(model)["tensors"]
+
+    persisted = set(model.state_dict().keys())
+    buffer_names = {name for name, _ in model.named_buffers()}
+    derived_names = sorted(buffer_names - persisted)
+
+    matched = 0
+    mismatched: list = []
+    missing: list = []
+    derived: list = []
+    for name, entry_rec in sorted(recorded.items()):
+        digest = entry_rec["sha256"] if isinstance(entry_rec, dict) else entry_rec
+        entry = actual.get(name)
+        if name in derived_names:
+            derived.append(
+                {
+                    "name": name,
+                    "persistent": False,
+                    "recordedSha256": digest,
+                    "loadedSha256": entry["sha256"] if entry else None,
+                    "recordedDtype": (entry_rec.get("dtype") if isinstance(entry_rec, dict) else None),
+                    "loadedDtype": entry["dtype"] if entry else None,
+                    "reason": (
+                        "non-persistent buffer: not stored in the checkpoint, "
+                        "recomputed by the loader, so it is excluded from byte-level provenance"
+                    ),
+                }
+            )
+            continue
+        if entry is None:
+            missing.append(name)
+        elif entry["sha256"] == digest:
+            matched += 1
+        else:
+            mismatched.append({"name": name, "recorded": digest, "actual": entry["sha256"]})
+
+    unexpected = sorted(
+        name
+        for name in actual
+        if name in persisted and name not in recorded
+    )
+    return {
+        "verified": not mismatched and not missing and not unexpected,
+        "recordedCount": len(recorded),
+        "persistedCount": len(recorded) - len(derived),
+        "actualCount": len(actual),
+        "matched": matched,
+        "mismatched": mismatched,
+        "missing": missing,
+        "unexpected": unexpected,
+        "derivedTensors": derived,
+    }
+
+
 def cmd_eval(args: argparse.Namespace) -> Dict[str, Any]:
-    raise NotImplementedError("eval lands in the next Phase 1 step")
+    """Check 8: a loss number. Check 6 (with --verify-weights): the bytes reload.
+
+    The loss-signature band applies only to a freshly initialised, untrained
+    checkpoint. A trained v002 legitimately scores far below ln(V); applying the
+    band there would report a weight leak that did not happen.
+    """
+    from . import arch, proof, store, train as train_mod
+
+    root = Path(args.out)
+    device = _resolve_device(args.device)
+    model, tokenizer, version_dir = _load_version_for_serving(root, args.version, device)
+    model.eval()
+
+    manifest = store.read_json(version_dir / "init-manifest.json")
+    _total, _trainable, unique = arch.count_parameters(model)
+
+    weights = {"parameterUniqueByStorage": unique}
+    if args.verify_weights:
+        weights.update(_verify_weights(model, manifest))
+        if not weights["verified"]:
+            raise AssertionError(
+                f"{args.version} weights do not match its manifest: "
+                f"{len(weights['mismatched'])} mismatch, {len(weights['missing'])} missing"
+            )
+
+    if args.eval_set:
+        paths = [Path(args.eval_set)]
+        source = "eval-set"
+    else:
+        paths = [Path(p) for p in (args.corpus or [])]
+        source = "corpus"
+
+    tokenizer_path = version_dir / "tokenizer.json"
+    blocks, record = _pack_paths(tokenizer, paths, args.seq_len, tokenizer_path)
+    model = model.float()
+    loss = train_mod.mean_cross_entropy(
+        model,
+        blocks,
+        device=device,
+        micro_batch_size=args.micro_batch,
+        compute_dtype="float32",
+    )
+
+    trained_steps = int(_safe_read_json(version_dir / "train-state.json").get("stepsCompleted") or 0)
+    vocab = (manifest.get("architecture") or {}).get("vocabSize")
+    if manifest.get("initialisationType") == "RANDOM" and trained_steps == 0:
+        signature = {"applies": True, **proof.check_loss_signature(loss, int(vocab))}
+    else:
+        signature = {
+            "applies": False,
+            "loss": loss,
+            "reason": (
+                "the ln(V) band applies only to untrained RANDOM initialisations; a "
+                "trained checkpoint is expected to score below it"
+            ),
+        }
+
+    _log(
+        f"eval {args.version}: loss {loss:.4f} over {record.blockCount} block(s) "
+        f"from {record.documentCount} document(s)"
+    )
+
+    return {
+        "ok": True,
+        "verb": "eval",
+        "version": args.version,
+        "device": device,
+        "source": source,
+        "evalLoss": loss,
+        "lossSignature": signature,
+        "trainedSteps": trained_steps,
+        "weights": weights,
+        "evaluationSet": {
+            "strategy": record.strategy,
+            "datasetHash": record.datasetHash,
+            "tokenizerHash": record.tokenizerHash,
+            "sequenceLength": record.sequenceLength,
+            "documentCount": record.documentCount,
+            "blockCount": record.blockCount,
+            "tokensSeen": record.tokensSeen,
+            "articles": record.articles,
+        },
+    }
 
 
 def cmd_generate(args: argparse.Namespace) -> Dict[str, Any]:
-    raise NotImplementedError("generate lands in the next Phase 1 step")
+    """Check 11: generation runs from a committed checkpoint.
+
+    Nonsense output is expected and acceptable at 62M with a few thousand tokens
+    of training; the point is that the plumbing loads the immutable directory and
+    decodes. The prompt is echoed so a caller can tell it is the same request.
+    """
+    import torch
+
+    from . import store
+
+    root = Path(args.out)
+    device = _resolve_device(args.device)
+    model, tokenizer, version_dir = _load_version_for_serving(root, args.version, device)
+    model.eval()
+
+    if args.seed is not None:
+        torch.manual_seed(args.seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(args.seed)
+
+    inputs = tokenizer(args.prompt, return_tensors="pt").to(device)
+    prompt_tokens = int(inputs["input_ids"].shape[1])
+
+    gen_kwargs: Dict[str, Any] = {"max_new_tokens": args.max_new_tokens}
+    if args.temperature > 0:
+        gen_kwargs.update(do_sample=True, temperature=args.temperature, top_p=args.top_p)
+        mode = "sample"
+    else:
+        gen_kwargs.update(do_sample=False)
+        mode = "greedy"
+
+    with torch.no_grad():
+        output = model.generate(**inputs, **gen_kwargs)
+
+    new_tokens = output[0][prompt_tokens:]
+    text = tokenizer.decode(new_tokens, skip_special_tokens=True)
+
+    manifest = store.read_json(version_dir / "init-manifest.json")
+    try:
+        artifact = store.artifact_name(manifest)
+    except ValueError:
+        artifact = None
+
+    _log(f"generate {args.version}: {int(new_tokens.shape[0])} new token(s) ({mode})")
+
+    return {
+        "ok": True,
+        "verb": "generate",
+        "version": args.version,
+        "artifactName": artifact,
+        "device": device,
+        "dtype": str(next(model.parameters()).dtype).replace("torch.", ""),
+        "mode": mode,
+        "prompt": args.prompt,
+        "text": text,
+        "promptTokens": prompt_tokens,
+        "generatedTokens": int(new_tokens.shape[0]),
+    }
+
+
+def cmd_diff(args: argparse.Namespace) -> Dict[str, Any]:
+    """Check 10: versions are comparable and the diff is explainable.
+
+    Compared by tensor name and by fp32 value, never by digest sets: the model
+    records 76 entries that yield only 59 distinct digests (17 RMSNorm weights
+    are 1.0, the RoPE buffers are a closed form), so a digest-set comparison
+    cannot say which tensor moved. Values are cast to fp32 first so a bf16 v001
+    and an fp32 v002 are compared on what they mean, not on how they were stored.
+    """
+    from . import store, train as train_mod
+
+    root = Path(args.out)
+    device = _resolve_device(args.device)
+    a_dir = store.resolve_version_dir(root, args.a)
+    b_dir = store.resolve_version_dir(root, args.b)
+
+    model_a, tok_a, _ = _load_version_for_serving(root, args.a, device)
+    model_b, tok_b, _ = _load_version_for_serving(root, args.b, device)
+    model_a, model_b = model_a.float().eval(), model_b.float().eval()
+
+    param_diff = train_mod.diff_tensors(
+        train_mod.named_parameter_snapshots(model_a),
+        train_mod.named_parameter_snapshots(model_b),
+        tolerance=args.tolerance,
+    )
+    buffer_diff = train_mod.assert_buffers_unchanged(
+        train_mod.named_buffer_snapshots(model_a),
+        train_mod.named_buffer_snapshots(model_b),
+    )
+
+    man_a = store.read_json(a_dir / "init-manifest.json")
+    man_b = store.read_json(b_dir / "init-manifest.json")
+    prov_a = _safe_read_json(a_dir / "provenance.json")
+    prov_b = _safe_read_json(b_dir / "provenance.json")
+    arch_a, arch_b = man_a.get("architecture") or {}, man_b.get("architecture") or {}
+
+    parity_fields = (
+        "numHiddenLayers",
+        "hiddenSize",
+        "numAttentionHeads",
+        "numKeyValueHeads",
+        "headDim",
+        "intermediateSize",
+        "vocabSize",
+        "ropeTheta",
+        "noRopeLayerInterval",
+        "tieWordEmbeddings",
+    )
+    architecture_parity = {
+        field: {"a": arch_a.get(field), "b": arch_b.get(field), "equal": arch_a.get(field) == arch_b.get(field)}
+        for field in parity_fields
+    }
+
+    names_match = (
+        not param_diff["onlyBefore"]
+        and not param_diff["onlyAfter"]
+        and not param_diff["shapeMismatch"]
+    )
+
+    losses = None
+    if args.eval_set or args.corpus:
+        paths = [Path(args.eval_set)] if args.eval_set else [Path(p) for p in args.corpus]
+        blocks_a, record = _pack_paths(tok_a, paths, args.seq_len, a_dir / "tokenizer.json")
+        loss_a = train_mod.mean_cross_entropy(
+            model_a, blocks_a, device=device, micro_batch_size=args.micro_batch, compute_dtype="float32"
+        )
+        blocks_b, _ = _pack_paths(tok_b, paths, args.seq_len, b_dir / "tokenizer.json")
+        loss_b = train_mod.mean_cross_entropy(
+            model_b, blocks_b, device=device, micro_batch_size=args.micro_batch, compute_dtype="float32"
+        )
+        losses = {
+            "datasetHash": record.datasetHash,
+            "a": loss_a,
+            "b": loss_b,
+            "delta": (loss_b - loss_a) if (loss_a is not None and loss_b is not None) else None,
+            "decreased": (
+                loss_b < loss_a if (loss_a is not None and loss_b is not None) else None
+            ),
+        }
+
+    _log(
+        f"diff {args.a} -> {args.b}: {param_diff['changedCount']}/{param_diff['compared']} "
+        f"parameters differ, {len(buffer_diff['drifted'])} buffer(s) drifted"
+    )
+
+    return {
+        "ok": True,
+        "verb": "diff",
+        "a": args.a,
+        "b": args.b,
+        "device": device,
+        "parentChain": {
+            "a": prov_a.get("parentVersion"),
+            "b": prov_b.get("parentVersion"),
+            "aInitialisationType": man_a.get("initialisationType"),
+            "bInitialisationType": man_b.get("initialisationType"),
+        },
+        "architectureParity": architecture_parity,
+        "sameArchitecture": names_match and all(v["equal"] for v in architecture_parity.values()),
+        "parameters": param_diff,
+        "buffers": buffer_diff,
+        "losses": losses,
+        "explainableDiff": {
+            "parameterNamesMatch": names_match,
+            "compared": param_diff["compared"],
+            "changedCount": param_diff["changedCount"],
+            "unchangedCount": param_diff["unchangedCount"],
+            "changedNames": [c["name"] for c in param_diff["changed"]],
+            "unchangedNames": [u["name"] for u in param_diff["unchanged"]],
+            "buffersUnchanged": not buffer_diff["drifted"],
+            "lossDecreased": losses["decreased"] if losses else None,
+        },
+    }
 
 
 # --------------------------------------------------------------------- main
@@ -572,13 +936,45 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sp.set_defaults(func=cmd_train)
 
-    for name, fn, helptext in (
-        ("eval", cmd_eval, "evaluate a version"),
-        ("generate", cmd_generate, "greedy/sample decode from a version"),
-    ):
-        sp = sub.add_parser(name, help=helptext)
-        common(sp)
-        sp.set_defaults(func=fn)
+    sp = sub.add_parser("eval", help="evaluate a committed version (check 8)")
+    common(sp)
+    sp.add_argument("--version", required=True, help="committed version to evaluate, e.g. v002")
+    source = sp.add_mutually_exclusive_group(required=True)
+    source.add_argument("--corpus", nargs="+", help="fixture .txt or .jsonl path(s)")
+    source.add_argument("--eval-set", dest="eval_set", help="frozen eval-set .jsonl path")
+    sp.add_argument("--seq-len", type=int, default=128)
+    sp.add_argument("--micro-batch", type=int, default=2)
+    sp.add_argument("--device", default="auto", help="auto | cpu | cuda")
+    sp.add_argument(
+        "--verify-weights",
+        action="store_true",
+        help="re-hash loaded tensors against the manifest (check 6)",
+    )
+    sp.set_defaults(func=cmd_eval)
+
+    sp = sub.add_parser("generate", help="decode from a committed version (check 11)")
+    common(sp)
+    sp.add_argument("--version", required=True, help="committed version to generate from")
+    sp.add_argument("--prompt", required=True)
+    sp.add_argument("--max-new-tokens", type=int, default=32)
+    sp.add_argument("--temperature", type=float, default=0.0, help="0 = greedy")
+    sp.add_argument("--top-p", type=float, default=0.95)
+    sp.add_argument("--seed", type=int, default=0)
+    sp.add_argument("--device", default="auto", help="auto | cpu | cuda")
+    sp.set_defaults(func=cmd_generate)
+
+    sp = sub.add_parser("diff", help="explain the difference between two versions (check 10)")
+    common(sp)
+    sp.add_argument("--a", required=True, help="first committed version, e.g. v001")
+    sp.add_argument("--b", required=True, help="second committed version, e.g. v002")
+    source = sp.add_mutually_exclusive_group(required=False)
+    source.add_argument("--corpus", nargs="+", help="optional corpus to compare eval loss on")
+    source.add_argument("--eval-set", dest="eval_set", help="optional frozen eval-set .jsonl")
+    sp.add_argument("--seq-len", type=int, default=128)
+    sp.add_argument("--micro-batch", type=int, default=2)
+    sp.add_argument("--tolerance", type=float, default=1e-9, help="parameter materiality floor")
+    sp.add_argument("--device", default="auto", help="auto | cpu | cuda")
+    sp.set_defaults(func=cmd_diff)
 
     sp = sub.add_parser(
         "export",
