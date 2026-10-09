@@ -13,6 +13,8 @@ stderr carries logs; a non-zero exit means failure and the caller must treat
 the run as failed. There is deliberately no fallback path.
 
 Phase 1 implements `init`, `status`, `train`, `eval`, `generate` and `diff`.
+Phase 2 adds `preflight`, the read-only memory/portability budget that gates a
+long run before it is started.
 """
 
 from __future__ import annotations
@@ -253,6 +255,45 @@ def cmd_active(args: argparse.Namespace) -> Dict[str, Any]:
     return result
 
 
+# ------------------------------------------------------------- preflight
+
+
+def cmd_preflight(args: argparse.Namespace) -> Dict[str, Any]:
+    """Phase 2: measure the machine and print the budget before any long run.
+
+    Read-only by construction: it builds no model and touches no version. It
+    exits non-zero when a check fails so a caller refuses to start a run the
+    machine cannot finish, matching the one-JSON-object contract.
+    """
+    from . import preflight
+
+    report = preflight.run_preflight(
+        args.config,
+        store_root=Path(args.out),
+        optimizer=args.optimizer,
+        storage_dtype=args.storage_dtype,
+        compute_dtype=args.compute_dtype,
+        micro_batch=args.micro_batch,
+        seq_len=args.seq_len,
+        grad_checkpointing=args.grad_checkpointing,
+        resume_from=args.resume_from,
+        allow_cross_vendor=args.allow_cross_vendor,
+        include_bf16_probe=not args.counts_only,
+    )
+
+    mem = report["memory"]
+    _log(
+        f"preflight {args.config} on {report['backend']}: "
+        f"resident {mem['resident']['human']}, checkpoint {mem['checkpoint']['totalHuman']}"
+    )
+    for c in report["checks"]:
+        flag = "ok" if c["ok"] else "WARN" if c["ok"] is None else "FAIL"
+        _log(f"  [{flag}] {c['name']}: {c['detail']}")
+
+    report["exitCode"] = 0 if report["ok"] else 1
+    return report
+
+
 # ------------------------------------------------------------- not yet here
 
 
@@ -262,6 +303,29 @@ def _resolve_device(requested: str) -> str:
     if requested == "auto":
         return "cuda" if torch.cuda.is_available() else "cpu"
     return requested
+
+
+def _validate_run_id(run_id: Optional[str]) -> Optional[str]:
+    """Validate the caller-supplied run id before it is written to provenance.
+
+    The Node orchestration plane owns the training-run identity and passes it in
+    so the committed checkpoint can be linked back to the ledger. It is written
+    into provenance BEFORE the commit marker, so a committed version can never be
+    linked to the wrong run. Reject anything that is not a short, safe token.
+    """
+    if run_id is None:
+        return None
+    import re
+
+    node_run_id = str(run_id).strip()
+    if not node_run_id:
+        raise ValueError("run-id must be a non-empty string")
+    if not re.fullmatch(r"[A-Za-z0-9._:-]{1,128}", node_run_id):
+        raise ValueError(
+            "run-id must match [A-Za-z0-9._:-]{1,128} "
+            f"(got {node_run_id!r})"
+        )
+    return node_run_id
 
 
 def cmd_train(args: argparse.Namespace) -> Dict[str, Any]:
@@ -280,8 +344,12 @@ def cmd_train(args: argparse.Namespace) -> Dict[str, Any]:
 
     version = args.version or store.next_version(root)
     device = _resolve_device(args.device)
+    node_run_id = _validate_run_id(getattr(args, "run_id", None))
     t0 = time.perf_counter()
-    _log(f"train {version} from {parent} on {device} for {args.steps} step(s)")
+    _log(
+        f"train {version} from {parent} on {device} for {args.steps} step(s)"
+        + (f" node-run {node_run_id}" if node_run_id else "")
+    )
 
     # Our own checkpoint on local disk. The audit allows a filesystem path and
     # forbids a Hub id, which is exactly this case.
@@ -422,6 +490,7 @@ def cmd_train(args: argparse.Namespace) -> Dict[str, Any]:
                 "configName": args.config,
                 "parentVersion": parent,
                 "trainingRunId": run_id,
+                "nodeRunId": node_run_id,
                 "initialisationType": "TRAINED",
                 "pretrainedWeightsUsed": False,
                 "parentInitialisationType": "RANDOM",
@@ -472,6 +541,7 @@ def cmd_train(args: argparse.Namespace) -> Dict[str, Any]:
         "version": version,
         "parentVersion": parent,
         "trainingRunId": run_id,
+        "nodeRunId": node_run_id,
         "published": True,
         "device": device,
         "checkpointDtype": str(next(model.parameters()).dtype).replace("torch.", ""),
@@ -483,6 +553,7 @@ def cmd_train(args: argparse.Namespace) -> Dict[str, Any]:
         "tokensSeen": result.tokensSeen,
         "datasetHash": train_state["packing"]["datasetHash"],
         "blockCount": train_state["packing"]["blockCount"],
+        "articleCount": len(train_state["packing"].get("articles", [])),
         "durationMs": int((time.perf_counter() - t0) * 1000),
         "checks": {
             "check5_ran": {"ok": True, "steps": train_state["stepsCompleted"]},
@@ -980,6 +1051,13 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--version", default=None, help="default is next free vNNN")
     sp.add_argument("--out", default=str(store_root()))
     sp.add_argument(
+        "--run-id",
+        dest="run_id",
+        default=None,
+        help="Node TrainingRun id; persisted into provenance before commit so the "
+        "committed checkpoint is linked to the run that produced it",
+    )
+    sp.add_argument(
         "--lr",
         type=float,
         required=True,
@@ -1069,14 +1147,35 @@ def build_parser() -> argparse.ArgumentParser:
     act.add_argument("--sync", action="store_true", help="mirror every version's record into git")
     act.set_defaults(func=cmd_active)
 
+    from . import preflight as preflight_mod
+
+    sp = sub.add_parser(
+        "preflight",
+        help="Phase 2: budget memory/portability before a long run (read-only)",
+    )
+    common(sp)
+    sp.add_argument("--config", default="3b", choices=list(configs.CONFIG_NAMES))
+    sp.add_argument("--optimizer", default="adamw", choices=list(preflight_mod.OPTIMIZERS))
+    sp.add_argument("--storage-dtype", dest="storage_dtype", default="bfloat16", choices=["bfloat16", "float32"])
+    sp.add_argument("--compute-dtype", dest="compute_dtype", default="bfloat16", choices=["bfloat16", "float32"])
+    sp.add_argument("--seq-len", dest="seq_len", type=int, default=8192)
+    sp.add_argument("--micro-batch", dest="micro_batch", type=int, default=1)
+    sp.add_argument("--grad-checkpointing", dest="grad_checkpointing", action="store_true")
+    sp.add_argument("--resume-from", dest="resume_from", default=None, help="version whose backend is reconciled")
+    sp.add_argument("--allow-cross-vendor", dest="allow_cross_vendor", action="store_true")
+    sp.add_argument("--counts-only", dest="counts_only", action="store_true", help="skip the bf16 timing probe (reported as a warning)")
+    sp.set_defaults(func=cmd_preflight)
+
     return p
 
 
 def main(argv=None) -> int:
     args = build_parser().parse_args(argv)
     try:
-        _emit(args.func(args))
-        return 0
+        payload = args.func(args)
+        _emit(payload)
+        exit_code = payload.get("exitCode", 0) if isinstance(payload, dict) else 0
+        return int(exit_code)
     except NotImplementedError as exc:
         _log(f"not implemented: {exc}")
         _emit({"ok": False, "verb": args.verb, "error": str(exc), "kind": "not_implemented"})

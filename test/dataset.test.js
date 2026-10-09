@@ -4,75 +4,92 @@ import { mkdtempSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { RegistryStore } from "../src/storage/registry-store.js";
-import { buildSnapshot, enforceSyntheticCap, snapshotRowReader } from "../src/dataset/snapshot.js";
-import { loadEvaluationSet, makeEvalGuard, pairHash } from "../src/dataset/evaluation-set.js";
+import { ArticleStore } from "../src/storage/article-store.js";
+import { buildSnapshot, collectRowsFromArticles, snapshotRowReader } from "../src/dataset/snapshot.js";
+import { loadEvaluationSet, makeEvalGuard, pairHash, evalText } from "../src/dataset/evaluation-set.js";
 
 const tmpDir = () => path.join(mkdtempSync(path.join(tmpdir(), "sma-ds-")));
 
-const row = (i, origin = "curated", reward = 8) => ({
-  promptId: `p_${i}`, prompt: `Prompt ${i}`, completionId: `c_${i}`,
-  completion: `Completion ${i}`, origin, domain: "general", reward, createdAt: new Date().toISOString(),
+const articleRow = (i, origin = "curated") => ({
+  articleId: `art_${i}`,
+  contentHash: `hash_${i}`,
+  text: `Article ${i} body text long enough to be meaningful.`,
+  domain: "general",
+  importance: "Normal",
+  origin,
+  createdAt: new Date().toISOString(),
 });
 
 test("snapshot is immutable, hash-sealed, provenance-carrying", async () => {
   const reg = await RegistryStore.open(tmpDir());
   const snapDir = tmpDir();
-  const rows = [row(1), row(2), row(3, "synthetic", 9)];
+  const rows = [articleRow(1), articleRow(2), articleRow(3, "synthetic")];
 
-  const a = await buildSnapshot({ registry: reg, rowsRaw: rows, source: "buffer", dir: snapDir, maxSyntheticShare: 1 });
+  const a = await buildSnapshot({ registry: reg, rowsRaw: rows, source: "store", dir: snapDir });
   assert.equal(a.manifest.recordCount, 3);
   assert.equal(a.manifest.syntheticCount, 1);
-  assert.equal(a.manifest.source, "buffer");
+  assert.equal(a.manifest.source, "store");
   assert.equal(a.manifest.datasetVersion, a.hash.slice(0, 12));
   assert.ok(existsSync(a.file));
-  assert.deepEqual((await snapshotRowReader.read(a.file)).map((r) => r.promptId), ["p_1", "p_2", "p_3"]);
+  assert.deepEqual((await snapshotRowReader.read(a.file)).map((r) => r.articleId), ["art_1", "art_2", "art_3"]);
 
   // A different rows set => NEW datasetId/version/file; old file untouched.
-  const b = await buildSnapshot({ registry: reg, rowsRaw: [row(1), row(2)], dir: snapDir, maxSyntheticShare: 1 });
+  const b = await buildSnapshot({ registry: reg, rowsRaw: [articleRow(1), articleRow(2)], dir: snapDir });
   assert.notEqual(a.manifest.datasetId, b.manifest.datasetId);
   assert.notEqual(a.manifest.datasetVersion, b.manifest.datasetVersion);
   assert.equal(reg.listSnapshots().length, 2);
   await reg.close();
 });
 
-test("maxSyntheticShare: excess synthetic dropped lowest-reward-first, recorded", async () => {
-  const rows = [
-    row(1, "synthetic", 5), row(2, "synthetic", 2), row(3, "synthetic", 9),
-    row(4, "curated", 7), row(5, "curated", 7), row(6, "curated", 7), row(7, "curated", 7),
-  ];
-  const { rows: kept, dropped, cap } = enforceSyntheticCap(rows, { maxSyntheticShare: 0.2 });
-  assert.equal(cap, 1); // 7 * 0.2 = 1
-  assert.equal(kept.length, 5); // 6 - 1 allowed synthetic
-  assert.equal(dropped.length, 2);
-  assert.deepEqual(dropped.map((r) => r.reward).sort((a, b) => a - b), [2, 5]); // lowest dropped first
-
+test("synthetic share is reported, never used to silently drop rows", async () => {
   const reg = await RegistryStore.open(tmpDir());
+  const rows = [
+    articleRow(1, "synthetic"),
+    articleRow(2, "synthetic"),
+    articleRow(3, "synthetic"),
+    articleRow(4, "curated"),
+  ];
   const snap = await buildSnapshot({ registry: reg, rowsRaw: rows, dir: tmpDir() });
-  assert.equal(snap.manifest.syntheticCount, 1); // exactly the surviving 9-reward row
-  assert.equal(snap.manifest.droppedSynthetic.length, 2);
-  assert.equal(snap.dropped.length, 2);
+  assert.equal(snap.manifest.recordCount, 4); // nothing dropped
+  assert.equal(snap.manifest.syntheticCount, 3);
+  assert.equal(snap.manifest.syntheticShare, 0.75);
   await reg.close();
 });
 
-test("evaluation leak guard: eval-set pairs can never enter training snapshot", async () => {
+test("collectRowsFromArticles returns only REVIEWED, unconsumed articles", async () => {
+  const store = await ArticleStore.open(tmpDir());
+  const ids = [];
+  for (let i = 0; i < 3; i++) {
+    const a = await store.ingestArticle({ text: `Trainable article number ${i} about reasoning.`, domain: "reasoning" });
+    await store.recordReview({ articleId: a.articleId, verdict: "approve", authority: "human" });
+    ids.push(a.articleId);
+  }
+  const pending = await store.ingestArticle({ text: "An article still awaiting review.", domain: "reasoning" });
+  await store.requestReview(pending.articleId);
+
+  const { rows } = collectRowsFromArticles(store, { limit: 10 });
+  assert.equal(rows.length, 3);
+  assert.deepEqual(rows.map((r) => r.articleId).sort(), [...ids].sort());
+  await store.close();
+});
+
+test("evaluation leak guard: content-hash excludes eval rows from a snapshot", async () => {
   const evalDir = tmpDir();
   const evalSet = await loadEvaluationSet({
     dir: evalDir,
-    seed: () => [{ promptId: "e1", prompt: "Prompt 1", completion: "Completion 1" }],
+    seed: () => [{ text: "SEEDED EVAL ARTICLE TEXT", domain: "general" }],
   });
   assert.equal(evalSet.size, 1);
 
-  // Re-load: file is frozen, seed is never consulted again -> still 1, not appended.
-  const reloaded = await loadEvaluationSet({
-    dir: evalDir,
-    seed: () => [{ promptId: "e9", prompt: "Prompt 9", completion: "Completion 9" }],
-  });
+  // The file is frozen: re-loading never consults the seed again.
+  const reloaded = await loadEvaluationSet({ dir: evalDir, seed: () => [{ text: "OTHER ARTICLE" }] });
   assert.equal(reloaded.items.length, 1);
 
   const guard = makeEvalGuard(evalSet);
-  const { kept, excluded } = guard.filter([row(1), row(2), row(3)]);
-  assert.deepEqual(excluded.map((r) => r.promptId), ["p_1"]);
-  assert.deepEqual(kept.map((r) => r.promptId), ["p_2", "p_3"]);
-  assert.equal(guard.contains(row(1)), true);
-  assert.equal(pairHash("Prompt 2", "Completion 2").length, 32);
+  const { kept, excluded } = guard.filter([{ text: "SEEDED EVAL ARTICLE TEXT" }, { text: "keep me please" }]);
+  assert.equal(excluded.length, 1);
+  assert.equal(kept.length, 1);
+  assert.equal(guard.contains({ text: "SEEDED EVAL ARTICLE TEXT" }), true);
+  assert.equal(pairHash("prompt one", "completion one").length, 32);
+  assert.equal(evalText({ prompt: "a", completion: "b" }), "a\n\nb");
 });

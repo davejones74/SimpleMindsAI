@@ -3,29 +3,30 @@ import { config } from "../config.js";
 /**
  * Synthetic feedback path (requirement #10).
  *
- *   chat → brain → response → reward scorer → high-confidence → capture
+ *   chat → brain → response → teacher review → high-confidence → capture
  *
- * A chat exchange is only captured as a synthetic training example when ALL of:
+ * A chat exchange is captured as a synthetic ARTICLE only when ALL of:
  *   - config.syntheticFeedback is enabled,
  *   - the critic scores the reply >= syntheticMinScore (high-confidence branch),
  *   - the reply is non-trivial (passes the deterministic heuristic guardrail).
  *
  * Origin is stamped "synthetic" end-to-end; the model that wrote it is recorded
- * for provenance. The maxSyntheticShare cap is RE-ENFORCED at snapshot build
- * time (minimum: lower-reward synthetic dropped first), so a chat flood can
- * never dominate a dataset even if every reply scores high.
+ * for provenance. There is deliberately NO synthetic cap on the training set in
+ * the article domain: the signal is next-token prediction, not a reward, so the
+ * echo-chamber failure mode this cap guarded against does not exist. Synthetic
+ * share is REPORTED, never used to silently drop rows.
  *
- * Eval isolation is structural: a synthetic row lives in the buffer exactly like
- * any other, but the evaluation set is a separate immutable file that nothing
- * ever writes through this path.
+ * Eval isolation is structural: a synthetic article lives in the ledger exactly
+ * like any other, but the evaluation set is a separate immutable file that
+ * nothing ever writes through this path.
  */
 
 /**
- * @param {object}  input.promptText   user message (becomes the prompt)
- * @param {object}  input.replyText    the brain's answer (becomes the completion)
- * @param {object}  input.model        model id/name that produced the reply
- * @param {object}  input.store        BufferStore-like: ingestPrompt/ingestCompletion/scoreCompletion
- * @param {Function} input.scoreFn     async ({prompt, completion}) => {score, rationale} — default: RewardScorer
+ * @param {object}   input.promptText  user message (becomes article context)
+ * @param {object}   input.replyText   the brain's answer (becomes article body)
+ * @param {object}   input.model       model id/name that produced the reply
+ * @param {object}   input.store       ArticleStore-like: ingestArticle/recordReview
+ * @param {Function} input.scoreFn     async ({text}) => {score, rationale, verdict} — default: ReviewScorer
  * @returns captured record or { captured: false, reason }
  */
 export async function maybeCaptureSynthetic({
@@ -43,9 +44,10 @@ export async function maybeCaptureSynthetic({
   if (!enabled) return { captured: false, reason: "synthetic feedback disabled" };
   if (!promptText || !replyText || !String(replyText).trim()) return { captured: false, reason: "nothing to capture" };
 
+  const text = `${String(promptText).trim()}\n\n${String(replyText).trim()}`;
   let scoreRecord;
   try {
-    scoreRecord = await scoreFn({ prompt: promptText, completion: replyText });
+    scoreRecord = await scoreFn({ text });
   } catch (err) {
     return { captured: false, reason: `critic unavailable: ${err.message.slice(0, 80)}` };
   }
@@ -54,22 +56,28 @@ export async function maybeCaptureSynthetic({
     return { captured: false, reason: `score ${Number.isNaN(score) ? "?" : score.toFixed(1)} below min ${minScore}` };
   }
 
-  const p = await store.ingestPrompt({ text: promptText, source: "synthetic-feedback", domain: "general" });
-  const c = await store.ingestCompletion({ promptId: p.id, text: replyText, model, origin: "synthetic" });
-  await store.scoreCompletion({
-    completionId: c.id,
+  const article = await store.ingestArticle({
+    text,
+    source: "synthetic-feedback",
+    domain: "general",
+    origin: "synthetic",
+    model,
+  });
+  await store.recordReview({
+    articleId: article.articleId,
+    verdict: "approve",
     score,
     rationale: scoreRecord?.rationale ?? "(high-confidence chat reply)",
-    criticModel,
-    criticVersion,
+    authority: "teacher",
+    reviewerModel: criticModel,
+    reviewerVersion: criticVersion,
     rubricVersion,
     guardrailResult: { passed: true, heuristicPenalty: scoreRecord?.penalty ?? null },
   });
-  return { captured: true, promptId: p.id, completionId: c.id, score, origin: "synthetic" };
+  return { captured: true, articleId: article.articleId, score, origin: "synthetic" };
 }
 
-async function defaultScoreFn({ prompt, completion }) {
-  const { RewardScorer } = await import("../reward/reward-scorer.js");
-  const result = await new RewardScorer().scoreOffline({ promptText: prompt, completionText: completion });
-  return result;
+async function defaultScoreFn({ text }) {
+  const { ReviewScorer } = await import("../reward/reward-scorer.js");
+  return new ReviewScorer().scoreOffline({ text });
 }

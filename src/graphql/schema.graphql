@@ -1,89 +1,188 @@
 """
-SimpleMindsAI — GraphQL buffer + registry schema.
+SimpleMindsAI — GraphQL article ledger + training registry schema.
 
-Three layers, deliberately typed so the UI *cannot* confuse real vs synthetic,
-and so training provenance is a first-class citizen:
+Two layers, deliberately typed so the UI cannot confuse them:
 
-Prompt        = an input the model should learn to respond to (transient)
-Completion    = a target answer for a Prompt (transient; provenance tracked)
-RewardScore   = RLAIF critic score (transient; provenance: critic/rubric version)
-TrainingLog   = legacy run log (transient buffer's durable runs.ndjson)
+ARTICLE DOMAIN (the learning unit; replaces the old Prompt/Completion/RewardScore)
+  Article          a continuous-text document awaiting / undergoing review
+  ReviewVerdict    a teacher or human verdict on an article (transient history)
+  Consumption      a durable record of an article being trained on
 
-Phase 2 additions — the PERPETUAL TRAINING registry. These are durable,
-append-only, and describe the EXPERIMENTAL lifecycle, not the buffer belt:
-DatasetSnapshot   immutable, hash-sealed dataset file              (requirement #2)
-ModelRecord        checkpoint registry with status machine          (requirement #6)
-TrainingRunV2      full run record (baseline/trained eval, delta)   (requirement #7)
-EvaluationRecord   deterministic eval result on the immutable set   (requirement #4/#5)
+TRAINING REGISTRY (durable, append-only; describes the EXPERIMENTAL lifecycle)
+  DatasetSnapshot   immutable, hash-sealed dataset file
+  ModelRecord        checkpoint registry with a status machine
+  TrainingRunV2      full run record (baseline/trained eval, delta)
+  EvaluationRecord   deterministic eval result on the immutable set
+
+Only REVIEWED-and-unconsumed articles are trainable. Importance is
+operator-controlled; the teacher may SUGGEST it but can never apply it.
 """
 
 scalar DateTime
 
-type Prompt {
-  id: ID!
+enum ArticleImportance {
+  NORMAL
+  IMPORTANT
+  CRITICAL
+}
+
+enum ArticleStatus {
+  INGESTED
+  PENDING_REVIEW
+  REVIEWED
+  REJECTED
+}
+
+enum ReviewVerdictKind {
+  APPROVE
+  REJECT
+  UNCERTAIN
+}
+
+enum ReviewAuthority {
+  TEACHER
+  HUMAN
+  AUTOMATION
+}
+
+"""A single continuous-text article — the training unit."""
+type Article {
+  articleId: ID!
+  contentHash: String!
   text: String!
   domain: String
+  tags: [String!]!
+  importance: ArticleImportance!
+  importanceSource: String
+  suggestedImportance: ArticleImportance   # advisory only; never applied by AI
+  status: ArticleStatus!
+  origin: String
   source: String
-  rawText: String      # pre-cleaning text, kept only for debugging
-  hash: String!        # dedup key
-  deduped: Boolean!    # true if this ingest hit an identical existing prompt
-  rewardScore: Float   # best score across all its completions (null = untouched by critic)
-  completions: [Completion!]!
-  trainedAt: DateTime
-  trainedRef: String   # training runId that consumed this prompt
+  model: String
+  rawText: String          # pre-cleaning text, kept only for debugging
+  uncertainty: Float
+  missionRelevance: Float
+  reviewRequested: Boolean!
+  selectionReasons: [String!]!
+  decidedBy: ReviewAuthority
+  reviewCycleId: ID
   createdAt: DateTime!
+  updatedAt: DateTime
+  consumedAt: DateTime
+  consumedRef: String      # runId that consumed it (first appearance)
+  reviewCount: Int!
+  trainable: Boolean!      # REVIEWED && !consumed
+  reviews: [ReviewVerdict!]!
+  events: [ArticleEvent!]!
 }
 
-type Completion {
-  id: ID!
-  promptId: ID!
-  text: String!
-  model: String        # which model wrote it (critical for provenance)
-  origin: String       # "raw" | "curated" | "synthetic" | "replay"
-  rewardScore: Float
-  createdAt: DateTime!
-}
-
-type GuardrailOutput {
-  passed: Boolean!
-  heuristicPenalty: Float
-  reason: String
-}
-
-type RewardScore {
-  id: ID!
-  completionId: ID!
-  score: Float!        # 0..10
+"""Teacher/human verdict on an article (transient review history)."""
+type ReviewVerdict {
+  reviewId: ID!
+  articleId: ID!
+  verdict: ReviewVerdictKind!
+  score: Float
   rationale: String
-  criticModel: String!
-  criticVersion: String   # provenance spine
-  rubricVersion: String   # provenance spine
-  guardrailResult: GuardrailOutput
-  createdAt: DateTime!
+  authority: ReviewAuthority!
+  reviewerModel: String
+  reviewerVersion: String
+  rubricVersion: String
+  suggestedImportance: ArticleImportance
+  reviewCycleId: ID
+  applied: Boolean!
+  resultingStatus: ArticleStatus!
+  reason: String
+  at: DateTime!
 }
 
-"""Legacy run log (transient). New runs live in TrainingRunV2."""
-type TrainingLog {
-  id: ID!
-  runId: String!
-  startedAt: DateTime!
-  finishedAt: DateTime
-  datasetRefs: [String!]!  # prompt ids / JSONL file refs consumed this run
-  recordsTrained: Int
-  avgLoss: Float
-  avgReward: Float
-  note: String
+"""Audit of a status/importance transition on an article."""
+type ArticleEvent {
+  type: String!
+  articleId: ID!
+  from: String
+  to: String
+  actor: ReviewAuthority
+  reason: String
+  at: DateTime!
+}
+
+type ArticlePage {
+  items: [Article!]!
+  nextCursor: String
+}
+
+type ReviewResult {
+  review: ReviewVerdict!
+  article: Article!
+  applied: Boolean!
+}
+
+type ConsumptionRecord {
+  articleId: ID!
+  contentHash: String!
+  runId: String
+  reused: Boolean!
+  at: DateTime!
+}
+
+type ConsumptionResult {
+  consumed: [ConsumptionRecord!]!
+  skipped: [SkippedConsumption!]!
+}
+
+type SkippedConsumption {
+  articleId: ID!
+  reason: String!
+  runId: String
+}
+
+type DomainCount {
+  domain: String!
+  count: Int!
+}
+
+type StatusCounts {
+  ingested: Int!
+  pendingReview: Int!
+  reviewed: Int!
+  rejected: Int!
+}
+
+type ImportanceCounts {
+  normal: Int!
+  important: Int!
+  critical: Int!
+}
+
+type ArticleStats {
+  totalArticles: Int!
+  byStatus: StatusCounts!
+  byImportance: ImportanceCounts!
+  byDomain: [DomainCount!]!
+  pendingReview: Int!
+  reviewed: Int!
+  rejected: Int!
+  ingested: Int!
+  trainable: Int!
+  reviewCount: Int!
+  avgReviewScore: Float
+  """Distinct articles ever consumed (never lost)."""
+  uniqueConsumed: Int!
+  """Total training appearances (may exceed uniqueConsumed on explicit reuse)."""
+  totalAppearances: Int!
+  duplicationIndex: Float!
 }
 
 """
-Immutable dataset snapshot (requirement #2). Once written, the file is never
-touched again; TrainingRunV2 records the exact datasetId+Version it consumed.
+Immutable dataset snapshot. Once written, the file is never touched again;
+TrainingRunV2 records the exact datasetId+Version it consumed.
 """
 type DatasetSnapshot {
   datasetId: ID!
   datasetVersion: String!
   source: String!
   recordCount: Int!
+  articleCount: Int!
   syntheticCount: Int!
   syntheticShare: Float!
   file: String!
@@ -92,20 +191,17 @@ type DatasetSnapshot {
   createdAt: DateTime!
 }
 
-"""
-Checkpoint registry (requirement #6). Status is derived from the last event:
-candidate -> promoted | rejected. activeModel() returns the newest promoted.
-"""
+"""Checkpoint registry. Status derived from the last event."""
 type ModelRecord {
   modelId: ID!
-  kind: String!          # "base" | "stub" | (future) onnx | ...
+  kind: String!
   baseModel: String!
   parentModelId: ID
   trainingRunId: ID
   datasetId: ID
   checkpointPath: String
-  status: String!        # candidate | promoted | rejected
-  evaluationScore: Float # score100 from the deciding evaluation
+  status: String!
+  evaluationScore: Float
   createdAt: DateTime!
 }
 
@@ -115,10 +211,10 @@ type RunEvent {
   note: String
 }
 
-"""Full durable TrainingRun (requirement #7)."""
+"""Full durable TrainingRun."""
 type TrainingRunV2 {
   runId: ID!
-  status: String!           # created | running | evaluating | promoted | rejected | failed
+  status: String!
   startedAt: DateTime!
   completedAt: DateTime
   baseModel: String!
@@ -142,89 +238,47 @@ type TrainingRunV2 {
   events: [RunEvent!]!
 }
 
-"""Deterministic evaluation (requirement #4/#5)."""
+"""Deterministic evaluation."""
 type EvaluationRecord {
   evalRunId: ID!
   modelId: ID!
-  kind: String!          # baseline | candidate
+  kind: String!
   datasetId: ID!
   datasetVersion: String!
   evaluatorVersion: String!
-  score: Float!          # 0..1 token-F1
-  score100: Float!       # 0..100
+  score: Float!
+  score100: Float!
   createdAt: DateTime!
 }
 
-type PromptPage {
-  items: [Prompt!]!
-  nextCursor: String
-}
-
-type DomainCount {
-  domain: String!
-  count: Int!
-}
-
-type BufferStats {
-  totalPrompts: Int!
-  trainedPrompts: Int!
-  untrainedPrompts: Int!
-  totalCompletions: Int!
-  rewardCount: Int!
-  byDomain: [DomainCount!]!
-  avgReward: Float
-  duplicationIndex: Float!  # 0=none .. 1=everything duplicated (collapse detector)
-}
-
-input PromptInput {
+input ArticleInput {
   text: String!
   domain: String
+  tags: [String!]
+  importance: ArticleImportance
   source: String
   rawText: String
+  uncertainty: Float
+  missionRelevance: Float
 }
 
-input CompletionInput {
-  promptId: ID!
-  text: String!
-  model: String
-  origin: String
-}
-
-input GuardrailInput {
-  passed: Boolean
-  heuristicPenalty: Float
-  reason: String
-}
-
-input ScoreInput {
-  completionId: ID!
-  score: Float!
+input ReviewInput {
+  articleId: ID!
+  verdict: ReviewVerdictKind!
+  score: Float
   rationale: String
-  criticModel: String
-  criticVersion: String
+  authority: ReviewAuthority
+  reviewerModel: String
+  reviewerVersion: String
   rubricVersion: String
-  guardrailResult: GuardrailInput
+  suggestedImportance: ArticleImportance
+  reviewCycleId: ID
 }
 
-input ConsumeInput {
-  limit: Int!
-  after: String
-}
-
-input CommitInput {
-  ids: [ID!]!
-  runId: String!
-}
-
-input RunInput {
-  runId: String!
-  startedAt: String!
-  datasetRefs: [String!]!
-  recordsTrained: Int
-  avgLoss: Float
-  avgReward: Float
-  finishedAt: String
-  note: String
+input ConsumeArticlesInput {
+  articleIds: [ID!]!
+  runId: String
+  allowReuse: Boolean
 }
 
 input SnapshotInput {
@@ -257,13 +311,11 @@ input RunEventInput {
 }
 
 type Query {
-  stats: BufferStats!
-  prompts(after: String, limit: Int, trained: Boolean): PromptPage!
-  completions(promptId: ID!): [Completion!]!
-  trainingLogs: [TrainingLog!]!
-
-  """Pull the next batch of UNTRAINED prompts (streaming loop uses this). Pure read."""
-  consumeBatch(input: ConsumeInput!): PromptPage!
+  stats: ArticleStats!
+  articles(after: String, limit: Int, status: ArticleStatus, importance: ArticleImportance, consumed: Boolean, domain: String): ArticlePage!
+  article(articleId: ID!): Article
+  trainableArticles(after: String, limit: Int): ArticlePage!
+  reviewQueue(after: String, limit: Int): ArticlePage!
 
   """Phase 2 registry queries."""
   datasetSnapshots: [DatasetSnapshot!]!
@@ -276,14 +328,15 @@ type Query {
 }
 
 type Mutation {
-  ingestPrompt(input: PromptInput!): Prompt!
-  ingestCompletion(input: CompletionInput!): Completion!
-  scoreCompletion(input: ScoreInput!): RewardScore!
+  ingestArticle(input: ArticleInput!): Article!
+  recordReview(input: ReviewInput!): ReviewResult!
+  setArticleImportance(articleId: ID!, importance: ArticleImportance!): Article!
+  setArticleStatus(articleId: ID!, status: ArticleStatus!, reason: String): Article!
+  requestArticleReview(articleId: ID!): Article!
+  selectArticlesForReview(limit: Int): [ID!]!
 
-  """Mark ids as trained for runId — the exactly-once boundary."""
-  commitConsumption(input: CommitInput!): Boolean!
-
-  recordTrainingRun(input: RunInput!): TrainingLog!
+  """Durable exactly-once consumption. Recorded even if training later fails."""
+  markConsumed(input: ConsumeArticlesInput!): ConsumptionResult!
   purgeBuffer: Boolean!
 
   """Phase 2 registry mutations."""

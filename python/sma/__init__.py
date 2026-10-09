@@ -12,4 +12,4 @@ an accepted pretrained encoding artifact. `proof.py` is what makes that
 claim checkable rather than aspirational.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"

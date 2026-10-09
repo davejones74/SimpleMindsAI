@@ -24,8 +24,8 @@ Python 3.14.6, Node ≥20, torch 2.14.0+cu130, transformers 5.17.0).
 
 | | |
 |---|---|
-| Node data plane | 36/36 `node:test` tests pass |
-| Python compute plane | 135/135 pytest tests pass |
+| Node data plane | 51/51 `node:test` tests pass |
+| Python compute plane | 158/158 pytest tests pass |
 | Checkpoint `v001` | committed, 62M params, provenance recorded |
 | Checkpoint `v002` | committed, 60 real steps, 74/74 params moved, 2 buffers unchanged |
 
@@ -295,9 +295,9 @@ human-controlled; sampling is a throughput measure, not a transfer of authority.
 
 ```bash
 npm install
-npm test                 # 36 node:test tests (24 core + 12 worker/promotion)
+npm test                 # 51 node:test tests (domain, stores, admin portal, worker/promotion)
 
-npm start                # GraphQL buffer  → http://localhost:4000/graphql
+npm start                # GraphQL → http://localhost:4000/graphql, portal → http://localhost:4000/admin
 $env:OLLAMA_FIXTURE="true"; $env:OLLAMA_MODEL="deepseek-r1:8b"; npm run crawl
 npm run curate           # raw docs → ollama(clean) → buffer
 npm run plan             # LLM is advisory; must pass the deterministic gate
@@ -329,7 +329,7 @@ python -m venv .venv
 pip install -r requirements-cuda.txt      # NVIDIA
 # pip install -r requirements-rocm.txt    # AMD ROCm
 
-python -m pytest                                  # 135 tests
+python -m pytest                                  # 158 tests
 python -m sma.brain init   --config small --out $SMA_STORE
 python -m sma.brain status --out $SMA_STORE
 
@@ -450,6 +450,38 @@ Regression tests drive the real store copy: a **worse** candidate (`v001` over `
 and the active pointer is unchanged; a **better** candidate (`v002` over `v001`) is promoted, the
 pointer moves, and the running worker serves `v002` on the next request; an **unevaluable**
 candidate is `not_evaluated` and changes nothing.
+
+---
+
+## Admin portal (Learning Observatory)
+
+`npm start` boots **one** server: GraphQL at `/graphql` and the admin portal at
+`http://localhost:4000/admin`. The portal is a dependency-free (vanilla JS) SPA over the same
+validated Node services — it reads the article ledger, the registry, the governance store, and the
+read-only Python `SMA_STORE`, and mutates only through those services. It binds `127.0.0.1` by
+default; `API_HOST=0.0.0.0` exposes it deliberately.
+
+| Section | What it shows |
+|---|---|
+| Dashboard | ledger + registry + Python store at a glance, plus live connection state |
+| Articles | every article and its state, per-article review history, importance, and request-review / set-importance actions |
+| Review Cycles | open checkpoint cycles (every 1,000 consumed articles — an interval, not a cap) |
+| Live Chat | the real active student worker, with the student version and generation status; it never falls back to the teacher |
+| Mission & Strategy | primary/secondary mission and collection strategy with `propose → review → approve/reject → apply`; AI may propose secondary-mission and strategy changes only |
+| Training History | **both** sources — the Node registry (orchestration/audit) and the read-only Python `SMA_STORE` (committed versions, `active.json`, provenance, metrics); unavailable metrics are reported as unavailable, never as zero |
+
+REST surface (all under `/api/admin`): `overview`, `articles` (+`/:id`),
+`articles/:id/request-review`, `articles/:id/importance`, `review-cycles` (+`/ensure`), `mission`
+(+`/secondary`, `/primary`, `/proposals`, `/proposals/:id/approve|reject`), `strategy`
+(+`/proposals/...`), `training-history`, `python-store`, and `chat`. The mission and strategy
+stores are append-only: every change is a new version recording origin, actor, rationale and the
+proposal/review-cycle it came from.
+
+Live updates use Server-Sent Events at `/api/admin/events`: a `hello` frame carrying the current
+sequence, then `change` frames. A client that detects a sequence gap re-fetches authoritative state,
+so a missed event degrades to a refresh — never to stale data. Every section renders explicit
+**loading / empty / unavailable / error / disconnected** states, because an empty `data/` tree and a
+missing `SMA_STORE` are normal first-run conditions, not failures.
 
 ---
 
@@ -935,20 +967,25 @@ python/                        compute plane
   sma/brain.py                 CLI and the one-JSON-object subprocess contract
   sma/student.py               long-lived chat worker (framed stdio, hot active brain)
   sma/fixtures/tiny_en.txt     deterministic corpus (original prose — no licensing question)
-  tests/                       135 pytest tests (proof/init, training/check-7, publication/store,
-                               phase-1 checks 6/8/9/10/11, student worker)
+  tests/                       158 pytest tests (proof/init, training/check-7, publication/store,
+                               phase-1 checks 6/8/9/10/11, student worker, phase-2 preflight)
 
 src/
   harness/ services/           crawl, curate, plan, ollama-client (teacher/critic only)
-  storage/                     buffer-store, registry-store (append-only ledger, RUN.lock)
+  domain/                      article (lifecycle/importance — authoritative), review-policy
+  storage/                     article-store (authoritative Article ledger; legacy pair-buffer is
+                               detect-only), registry-store (append-only ledger, RUN.lock),
+                               governance-store (append-only mission/strategy/proposal versions)
   dataset/                     snapshot, evaluation-set (frozen, leak-guarded)
   training/                    lifecycle, trainer-interface (stub), evaluator, model-handle,
                                loss-evaluator + python-promotion (authoritative loss gate)
   brain/ chat/ reward/         python-cli + student-worker + brain.js (student only), chat server,
                                reward scorer (advisory only)
   curriculum/ graphql/ cli/    validation gate, schema, one-shot runners
+  admin/                       portal REST/SSE routes, change-feed, governance services,
+                               read-only Python store reader, public/ SPA (vanilla JS)
 
-test/                          36 node:test tests (core + worker/promotion regression)
+test/                          51 node:test tests (domain, stores, admin portal, worker/promotion)
 test-support/                  shared Python-prerequisite test helpers (not auto-discovered)
 ```
 

@@ -46,24 +46,24 @@ export function pythonEnv(store = resolveStoreRoot(), extra = {}) {
 }
 
 /**
- * Run one `sma.brain` subprocess and return the parsed JSON object.
- * Rejects on non-zero exit, timeout, or non-JSON stdout.
+ * Spawn one child process and return the parsed JSON object it writes to
+ * stdout. Rejects on non-zero exit, timeout, or non-JSON stdout.
+ *
+ * This is deliberately separate from `runPython` so the process contract
+ * (spawn → stdout JSON → exit code) can be exercised with any executable —
+ * `runPython` only adds the `-m sma.brain` framing and the store environment.
  */
-export function runPython(args, {
+export function runJsonProcess({
+  bin,
+  args,
   timeoutMs = 300_000,
-  store = resolveStoreRoot(),
-  bin = resolvePythonBin(),
   cwd = PYTHON_DIR,
   env = {},
 } = {}) {
   return new Promise((resolve, reject) => {
     let child;
     try {
-      child = spawn(bin, ["-m", "sma.brain", ...args], {
-        cwd,
-        env: pythonEnv(store, env),
-        windowsHide: true,
-      });
+      child = spawn(bin, args, { cwd, env, windowsHide: true });
     } catch (err) {
       reject(err);
       return;
@@ -104,5 +104,25 @@ export function runPython(args, {
       }
       resolve({ ...parsed, stderr });
     });
+  });
+}
+
+/**
+ * Run one `sma.brain` subprocess and return the parsed JSON object.
+ * Rejects on non-zero exit, timeout, or non-JSON stdout.
+ */
+export function runPython(args, {
+  timeoutMs = 300_000,
+  store = resolveStoreRoot(),
+  bin = resolvePythonBin(),
+  cwd = PYTHON_DIR,
+  env = {},
+} = {}) {
+  return runJsonProcess({
+    bin,
+    args: ["-m", "sma.brain", ...args],
+    timeoutMs,
+    cwd,
+    env: pythonEnv(store, env),
   });
 }

@@ -1,6 +1,7 @@
-import { createWriteStream, createReadStream, existsSync, mkdirSync, writeFileSync, unlinkSync, readFileSync } from "node:fs";
+import { createWriteStream, createReadStream, existsSync, mkdirSync, writeFileSync, unlinkSync, readFileSync, appendFileSync } from "node:fs";
 import { createHash, randomUUID } from "node:crypto";
 import readline from "node:readline";
+import os from "node:os";
 import path from "node:path";
 
 /**
@@ -28,6 +29,8 @@ const COLLECTIONS = {
   evaluations: "evaluations.ndjson",
 };
 
+const RECOVERIES_FILE = "lock-recoveries.ndjson";
+
 export class RegistryStore {
   static async open(dir = process.env.REGISTRY_DIR ?? path.resolve("data", "registry")) {
     const s = new RegistryStore(dir);
@@ -36,6 +39,8 @@ export class RegistryStore {
   }
 
   #streams;
+  #lockRecord = null;
+  #lockTimer = null;
 
   constructor(dir) {
     this.dir = dir;
@@ -235,31 +240,138 @@ export class RegistryStore {
 
   // ------------------------------------------------------------ lock
   /**
-   * Single-trainer lock. `openSync(path, 'wx')` is atomic — a second lifecycle
-   * aborts instead of racing the same dataset. Stale locks (age > staleMs) can
-   * be force-broken with `breakLock()`.
+   * Single-trainer lock with an owner identity + heartbeat.
+   *
+   * `openSync(path, 'wx')` is atomic, so a second lifecycle aborts instead of
+   * racing the same dataset. The lock record carries `{pid, host, token, runId,
+   * acquiredAt, heartbeatAt}`; a live process refreshes `heartbeatAt`
+   * (unref'd timer) so it can never lose its own lock. A lock is only reclaimed
+   * once its heartbeat is older than `staleMs` AND its owner is verifiably gone
+   * (same host + dead pid). Every reclaim/refusal is appended to
+   * `lock-recoveries.ndjson` for durability, and only the run named in the
+   * reclaimed lock is marked interrupted — unrelated non-terminal runs are
+   * never failed just because a new process acquired the lock.
    */
   lockPath() { return path.join(this.dir, "RUN.lock"); }
-  async acquireRunLock(staleMs = 10 * 60 * 1000) {
+
+  #readLock() {
     try {
-      writeFileSync(this.lockPath(), `${Date.now()}\n`, { flag: "wx" });
+      const raw = readFileSync(this.lockPath(), "utf8").trim();
+      if (!raw) return null;
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === "object") {
+          if (!parsed.heartbeatAt) parsed.heartbeatAt = parsed.acquiredAt ?? null;
+          return parsed;
+        }
+      } catch { /* legacy numeric-timestamp lock */ }
+      const legacy = Number(raw.split("\n")[0]);
+      return Number.isFinite(legacy)
+        ? { pid: null, host: null, token: null, runId: null, acquiredAt: new Date(legacy).toISOString(), heartbeatAt: new Date(legacy).toISOString() }
+        : null;
+    } catch { return null; }
+  }
+
+  #heartbeatAgeMs(lock) {
+    const t = Date.parse(lock?.heartbeatAt ?? "");
+    return Number.isFinite(t) ? Date.now() - t : Number.POSITIVE_INFINITY;
+  }
+
+  /** True only when the recorded owner is on this host and still alive. */
+  #isLockOwnerAlive(lock) {
+    if (!lock) return false;
+    // Legacy/unknown owner (no pid/host) ⇒ abandoned, safe to reclaim.
+    if (!Number.isInteger(lock.pid) || !lock.host) return false;
+    // Foreign host ⇒ we cannot verify liveness, so never steal it (fail safe).
+    if (lock.host !== os.hostname()) return true;
+    try { process.kill(lock.pid, 0); return true; }
+    catch (err) { return err.code === "EPERM"; }
+  }
+
+  #startLockHeartbeat(staleMs) {
+    this.#stopLockHeartbeat();
+    const interval = Math.max(1000, Math.floor(staleMs / 3));
+    this.#lockTimer = setInterval(() => {
+      if (!this.#lockRecord) return;
+      try {
+        const current = this.#readLock();
+        if (current && current.token && current.token !== this.#lockRecord.token) return; // no longer ours
+        const next = { ...this.#lockRecord, heartbeatAt: new Date().toISOString() };
+        writeFileSync(this.lockPath(), JSON.stringify(next));
+        this.#lockRecord = next;
+      } catch { /* heartbeat is best-effort */ }
+    }, interval);
+    this.#lockTimer.unref?.();
+  }
+
+  #stopLockHeartbeat() {
+    if (this.#lockTimer) { clearInterval(this.#lockTimer); this.#lockTimer = null; }
+    this.#lockRecord = null;
+  }
+
+  async #recordRecovery(record) {
+    try {
+      appendFileSync(path.join(this.dir, RECOVERIES_FILE), `${JSON.stringify({ at: new Date().toISOString(), ...record })}\n`);
+    } catch { /* recovery log is best-effort durable */ }
+  }
+
+  listLockRecoveries() {
+    const p = path.join(this.dir, RECOVERIES_FILE);
+    if (!existsSync(p)) return [];
+    return readFileSync(p, "utf8").split("\n").filter((l) => l.trim())
+      .map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+  }
+
+  async acquireRunLock(staleMs = 10 * 60 * 1000, { runId = null, attempt = 0 } = {}) {
+    const owner = {
+      pid: process.pid,
+      host: os.hostname(),
+      token: randomUUID(),
+      runId,
+      acquiredAt: new Date().toISOString(),
+      heartbeatAt: new Date().toISOString(),
+    };
+    try {
+      writeFileSync(this.lockPath(), JSON.stringify(owner), { flag: "wx" });
+      this.#lockRecord = owner;
+      this.#startLockHeartbeat(staleMs);
       return true;
     } catch (err) {
-      if (err.code === "EEXIST") {
-        const raw = this.#readLock();
-        const age = Date.now() - Number(raw.trim().split("\n")[0] || "0");
-        if (Number.isFinite(age) && age > staleMs) {
-          this.breakRunLock();
-          return this.acquireRunLock(staleMs);
-        }
-        return false;
+      if (err.code !== "EEXIST") throw err;
+      if (attempt >= 3) return false; // pathological churn — give up this round
+      const held = this.#readLock();
+      const age = this.#heartbeatAgeMs(held);
+      if (age <= staleMs) return false; // fresh enough: an active trainer holds it
+      if (this.#isLockOwnerAlive(held)) {
+        await this.#recordRecovery({ action: "deferred", reason: "lock heartbeat expired but owner is still alive", held });
+        return false; // never steal a live owner's lock
       }
-      throw err;
+      // Owner is gone or unverifiable ⇒ reclaim, and recover ONLY its run.
+      await this.#recordRecovery({ action: "reclaimed", reason: "lock heartbeat expired and owner is gone/unverifiable", held });
+      const abandonedRunId = held?.runId ?? null;
+      this.breakRunLock();
+      if (abandonedRunId) {
+        const run = this.getRun(abandonedRunId);
+        const terminal = run && (run.status === "promoted" || run.status === "rejected" || run.status === "failed");
+        if (run && !terminal) {
+          await this.runEvent(abandonedRunId, { status: "failed", note: "interrupted: lock owner gone — recovered during lock acquisition" });
+        }
+      }
+      return this.acquireRunLock(staleMs, { runId, attempt: attempt + 1 });
     }
   }
-  #readLock() {
-    try { return readFileSync(this.lockPath(), "utf8"); } catch { return "0"; }
+
+  /** Attach the run id to the lock we already hold, so a crash is recoverable. */
+  bindRunLock(runId) {
+    if (!this.#lockRecord) return;
+    this.#lockRecord = { ...this.#lockRecord, runId, heartbeatAt: new Date().toISOString() };
+    try { writeFileSync(this.lockPath(), JSON.stringify(this.#lockRecord)); } catch { /* ignore */ }
   }
-  breakRunLock() { if (existsSync(this.lockPath())) unlinkSync(this.lockPath()); }
+
+  breakRunLock() {
+    this.#stopLockHeartbeat();
+    if (existsSync(this.lockPath())) unlinkSync(this.lockPath());
+  }
+
   releaseRunLock() { this.breakRunLock(); }
 }
