@@ -2,7 +2,16 @@ import express from "express";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { changeFeed as defaultFeed } from "./change-feed.js";
-import { readPythonStore } from "./python-store.js";
+import { readPythonStore, readPythonTrainState } from "./python-store.js";
+import {
+  bestCheckpoint,
+  classifyTrend,
+  deriveSeries,
+  downsample,
+  mergeChain,
+  selectEffectiveVersion,
+} from "./metrics.js";
+import { config } from "../config.js";
 import { createMissionService } from "./services/mission.js";
 import { createStrategyService } from "./services/strategy.js";
 import { createReviewCyclesService } from "./services/review-cycles.js";
@@ -219,6 +228,115 @@ export function attachAdmin({ app, store, registry, governance, chat, changeFeed
     const rec = await reviewCycles.close(req.params.reviewCycleId, { notes: req.body?.notes, proposalIds: req.body?.proposalIds });
     emit("review-cycle.closed", { reviewCycleId: req.params.reviewCycleId });
     ok(res, rec);
+  }));
+
+  // --------------------------------------------------------- trends & metrics
+  // Effective version resolution: explicit ?version= wins, else the active
+  // committed version, else the latest committed trainable version. Only the
+  // selected version's own lineage is read in full (versions sharing its
+  // packing dataset hash), so the endpoint stays cheap on multi-version stores.
+  router.get("/metrics", asyncRoute(async (req, res) => {
+    const py = readPythonStore(pythonStorePath);
+    const requested = req.query.version ? String(req.query.version) : null;
+    if (!py.available) {
+      ok(res, { available: false, reason: py.reason ?? "python store unavailable", segments: [], markers: [] });
+      return;
+    }
+    if (py.versions.length === 0) {
+      ok(res, { available: true, reason: "no committed versions yet", segments: [], markers: [] });
+      return;
+    }
+    const sel = selectEffectiveVersion(py.versions, { requested, active: py.active, allowNotFound: true });
+    if (!sel) return fail(res, new Error(`unknown version: ${requested}`), 404);
+    const selected = py.versions.find((v) => v.version === sel.effective);
+    const thresholds = config.trend;
+    const maxPoints = 1000;
+
+    const chainHash = selected?.trainState?.datasetHash ?? null;
+    const lineage = py.versions.filter(
+      (v) => v.committed && v.trainState?.datasetHash === chainHash,
+    );
+    const segments = lineage.map((v) => ({
+      version: v.version,
+      committedAt: v.committedAt ?? null,
+      ...deriveSeries(readPythonTrainState(v.version, pythonStorePath) ?? null),
+    }));
+
+    const validationChain = mergeChain(
+      segments.map((s) => ({ version: s.version, series: s.validationSeries })),
+      maxPoints,
+    );
+    const trainingChain = mergeChain(
+      segments.map((s) => ({ version: s.version, series: s.trainingSeries })),
+      maxPoints,
+    );
+
+    // Markers: frozen eval-set benchmark records of artifacts in this lineage.
+    const markers = [];
+    for (const r of registry.listRuns()) {
+      const version = r.runLinkage?.pythonVersion ?? null;
+      if (!version || !lineage.some((v) => v.version === version)) continue;
+      const loss = r.trainedEvaluation?.loss;
+      if (!Number.isFinite(loss)) continue;
+      markers.push({
+        runId: r.runId,
+        version,
+        loss: Number(loss),
+        status: r.status,
+        promotionStatus: r.promotionStatus ?? null,
+        activatedVersion: r.activatedVersion ?? null,
+        trainedAt: r.completedAt ?? r.startedAt ?? null,
+        datasetHash: r.runLinkage?.datasetHash ?? null,
+        tokensSeen: r.trainedEvaluation?.tokensSeen ?? null,
+      });
+    }
+
+    const training = segments.map((s) => ({
+      version: s.version,
+      points: downsample(s.trainingSeries, maxPoints),
+    }));
+
+    ok(res, {
+      available: true,
+      generatedAt: new Date().toISOString(),
+      storePath: py.storePath,
+      requestedVersion: sel.requested,
+      effectiveVersion: sel.effective,
+      isDefaultVersion: sel.default,
+      thresholds,
+      datasetHash: chainHash,
+      segments: segments.map((s) => ({
+        version: s.version,
+        committedAt: s.committedAt,
+        stepsCompleted: s.stepsCompleted,
+        resumedFromStep: s.resumedFromStep,
+        evalEvery: s.evalEvery,
+        sampling: s.sampling,
+        initialValidationLoss: s.initialValidationLoss,
+        finalValidationLoss: s.finalValidationLoss,
+      })),
+      chain: {
+        points: validationChain.points,
+        fromStep: validationChain.from,
+        toStep: validationChain.to,
+      },
+      training,
+      markers,
+      best: bestCheckpoint(
+        segments
+          .map((s) => {
+            const ts = readPythonTrainState(s.version, pythonStorePath) ?? {};
+            return {
+              version: s.version,
+              loss: s.finalValidationLoss,
+              datasetHash: ts?.packing?.datasetHash ?? null,
+              stepsCompleted: s.stepsCompleted,
+            };
+          })
+          .concat(markers.map((m) => ({ version: m.version, loss: m.loss, datasetHash: m.datasetHash, runId: m.runId, source: "frozen-eval-set" }))),
+      ),
+      trend: classifyTrend(validationChain.points, trainingChain.points, thresholds),
+    });
   }));
 
   // ---------------------------------------------------- training history

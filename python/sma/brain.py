@@ -399,6 +399,7 @@ def cmd_train(args: argparse.Namespace) -> Dict[str, Any]:
         computeDtype=args.compute_dtype,
         logEvery=args.log_every,
         spikeFactor=args.spike_factor,
+        evalEvery=args.eval_every,
     )
     cfg.validate()
 
@@ -1077,6 +1078,12 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--device", default="auto", help="auto | cpu | cuda")
     sp.add_argument("--compute-dtype", default="bfloat16", choices=["bfloat16", "float32"])
     sp.add_argument("--log-every", type=int, default=1)
+    sp.add_argument(
+        "--eval-every",
+        type=int,
+        default=int(os.environ.get("TRAIN_EVAL_EVERY", "0")),
+        help="record held-out validation loss every N steps (0 = only opening and closing)",
+    )
     sp.add_argument(
         "--resume-from",
         default=None,

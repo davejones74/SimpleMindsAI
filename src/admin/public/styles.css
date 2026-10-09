@@ -138,3 +138,7 @@ pre { background: #0b0e12; border: 1px solid var(--border); border-radius: 8px; 
 @keyframes spin { to { transform: rotate(360deg); } }
 .panel.notice { border-left: 3px solid var(--warn); }
 .prose { white-space: pre-wrap; }
+
+/* Trends & Metrics */
+.badge.overfit { color: var(--accent); border-color: var(--accent); }
+svg text { font-family: inherit; }

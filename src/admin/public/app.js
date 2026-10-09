@@ -10,6 +10,7 @@ const state = {
   strategy: null,
   cycles: null,
   history: null,
+  trends: null,
   live: false,
   seq: 0,
 };
@@ -53,6 +54,7 @@ async function refresh() {
     if (state.tab === "mission") await loadMission();
     if (state.tab === "cycles") await loadCycles();
     if (state.tab === "history") await loadHistory();
+    if (state.tab === "trends") await loadTrends();
   } catch (err) {
     main.innerHTML = `<div class="panel notice"><div class="title bad">Portal error</div><div class="muted">${esc(err.message)}</div></div>`;
   }
@@ -81,6 +83,7 @@ function render() {
   else if (state.tab === "mission") renderMission();
   else if (state.tab === "cycles") renderCycles();
   else if (state.tab === "history") renderHistory();
+  else if (state.tab === "trends") renderTrends();
 }
 
 // --------------------------------------------------------------- dashboard
@@ -624,6 +627,166 @@ function renderHistory() {
       ${renderPythonStore(h.pythonStore)}
     </div>
   `;
+}
+
+// ------------------------------------------------------- trends & metrics
+async function loadTrends() {
+  state.trends = await api("/metrics");
+  renderTrends();
+}
+
+const TREND_LABEL = {
+  insufficient_evidence: "Insufficient evidence",
+  improving: "Improving",
+  plateauing: "Plateauing",
+  potentially_overfitting: "Potentially overfitting",
+  worsening: "Worsening",
+};
+const TREND_BADGE = {
+  insufficient_evidence: "PENDING_REVIEW",
+  improving: "REVIEWED",
+  plateauing: "PENDING_REVIEW",
+  potentially_overfitting: "overfit",
+  worsening: "REJECTED",
+};
+
+function trendCard(k, vHtml) {
+  return `<div class="card"><div class="k">${esc(k)}</div><div class="v">${vHtml}</div></div>`;
+}
+
+function samplingLabel(k) {
+  if (k === "periodic") return badge("REVIEWED", "periodic");
+  if (k === "endpoints") return badge("PENDING_REVIEW", "endpoints only");
+  return badge("INGESTED", "none");
+}
+
+function shortHash(h) {
+  if (!h) return null;
+  return h.length > 12 ? `${h.slice(0, 8)}…${h.slice(-4)}` : h;
+}
+
+function renderTrends() {
+  const m = state.trends;
+  if (!m) return;
+  const body =
+    !m.available
+      ? `<div class="panel notice"><div class="title bad">Store unavailable</div><div class="muted">${esc(m.reason ?? "python store unavailable")}</div></div>`
+      : m.reason
+        ? `<div class="panel notice"><div class="muted">${esc(m.reason)}</div></div>`
+        : trendsBody(m);
+  main.innerHTML = `<h2 class="section-title">Trends &amp; Metrics</h2>${body}`;
+}
+
+function trendsBody(m) {
+  const t = m.trend ?? {};
+  const verdict = t.verdict ?? "insufficient_evidence";
+  const label = TREND_LABEL[verdict] ?? verdict;
+  const seg = (m.segments ?? []).find((s) => s.version === m.effectiveVersion);
+  const ev = t.evidence ?? {};
+  const valLost = ev.first == null && ev.last == null ? "—" : `${fmt(ev.first)} → ${fmt(ev.last)}`;
+  const best = (m.best ?? []).filter((b) => Number.isFinite(b.loss));
+  const thresholds = m.thresholds ?? {};
+  return `
+    <div class="grid">
+      ${trendCard("Trend", badge(TREND_BADGE[verdict] ?? "PENDING_REVIEW", label))}
+      ${trendCard("Validation loss", `${valLost}${ev.best == null ? "" : ` <span class="muted small">best ${fmt(ev.best)}</span>`}`)}
+      ${trendCard("Steps covered", m.chain?.fromStep == null ? "—" : `${fmt(m.chain.fromStep)} → ${fmt(m.chain.toStep)}`)}
+      ${trendCard("Effective version", `${esc(m.effectiveVersion ?? "—")} ${samplingLabel(seg?.sampling)}`)}
+      ${trendCard("Best checkpoint", best.length ? best.map((b) => `${esc(b.version ?? b.runId ?? "?")} <span class="muted small">${fmt(b.loss)} <span title="${esc(b.datasetHash ?? "")}">${esc(shortHash(b.datasetHash) ?? "unkeyed")}</span></span>`).join("<br>") : "—")}
+    </div>
+    <div class="panel">
+      <div class="k">Why ${label.toLowerCase()}</div>
+      <div class="prose">${esc(t.reason ?? "No classification reason recorded.")}</div>
+      <div class="small muted" style="margin-top:6px">
+        Evidence: ${fmt(ev.points)} finite validation sample(s) · first step ${fmt(ev.firstStep)} → last step ${fmt(ev.lastStep)} ·
+        thresholds minPoints ${fmt(thresholds.minPoints)} · improve ≥ ${fmt(thresholds.improveDrop)} · worsen ≥ ${fmt(thresholds.worsenRise)} · overfit val ≥ ${fmt(thresholds.overfitValRise)}
+      </div>
+    </div>
+    <div class="panel">
+      <div class="k">Loss over training steps ${m.datasetHash ? `<span class="small muted">(dataset ${esc(shortHash(m.datasetHash))})</span>` : ""}</div>
+      ${lossSvg(m)}
+      <div class="small muted" style="margin-top:8px">
+        Validation is measured on the held-out tail of the SAME corpus (token-weighted mean cross-entropy over the full vocabulary); training loss is the in-run mean per step. They are only ever compared within one dataset hash. ${seg?.sampling !== "periodic" ? `This version recorded only the opening and closing validations — set <code>TRAIN_EVAL_EVERY</code> ≥ 1 to sample a full curve.` : ""}
+      </div>
+    </div>
+    <div class="cols">
+      <div class="panel">
+        <div class="k">Lineage segments</div>
+        ${segmentsTable(m)}
+      </div>
+      <div class="panel">
+        <div class="k">Frozen eval-set checkpoints (data/evaluation)</div>
+        ${markersTable(m)}
+      </div>
+    </div>
+  `;
+}
+
+function segmentsTable(m) {
+  const segs = m.segments ?? [];
+  if (!segs.length) return `<div class="muted small">No trained segments in this lineage.</div>`;
+  return `<table><tr><th>Version</th><th>Sampling</th><th>Eval every</th><th>Steps</th><th>Val loss init → final</th><th>Committed</th></tr>
+    ${segs.map((s) => `
+      <tr>
+        <td>${esc(s.version)}${s.version === m.effectiveVersion ? ` ${badge("REVIEWED", "effective")}` : ""}${s.resumedFromStep != null ? ` <span class="small muted" title="resumed from ${s.resumedFromStep}">↳</span>` : ""}</td>
+        <td>${samplingLabel(s.sampling)}</td>
+        <td>${fmt(s.evalEvery)}</td>
+        <td>${fmt(s.stepsCompleted)}</td>
+        <td>${s.initialValidationLoss == null && s.finalValidationLoss == null ? "—" : `${fmt(s.initialValidationLoss)} → ${fmt(s.finalValidationLoss)}`}</td>
+        <td class="small">${when(s.committedAt)}</td>
+      </tr>`).join("")}</table>`;
+}
+
+function markersTable(m) {
+  const mk = m.markers ?? [];
+  if (!mk.length) return `<div class="muted small">No frozen eval-set benchmark records for this lineage yet.</div>`;
+  return `<table><tr><th>Version</th><th>Loss</th><th>Status</th><th>Trained</th></tr>
+    ${mk.slice().reverse().map((x) => `
+      <tr><td>${esc(x.version)}</td><td>${fmt(x.loss)}</td>
+      <td>${badge(x.promotionStatus === "promoted" ? "REVIEWED" : x.promotionStatus === "rejected" ? "REJECTED" : "PENDING_REVIEW", x.promotionStatus ?? x.status ?? "?")}</td>
+      <td class="small">${when(x.trainedAt)}</td></tr>`).join("")}</table>`;
+}
+
+function lossSvg(m) {
+  const W = 760, H = 300, P = { l: 64, r: 20, t: 18, b: 40 };
+  const valPts = (m.chain?.points ?? []).filter((p) => Number.isFinite(p.loss));
+  const trainPts = (m.training ?? []).flatMap((s) => (s.points ?? []).filter((p) => Number.isFinite(p.loss)));
+  const markers = (m.markers ?? [])
+    .map((mk) => {
+      const seg = (m.segments ?? []).find((s) => s.version === mk.version);
+      const step = seg && Number.isInteger(seg.stepsCompleted) ? seg.stepsCompleted - 1 : null;
+      return { ...mk, step };
+    })
+    .filter((mk) => mk.step !== null);
+  const losses = [...valPts, ...trainPts, ...markers].map((p) => p.loss).filter(Number.isFinite);
+  if (losses.length < 2) return `<div class="empty">No finite loss series recorded for this version. Train with <code>config.trainEvalEvery ≥ 1</code> to record a curve.</div>`;
+  const steps = [...valPts, ...trainPts, ...markers].map((p) => p.step).filter((s) => Number.isInteger(s));
+  if (!steps.length) return `<div class="empty">No step axis recorded.</div>`;
+  let min = Math.min(...losses), max = Math.max(...losses);
+  const range = max - min;
+  if (!(range > 0)) { const pad = Math.max(Math.abs(max) * 0.02, 1e-4); min -= pad; max += pad; }
+  const xMin = Math.min(...steps), xMax = Math.max(...steps);
+  const xSpan = xMax - xMin || 1;
+  const sx = (s) => P.l + ((s - xMin) / xSpan) * (W - P.l - P.r);
+  const sy = (v) => P.t + ((max - v) / (max - min || 1)) * (H - P.t - P.b);
+  const path = (pts) => pts.map((p, i) => `${i ? "L" : "M"}${sx(p.step).toFixed(1)},${sy(p.loss).toFixed(1)}`).join(" ");
+  const diamond = (x, y) => `${x},${(y - 5).toFixed(1)} ${(x + 5).toFixed(1)},${y.toFixed(1)} ${x},${(y + 5).toFixed(1)} ${(x - 5).toFixed(1)},${y.toFixed(1)}`;
+  const yTicks = [0, 0.25, 0.5, 0.75, 1].map((f) => max - f * (max - min));
+  const xTicks = xMax === xMin ? [xMin] : [0, 0.25, 0.5, 0.75, 1].map((f) => xMin + f * (xSpan));
+  return `
+    <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Training vs validation loss over training steps" style="width:100%;height:auto">
+      ${yTicks.map((v) => `<line x1="${P.l}" y1="${sy(v).toFixed(1)}" x2="${W - P.r}" y2="${sy(v).toFixed(1)}" stroke="var(--border)" stroke-dasharray="2 4"/><text x="${P.l - 8}" y="${(sy(v) + 3.5).toFixed(1)}" text-anchor="end" font-size="10" fill="var(--muted)">${v.toFixed(2)}</text>`).join("")}
+      ${xTicks.map((s) => `<text x="${sx(s).toFixed(1)}" y="${H - 10}" text-anchor="middle" font-size="10" fill="var(--muted)">${Math.round(s)}</text>`).join("")}
+      <text x="${P.l}" y="${H - 26}" font-size="10" fill="var(--muted)">step</text>
+      ${trainPts.length ? `<polyline points="${path(trainPts)}" fill="none" stroke="var(--accent-2)" stroke-width="1.2" stroke-dasharray="4 3"/>` : ""}
+      ${valPts.length ? `<polyline points="${path(valPts)}" fill="none" stroke="var(--accent)" stroke-width="2"/>` : ""}
+      ${valPts.map((p) => `<circle cx="${sx(p.step).toFixed(1)}" cy="${sy(p.loss).toFixed(1)}" r="2" fill="var(--accent)"><title>validation step ${p.step}: loss ${fmt(p.loss)}${p.version ? ` · ${esc(p.version)}` : ""}</title></circle>`).join("")}
+      ${markers.map((mk) => `<polygon points="${diamond(sx(mk.step), sy(mk.loss))}" fill="var(--bad)"><title>frozen eval-set checkpoint ${esc(mk.version)}: loss ${fmt(mk.loss)}${mk.promotionStatus ? ` · ${esc(mk.promotionStatus)}` : ""}</title></polygon>`).join("")}
+      <rect x="${W - 248}" y="0" width="248" height="38" fill="var(--panel)" opacity="0.92"/>
+      <line x1="${W - 238}" y1="12" x2="${W - 220}" y2="12" stroke="var(--accent)" stroke-width="2"/><text x="${W - 212}" y="16" font-size="10" fill="var(--muted)">validation (held-out)</text>
+      <line x1="${W - 238}" y1="28" x2="${W - 220}" y2="28" stroke="var(--accent-2)" stroke-width="1.2" stroke-dasharray="4 3"/><text x="${W - 212}" y="32" font-size="10" fill="var(--muted)">training</text>
+    </svg>
+    ${markers.length ? `<div class="small muted">◆ = frozen eval-set benchmark (data/evaluation), dataset ${esc(shortHash(m.markers[0].datasetHash) ?? "unkeyed")} — plotted at each version's final step, not in-training.</div>` : ""}`;
 }
 
 // --------------------------------------------------------------------- SSE

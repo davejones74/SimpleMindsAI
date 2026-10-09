@@ -101,6 +101,7 @@ export function pythonTrainer({
   gradAccum = config.trainGradAccum,
   warmup = config.trainWarmup,
   valBlocks = config.trainValBlocks,
+  evalEvery = config.trainEvalEvery,
   computeDtype = config.trainComputeDtype,
   timeoutMs = config.trainTimeoutMs,
   run = runPython,
@@ -132,6 +133,7 @@ export function pythonTrainer({
         "--grad-accum", String(gradAccum),
         "--warmup", String(warmup),
         "--val-blocks", String(valBlocks),
+        "--eval-every", String(evalEvery),
         "--compute-dtype", resolvedDtype,
         "--device", device,
       ];

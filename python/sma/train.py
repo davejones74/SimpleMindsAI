@@ -69,6 +69,11 @@ class TrainConfig:
     spikeFactor: float = 2.5
     spikeWarmup: int = 10
     maxNonFiniteConsecutive: int = 3
+    # Record held-out validation loss every N steps so a validation *curve*
+    # exists, not just the two endpoints. 0 disables periodic sampling (a run
+    # then records only the opening and closing validation losses, and trend
+    # classification honestly reports "insufficient evidence").
+    evalEvery: int = 0
 
     def effectiveBatchSize(self) -> int:
         return self.microBatchSize * self.gradAccumSteps
@@ -98,6 +103,8 @@ class TrainConfig:
             raise ValueError("gradClip must be positive or None")
         if self.microBatchSize <= 0 or self.gradAccumSteps <= 0:
             raise ValueError("batch dimensions must be positive")
+        if self.evalEvery < 0:
+            raise ValueError("evalEvery cannot be negative; 0 disables periodic validation")
 
 
 def environment() -> Dict[str, Any]:
@@ -206,6 +213,7 @@ class TrainResult:
     stoppedEarly: bool
     stopReason: Optional[str]
     history: List[Dict[str, Any]] = field(default_factory=list)
+    validationHistory: List[Dict[str, Any]] = field(default_factory=list)
 
 
 def _finite(t: torch.Tensor) -> bool:
@@ -307,6 +315,7 @@ def train(
     tokens_seen = 0
     history: List[Dict[str, Any]] = []
     losses: List[float] = []
+    validation_history: List[Dict[str, Any]] = []
 
     decay, no_decay = [], []
     for name, param in model.named_parameters():
@@ -358,6 +367,7 @@ def train(
         tokens_seen = int(resume["tokensSeen"])
         history = list(resume.get("history", []))
         losses = [h["loss"] for h in history if "loss" in h]
+        validation_history = list(resume.get("validationHistory", []))
         log(
             f"resuming at step {start_step}/{cfg.steps} "
             f"(cursor {cursor}, {tokens_seen} tokens already seen)"
@@ -404,6 +414,17 @@ def train(
     log(f"initial train loss {initial_train_loss:.4f} (uniform = ln(V))")
     if initial_validation_loss is not None:
         log(f"initial validation loss {initial_validation_loss:.4f}")
+
+    # Seed the validation curve with the opening point. On a resume the carried
+    # history already ends on the boundary this segment opens from (its final
+    # sample sits at start_step - 1), so only a genuinely new boundary is
+    # recorded -- a resumed curve stays continuous rather than double-counting
+    # the same weights under the previous segment's last label.
+    if initial_validation_loss is not None:
+        if not validation_history:
+            validation_history.append({"step": start_step, "loss": initial_validation_loss})
+        elif validation_history[-1]["step"] < start_step - 1:
+            validation_history.append({"step": start_step - 1, "loss": initial_validation_loss})
 
     model.train()
     consecutive_nonfinite = 0
@@ -509,11 +530,23 @@ def train(
         )
         steps_this_run += 1
 
+        # Periodic held-out validation: measured in eval mode, under no_grad,
+        # through the same token-weighted mean_cross_entropy path the promotion
+        # gate uses, so training and evaluation cannot drift apart. Sampled
+        # after the optimizer step, labelled with that step.
+        if cfg.evalEvery > 0 and (step + 1) % cfg.evalEvery == 0:
+            periodic_val = evaluate()
+            if periodic_val is not None:
+                validation_history.append({"step": step, "loss": periodic_val})
+
     # Derived from an explicit counter rather than the loop variable's final
     # value, which is wrong by one on both the normal and the early-break path.
     completed = start_step + steps_this_run
     final_train_loss = history[-1]["loss"] if history else initial_train_loss
     final_validation_loss = evaluate() if not stopped_early else None
+    if not stopped_early and final_validation_loss is not None:
+        if not validation_history or validation_history[-1]["step"] != completed - 1:
+            validation_history.append({"step": completed - 1, "loss": final_validation_loss})
 
     result = TrainResult(
         version=new_version,
@@ -532,6 +565,7 @@ def train(
         stoppedEarly=stopped_early,
         stopReason=stop_reason,
         history=history,
+        validationHistory=validation_history,
     )
 
     train_state = {
@@ -558,6 +592,7 @@ def train(
         "environment": environment(),
         "rngState": _jsonable_rng(capture_rng_state()),
         "history": history,
+        "validationHistory": validation_history,
     }
     return result, train_state, optimizer
 

@@ -55,11 +55,18 @@ function readRecord(root, version, name) {
 
 /** Normalise recorded metrics, keeping null distinct from 0. */
 function metricsFor(manifest, trainState) {
+  // A trained version's most representative number is its held-out validation
+  // loss; training loss is the fallback, then the legacy metric fields. The
+  // precedence reads the fields train.py actually writes (finalValidationLoss /
+  // finalTrainLoss / tokensSeen / stepsCompleted); the old fallbacks exist so
+  // manifest-only records keep working. A recorded zero stays zero.
   const loss =
-    trainState?.lastLoss ?? trainState?.loss ?? trainState?.metrics?.loss ?? manifest?.metrics?.loss ?? null;
+    trainState?.finalValidationLoss ?? trainState?.finalTrainLoss ??
+    trainState?.loss ?? trainState?.metrics?.loss ?? manifest?.metrics?.loss ?? null;
   const steps =
     trainState?.stepsCompleted ?? trainState?.steps ?? manifest?.metrics?.stepsCompleted ?? null;
-  const tokens = manifest?.metrics?.tokens ?? trainState?.tokensProcessed ?? null;
+  const tokens =
+    trainState?.tokensSeen ?? trainState?.tokensProcessed ?? manifest?.metrics?.tokens ?? null;
   const parameters = manifest?.sizes?.parametersUniqueByStorage ?? manifest?.parameterCount ?? null;
   return {
     loss: Number.isFinite(loss) ? loss : loss ?? null,
@@ -67,6 +74,36 @@ function metricsFor(manifest, trainState) {
     tokens: Number.isFinite(tokens) ? tokens : tokens ?? null,
     parameters: Number.isFinite(parameters) ? parameters : parameters ?? null,
   };
+}
+
+/** Lean, always-cheap train-state summary attached to every version. */
+function trainStateSummary(trainState) {
+  if (!trainState || typeof trainState !== "object") return null;
+  return {
+    parentVersion: trainState.parentVersion ?? null,
+    resumedFromStep: Number.isInteger(trainState.resumedFromStep) ? trainState.resumedFromStep : null,
+    stepsCompleted: Number.isInteger(trainState.stepsCompleted) ? trainState.stepsCompleted : null,
+    tokensSeen: Number.isFinite(trainState.tokensSeen) ? trainState.tokensSeen : null,
+    datasetHash: trainState?.packing?.datasetHash ?? null,
+    initialTrainLoss: Number.isFinite(trainState.initialTrainLoss) ? trainState.initialTrainLoss : null,
+    finalTrainLoss: Number.isFinite(trainState.finalTrainLoss) ? trainState.finalTrainLoss : null,
+    initialValidationLoss: Number.isFinite(trainState.initialValidationLoss) ? trainState.initialValidationLoss : null,
+    finalValidationLoss: Number.isFinite(trainState.finalValidationLoss) ? trainState.finalValidationLoss : null,
+    stoppedEarly: trainState.stoppedEarly ?? null,
+    stopReason: trainState.stopReason ?? null,
+    evalEvery: Number.isInteger(trainState?.config?.evalEvery) ? trainState.config.evalEvery : null,
+  };
+}
+
+/**
+ * Full train-state record for ONE version, including the per-step `history` and
+ * `validationHistory` series. Kept separate from `readPythonStore` so the
+ * overview/portal responses stay small: the series is only served to the
+ * Trends & Metrics endpoint for the versions it plots.
+ */
+export function readPythonTrainState(version, explicit = null) {
+  const root = resolveStorePath(explicit);
+  return readRecord(root, version, RECORD.trainState);
 }
 
 export function readPythonStore(explicit = null) {
@@ -126,6 +163,7 @@ export function readPythonStore(explicit = null) {
       artifactName: manifest ? `${provenance?.artifactName ?? manifest?.artifactName ?? ""}`.trim() || null : null,
       arch: config?.architecture ?? manifest?.architecture ?? null,
       metrics: metricsFor(manifest, trainState),
+      trainState: trainStateSummary(trainState),
       bytes,
       provenance: provenance ?? null,
     });
