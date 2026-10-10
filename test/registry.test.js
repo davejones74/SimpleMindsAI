@@ -1,7 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
+import os from "node:os";
 import path from "node:path";
 import { RegistryStore } from "../src/storage/registry-store.js";
 
@@ -60,6 +61,43 @@ test("run lock: single trainer; stale lock auto-broken", async () => {
   assert.equal(await r.acquireRunLock(60_000), false); // second trainer blocked
   r.releaseRunLock();
   assert.equal(await r.acquireRunLock(60_000), true);
+  await r.close();
+});
+
+test("run lock: reclaiming a dead owner's lock fails ONLY its run", async () => {
+  const dir = tmpDir();
+  const r = await RegistryStore.open(dir);
+  const held = await r.createRun({ datasetId: "d" });
+  const unrelated = await r.createRun({ datasetId: "d" });
+  await r.runEvent(held.runId, { status: "running" });
+  await r.runEvent(unrelated.runId, { status: "running" });
+
+  // A dead owner: no pid/host and an ancient heartbeat ⇒ verifiably abandoned.
+  const ancient = new Date(Date.now() - 60_000).toISOString();
+  writeFileSync(path.join(dir, "RUN.lock"), JSON.stringify({ token: "dead", runId: held.runId, acquiredAt: ancient, heartbeatAt: ancient }));
+
+  assert.equal(await r.acquireRunLock(1_000), true);
+  assert.equal(r.getRun(held.runId).status, "failed");        // interrupted run recovered
+  assert.equal(r.getRun(unrelated.runId).status, "running");  // unrelated run untouched
+  assert.equal(r.listLockRecoveries().some((x) => x.action === "reclaimed"), true);
+  r.releaseRunLock();
+  await r.close();
+});
+
+test("run lock: a live owner is never robbed, even past its heartbeat", async () => {
+  const dir = tmpDir();
+  const r = await RegistryStore.open(dir);
+  const held = await r.createRun({ datasetId: "d" });
+  await r.runEvent(held.runId, { status: "running" });
+
+  const ancient = new Date(Date.now() - 60_000).toISOString();
+  // Same host, our own (live) pid, but an expired heartbeat.
+  writeFileSync(path.join(dir, "RUN.lock"), JSON.stringify({ pid: process.pid, host: os.hostname(), token: "live", runId: held.runId, acquiredAt: ancient, heartbeatAt: ancient }));
+
+  assert.equal(await r.acquireRunLock(1_000), false);         // refused
+  assert.equal(r.getRun(held.runId).status, "running");       // left alone
+  assert.equal(r.listLockRecoveries().some((x) => x.action === "deferred"), true);
+  r.breakRunLock();
   await r.close();
 });
 

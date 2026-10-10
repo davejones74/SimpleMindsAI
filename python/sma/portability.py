@@ -207,7 +207,7 @@ def bf16_probe(
     return out
 
 
-def platform_report() -> Dict[str, Any]:
+def platform_report(with_bf16: bool = True) -> Dict[str, Any]:
     """Everything the memory/portability preflight needs about this machine.
 
     Vendor-neutral superset of what the old CUDA-only `arch.cuda_report()`
@@ -215,7 +215,8 @@ def platform_report() -> Dict[str, Any]:
     compute-capability and a misleading "totalVramBytes" on ROCm). `archString`
     is the real architecture, `totalMemoryBytes` is what the device reports, and
     `memorySharedWithHost` says whether that number is a dedicated budget or a
-    shared carve-out.
+    shared carve-out. ``with_bf16=False`` skips the (cheap but not free) bf16
+    timing probe and leaves ``bf16`` as ``None``.
     """
     backend = backend_of_runtime()
     report: Dict[str, Any] = {
@@ -235,6 +236,7 @@ def platform_report() -> Dict[str, Any]:
         report["archString"] = _arch_string(props)
         report["totalMemoryBytes"] = int(props.total_memory)
         report["memorySharedWithHost"] = _memory_shared_with_host(props, backend)
-    report["bf16"] = bf16_probe()
+    if with_bf16:
+        report["bf16"] = bf16_probe()
     report["envOffline"] = os.environ.get("HF_HUB_OFFLINE")
     return report

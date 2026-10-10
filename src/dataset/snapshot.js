@@ -1,98 +1,93 @@
-import { mkdir, writeFile } from "node:fs/promises";
-import { existsSync, createReadStream } from "node:fs";
+import { mkdir } from "node:fs/promises";
+import { existsSync, createReadStream, createWriteStream, renameSync, unlinkSync } from "node:fs";
 import { createHash } from "node:crypto";
 import readline from "node:readline";
 import path from "node:path";
 import { config } from "../config.js";
-import { pairHash } from "./evaluation-set.js";
+import { contentHash, isTrainable } from "../domain/article.js";
 
 /**
- * Immutable dataset snapshots (requirement #2 + #17).
+ * Immutable article snapshots (requirement #2 + #17).
  *
- * Training NEVER reads the live buffer. A snapshot is baked ONCE into a
+ * Training NEVER reads the live article store. A snapshot is baked ONCE into a
  * hash-sealed NDJSON file; the TrainingRun records the exact datasetId +
- * datasetVersion (+ the content hash) it consumed, so any historical run is
- * byte-for-byte reproducible. The file is never rewritten — a new snapshot is a
- * new file with a new version id.
+ * datasetVersion (+ content hash) it consumed, so any historical run is
+ * byte-for-byte reproducible. The file is never rewritten.
  *
- * Two hard guards live here:
- *   - maxSyntheticShare: after collection, excess synthetic rows are dropped
- *     (lowest reward first), each drop recorded. Prevents synthetic domination.
- *   - evaluation leak guard: any row whose (prompt, completion) pair exists in
- *     the immutable evaluation set is excluded. The eval set can never be
- *     trained on.
+ * Only REVIEWED-and-unconsumed articles are collected. There is deliberately NO
+ * reward-based synthetic cap: the training unit is continuous article text and
+ * the training signal is next-token prediction, so there is no reward in the
+ * signal to hack and no echo-chamber failure mode to cap. Synthetic share is
+ * REPORTED in the manifest for observation, never used to drop rows.
+ *
+ * The only hard guard is the evaluation leak guard: any article whose content
+ * hash collides with the frozen evaluation set is excluded. The eval set can
+ * never be trained on.
  */
-export function rowForPrompt(prompt, completion) {
+
+export function rowForArticle(article) {
   return {
-    promptId: prompt.id,
-    prompt: prompt.text,
-    completionId: completion.id,
-    completion: completion.text ?? "",
-    origin: completion.origin ?? "raw",
-    domain: prompt.domain ?? "general",
-    reward: prompt.rewardScore,
-    createdAt: prompt.createdAt ?? new Date().toISOString(),
-    hash: pairHash(prompt.text, completion.text ?? ""),
+    articleId: article.articleId,
+    contentHash: article.contentHash ?? contentHash(article.text),
+    text: article.text,
+    domain: article.domain ?? "general",
+    importance: article.importance ?? "Normal",
+    origin: article.origin ?? "curated",
+    createdAt: article.createdAt ?? new Date().toISOString(),
   };
 }
 
-/**
- * Pull up to `limit` UNTRAINED, scored rows out of the transient buffer.
- * Reaches into the BufferStore only — the immutable snapshot is what is ever
- * given to the trainer afterwards.
- */
-export function collectRowsFromBuffer(store, { limit = config.snapshotLimit, minReward = config.minReward } = {}) {
-  const stats = { lowReward: 0, noCompletion: 0, collected: 0 };
+/** Pull up to `limit` REVIEWED, unconsumed articles out of the live store. */
+export function collectRowsFromArticles(store, { limit = config.snapshotLimit } = {}) {
   const rows = [];
   let cursor = null;
   let guard = 0;
   while (rows.length < limit && guard++ < 200) {
-    const { items, nextCursor } = store.promptsPage({ after: cursor, limit: 200, trained: false });
-    for (const p of items) {
-      if (p.trainedAt || rows.length >= limit) continue;
-      const score = p.rewardScore;
-      if (score == null || score < minReward) { stats.lowReward++; continue; }
-      const comps = p.completions ?? [];
-      if (!comps.length) { stats.noCompletion++; continue; }
-      const best = [...comps].sort((a, b) => (b.rewardScore ?? 0) - (a.rewardScore ?? 0))[0];
-      rows.push(rowForPrompt(p, best));
-      stats.collected++;
+    const { items, nextCursor } = store.articlesPage({ after: cursor, limit: 200, status: "REVIEWED", consumed: false });
+    for (const a of items) {
+      if (!isTrainable(a)) continue;
+      rows.push(rowForArticle(a));
+      if (rows.length >= limit) break;
     }
-    if (!nextCursor || rows.length >= limit) break;
+    if (!nextCursor) break;
     cursor = nextCursor;
   }
-  return { rows, stats };
+  return { rows, stats: { collected: rows.length } };
 }
 
-/** Cap synthetic rows; drops are lowest-reward-first and always recorded. */
-export function enforceSyntheticCap(rows, { maxSyntheticShare = config.maxSyntheticShare } = {}) {
-  const share = Math.max(0, Math.min(1, Number(maxSyntheticShare) || 0));
-  const cap = Math.floor(rows.length * share);
-  const synth = rows.filter((r) => r.origin === "synthetic").sort((a, b) => a.reward - b.reward);
-  // keep the top `cap` by reward; drop the lowest-reward excess FIRST (each recorded)
-  const discarded = Math.max(0, synth.length - cap);
-  const dropped = synth.slice(0, discarded);
-  const droppedIds = new Set(dropped.map((r) => r.completionId));
-  return {
-    rows: rows.filter((r) => !droppedIds.has(r.completionId)),
-    dropped,
-    cap,
-  };
+function writeChunk(ws, chunk) {
+  return new Promise((resolve, reject) => {
+    ws.write(chunk, (err) => (err ? reject(err) : resolve()));
+  });
+}
+
+function finishStream(ws) {
+  return new Promise((resolve, reject) => {
+    ws.once("finish", resolve);
+    ws.once("error", reject);
+    ws.end();
+  });
 }
 
 /**
  * Bake rows into an immutable snapshot and register its manifest.
- * Returns both the manifest (registry) and the on-disk artifact.
+ *
+ * Rows are streamed to a temp file while a running SHA-256 is computed, then
+ * atomically renamed to the hash-addressed final name. Peak memory stays flat
+ * (one row at a time) rather than materialising the whole serialized corpus.
+ * Returns the manifest (registry), the on-disk artifact, and guard outcomes.
  */
-export async function buildSnapshot({ registry, rowsRaw, source = "buffer", dir = config.paths.snapshots, maxSyntheticShare = config.maxSyntheticShare, evalGuard = null }) {
+export async function buildSnapshot({
+  registry,
+  rowsRaw,
+  source = "store",
+  dir = config.paths.snapshots,
+  evalGuard = null,
+}) {
   await mkdir(dir, { recursive: true });
 
-  // 1. synthetic cap
-  const { rows: capped, dropped } = enforceSyntheticCap(rowsRaw, { maxSyntheticShare });
-
-  // 2. evaluation leak guard
   let excluded = [];
-  let rows = capped;
+  let rows = rowsRaw;
   if (evalGuard) {
     const res = evalGuard.filter(rows);
     rows = res.kept;
@@ -100,31 +95,57 @@ export async function buildSnapshot({ registry, rowsRaw, source = "buffer", dir 
   }
 
   const datasetId = registry.nextDatasetId();
-  const contents = rows.map((r) => JSON.stringify(r)).join("\n") + (rows.length ? "\n" : "");
-  const hash = createHash("sha256").update(contents, "utf8").digest("hex");
-  const datasetVersion = hash.slice(0, 12);
-  const file = path.join(dir, `${datasetId}-${datasetVersion}.jsonl`);
-  if (!existsSync(file)) await writeFile(file, contents, "utf8");
+  const tmpFile = path.join(dir, `${datasetId}.tmp`);
+  const hash = createHash("sha256");
+  const articleIds = [];
+  const byImportance = { Normal: 0, Important: 0, Critical: 0 };
+  const byDomain = new Map();
+  let syntheticCount = 0;
 
-  const syntheticCount = rows.filter((r) => r.origin === "synthetic").length;
+  const ws = createWriteStream(tmpFile);
+  try {
+    for (const r of rows) {
+      // One canonical line per article; the concatenation of these lines IS the
+      // immutable artifact (and therefore the dataset hash).
+      const line = `${JSON.stringify(r)}\n`;
+      hash.update(line, "utf8");
+      articleIds.push(r.articleId);
+      if (r.importance in byImportance) byImportance[r.importance] += 1;
+      byDomain.set(r.domain, (byDomain.get(r.domain) ?? 0) + 1);
+      if (r.origin === "synthetic") syntheticCount += 1;
+      await writeChunk(ws, line);
+    }
+    await finishStream(ws);
+  } catch (err) {
+    ws.destroy();
+    if (existsSync(tmpFile)) unlinkSync(tmpFile);
+    throw err;
+  }
+
+  const digest = hash.digest("hex");
+  const datasetVersion = digest.slice(0, 12);
+  const file = path.join(dir, `${datasetId}-${datasetVersion}.jsonl`);
+  // Hash-addressed name ⇒ identical content already on disk is the same artifact.
+  if (existsSync(file)) unlinkSync(tmpFile);
+  else renameSync(tmpFile, file);
+
   const manifest = await registry.createSnapshot({
     datasetId,
     datasetVersion,
     source,
     recordCount: rows.length,
+    articleCount: rows.length,
     syntheticCount,
     syntheticShare: rows.length ? syntheticCount / rows.length : 0,
+    byImportance,
     file,
-    hash,
-    categories: Object.fromEntries(
-      [...new Set(rows.map((r) => r.domain))].map((d) => [d, rows.filter((r) => r.domain === d).length])
-    ),
-    rowIds: rows.map((r) => r.promptId),
-    droppedSynthetic: dropped.map((r) => ({ completionId: r.completionId, reward: r.reward, reason: "maxSyntheticShare-excess" })),
-    leakExcluded: excluded.map((r) => r.hash),
-    builderVersion: "snapshot-v1",
+    hash: digest,
+    categories: Object.fromEntries([...byDomain.entries()]),
+    articleIds,
+    leakExcluded: excluded.map((r) => r.contentHash),
+    builderVersion: "snapshot-article-v1",
   });
-  return { manifest, file, rows, dropped, excluded, datasetVersion, hash };
+  return { manifest, file, rows, excluded, datasetVersion, hash: digest };
 }
 
 export const snapshotRowReader = {
@@ -134,7 +155,11 @@ export const snapshotRowReader = {
     const rl = readline.createInterface({ input: createReadStream(file), crlfDelay: Infinity });
     for await (const raw of rl) {
       if (!raw.trim()) continue;
-      try { out.push(JSON.parse(raw)); } catch {}
+      try {
+        out.push(JSON.parse(raw));
+      } catch {
+        /* skip corrupt tail */
+      }
     }
     return out;
   },

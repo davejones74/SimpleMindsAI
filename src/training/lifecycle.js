@@ -1,10 +1,12 @@
 import path from "node:path";
 import { mkdir, writeFile } from "node:fs/promises";
 import { config } from "../config.js";
-import { collectRowsFromBuffer, buildSnapshot } from "../dataset/snapshot.js";
+import { collectRowsFromArticles, buildSnapshot } from "../dataset/snapshot.js";
 import { loadEvaluationSet, makeEvalGuard } from "../dataset/evaluation-set.js";
 import { validateCurriculum, fallbackCurriculum } from "../curriculum/validation.js";
 import { Evaluator, decidePromotion } from "./evaluator.js";
+import { decidePromotionByLoss, evaluateVersionLoss } from "./loss-evaluator.js";
+import { setActiveVersion } from "./python-promotion.js";
 import { assertTrainer } from "./trainer-interface.js";
 import { modelHandle } from "./model-handle.js";
 
@@ -30,18 +32,31 @@ export async function executeFullRun({
   logger = console,
 }) {
   const {
-    store,                 // BufferStore-like: promptsPage / getStats
+    store,                 // ArticleStore-like: articlesPage / getStats / markConsumed
     trainer = null,        // { train(...) -> TrainingResult }
     complete = null,       // async (prompt) => { text }
-    markConsumed = null,   // async (promptIds, runId) -> void
-    evalSeed = null,       // () -> rows, only consulted if eval set missing
-    planBuilder = null,    // async ({stats}) -> raw LLM plan
+    markConsumed = null,   // async (articleIds, { runId }) -> { consumed, skipped }
+    evalSeed = null,       // () -> rows
+    planBuilder = null,    // (stats) -> curriculum
+    evaluateLoss = evaluateVersionLoss, // Python loss gate (injectable for tests)
+    setActive = setActiveVersion,       // move the serving pointer (injectable)
+    worker = null,         // student worker to reload after a promotion
   } = deps;
 
-  const limit = options.snapshotLimit ?? config.snapshotLimit;
-  const evaluator = new Evaluator({ complete: complete ?? (await import("./model-handle.js")).makeCompletor(), registry });
+  const commitConsumption =
+    markConsumed ?? ((ids, runId) => store.markConsumed(ids, { runId }));
 
-  await registry.recoverStaleRuns(config.runLockStaleMs);
+  const limit = options.snapshotLimit ?? config.snapshotLimit;
+  const t = assertTrainer(trainer);
+  const pythonMode = t.kind === "python";
+  // The legacy token-F1 evaluator is only constructed for the stub path; the
+  // real brain is scored by the Python loss gate on the same frozen eval set.
+  const evaluator = pythonMode
+    ? null
+    : new Evaluator({ complete: complete ?? (await import("./model-handle.js")).makeCompletor(), registry });
+
+  // Recovery is lock-driven: acquiring the lock reclaims a dead owner's run
+  // (see RegistryStore.acquireRunLock) without blanket-failing unrelated runs.
   if (!(await registry.acquireRunLock(config.runLockStaleMs))) {
     throw new Error("another training run is already in progress (RUN.lock held)");
   }
@@ -56,7 +71,7 @@ export async function executeFullRun({
     });
 
     // ---- immutable, capped, leak-guarded snapshot ----
-    const { rows, stats } = collectRowsFromBuffer(store, { limit });
+    const { rows } = collectRowsFromArticles(store, { limit });
     const snapshot = await buildSnapshot({
       registry,
       rowsRaw: rows,
@@ -65,7 +80,7 @@ export async function executeFullRun({
     });
 
     if (!snapshot.rows.length) {
-      throw new Error("dataset empty after snapshot guards (no new scored rows)");
+      throw new Error("dataset empty after snapshot guards (no reviewed, unconsumed articles)");
     }
 
     // ---- validated curriculum plan ----
@@ -82,9 +97,15 @@ export async function executeFullRun({
     const planFile = await persistPlan(planRecord, options.paths?.plans ?? config.paths.plans);
 
     // ---- TrainingRun record (status: created) ----
-    const baselineModel = await ensureBaselineModel(registry);
+    // The Python path resolves its committed parent FIRST: the registry baseline
+    // model and the run's baseModel must reference the real serving lineage.
+    const pythonBaseline = pythonMode ? await t.resolveBaseline() : null;
+    const baselineModel = pythonMode
+      ? await ensurePythonBaselineModel(registry, pythonBaseline)
+      : await ensureBaselineModel(registry);
     const run = await registry.createRun({
       baseModel: baselineModel.modelId,
+      baseModelVersion: pythonBaseline?.version ?? null,
       datasetId: snapshot.manifest.datasetId,
       datasetVersion: snapshot.manifest.datasetVersion,
       datasetFile: snapshot.manifest.file,
@@ -100,27 +121,35 @@ export async function executeFullRun({
       examplesAvailable: rows.length,
     });
     runId = run.runId;
+    registry.bindRunLock(runId);
     await registry.runEvent(runId, { status: "running", note: "snapshot+plan locked in" });
 
     // ---- BASELINE evaluation (before training) ----
-    const baselineResult = await evaluator.evaluate({
-      modelId: baselineModel.modelId,
-      kind: "baseline",
-      evalSet,
-      statusLog: () => registry.runEvent(runId, { status: "running", note: "baseline evaluation complete" }),
-    });
+    const baselineResult = pythonMode
+      ? await evaluateLoss({
+          version: pythonBaseline.version,
+          evalSetFile: evalSet.file,
+          store: config.pythonStore ?? undefined,
+          bin: config.pythonBin ?? undefined,
+          device: config.studentDevice,
+        })
+      : await evaluator.evaluate({
+          modelId: baselineModel.modelId,
+          kind: "baseline",
+          evalSet,
+          statusLog: () => registry.runEvent(runId, { status: "running", note: "baseline evaluation complete" }),
+        });
 
     // ---- train (never touches the live buffer; reads the snapshot file) ----
-    const t = assertTrainer(trainer);
     const trainingResult = await t.train({
       datasetFile: snapshot.manifest.file,
       baseModel: baselineModel.modelId,
       runId,
       configuration: {
-        minReward: config.minReward,
-        maxSyntheticShare: config.maxSyntheticShare,
         plan,
         checkpointDir: options.paths?.models ?? config.paths.models,
+        recordCount: snapshot.manifest.recordCount,
+        parentVersion: pythonBaseline?.version ?? null,
       },
     });
 
@@ -132,51 +161,106 @@ export async function executeFullRun({
       trainingRunId: runId,
       datasetId: snapshot.manifest.datasetId,
       checkpointPath: trainingResult.checkpointPath,
-      meta: { avgReward: trainingResult.avgReward, avgLoss: trainingResult.avgLoss },
+      meta: pythonMode
+        ? {
+            pythonVersion: trainingResult.version,
+            parentVersion: trainingResult.parentVersion,
+            avgLoss: trainingResult.finalTrainLoss,
+            datasetHash: trainingResult.datasetHash,
+            tokensSeen: trainingResult.tokensSeen,
+          }
+        : { avgLoss: trainingResult.avgLoss, importanceMix: trainingResult.importanceMix },
     });
 
     // ---- AFTER evaluation (candidate) ----
     await registry.runEvent(runId, { status: "evaluating", note: "candidate evaluation running" });
-    const candidateResult = await evaluator.evaluate({
-      modelId: candidate.modelId,
-      kind: "candidate",
-      evalSet,
-      statusLog: () => registry.runEvent(runId, { status: "evaluating", note: "candidate evaluation complete" }),
-    });
+    const candidateResult = pythonMode
+      ? await evaluateLoss({
+          version: trainingResult.version,
+          evalSetFile: evalSet.file,
+          store: config.pythonStore ?? undefined,
+          bin: config.pythonBin ?? undefined,
+          device: config.studentDevice,
+        })
+      : await evaluator.evaluate({
+          modelId: candidate.modelId,
+          kind: "candidate",
+          evalSet,
+          statusLog: () => registry.runEvent(runId, { status: "evaluating", note: "candidate evaluation complete" }),
+        });
 
     // ---- deterministic promote/reject ----
-    const decision = decidePromotion(baselineResult, candidateResult, config);
+    const decision = pythonMode ? decidePromotionByLoss(baselineResult, candidateResult, {}) : decidePromotion(baselineResult, candidateResult, config);
+
+    // A raw "not_evaluated" is a rejection for lifecycle bookkeeping: it must
+    // never leave a run non-terminal (which recovery would later flag) and must
+    // never move the active pointer.
+    const terminal = decision.decision === "promoted" ? "promoted" : "rejected";
 
     // ---- the exactly-once commit: only after training + eval succeeded ----
-    await markConsumed(snapshot.manifest.rowIds ?? snapshot.rows.map((r) => r.promptId), runId);
+    const consumption = await commitConsumption(snapshot.manifest.articleIds ?? snapshot.rows.map((r) => r.articleId), runId);
+    const commitResultCount = consumption?.consumed?.length ?? snapshot.manifest.articleIds.length;
+
+    // ---- move the serving pointer ONLY on a real promotion ----
+    let activated = null;
+    if (pythonMode && decision.decision === "promoted") {
+      activated = await setActive(trainingResult.version, {
+        store: config.pythonStore ?? undefined,
+        bin: config.pythonBin ?? undefined,
+        models: options.paths?.models ?? config.paths.models,
+      });
+      if (worker) await worker.reload();
+    }
 
     // ---- persist the decision on the model, then close the run ----
     await registry.modelEvent(candidate.modelId, {
       status: decision.decision === "promoted" ? "promoted" : "rejected",
-      evaluationScore: candidateResult.score100,
-      evalRunId: candidateResult.evalRunId,
-      note: `delta ${decision.delta.toFixed(4)} (${decision.base.toFixed(4)} -> ${decision.candidate.toFixed(4)})`,
+      evaluationScore: pythonMode ? candidateResult.loss : candidateResult.score100,
+      evalRunId: pythonMode ? null : candidateResult.evalRunId,
+      note: pythonMode
+        ? `loss ${fmt(baselineResult.loss)} -> ${fmt(candidateResult.loss)} (improvement ${fmt(decision.improvement)}); ${decision.reason}`
+        : `delta ${decision.delta.toFixed(4)} (${decision.base.toFixed(4)} -> ${decision.candidate.toFixed(4)})`,
     });
 
     await registry.completeRun(runId, {
-      status: decision.decision,
+      status: decision.decision === "promoted" ? "promoted" : "rejected",
+      promotionStatus: decision.decision,
       resultModelId: candidate.modelId,
       examplesProcessed: trainingResult.recordsProcessed ?? snapshot.manifest.recordCount,
-      examplesSkipped: rows.length - snapshot.manifest.recordCount,
-      baselineEvaluation: { evalRunId: baselineResult.evalRunId, score: baselineResult.score, score100: baselineResult.score100 },
-      trainedEvaluation: { evalRunId: candidateResult.evalRunId, score: candidateResult.score, score100: candidateResult.score100 },
-      evaluationDelta: decision.delta,
-      promotionStatus: decision.decision,
+      examplesSkipped: Math.max(0, rows.length - snapshot.manifest.recordCount),
+      baselineEvaluation: pythonMode
+        ? { loss: baselineResult.loss, datasetHash: baselineResult.datasetHash, version: pythonBaseline.version }
+        : { evalRunId: baselineResult.evalRunId, score: baselineResult.score, score100: baselineResult.score100 },
+      trainedEvaluation: pythonMode
+        ? { loss: candidateResult.loss, datasetHash: candidateResult.datasetHash, version: trainingResult.version }
+        : { evalRunId: candidateResult.evalRunId, score: candidateResult.score, score100: candidateResult.score100 },
+      evaluationDelta: pythonMode ? decision.improvement : decision.delta,
+      activatedVersion: pythonMode && decision.decision === "promoted" ? trainingResult.version : null,
+      // Run linkage: Node run -> frozen dataset -> Python execution -> committed
+      // candidate. Checkpoint path/version stay a secondary integrity check.
+      runLinkage: pythonMode
+        ? {
+            nodeRunId: runId,
+            pythonTrainingRunId: trainingResult.trainingRunId,
+            pythonVersion: trainingResult.version,
+            parentVersion: trainingResult.parentVersion,
+            datasetId: snapshot.manifest.datasetId,
+            datasetFile: snapshot.manifest.file,
+            datasetHash: trainingResult.datasetHash,
+            evaluationDatasetHash: candidateResult.datasetHash,
+            checkpointPath: trainingResult.checkpointPath,
+          }
+        : null,
       trainerNotes: {
         note: trainingResult.note ?? (trainer?.kind === "stub" ? "stub trainer (placeholder kernels)" : null),
         checkpointPath: trainingResult.checkpointPath,
-        droppedSynthetic: snapshot.dropped.length,
+        articlesConsumed: commitResultCount,
+        alreadyConsumedSkipped: consumption?.skipped?.length ?? 0,
         leakExcluded: snapshot.excluded.length,
-        lowRewardSkipped: stats.lowReward + stats.noCompletion,
       },
     });
 
-    logger.log && logger.log(`[lifecycle] run ${runId} -> ${decision.decision} (delta ${decision.delta.toFixed(4)})`);
+    logger.log && logger.log(`[lifecycle] run ${runId} -> ${decision.decision} (delta ${fmt(decision.improvement ?? decision.delta)})`);
     return {
       decision,
       baseline: baselineResult,
@@ -205,17 +289,38 @@ async function ensureBaselineModel(registry) {
   return modelHandle(base);
 }
 
+/**
+ * The registry model that represents the committed Python parent version. It is
+ * found by `meta.pythonVersion`, so the same modelId is reused across every run
+ * in a lineage instead of registering a new baseline row each time.
+ */
+async function ensurePythonBaselineModel(registry, baseline) {
+  const existing = registry
+    .listModels()
+    .find((m) => m.kind === "python" && m.meta?.pythonVersion === baseline.version);
+  if (existing) return modelHandle(existing);
+  const base = await registry.registerModel({
+    kind: "python",
+    baseModel: config.baseModel,
+    checkpointPath: baseline.path,
+    meta: { pythonVersion: baseline.version, adopted: true },
+  });
+  return modelHandle(base);
+}
+
+function fmt(x) {
+  return Number.isFinite(x) ? x.toFixed(4) : String(x ?? "n/a");
+}
+
 function flattenPlan(plan, snapshot) {
   return {
     at: new Date().toISOString(),
     source: plan.source ?? "validated",
     curriculum: plan.curriculum,
-    maxSyntheticShare: plan.maxSyntheticShare,
     datasetId: snapshot.manifest.datasetId,
     datasetVersion: snapshot.manifest.datasetVersion,
     recordCount: snapshot.manifest.recordCount,
     syntheticShare: snapshot.manifest.syntheticShare,
-    droppedSynthetic: snapshot.dropped.length,
     leakExcluded: snapshot.excluded.length,
   };
 }

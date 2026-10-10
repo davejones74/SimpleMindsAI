@@ -2,11 +2,8 @@ import { readFile } from "node:fs/promises";
 import { OllamaClient } from "./ollama-client.js";
 
 const GRAPHQL_URL = process.env.GRAPHQL_URL ?? "http://localhost:4000/graphql";
-const PROMPT_M = `
-mutation Ingest($input: PromptInput!) { ingestPrompt(input: $input) { id hash deduped } }
-`;
-const COMP_M = `
-mutation IngestComp($input: CompletionInput!) { ingestCompletion(input: $input) { id } }
+const ARTICLE_M = `
+mutation Ingest($input: ArticleInput!) { ingestArticle(input: $input) { articleId contentHash status } }
 `;
 
 async function gql(query, variables) {
@@ -21,12 +18,12 @@ async function gql(query, variables) {
 }
 
 /**
- * Curator — pipelines RAW text -> deepseek-r1:8b (Ollama) -> GraphQL buffer.
+ * Curator — pipelines RAW text -> deepseek-r1 (Ollama) -> GraphQL article store.
  *
- * This is the join point between Subsystem A (harvest) and the buffer that the
- * trainer (Subsystem C pipeline) consumes. It is deliberately dumb-on-purpose:
- * the LLM does the cleaning, this file only enforces the envelope (parse JSON,
- * tag provenance, rate-limit).
+ * This is the join point between Subsystem A (harvest) and the article ledger
+ * the trainer consumes. It is deliberately dumb-on-purpose: the LLM does the
+ * cleaning, this file only enforces the envelope (parse JSON, tag provenance).
+ * Each cleaned unit becomes ONE article — continuous prose, not a pair.
  */
 export class Curator {
   constructor({ ollama = new OllamaClient() } = {}) {
@@ -37,30 +34,32 @@ export class Curator {
     return this.ollama.clean(rawText);
   }
 
-  async ingestPair({ prompt, completion, domain, source }) {
-    if (!prompt || !completion) return null;
-    const p = await gql(PROMPT_M, {
-      input: { text: prompt, domain, source, rawText: undefined },
+  async ingestArticleText({ text, domain, source, rawText }) {
+    if (!text) return null;
+    const data = await gql(ARTICLE_M, {
+      input: { text, domain: domain ?? "general", source, rawText },
     });
-    if (!p.ingestPrompt?.id) return null;
-    await gql(COMP_M, {
-      input: { promptId: p.ingestPrompt.id, text: completion, model: this.ollama.model, origin: "curated" },
-    });
-    return p.ingestPrompt;
+    return data.ingestArticle ?? null;
   }
 
-  /** One raw blob in -> N pairs out. Pulls through deepseek-r1 per batch. */
-  async processRaw(rawText, { source = "harvest", concurrency = 2, sourceChapters = true } = {}) {
-    const pairs = await this.clean(rawText);
+  /** One raw blob in -> N articles out (cleaned by the teacher model). */
+  async processRaw(rawText, { source = "harvest", concurrency = 2, domain = "general" } = {}) {
+    const cleaned = await this.clean(rawText);
     const results = [];
     let i = 0;
     const worker = async () => {
-      while (i < pairs.length) {
+      while (i < cleaned.length) {
         const idx = i++;
-        const pair = pairs[idx];
-        if (!pair?.prompt || !pair?.completion) continue;
-        const res = await this.ingestPair({ ...pair, domain: pair.domain ?? "general", source });
-        results.push({ ...pair, promptId: res?.id ?? null, ingested: !!res });
+        const unit = cleaned[idx];
+        const text = unit?.text ?? (unit?.prompt ? `${unit.prompt}\n\n${unit.completion ?? ""}`.trim() : null);
+        if (!text) continue;
+        const res = await this.ingestArticleText({
+          text,
+          domain: unit.domain ?? domain,
+          source,
+          rawText,
+        });
+        results.push({ ...unit, articleId: res?.articleId ?? null, ingested: !!res });
       }
     };
     await Promise.all(Array.from({ length: concurrency }, worker));
@@ -87,8 +86,8 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split(/[\\/]/).p
       continue; // tolerate non-JSONL raw files
     }
     const text = doc?.text ?? line;
-    const results = await curator.processRaw(String(text), { source });
+    const results = await curator.processRaw(String(text), { source, domain: doc?.domain });
     total += results.filter((r) => r.ingested).length;
   }
-  console.log(`curated ${total} pairs -> ${GRAPHQL_URL}`);
+  console.log(`curated ${total} articles -> ${GRAPHQL_URL}`);
 }

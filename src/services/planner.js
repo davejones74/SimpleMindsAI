@@ -3,12 +3,12 @@ import { OllamaClient } from "./ollama-client.js";
 
 const GRAPHQL_URL = process.env.GRAPHQL_URL ?? "http://localhost:4000/graphql";
 const STATS_Q = `
-  query Stats { stats { totalPrompts trainedPrompts untrainedPrompts totalCompletions rewardCount avgReward duplicationIndex byDomain { domain count } } }
+  query Stats { stats { totalArticles pendingReview reviewed rejected trainable reviewCount avgReviewScore duplicationIndex byDomain { domain count } } }
 `;
 const SAMPLE_Q = `
-  query Sample($after: String, $limit: Int, $trained: Boolean) {
-    prompts(after: $after, limit: $limit, trained: $trained) {
-      items { id text domain rewardScore }
+  query Sample($after: String, $limit: Int) {
+    trainableArticles(after: $after, limit: $limit) {
+      items { articleId text domain importance }
       nextCursor
     }
   }
@@ -27,51 +27,48 @@ async function gql(query, variables = {}) {
 
 /**
  * Planner (Subsystem B) — "AI comes up with a balanced plan based around text
- *  generation."
+ * generation."
  *
- * Critical stance baked in: the LLM NEVER sees the raw buffer. It only receives
- * *measurements* (per-domain counts, coverage, reward variance, duplication)?
- * and returns a curriculum. Measurements are ground truth; the LLM is advisory.
- * That is the difference between a planner that balances your data and a third
- * opinion poll that drifts your whole distribution. Anything the LLM says gets
- * saved with the measurements as context, so you can audit WHY it decided.
+ * Critical stance baked in: the LLM NEVER sees the raw ledger wholesale. It only
+ * receives *measurements* (per-domain counts, review coverage, duplication) plus
+ * at most a few short domain samples, and returns a curriculum. Measurements are
+ * ground truth; the LLM is advisory. Anything it says gets saved WITH the
+ * measurements as context, so you can audit WHY it decided.
  */
 export async function buildPlan() {
   const { stats } = await gql(STATS_Q);
   const byDomain = Object.fromEntries(stats.byDomain.map((d) => [d.domain, d.count]));
 
-  // Sample up to 30 untrained prompts per domain for the LLM to see diversity.
   const samples = {};
-  for (const { domain } of stats.byDomain) {
-    samples[domain] = [];
-  }
   let cursor = null;
   let guard = 0;
-  while (guard++ < 60) {
-    const { prompts } = await gql(SAMPLE_Q, { after: cursor, limit: 100, trained: false });
-    for (const it of prompts.items) (samples[it.domain ?? "unknown"] ??= []).push(it.text.slice(0, 140));
-    if (!prompts.nextCursor) break;
-    cursor = prompts.nextCursor;
+  while (guard++ < 20) {
+    const { trainableArticles } = await gql(SAMPLE_Q, { after: cursor, limit: 100 });
+    for (const it of trainableArticles.items) {
+      const arr = (samples[it.domain ?? "unknown"] ??= []);
+      if (arr.length < 30) arr.push(it.text.slice(0, 140));
+    }
+    if (!trainableArticles.nextCursor) break;
+    cursor = trainableArticles.nextCursor;
   }
 
   const measurements = {
-    total: stats.totalPrompts,
-    trained: stats.trainedPrompts,
-    untrained: stats.untrainedPrompts,
-    avgReward: stats.avgReward,
-    rewardCoverage: stats.rewardCount,
+    totalArticles: stats.totalArticles,
+    pendingReview: stats.pendingReview,
+    reviewed: stats.reviewed,
+    rejected: stats.rejected,
+    trainable: stats.trainable,
+    reviewCoverage: stats.reviewCount,
+    avgReviewScore: stats.avgReviewScore,
     duplicationIndex: stats.duplicationIndex,
     domainCounts: byDomain,
-    domainDiversity: Object.fromEntries(
-      Object.entries(samples).map(([d, arr]) => [d, arr.length])
-    ),
+    domainDiversity: Object.fromEntries(Object.entries(samples).map(([d, arr]) => [d, arr.length])),
   };
 
   const ollama = new OllamaClient();
   const { text } = await ollama.chat({
     format: "json",
     temperature: 0.2,
-    // deliberate: no maxTokens on a reasoning model — see OllamaClient note.
     messages: [
       {
         role: "system",
@@ -81,12 +78,11 @@ export async function buildPlan() {
           "Return strict JSON:",
           "{",
           '  "assessment": string,              // 2-3 sentence read of the data health',
-          '  "buckets": [{ "domain": string, "targetRatio": number, "rationale": string }],',
+          '  "buckets": [{ "domain": string, "targetRatio": number, "minimumImportance": "Normal"|"Important"|"Critical", "rationale": string }],',
           '  "priorities": [string],             // 3 concrete actions, most urgent first',
-          '  "maxSyntheticShare": number,        // 0..1 cap on model-own outputs in next batch',
-          '  "rewardVarianceWarning": boolean    // true if few/no reward scores exist',
+          '  "reviewCoverageWarning": boolean    // true if little reviewed material exists',
           "}",
-          "Assume the critic hasn't scored everything yet. Favor balance, not fashion.",
+          "Favour balance and under-represented domains, not fashion. Importance is operator-controlled.",
         ].join("\n"),
       },
       { role: "user", content: JSON.stringify(measurements) },
@@ -103,7 +99,7 @@ export async function buildPlan() {
       /* fall through */
     }
   }
-  plan ??= { assessment: "unparseable LLM plan", buckets: [], priorities: [], maxSyntheticShare: 0.25, rewardVarianceWarning: true };
+  plan ??= { assessment: "unparseable LLM plan", buckets: [], priorities: [], reviewCoverageWarning: true };
 
   const record = { at: new Date().toISOString(), measurements, plan, model: ollama.model };
   const dir = "data/plans";

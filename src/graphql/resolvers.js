@@ -1,27 +1,53 @@
-import { collectRowsFromBuffer, buildSnapshot } from "../dataset/snapshot.js";
+import { collectRowsFromArticles, buildSnapshot } from "../dataset/snapshot.js";
 import { loadEvaluationSet, makeEvalGuard } from "../dataset/evaluation-set.js";
+import { isTrainable, normalizeImportance } from "../domain/article.js";
 
 /**
- * GraphQL resolvers. Context: { store: BufferStore, registry: RegistryStore }.
+ * GraphQL resolvers. Context: { store: ArticleStore, registry: RegistryStore }.
  *
- * Buffer mutations pass straight through (transient belt). Registry resolvers
- * are thin read/write wrappers over the append-only store — the *lifecycle*
- * module is the only thing allowed to run a TrainingRun end-to-end; these are
- * for inspection and explicit external promotion (never automatic).
+ * Enum mapping is explicit: the domain keeps human-readable TitleCase importance
+ * ("Normal") while GraphQL exposes SCREAMING enum names (NORMAL). Status and the
+ * verdict/authority enums share their names with the domain values.
  */
+
+const impToEnum = (v) => (v ? String(v).toUpperCase() : null); // "Normal" -> "NORMAL"
+const impToDomain = (v) => {
+  if (!v) return undefined;
+  const name = String(v);
+  return name.charAt(0).toUpperCase() + name.slice(1).toLowerCase(); // "NORMAL" -> "Normal"
+};
+const verdictToEnum = (v) => (v ? String(v).toUpperCase() : null); // "approve" -> "APPROVE"
+const verdictToDomain = (v) => (v ? String(v).toLowerCase() : undefined);
+const authToEnum = (v) => (v ? String(v).toUpperCase() : null);
+const authToDomain = (v) => (v ? String(v).toLowerCase() : undefined);
+
 export const resolvers = {
+  Article: {
+    importance: (a) => impToEnum(a.importance),
+    suggestedImportance: (a) => (a.suggestedImportance ? impToEnum(a.suggestedImportance) : null),
+    decidedBy: (a) => (a.decidedBy ? authToEnum(a.decidedBy) : null),
+    reviewCount: (a, _, { store }) => (typeof a.reviewCount === "number" ? a.reviewCount : store.reviewsFor(a.articleId).length),
+    trainable: (a) => isTrainable(a),
+    reviews: (a, _, { store }) => store.reviewsFor(a.articleId),
+    events: (a, _, { store }) => store.events.filter((e) => e.articleId === a.articleId),
+  },
+
+  ReviewVerdict: {
+    verdict: (r) => verdictToEnum(r.verdict),
+    authority: (r) => authToEnum(r.authority),
+    suggestedImportance: (r) => (r.suggestedImportance ? impToEnum(r.suggestedImportance) : null),
+  },
+
   Query: {
     stats: (_, __, { store }) => store.getStats(),
-    prompts: (_, { after = null, limit = 100, trained }, { store }) =>
-      store.promptsPage({ after, limit, trained }),
-    completions: (_, { promptId }, { store }) => store.completionsFor(promptId),
-    trainingLogs: (_, __, { store }) => store.runs,
-    consumeBatch: (_, { input }, { store }) => store.consumeBatch(input),
+    articles: (_, { after, limit, status, importance, consumed, domain }, { store }) =>
+      store.articlesPage({ after, limit: limit ?? 100, status, importance: impToDomain(importance), consumed, domain }),
+    article: (_, { articleId }, { store }) => store.getArticle(articleId),
+    trainableArticles: (_, { after, limit }, { store }) => store.trainablePage({ after, limit: limit ?? 100 }),
+    reviewQueue: (_, { after, limit }, { store }) => store.reviewQueue({ after, limit: limit ?? 100 }),
 
-    // ---- Phase 2 registry reads ----
-    datasetSnapshots: (_, __, { registry }) => (
-      registry?.listSnapshots().map(toSnapshot) ?? []
-    ),
+    // ---- registry reads ----
+    datasetSnapshots: (_, __, { registry }) => (registry?.listSnapshots() ?? []).map(toSnapshot),
     models: (_, __, { registry }) => (registry?.listModels() ?? []).map(toModel),
     model: (_, { modelId }, { registry }) => (registry?.getModel(modelId) ? toModel(registry.getModel(modelId)) : null),
     activeModel: (_, __, { registry }) => {
@@ -37,18 +63,45 @@ export const resolvers = {
   },
 
   Mutation: {
-    ingestPrompt: (_, { input }, { store }) => store.ingestPrompt(input),
-    ingestCompletion: (_, { input }, { store }) => store.ingestCompletion(input),
-    scoreCompletion: (_, { input }, { store }) => store.scoreCompletion(input),
-    commitConsumption: (_, { input }, { store }) =>
-      store.markTrained(input.ids, input.runId).then(() => true),
-    recordTrainingRun: (_, { input }, { store }) => store.recordTrainingRun(input),
+    ingestArticle: (_, { input }, { store }) =>
+      store.ingestArticle({
+        text: input.text,
+        domain: input.domain,
+        tags: input.tags,
+        importance: input.importance ? impToDomain(input.importance) : undefined,
+        source: input.source,
+        rawText: input.rawText,
+        uncertainty: input.uncertainty,
+        missionRelevance: input.missionRelevance,
+      }),
+    recordReview: (_, { input }, { store }) =>
+      store.recordReview({
+        articleId: input.articleId,
+        verdict: verdictToDomain(input.verdict),
+        score: input.score,
+        rationale: input.rationale,
+        authority: input.authority ? authToDomain(input.authority) : undefined,
+        reviewerModel: input.reviewerModel,
+        reviewerVersion: input.reviewerVersion,
+        rubricVersion: input.rubricVersion,
+        suggestedImportance: input.suggestedImportance ? impToDomain(input.suggestedImportance) : null,
+        reviewCycleId: input.reviewCycleId,
+      }),
+    setArticleImportance: (_, { articleId, importance }, { store }) =>
+      store.setImportance(articleId, impToDomain(importance)),
+    setArticleStatus: (_, { articleId, status, reason }, { store }) =>
+      store.setStatus(articleId, status, { reason }),
+    requestArticleReview: (_, { articleId }, { store }) => store.requestReview(articleId),
+    selectArticlesForReview: (_, { limit }, { store }) => store.selectForReview({ limit: limit ?? 500 }),
+
+    markConsumed: (_, { input }, { store }) =>
+      store.markConsumed(input.articleIds, { runId: input.runId, allowReuse: input.allowReuse ?? false }),
     purgeBuffer: (_, __, { store }) => store.purgeBuffer().then(() => true),
 
-    // ---- Phase 2 registry writes ----
+    // ---- registry writes ----
     createDatasetSnapshot: async (_, { input }, { store, registry }) => {
       const evalSet = await loadEvaluationSet({});
-      const { rows } = collectRowsFromBuffer(store);
+      const { rows } = collectRowsFromArticles(store);
       const { manifest } = await buildSnapshot({
         registry,
         rowsRaw: rows,
@@ -57,10 +110,7 @@ export const resolvers = {
       });
       return toSnapshot(manifest);
     },
-    registerModel: async (_, { input }, { registry }) => {
-      const rec = await registry.registerModel(input);
-      return toModel(rec);
-    },
+    registerModel: async (_, { input }, { registry }) => toModel(await registry.registerModel(input)),
     recordEvaluation: (_, { input }, { registry }) =>
       registry.recordEvaluation({
         evalRunId: input.evalRunId ?? registry.nextEvalId(),
@@ -93,8 +143,9 @@ function toSnapshot(s) {
   return {
     datasetId: s.datasetId,
     datasetVersion: s.datasetVersion,
-    source: s.source ?? "buffer",
+    source: s.source ?? "store",
     recordCount: s.recordCount ?? 0,
+    articleCount: s.articleCount ?? s.recordCount ?? 0,
     syntheticCount: s.syntheticCount ?? 0,
     syntheticShare: s.syntheticShare ?? 0,
     file: s.file,

@@ -37,9 +37,9 @@ export function renderRunReport(run, { registry = null } = {}) {
   const notes = run.trainerNotes;
   if (notes) {
     const bits = [];
-    if (notes.dropedSynthetic || notes.droppedSynthetic) bits.push(`synthetic-dropped ${notes.dropedSynthetic ?? notes.droppedSynthetic}`);
+    if (notes.articlesConsumed) bits.push(`articles-consumed ${notes.articlesConsumed}`);
+    if (notes.alreadyConsumedSkipped) bits.push(`already-consumed-skipped ${notes.alreadyConsumedSkipped}`);
     if (notes.leakExcluded) bits.push(`leak-excluded ${notes.leakExcluded}`);
-    if (notes.lowRewardSkipped) bits.push(`low-reward-skipped ${notes.lowRewardSkipped}`);
     if (bits.length) push("guards", bits.join(", "));
     if (notes.checkpointPath) push("checkpoint", notes.checkpointPath);
   }

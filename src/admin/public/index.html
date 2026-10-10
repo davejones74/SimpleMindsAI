@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SimpleMindsAI — Learning Observatory</title>
+  <link rel="stylesheet" href="/admin/styles.css" />
+</head>
+<body>
+  <header class="top">
+    <h1>SimpleMindsAI · Learning Observatory</h1>
+    <span class="spacer"></span>
+    <span id="storePill" class="pill">store …</span>
+    <span id="livePill" class="pill offline">live ○</span>
+  </header>
+
+  <nav class="tabs" id="tabs">
+    <button data-tab="dashboard" class="active">Dashboard</button>
+    <button data-tab="articles">Articles</button>
+    <button data-tab="chat">Live Chat</button>
+    <button data-tab="mission">Mission &amp; Strategy</button>
+    <button data-tab="cycles">Review Cycles</button>
+    <button data-tab="history">Training History</button>
+    <button data-tab="trends">Trends &amp; Metrics</button>
+  </nav>
+
+  <main id="main">
+    <div class="loading">Loading…</div>
+  </main>
+
+  <footer>
+    Local observability portal — mounted on the main server. All mutations go through validated Node services;
+    live updates arrive over SSE and fall back to a full refresh when the connection drops.
+  </footer>
+
+  <script type="module" src="/admin/app.js"></script>
+</body>
+</html>
