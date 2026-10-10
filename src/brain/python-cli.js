@@ -35,6 +35,16 @@ export function resolveStoreRoot() {
   return process.env.SMA_STORE || path.join(os.homedir(), ".sma", "store");
 }
 
+/** Parse the version naming `active.json`, or null when absent/unreadable. */
+export function readActiveVersion(store = resolveStoreRoot()) {
+  try {
+    const active = JSON.parse(fs.readFileSync(path.join(store, "active.json"), "utf8"));
+    return active?.version ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export function pythonEnv(store = resolveStoreRoot(), extra = {}) {
   return {
     ...process.env,

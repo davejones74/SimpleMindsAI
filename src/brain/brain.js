@@ -1,4 +1,5 @@
 import { StudentWorker } from "./student-worker.js";
+import { readActiveVersion } from "./python-cli.js";
 
 /**
  * Brain — the ONE integration seam for the trained student model.
@@ -13,6 +14,12 @@ import { StudentWorker } from "./student-worker.js";
  * `store.resolve_version_dir`, which refuses anything without a COMMITTED
  * marker, so a partially written checkpoint can never be served. Promotion
  * swaps the active pointer and the chat server calls `reload()`.
+ *
+ * `respond()` is always served by the CURRENT active model: before each turn it
+ * re-reads `active.json` and reloads the resident worker when the pointer moved
+ * (a promotion from another process — `npm run train`, the perpetual loop —
+ * must not require a server restart to take effect). An unreadable or absent
+ * pointer leaves the resident brain untouched.
  *
  * The chat server only ever calls `respond()`.
  */
@@ -46,8 +53,22 @@ export class Brain {
     return out;
   }
 
+  /** Swap the resident model when `active.json` names a different version. */
+  async resyncActive() {
+    if (!this.worker.available) return;
+    const wanted = readActiveVersion(this.worker.store);
+    if (!wanted || wanted === this.version) return;
+    try {
+      await this.reload();
+    } catch {
+      // The worker dropped mid-swap; respond() surfaces the honest
+      // "student brain unavailable" error instead of a teacher fallback.
+    }
+  }
+
   async respond(message, opts = {}) {
     const t0 = performance.now();
+    await this.resyncActive();
     if (!this.worker.available) {
       throw new Error(
         "student brain unavailable: the Python student worker is not running; " +
