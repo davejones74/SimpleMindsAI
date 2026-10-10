@@ -37,18 +37,28 @@ Two planes, two very different deployment stories:
 
 | Plane | What it is | Deployment mode here |
 |---|---|---|
-| **Node data plane** (`src/`) | harvest → curate → score → snapshot → plan → eval → train-stub → promote → registry | Long-running service (`npm start`) + scheduled job (`npm run perpetual`) |
-| **Python compute plane** (`python/`) | random init, real training, eval, generation, checkpoint store | Operator-invoked CLI for now; **not yet wired to the Node plane** |
+| **Node data plane** (`src/`) | harvest → curate → score → snapshot → plan → eval → train → promote → registry | Long-running service (`npm start`) + scheduled job (`npm run perpetual`) |
+| **Python compute plane** (`python/`) | random init, real training, eval, generation, checkpoint store | **Wired to the Node plane** — invoked by the real trainer by default (`TRAINER_KIND=python`); also runnable as an operator CLI |
 
-The Python plane is out of scope for the initial scheduled deployment because the Node plane
-currently calls the **stub trainer** (`src/training/trainer-interface.js::stubTrainer`), which
-performs no backpropagation and never spawns Python. `npm run train` and `npm run perpetual`
-exercise the lifecycle, provenance and promotion machinery only. This document therefore deploys
-the Node plane and describes the Python plane as a separate, manual operator step to be wired in
-later.
+The Node plane calls the **real Python-backed CausalLM trainer** by default
+(`config.trainerKind = "python"`; the legacy stub is reachable only by explicitly setting
+`TRAINER_KIND=stub`, and an unknown value is a hard error). `npm run train` and
+`npm run perpetual` spawn the Python compute plane and perform real backpropagation, so the
+Python plane is a **required** part of a training deployment, not an optional later step. This
+document therefore deploys the Node plane and treats the Python compute plane as a prerequisite
+that must be installed alongside it (§11 step 8).
 
-> **The honest caveat, repeated from the README:** `npm run train` does not train a neural
-> network yet. Scheduling `npm run perpetual` every minute schedules the *pipeline*, not learning.
+> **Verified end-to-end (dev box, 2026-10-10).** On a separate Windows / RTX 3070 Ti machine, the
+> full loop — real fetch → teacher curation → review → snapshot → real Python training →
+> frozen-set loss gate → promotion — ran against an isolated *copy* of the store and promoted
+> `v004` (frozen-set loss 11.8392 → 11.3805). The X1 Pro deployment described here remains
+> `[PLANNED]`; use that result as evidence the Python plane is wired, not as a claim about this
+> host.
+
+> **The honest caveat, restated:** `npm run train` trains a real network, but on a small corpus.
+> Scheduling `npm run perpetual` every minute schedules the *pipeline*; how much the student
+> actually learns is a function of cohort size and cadence, which are settled by measurement
+> (§14), not assumed here.
 
 ---
 
@@ -176,9 +186,9 @@ FastFlowLM's `52625` are never forwarded and are not public.
 `[CURRENT]` On this host the local LLM runtime is split by role:
 
 - **FastFlowLM (NPU)** is CompanionAI's runtime.
-- **Ollama (GPU/CPU)** is SimpleMindsAI's **teacher** — the curator, critic, planner and the
-  `BRAIN_MODE=ollama` fallback. It supplies *text*, which becomes corpus; it is never merged into
-  the student's weights. `OllamaClient` is the single file that talks to it
+- **Ollama (GPU/CPU)** is SimpleMindsAI's **teacher** — the curator, critic and planner. It
+  supplies *text*, which becomes corpus; it is never merged into the student's weights, and it is
+  not a chat fallback (there is none). `OllamaClient` is the single file that talks to it
   (`src/services/ollama-client.js`), and the whole pipeline can be stubbed with
   `OLLAMA_FIXTURE=true`.
 
@@ -354,7 +364,7 @@ GRAPHQL_URL=http://127.0.0.1:4000/graphql
 OLLAMA_ENDPOINT=http://127.0.0.1:11434
 OLLAMA_MODEL=deepseek-r1:latest
 OLLAMA_FIXTURE=false
-BRAIN_MODE=ollama
+# (No BRAIN_MODE / no teacher fallback: chat serves the student or returns 503.)
 
 # --- Python compute plane store ---------------------------------------------------
 SMA_STORE=/var/lib/simpleminds/store
@@ -525,9 +535,9 @@ forwarded.** SimpleMindsAI adds no new inbound port.
   buffer; it must not be left open unauthenticated.
 - `[CURRENT]` Both Node listeners bind all interfaces (§4.1). Bind loopback or firewall the host
   so `4000` and `8787` are not reachable from the LAN.
-- `[CURRENT]` `BRAIN_MODE=ollama` keeps the DeepSeek fallback, which the README lists as a known
-  defect to remove once the trained model serves chat. It is acceptable for the data-plane phase
-  but must be tracked.
+- `[CURRENT]` Chat has **no teacher fallback**: `npm run chat` serves the committed student
+  (`active.json`) and returns `503` when no version is active or the worker is down. (`BRAIN_MODE`
+  was removed; the README lists the absence of a fallback as a hard invariant.)
 
 ---
 
@@ -690,7 +700,7 @@ sudo nginx -t && sudo systemctl reload nginx
 | 6 | Bind Node to loopback? | §4.1 |
 | 7 | Teacher model residency vs cadence | §8.4 |
 | 8 | Path prefix vs subdomain for the GraphQL endpoint | §5.3 |
-| 9 | When does the Python compute plane get wired to `npm run train`? | Out of scope here |
+| 9 | ~~When does the Python compute plane get wired to `npm run train`?~~ **Resolved** — it is wired by default (`TRAINER_KIND=python`); the stub is opt-in only | Out of scope here |
 
 ---
 

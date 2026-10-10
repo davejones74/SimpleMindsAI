@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { RegistryStore } from "../src/storage/registry-store.js";
 import { ArticleStore } from "../src/storage/article-store.js";
-import { buildSnapshot, collectRowsFromArticles, snapshotRowReader } from "../src/dataset/snapshot.js";
+import { buildSnapshot, collectRowsFromArticles, snapshotRowReader, rowForArticle } from "../src/dataset/snapshot.js";
 import { loadEvaluationSet, makeEvalGuard, pairHash, evalText } from "../src/dataset/evaluation-set.js";
 
 const tmpDir = () => path.join(mkdtempSync(path.join(tmpdir(), "sma-ds-")));
@@ -18,6 +18,26 @@ const articleRow = (i, origin = "curated") => ({
   importance: "Normal",
   origin,
   createdAt: new Date().toISOString(),
+});
+
+test("rowForArticle carries source→curated provenance only when recorded", () => {
+  const plain = rowForArticle(articleRow(1));
+  assert.equal("sourceUrl" in plain, false);
+  assert.equal("fetchedContentHash" in plain, false);
+  assert.equal("teacherModel" in plain, false);
+
+  const withProv = rowForArticle({
+    ...articleRow(2),
+    sourceUrl: "https://example.org/article",
+    fetchedContentHash: "a".repeat(64),
+    model: "teacher:v9",
+  });
+  assert.equal(withProv.sourceUrl, "https://example.org/article");
+  assert.equal(withProv.fetchedContentHash, "a".repeat(64));
+  assert.equal(withProv.teacherModel, "teacher:v9");
+  // The trained text keeps its own hash, independent of the fetched original.
+  assert.equal(withProv.text, articleRow(2).text);
+  assert.equal(withProv.contentHash, "hash_2");
 });
 
 test("snapshot is immutable, hash-sealed, provenance-carrying", async () => {

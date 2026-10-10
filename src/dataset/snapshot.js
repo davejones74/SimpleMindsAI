@@ -34,6 +34,14 @@ export function rowForArticle(article) {
     importance: article.importance ?? "Normal",
     origin: article.origin ?? "curated",
     createdAt: article.createdAt ?? new Date().toISOString(),
+    // Source→curated provenance, carried ONLY when the store recorded it: the
+    // `text` above is exactly what the trainer tokenises, and these fields tie
+    // that trained string back to the original fetch (URL + fetched-content
+    // hash) and the teacher that transformed it. Absent fields are omitted so
+    // rows written before this existed serialise identically.
+    ...(article.sourceUrl ? { sourceUrl: article.sourceUrl } : {}),
+    ...(article.fetchedContentHash ? { fetchedContentHash: article.fetchedContentHash } : {}),
+    ...(article.model ? { teacherModel: article.model } : {}),
   };
 }
 

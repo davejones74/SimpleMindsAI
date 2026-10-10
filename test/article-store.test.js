@@ -57,6 +57,43 @@ test("consumption is exactly-once; allowReuse records a re-appearance", async ()
   await store.close();
 });
 
+test("source→curated provenance is persisted and survives reopen", async () => {
+  const dir = tmp();
+  const store = await ArticleStore.open(dir);
+  const a = await store.ingestArticle({
+    text: "Curated text the teacher produced from a fetched page.",
+    domain: "history",
+    source: "en.wikipedia.org",
+    model: "teacher-model:v1",
+    rawText: "ORIGINAL fetched page text, unmodified.",
+    sourceUrl: "https://en.wikipedia.org/wiki/Steam_engine",
+    fetchedContentHash: "f".repeat(64),
+    fetchedAt: "2026-10-10T00:00:00.000Z",
+  });
+  assert.equal(a.sourceUrl, "https://en.wikipedia.org/wiki/Steam_engine");
+  assert.equal(a.fetchedContentHash, "f".repeat(64));
+  assert.equal(a.rawText, "ORIGINAL fetched page text, unmodified.");
+  assert.equal(a.model, "teacher-model:v1");
+  // The curated text has its own identity, different from the fetched original.
+  assert.notEqual(a.contentHash, a.fetchedContentHash);
+  await store.close();
+
+  const reopened = await ArticleStore.open(dir);
+  const r = reopened.getArticle(a.articleId);
+  assert.equal(r.sourceUrl, "https://en.wikipedia.org/wiki/Steam_engine");
+  assert.equal(r.fetchedContentHash, "f".repeat(64));
+  assert.equal(r.rawText, "ORIGINAL fetched page text, unmodified.");
+  await reopened.close();
+});
+
+test("articles ingested without provenance omit those fields (back-compat)", async () => {
+  const store = await ArticleStore.open(tmp());
+  const a = await store.ingestArticle({ text: "Plain article with no fetch provenance.", domain: "general" });
+  assert.equal("sourceUrl" in a, false);
+  assert.equal("fetchedContentHash" in a, false);
+  await store.close();
+});
+
 test("purgeBuffer wipes transient articles but keeps the durable consumption ledger", async () => {
   const dir = tmp();
   const store = await ArticleStore.open(dir);

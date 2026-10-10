@@ -13,8 +13,9 @@ SimpleMindsAI is split into two planes that share a store, not a process:
   checkpointing, evaluation, generation. It owns the accelerator. It never writes the Node
   registry.
 
-The teacher (DeepSeek, via Ollama) is a **researcher and reviewer only**. It is never the
-brain, and it is never a fallback for the brain.
+The teacher is an **Ollama-served LLM** (configurable via `OLLAMA_MODEL`; both DeepSeek and Gemma
+variants have been run) and is a **researcher and reviewer only**. It is never the brain, and it
+is never a fallback for the brain.
 
 ---
 
@@ -43,6 +44,25 @@ provenance and resume path work*; it does not mean the model knows English. See
 [Proof obligations and the Phase 1 gate](docs/PROOF.md#what-v002-does-and-does-not-prove) for
 the full reading. `npm run train` runs the real Python-backed CausalLM trainer by
 default; the legacy stub is only reachable by explicitly setting `TRAINER_KIND=stub`.
+
+### End-to-end verification (2026-10-10, isolated)
+
+A bounded, **real** end-to-end run was executed against a *copy* of the store, on a separate dev
+box (Windows, RTX 3070 Ti 8 GB, Python 3.14.7, torch 2.14.0+cu130 — a different machine from the
+RTX 4090 in the table above):
+
+| Stage | Result |
+|---|---|
+| Acquisition | **100 unique** fetched articles (English Wikipedia featured articles; real, robots-aware fetch), 108 attempts / 108 successes, 0 fetch failures |
+| Curation | teacher `ssfdre38/gemma4-turbo:e4b`; 102 curated articles, each keeping its source URL + fetched-content hash |
+| Review | 10 reviewed, 10 approved (teacher critic in the loop; policy unchanged) |
+| Training | real Python CausalLM; `v004` built from `v003`, 10 articles, 60 steps |
+| Evaluation | frozen-set loss **11.8392 → 11.3805** (Δ 0.4587) → **promoted** |
+| Isolation | original dev store **byte-identical** (SHA-256 manifest); `v004` committed only in the trial store |
+
+**The same honest caveat applies, at a smaller scale.** ~10 training articles and a five-row
+evaluation set make this evidence that the *pipeline and the loss gate are wired to real data* —
+not that the model has learned English. Larger cohorts are Phase 2+.
 
 ---
 
@@ -83,7 +103,8 @@ the design (see [Architecture](docs/ARCHITECTURE.md)).
 
 - **3B training** (Phase 2) — checks 1–12 repeated at 3B scale, gated by an empirical memory
   preflight. The 62M model is the only trained model today.
-- **Continuous/perpetual learning** (Phase 3), including experience replay.
+- **Continuous/perpetual learning** (Phase 3), including experience replay. A single bounded
+  lifecycle is verified end-to-end (above); *unbounded* multi-cycle autonomous operation is not.
 - S3 sharding of 3B weight assets, and the remaining known defects listed in the
   [roadmap](docs/ROADMAP.md#known-defects).
 

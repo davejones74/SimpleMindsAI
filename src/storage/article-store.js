@@ -164,6 +164,11 @@ export class ArticleStore {
     source = null,
     model = null,
     rawText = null,
+    // Source→curated provenance: the original fetched identity is kept
+    // independently of `text`, which the curator may have transformed.
+    sourceUrl = null,
+    fetchedContentHash = null,
+    fetchedAt = null,
     uncertainty = null,
     missionRelevance = null,
     reviewRequested = false,
@@ -200,6 +205,11 @@ export class ArticleStore {
       source,
       model,
       rawText,
+      // Only present when the caller supplied them, so records from the
+      // GraphQL/curator path (and every existing test) stay byte-identical.
+      ...(sourceUrl ? { sourceUrl } : {}),
+      ...(fetchedContentHash ? { fetchedContentHash } : {}),
+      ...(fetchedAt ? { fetchedAt } : {}),
       uncertainty,
       missionRelevance,
       reviewRequested,
