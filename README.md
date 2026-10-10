@@ -178,15 +178,15 @@ plus the cwd ledgers). It can also *display* other stores **read-only** by
 allow-listing them; the browser selects one by id and can never supply a path.
 
 ```powershell
-# SMA_WORKSPACES (inline JSON array) or SMA_WORKSPACES_FILE (path to a JSON file)
-$env:SMA_WORKSPACES_FILE = "$PWD\workspaces.json"
+# Plain `npm start` auto-loads ./workspaces.json from the working directory.
+# Override explicitly with SMA_WORKSPACES (inline JSON) or SMA_WORKSPACES_FILE (path).
 npm start
 ```
 
 A working example is committed at [`workspaces.example.json`](workspaces.example.json)
 (a completed 100-article trial exposed read-only as `trial-100`, active `v004`, next to
 development `v003`). Copy it to `workspaces.json` — git-ignored, because the paths are
-machine-specific — and point `SMA_WORKSPACES_FILE` at it.
+machine-specific). Plain `npm start` from that directory then picks it up automatically.
 
 Each entry is `{ id, label?, kind?, pythonStore, articles, registry,
 governance?, snapshots?, models?, evaluation?, raw? }`. Any workspace that is

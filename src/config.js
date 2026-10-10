@@ -5,7 +5,8 @@
  * any of those implementations, and historical runs stay explainable.
  */
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import path from "node:path";
 
 const env = (name, dflt) => {
   const v = process.env[name];
@@ -20,7 +21,8 @@ const bool = (name, dflt) => /^(1|true|yes)$/i.test(env(name, String(dflt)));
  * here let an operator inspect another store — e.g. a completed trial — through
  * the SAME domain/storage services, WITHOUT changing which store the server
  * writes to. Provided as JSON via `SMA_WORKSPACES`, or a path via
- * `SMA_WORKSPACES_FILE`.
+ * `SMA_WORKSPACES_FILE`. If neither is set, a local `./workspaces.json` in the
+ * working directory is picked up automatically (so `npm start` needs no env var).
  *
  * Each entry: `{ id, label?, kind?, pythonStore, articles, registry,
  * governance?, snapshots?, models?, evaluation?, raw? }`. Anything that is not
@@ -28,8 +30,12 @@ const bool = (name, dflt) => /^(1|true|yes)$/i.test(env(name, String(dflt)));
  * trial workspace can never receive a mutation.
  */
 function parseWorkspaces() {
+  // Precedence: SMA_WORKSPACES (inline JSON) > SMA_WORKSPACES_FILE (path) > an
+  // auto-discovered ./workspaces.json in the cwd. The last one means a plain
+  // `npm start` picks up a local allow-list with no env var; no file => none.
   const raw = env("SMA_WORKSPACES", null);
-  const file = env("SMA_WORKSPACES_FILE", null);
+  const localFile = path.join(process.cwd(), "workspaces.json");
+  const file = env("SMA_WORKSPACES_FILE", null) ?? (existsSync(localFile) ? localFile : null);
   let parsed = [];
   try {
     if (raw) parsed = JSON.parse(raw);
