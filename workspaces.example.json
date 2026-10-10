@@ -1,0 +1,15 @@
+[
+  {
+    "id": "trial-100",
+    "label": "100-article trial — v004 (2026-10-10)",
+    "kind": "inspection",
+    "pythonStore": "C:\\Users\\sneak\\.sma\\trial-100\\20261010\\store",
+    "articles": "C:\\Users\\sneak\\.sma\\trial-100\\20261010\\data\\articles",
+    "registry": "C:\\Users\\sneak\\.sma\\trial-100\\20261010\\data\\registry",
+    "governance": "C:\\Users\\sneak\\.sma\\trial-100\\20261010\\data\\registry",
+    "snapshots": "C:\\Users\\sneak\\.sma\\trial-100\\20261010\\data\\snapshots",
+    "models": "C:\\Users\\sneak\\.sma\\trial-100\\20261010\\data\\models",
+    "evaluation": "C:\\Users\\sneak\\.sma\\trial-100\\20261010\\data\\evaluation",
+    "raw": "C:\\Users\\sneak\\.sma\\trial-100\\20261010\\data\\raw"
+  }
+]
