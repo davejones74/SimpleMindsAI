@@ -57,3 +57,8 @@ models/**/tokenizer.json
 data/
 .env
 *.log
+
+# Local Observatory workspace allow-list. Machine-specific absolute paths, so the
+# real file is untracked — copy workspaces.example.json to workspaces.json and
+# point SMA_WORKSPACES_FILE at it.
+workspaces.json

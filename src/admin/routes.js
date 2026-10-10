@@ -410,11 +410,15 @@ export function attachAdmin({ app, store, registry, governance, chat, changeFeed
     // recorded on the candidate model + its model-event, so join through it to
     // keep the view truthful after a restart.
     const modelsByRun = new Map(models.filter((m) => m.trainingRunId).map((m) => [m.trainingRunId, m]));
+    // A registry model's `checkpointPath` points at the version DIRECTORY
+    // (e.g. ...\store\v004), so the version name is basename(checkpointPath),
+    // not basename(dirname(...)) — the latter yields the store dir ("store")
+    // and produced false discrepancy warnings. Prefer the explicit
+    // `meta.pythonVersion` when present.
     const checkpointVersions = new Set(
       models
-        .map((m) => m.checkpointPath)
-        .filter(Boolean)
-        .map((p) => path.basename(path.dirname(p))),
+        .map((m) => m.meta?.pythonVersion ?? (m.checkpointPath ? path.basename(m.checkpointPath) : null))
+        .filter(Boolean),
     );
     const pyVersions = new Set(py.versions.map((v) => v.version));
     const discrepancies = [];

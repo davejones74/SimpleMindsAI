@@ -183,6 +183,11 @@ $env:SMA_WORKSPACES_FILE = "$PWD\workspaces.json"
 npm start
 ```
 
+A working example is committed at [`workspaces.example.json`](workspaces.example.json)
+(a completed 100-article trial exposed read-only as `trial-100`, active `v004`, next to
+development `v003`). Copy it to `workspaces.json` — git-ignored, because the paths are
+machine-specific — and point `SMA_WORKSPACES_FILE` at it.
+
 Each entry is `{ id, label?, kind?, pythonStore, articles, registry,
 governance?, snapshots?, models?, evaluation?, raw? }`. Any workspace that is
 not `kind: "development"` is **inspection-only**: its stores are opened
