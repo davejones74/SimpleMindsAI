@@ -1,4 +1,5 @@
-import { runPython } from "../brain/python-cli.js";
+import path from "node:path";
+import { runPython, REPO_ROOT } from "../brain/python-cli.js";
 import { config } from "../config.js";
 
 /**
@@ -39,11 +40,14 @@ export async function evaluateVersionLoss({
     return { version, loss: null, datasetHash: null, evaluationSet: null, ok: false, error: "no frozen evaluation set provided" };
   }
   try {
+    // The Python child runs from python/ while evalSetFile is repo-root
+    // relative; resolve it so the frozen eval set is found regardless of cwd.
+    const evalSet = path.isAbsolute(evalSetFile) ? evalSetFile : path.resolve(REPO_ROOT, evalSetFile);
     const out = await runPython(
       [
         "eval",
         "--version", version,
-        "--eval-set", evalSetFile,
+        "--eval-set", evalSet,
         "--seq-len", String(seqLen),
         "--micro-batch", String(microBatch),
         "--device", device,

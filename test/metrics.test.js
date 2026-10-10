@@ -61,7 +61,7 @@ test("classifyTrend: no overfit flag when training degraded as much as validatio
   assert.equal(r.verdict, VERDICT.WORSENING);
 });
 
-test("classifyTrend: ignorcs non-finite and out-of-order points deterministically", () => {
+test("classifyTrend: ignores non-finite and out-of-order points deterministically", () => {
   const pts = [{ step: 9, loss: 4.05 }, { step: 0, loss: 5 }, { step: 3, loss: null }, { step: 6, loss: 4.5 }, { step: 8, loss: 4.1 }];
   const r = classifyTrend(pts, null, DEFAULTS);
   assert.equal(r.verdict, VERDICT.IMPROVING);

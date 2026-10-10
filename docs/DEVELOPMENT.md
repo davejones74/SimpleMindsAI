@@ -70,8 +70,7 @@ src/
   admin/                       portal REST/SSE routes, change-feed, governance services,
                                read-only Python store reader, public/ SPA (vanilla JS)
 
-test/                          108 node:test tests — 107 pass, 1 fail (pre-existing trends
-                               classifier defect, see README "Testing")
+test/                          108 node:test tests — all pass (see README "Testing")
 test-support/                  shared Python-prerequisite test helpers (not auto-discovered)
 ```
 
@@ -109,6 +108,14 @@ frozen eval set, and drives the loss gate. `npm run init:brain` must be run once
 before the first training run so a `COMMITTED` parent version exists. The legacy
 stub is reachable only by setting `TRAINER_KIND=stub`, in which case `npm run
 train` calls the stub interface and performs no backprop.
+
+**Node → Python path contract:** Python children are spawned with `cwd =
+python/` (`src/brain/python-cli.js`), while the Node data plane writes its
+artifacts to repo-root `data/` — so the bridge resolves every relative file
+argument (`--corpus` in `python-trainer.js`, `--eval-set` in
+`loss-evaluator.js`) against the repo root before handing it to Python. Keep
+this contract when adding file arguments to `runPython` calls: relative in,
+resolved against `REPO_ROOT` out.
 
 `npm run train` is the training **step**, not the whole loop: it does not discover
 or review articles. The snapshot collects only `REVIEWED` articles that have not
@@ -216,12 +223,11 @@ line on stdin, one response per line on stdout, echoing `id`); see
 
 | Suite | Command | Count |
 |---|---|---|
-| Node data plane | `npm test` (from repo root) | 108 `node:test` tests — 107 pass, 1 fail |
+| Node data plane | `npm test` (from repo root) | 108 `node:test` tests — all pass |
 | Python compute plane | `python -m pytest` (from `python/`) | 158 pytest tests — all pass |
 
 Both suites were run on the verified development machine; see README "Testing"
-for the exact counts and the description of the single pre-existing Node
-failure. The Python suite includes proof/init, check-7 training,
+for the exact counts. The Python suite includes proof/init, check-7 training,
 publication/store, Phase 1 checks 6/8/9/10/11, the student worker, portability
 and the Phase 2 preflight.
 

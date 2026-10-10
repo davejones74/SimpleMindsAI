@@ -25,12 +25,16 @@ export function renderRunReport(run, { registry = null } = {}) {
   push("curriculum", `${run.curriculumVersion}  ${(run.curriculum ?? []).map((c) => `${c.category}:${c.targetExamples}`).join(" ")}`);
   push("trainer", `${run.trainerKind ?? "?"} v${run.trainerVersion ?? "?"}`);
 
+  const evalCell = (er) => {
+    if (!er) return "—";
+    if (er.loss != null) return `loss ${er.loss.toFixed(2)} (${er.version ?? "?"})`;
+    const score = er.score100 ?? er.score;
+    return score == null ? "—" : `${er.evalRunId ?? "?"}  ${score.toFixed(1)}`;
+  };
   const base = run.baselineEvaluation;
   const trained = run.trainedEvaluation;
-  const b = base ? `${base.evalRunId}  ${(base.score100 ?? base.score).toFixed(1)}` : "—";
-  const t = trained ? `${trained.evalRunId}  ${(trained.score100 ?? trained.score).toFixed(1)}` : "—";
-  push("baseline", b);
-  push("trained", t);
+  push("baseline", evalCell(base));
+  push("trained", evalCell(trained));
   push("delta", run.evaluationDelta == null ? "—" : `${run.evaluationDelta > 0 ? "+" : ""}${run.evaluationDelta.toFixed(2)}`);
   L.push(`  decision      ${run.promotionStatus === "promoted" ? "PROMOTED" : run.promotionStatus === "rejected" ? "REJECTED" : run.promotionStatus}`);
 

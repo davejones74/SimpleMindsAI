@@ -1,5 +1,5 @@
 import path from "node:path";
-import { runPython, resolveStoreRoot } from "../brain/python-cli.js";
+import { REPO_ROOT, runPython, resolveStoreRoot } from "../brain/python-cli.js";
 import { config } from "../config.js";
 
 /**
@@ -119,13 +119,17 @@ export function pythonTrainer({
       if (!datasetFile) {
         throw new Error("pythonTrainer.train requires datasetFile (immutable corpus path)");
       }
+      // The Python child runs from python/ while the lifecycle hands us
+      // repo-root-relative paths (data/snapshots/...). Resolve them here so the
+      // corpus is found regardless of the child's cwd.
+      const corpusFile = path.isAbsolute(datasetFile) ? datasetFile : path.resolve(REPO_ROOT, datasetFile);
       const parentVersion =
         configuration.parentVersion ?? (await resolvePythonBaseline({ store, bin, run })).version;
 
       const args = [
         "train",
         "--parent", parentVersion,
-        "--corpus", datasetFile,
+        "--corpus", corpusFile,
         "--lr", String(learningRate),
         "--steps", String(steps),
         "--seq-len", String(seqLen),

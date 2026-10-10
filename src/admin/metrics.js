@@ -33,9 +33,14 @@ export const LABELS = Object.freeze({
 
 function finitePoints(series, field = "loss") {
   if (!Array.isArray(series)) return [];
-  const pts = series
-    .map((p, i) => ({ step: p?.step ?? i, loss: Number(p?.[field]) }))
-    .filter((p) => Number.isFinite(p.loss));
+  const pts = [];
+  for (const [i, p] of series.entries()) {
+    const raw = p?.[field];
+    if (raw === null || raw === undefined || (typeof raw === "string" && raw.trim() === "")) continue;
+    const loss = Number(raw);
+    if (!Number.isFinite(loss)) continue;
+    pts.push({ step: p?.step ?? i, loss });
+  }
   pts.sort((a, b) => a.step - b.step);
   return pts;
 }

@@ -31,7 +31,7 @@ Verified on the development machine (Windows, RTX 4090 24,564 MiB, CUDA capabili
 
 | | |
 |---|---|
-| Node data plane | 108 `node:test` tests — 107 pass, 1 pre-existing fail (see [Testing](#testing)) |
+| Node data plane | 108 `node:test` tests — all pass (see [Testing](#testing)) |
 | Python compute plane | 158/158 pytest tests pass |
 | Checkpoint `v001` | committed, 62M params, provenance recorded |
 | Checkpoint `v002` | committed, 60 real steps, 74/74 params moved, 2 buffers unchanged |
@@ -107,7 +107,8 @@ npm install
 npm test
 
 npm start
-$env:OLLAMA_FIXTURE="true"; $env:OLLAMA_MODEL="deepseek-r1:8b"; npm run crawl
+# $env:OLLAMA_FIXTURE="true"; $env:OLLAMA_MODEL="deepseek-r1:8b"; npm run crawl
+$env:OLLAMA_FIXTURE="true"; $env:OLLAMA_MODEL="ssfdre38/gemma4-turbo:e4b"; npm run crawl
 npm run curate
 npm run plan
 npm run init:brain
@@ -247,14 +248,13 @@ cd python; python -m pytest # Python compute plane: 158 pytest tests
 ```
 
 Measured on the verified development machine (Windows, RTX 4090): Python
-**158/158 pass**; Node **107/108 pass, 1 fail**. The failing Node test is
-pre-existing and unrelated to the Python plane: `test/metrics.test.js` expects
-the trends classifier to drop non-finite / `loss: null` samples, but
-`finitePoints` (`src/admin/metrics.js:37`) coerces `loss: null` to `0` with
-`Number(...)`, so the sample is kept and `evidence.points` is 5 instead of 4. It
-is a genuine code defect, not an environment limitation. The candidate-dependent
-worker/promotion tests run only when the real Python store with committed `v001`
-and `v002` is present; they skip otherwise.
+**158/158 pass**; Node **108/108 pass**. The trends classifier
+`finitePoints` (`src/admin/metrics.js`) drops non-finite and empty `loss`
+samples rather than coercing them with `Number(...)` (an earlier version
+turned `loss: null` into `0` and kept the sample; `test/metrics.test.js`
+pins the drop behaviour). The candidate-dependent worker/promotion tests run
+only when the real Python store with committed `v001` and `v002` is present;
+they skip otherwise.
 
 A documentation-only change must leave both suites passing and must not modify
 application code, training algorithms, model behaviour, APIs, dependencies,

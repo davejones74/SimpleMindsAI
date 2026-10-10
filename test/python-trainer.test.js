@@ -7,6 +7,7 @@ import { RegistryStore } from "../src/storage/registry-store.js";
 import { ArticleStore } from "../src/storage/article-store.js";
 import { executeFullRun } from "../src/training/lifecycle.js";
 import { NoBaselineError, pythonTrainer, resolvePythonBaseline } from "../src/training/python-trainer.js";
+import { REPO_ROOT } from "../src/brain/python-cli.js";
 
 const tmp = () => path.join(mkdtempSync(path.join(tmpdir(), "sma-py-")));
 
@@ -91,7 +92,7 @@ test("pythonTrainer.train forwards the descriptor and normalises the result", as
   const trainCall = calls.find((c) => c[0] === "train");
   assert.ok(trainCall, "train invoked");
   assert.equal(trainCall[trainCall.indexOf("--parent") + 1], "v001");
-  assert.equal(trainCall[trainCall.indexOf("--corpus") + 1], "corpus.jsonl");
+  assert.equal(trainCall[trainCall.indexOf("--corpus") + 1], path.join(REPO_ROOT, "corpus.jsonl"), "relative corpus resolved against REPO_ROOT");
   assert.equal(trainCall[trainCall.indexOf("--lr") + 1], "0.0002");
   assert.equal(trainCall[trainCall.indexOf("--steps") + 1], "7");
   assert.equal(trainCall[trainCall.indexOf("--run-id") + 1], "run-7");
