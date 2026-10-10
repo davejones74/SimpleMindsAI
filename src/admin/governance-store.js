@@ -20,23 +20,35 @@ const COLLECTIONS = {
 };
 
 export class GovernanceStore {
-  static async open(dir = path.resolve("data", "registry")) {
-    const s = new GovernanceStore(dir);
+  static async open(dir = path.resolve("data", "registry"), { readOnly = false } = {}) {
+    const s = new GovernanceStore(dir, { readOnly });
     await s.#load();
     return s;
   }
 
-  constructor(dir) {
+  /**
+   * `readOnly: true` opens an inspection view: no directory is created and no
+   * append streams are opened, so reading another workspace's governance log
+   * can never create or mutate a file. `append` throws.
+   */
+  constructor(dir, { readOnly = false } = {}) {
     this.dir = dir;
-    mkdirSync(dir, { recursive: true });
+    this.readOnly = readOnly;
+    if (!readOnly) mkdirSync(dir, { recursive: true });
     this.data = Object.fromEntries(Object.keys(COLLECTIONS).map((k) => [k, []]));
     this.#streams = {};
-    for (const [key, file] of Object.entries(COLLECTIONS)) {
-      this.#streams[key] = createWriteStream(path.join(this.dir, file), { flags: "a" });
+    if (!readOnly) {
+      for (const [key, file] of Object.entries(COLLECTIONS)) {
+        this.#streams[key] = createWriteStream(path.join(this.dir, file), { flags: "a" });
+      }
     }
   }
 
   #streams;
+
+  #assertWritable() {
+    if (this.readOnly) throw new Error("GovernanceStore is read-only (inspection workspace)");
+  }
 
   async #load() {
     for (const [key, file] of Object.entries(COLLECTIONS)) {
@@ -55,6 +67,7 @@ export class GovernanceStore {
   }
 
   async append(collection, record) {
+    this.#assertWritable();
     if (!this.data[collection]) throw new Error(`unknown governance collection: ${collection}`);
     const full = { at: new Date().toISOString(), ...record };
     this.data[collection].push(full);

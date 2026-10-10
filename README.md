@@ -170,6 +170,30 @@ known defect 7 in the [Roadmap](docs/ROADMAP.md#known-defects).
 `COMMITTED` version named by `$SMA_STORE/active.json`, and returns `503` if no version is active
 or the worker is down.
 
+### Observing a second store (workspaces)
+
+The Observatory (`/admin`) is bound to ONE live, writable store: the store the
+server booted with — the **development** workspace (`$SMA_STORE` / `~/.sma/store`
+plus the cwd ledgers). It can also *display* other stores **read-only** by
+allow-listing them; the browser selects one by id and can never supply a path.
+
+```powershell
+# SMA_WORKSPACES (inline JSON array) or SMA_WORKSPACES_FILE (path to a JSON file)
+$env:SMA_WORKSPACES_FILE = "$PWD\workspaces.json"
+npm start
+```
+
+Each entry is `{ id, label?, kind?, pythonStore, articles, registry,
+governance?, snapshots?, models?, evaluation?, raw? }`. Any workspace that is
+not `kind: "development"` is **inspection-only**: its stores are opened
+read-only (no directory is created, no append stream opened) and every mutating
+endpoint returns `403` with a clear reason. The selected workspace's identity
+and active version are shown in a banner, so a completed trial (e.g. v004) can
+be inspected alongside development (v003) with no risk of mutating it.
+`GET /api/admin/workspaces` lists what is available; a configured-but-missing
+store is reported `available:false` (its endpoints return `503`), never
+fabricated.
+
 ### Python compute plane
 
 ```bash
@@ -264,12 +288,12 @@ The full index is at [docs/README.md](docs/README.md).
 ## Testing
 
 ```bash
-npm test                    # Node data plane: 108 node:test tests (repo root)
+npm test                    # Node data plane: 122 node:test tests (repo root)
 cd python; python -m pytest # Python compute plane: 158 pytest tests
 ```
 
 Measured on the verified development machine (Windows, RTX 4090): Python
-**158/158 pass**; Node **108/108 pass**. The trends classifier
+**158/158 pass**; Node **122/122 pass**. The trends classifier
 `finitePoints` (`src/admin/metrics.js`) drops non-finite and empty `loss`
 samples rather than coercing them with `Number(...)` (an earlier version
 turned `loss: null` into `0` and kept the sample; `test/metrics.test.js`

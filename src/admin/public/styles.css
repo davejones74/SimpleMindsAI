@@ -142,3 +142,17 @@ pre { background: #0b0e12; border: 1px solid var(--border); border-radius: 8px; 
 /* Trends & Metrics */
 .badge.overfit { color: var(--accent); border-color: var(--accent); }
 svg text { font-family: inherit; }
+
+/* Workspace identity */
+header.top label { white-space: nowrap; }
+header.top select { max-width: 260px; }
+.workspace-banner {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 8px 20px; border-bottom: 1px solid var(--border);
+  background: var(--panel-2); font-size: 13px;
+}
+.workspace-banner .ws-name { font-weight: 600; }
+.workspace-banner.inspection { border-left: 4px solid var(--accent); }
+.workspace-banner.inspection .ws-flag { color: var(--accent); }
+.workspace-banner.unavailable { border-left: 4px solid var(--bad); }
+.workspace-banner.unavailable .ws-flag { color: var(--bad); }

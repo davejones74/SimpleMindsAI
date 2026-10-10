@@ -10,9 +10,13 @@
   <header class="top">
     <h1>SimpleMindsAI · Learning Observatory</h1>
     <span class="spacer"></span>
+    <label class="small muted" for="workspaceSelect">workspace</label>
+    <select id="workspaceSelect" title="Select the store this portal reads"></select>
     <span id="storePill" class="pill">store …</span>
     <span id="livePill" class="pill offline">live ○</span>
   </header>
+
+  <div id="workspaceBanner" class="workspace-banner" role="status" aria-live="polite"></div>
 
   <nav class="tabs" id="tabs">
     <button data-tab="dashboard" class="active">Dashboard</button>

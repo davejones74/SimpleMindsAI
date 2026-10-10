@@ -2,6 +2,9 @@ const API = "/api/admin";
 
 const state = {
   tab: "dashboard",
+  workspaces: [],
+  workspace: null, // selected workspace id
+  workspaceInfo: null, // descriptor for the selected workspace
   overview: null,
   articles: { items: [], nextCursor: null, filters: {} },
   selectedArticle: null,
@@ -20,8 +23,14 @@ const fmt = (v) => (v === null || v === undefined ? "—" : typeof v === "number
 const when = (iso) => (iso ? new Date(iso).toLocaleString() : "—");
 const badge = (cls, text) => `<span class="badge ${esc(cls)}">${esc(text)}</span>`;
 
+/** True when the selected workspace is inspection-only (all mutations blocked). */
+const isReadOnly = () => state.workspaceInfo?.readOnly === true;
+const roAttr = (title = "inspection-only workspace") => (isReadOnly() ? `disabled title="${esc(title)}"` : "");
+
 async function api(path, { method = "GET", body } = {}) {
-  const res = await fetch(API + path, {
+  let url = API + path;
+  if (state.workspace) url += `${path.includes("?") ? "&" : "?"}workspace=${encodeURIComponent(state.workspace)}`;
+  const res = await fetch(url, {
     method,
     headers: body ? { "Content-Type": "application/json" } : undefined,
     body: body ? JSON.stringify(body) : undefined,
@@ -31,6 +40,57 @@ async function api(path, { method = "GET", body } = {}) {
   try { json = text ? JSON.parse(text) : null; } catch { json = { raw: text }; }
   if (!res.ok) throw new Error(json?.error ?? `HTTP ${res.status}`);
   return json;
+}
+
+// ---------------------------------------------------------- workspace selection
+async function loadWorkspaces() {
+  const res = await fetch(`${API}/workspaces`);
+  const data = await res.json();
+  state.workspaces = data.workspaces ?? [];
+  const sel = document.getElementById("workspaceSelect");
+  if (sel) {
+    sel.innerHTML = state.workspaces
+      .map((w) => `<option value="${esc(w.id)}"${w.available ? "" : " disabled"}>${esc(w.label)}${w.activeVersion ? ` — ${esc(w.activeVersion)}` : ""}${w.readOnly ? " (inspection)" : ""}${w.available ? "" : " · unavailable"}</option>`)
+      .join("");
+    sel.value = state.workspace ?? data.default ?? "";
+  }
+  selectWorkspace(state.workspace ?? data.default ?? state.workspaces[0]?.id ?? null);
+}
+
+function selectWorkspace(id) {
+  state.workspace = id;
+  state.workspaceInfo = state.workspaces.find((w) => w.id === id) ?? null;
+  const sel = document.getElementById("workspaceSelect");
+  if (sel && id) sel.value = id;
+  // Reset every per-workspace cache so nothing can bleed across stores.
+  state.overview = null;
+  state.articles = { items: [], nextCursor: null, filters: {} };
+  state.selectedArticle = null;
+  state.mission = null;
+  state.strategy = null;
+  state.cycles = null;
+  state.history = null;
+  state.trends = null;
+  renderWorkspaceBanner();
+  updatePills();
+  refresh();
+}
+
+function renderWorkspaceBanner() {
+  const el = document.getElementById("workspaceBanner");
+  if (!el) return;
+  const w = state.workspaceInfo;
+  if (!w) { el.className = "workspace-banner"; el.textContent = ""; return; }
+  const flag = w.readOnly ? "inspection-only — mutations disabled" : "read/write";
+  el.className = `workspace-banner ${w.readOnly ? "inspection" : ""} ${w.available ? "" : "unavailable"}`;
+  el.innerHTML = `
+    <span class="ws-name">Workspace: ${esc(w.label)}</span>
+    <span class="muted small">${esc(w.id)} · ${esc(w.kind)}</span>
+    <span class="pill ${w.available ? "" : "warn"}">${w.available ? (w.activeVersion ? `active ${esc(w.activeVersion)}` : "no active version") : "unavailable"}</span>
+    <span class="ws-flag small">${esc(flag)}</span>
+    ${w.available ? "" : `<span class="small bad">${esc(w.reason ?? "")}</span>`}
+    <span style="flex:1"></span>
+    <span class="muted small" title="${esc(w.root ?? "")}">${esc(w.root ?? "")}</span>`;
 }
 
 // ---------------------------------------------------------------- rendering
@@ -45,6 +105,13 @@ function setTab(tab) {
 
 async function refresh() {
   try {
+    if (state.workspaceInfo && !state.workspaceInfo.available) {
+      updatePills();
+      main.innerHTML = `<div class="panel notice"><div class="title bad">Workspace unavailable</div>
+        <div class="muted">${esc(state.workspaceInfo.reason ?? "store not found")}</div>
+        <div class="small muted" style="margin-top:6px">No data is fabricated for a missing or invalid store.</div></div>`;
+      return;
+    }
     state.overview = await api("/overview");
     state.seq = Math.max(state.seq, state.overview.changeSeq ?? 0);
     updatePills();
@@ -62,14 +129,20 @@ async function refresh() {
 
 function updatePills() {
   const py = state.overview?.pythonStore;
+  const w = state.workspaceInfo;
   const store = document.getElementById("storePill");
-  if (!py || !py.available) {
+  if (w && !w.available) {
+    store.className = "pill warn";
+    store.textContent = `${w.label}: unavailable`;
+    store.title = w.reason ?? "";
+  } else if (!py || !py.available) {
     store.className = "pill warn";
     store.textContent = py ? "python store: unavailable" : "store: —";
     store.title = py?.reason ?? "";
   } else {
     store.className = "pill";
-    store.textContent = `python store: ${py.versions.length} version(s)`;
+    const active = py.activeVersion ?? w?.activeVersion;
+    store.textContent = `${w?.label ?? "python store"}: ${active ? `active ${active}` : `${py.versions.length} version(s)`}`;
   }
   const live = document.getElementById("livePill");
   live.className = `pill ${state.live ? "online" : "offline"}`;
@@ -199,6 +272,7 @@ function renderArticles() {
   const f = a.filters;
   main.innerHTML = `
     <h2 class="section-title">Articles</h2>
+    ${isReadOnly() ? `<div class="panel notice"><div class="title">Inspection-only workspace</div><div class="small muted">This view reads a frozen store. Mutations — review selection, importance changes and review verdicts — are disabled.</div></div>` : ""}
     <div class="toolbar">
       <select data-filter="status">
         <option value="">all statuses</option>
@@ -215,7 +289,7 @@ function renderArticles() {
       </select>
       <input type="text" data-filter="domain" placeholder="domain…" value="${esc(f.domain ?? "")}" />
       <button id="reloadArticles">Apply</button>
-      <button id="selectReview" class="primary">Run review selection</button>
+      <button id="selectReview" class="primary" ${roAttr()}>Run review selection</button>
     </div>
     <div class="panel" id="articleTable">
       ${articleTable()}
@@ -240,8 +314,8 @@ function articleTable() {
         <td>${x.trainable ? "✔" : "—"}</td>
         <td>${x.consumedAt ? `<span title="${esc(x.consumedRef ?? "")}">${when(x.consumedAt)}</span>` : "—"}</td>
         <td class="actions">
-          <button data-imp="${esc(x.articleId)}" data-val="Important">Mark Important</button>
-          <button data-req="${esc(x.articleId)}">Request review</button>
+          <button data-imp="${esc(x.articleId)}" data-val="Important" ${roAttr()}>Mark Important</button>
+          <button data-req="${esc(x.articleId)}" ${roAttr()}>Request review</button>
         </td>
       </tr>`).join("")}
   </table>`;
@@ -264,6 +338,7 @@ function wireArticles() {
   });
   document.getElementById("moreArticles")?.addEventListener("click", loadArticles);
   document.getElementById("selectReview")?.addEventListener("click", async (e) => {
+    if (isReadOnly()) return;
     e.target.textContent = "selecting…";
     try { const r = await api("/articles/select-for-review", { method: "POST", body: { limit: 500 } }); alert(`Queued ${r.selected.length} article(s) for review.`); await refresh(); }
     catch (err) { alert(err.message); }
@@ -273,12 +348,14 @@ function wireArticles() {
   }
   for (const el of document.querySelectorAll("[data-req]")) {
     el.addEventListener("click", async () => {
+      if (isReadOnly()) return;
       try { await api(`/articles/${encodeURIComponent(el.dataset.req)}/request-review`, { method: "POST", body: {} }); await loadArticles(); }
       catch (err) { alert(err.message); }
     });
   }
   for (const el of document.querySelectorAll("[data-imp]")) {
     el.addEventListener("click", async () => {
+      if (isReadOnly()) return;
       try { await api(`/articles/${encodeURIComponent(el.dataset.imp)}/importance`, { method: "POST", body: { importance: el.dataset.val } }); await loadArticles(); }
       catch (err) { alert(err.message); }
     });
@@ -308,15 +385,22 @@ function articleDetail(a) {
         <button data-close>close</button>
       </div>
       <div class="prose panel" style="background:var(--panel-2)">${esc(a.text)}</div>
+      ${a.sourceUrl || a.fetchedContentHash || a.origin ? `<div class="small muted" style="margin-top:8px">
+        provenance: origin ${esc(a.origin ?? "—")}${a.source ? ` · source ${esc(a.source)}` : ""}
+        ${a.sourceUrl ? `<br>source URL <a href="${esc(a.sourceUrl)}" target="_blank" rel="noreferrer">${esc(a.sourceUrl)}</a>` : ""}
+        ${a.fetchedContentHash ? `<br>fetched hash <code>${esc(a.fetchedContentHash)}</code>${a.fetchedContentHash === a.contentHash ? " (matches stored)" : ""}` : ""}
+        ${a.fetchedAt ? `<br>fetched ${when(a.fetchedAt)}` : ""}
+      </div>` : ""}
       <div class="toolbar" style="margin-top:12px">
         <label class="small muted">Importance</label>
-        <select id="dImp">${["NORMAL", "IMPORTANT", "CRITICAL"].map((v) => `<option ${a.importance.toUpperCase() === v ? "selected" : ""}>${v}</option>`).join("")}</select>
-        <button id="dSetImp">Set importance</button>
+        <select id="dImp" ${roAttr()}>${["NORMAL", "IMPORTANT", "CRITICAL"].map((v) => `<option ${a.importance.toUpperCase() === v ? "selected" : ""}>${v}</option>`).join("")}</select>
+        <button id="dSetImp" ${roAttr()}>Set importance</button>
         <span style="flex:1"></span>
-        <button id="dApprove" class="primary">Human approve</button>
-        <button id="dReject" class="danger">Human reject</button>
-        <button id="dPending">Set pending</button>
+        <button id="dApprove" class="primary" ${roAttr()}>Human approve</button>
+        <button id="dReject" class="danger" ${roAttr()}>Human reject</button>
+        <button id="dPending" ${roAttr()}>Set pending</button>
       </div>
+      ${isReadOnly() ? `<div class="small warn">Inspection-only workspace: review actions are disabled.</div>` : ""}
       <div class="cols">
         <div>
           <div class="k">Review history</div>
@@ -340,11 +424,13 @@ function articleDetail(a) {
 function wireDetail(a) {
   document.querySelector("[data-close]")?.addEventListener("click", () => (document.getElementById("articleDetail").innerHTML = ""));
   document.getElementById("dSetImp")?.addEventListener("click", async () => {
+    if (isReadOnly()) return;
     const importance = document.getElementById("dImp").value;
     try { await api(`/articles/${encodeURIComponent(a.articleId)}/importance`, { method: "POST", body: { importance } }); await openArticle(a.articleId); await loadArticles(); }
     catch (err) { alert(err.message); }
   });
   const review = (verdict) => async () => {
+    if (isReadOnly()) return;
     try {
       await api(`/articles/${encodeURIComponent(a.articleId)}/review`, { method: "POST", body: { verdict, authority: "human" } });
       await openArticle(a.articleId); await loadArticles();
@@ -353,6 +439,7 @@ function wireDetail(a) {
   document.getElementById("dApprove")?.addEventListener("click", review("approve"));
   document.getElementById("dReject")?.addEventListener("click", review("reject"));
   document.getElementById("dPending")?.addEventListener("click", async () => {
+    if (isReadOnly()) return;
     try { await api(`/articles/${encodeURIComponent(a.articleId)}/status`, { method: "POST", body: { status: "PENDING_REVIEW", reason: "operator override" } }); await openArticle(a.articleId); await loadArticles(); }
     catch (err) { alert(err.message); }
   });
@@ -421,22 +508,23 @@ function renderMission() {
   if (!m || !s) return;
   main.innerHTML = `
     <h2 class="section-title">Mission &amp; Strategy</h2>
+    ${isReadOnly() ? `<div class="panel notice"><div class="title">Inspection-only workspace</div><div class="small muted">Mission and strategy are shown read-only; edits and proposals are disabled.</div></div>` : ""}
     <div class="cols">
       <div class="panel">
         <div class="k">Primary mission ${badge("seed", "operator-only")}</div>
         <div class="prose">${esc(m.primary?.text ?? "—")}</div>
         <div class="small muted">version ${m.primary?.version ?? "—"} · AI cannot modify this; only an audited operator action can.</div>
-        <textarea id="primaryText" placeholder="Amend primary mission (audited)…"></textarea>
-        <button id="primaryApply" class="danger">Amend primary mission</button>
+        <textarea id="primaryText" placeholder="Amend primary mission (audited)…" ${roAttr()}></textarea>
+        <button id="primaryApply" class="danger" ${roAttr()}>Amend primary mission</button>
       </div>
       <div class="panel">
         <div class="k">Secondary mission (evolvable)</div>
         <div class="prose">${esc(m.secondary?.text ?? "—")}</div>
-        <textarea id="secondaryText">${esc(m.secondary?.text ?? "")}</textarea>
+        <textarea id="secondaryText" ${roAttr()}>${esc(m.secondary?.text ?? "")}</textarea>
         <div class="toolbar">
-          <input type="text" id="secondaryRationale" placeholder="rationale (recorded with the version)" />
-          <button id="secondaryApply" class="primary">Save as new version</button>
-          <button id="secondaryPropose">Propose AI change</button>
+          <input type="text" id="secondaryRationale" placeholder="rationale (recorded with the version)" ${roAttr()} />
+          <button id="secondaryApply" class="primary" ${roAttr()}>Save as new version</button>
+          <button id="secondaryPropose" ${roAttr()}>Propose AI change</button>
         </div>
       </div>
     </div>
@@ -448,8 +536,8 @@ function renderMission() {
             <div class="small">${esc(p.text)}</div>
             <div class="small muted">${esc(p.rationale ?? "")} · ${when(p.at)}</div>
             <div class="toolbar">
-              <button data-approve-mission="${esc(p.proposalId)}" class="primary">Approve</button>
-              <button data-reject-mission="${esc(p.proposalId)}" class="danger">Reject</button>
+              <button data-approve-mission="${esc(p.proposalId)}" class="primary" ${roAttr()}>Approve</button>
+              <button data-reject-mission="${esc(p.proposalId)}" class="danger" ${roAttr()}>Reject</button>
             </div>
           </div>`).join("") : `<div class="muted small">No pending proposals.</div>`}
       </div>
@@ -467,11 +555,11 @@ function renderMission() {
     <div class="cols">
       <div class="panel">
         <div class="k">Active strategy (v${s.active?.version ?? "—"})</div>
-        <textarea id="strategyText">${esc(JSON.stringify(s.active?.strategy ?? {}, null, 2))}</textarea>
+        <textarea id="strategyText" ${roAttr()}>${esc(JSON.stringify(s.active?.strategy ?? {}, null, 2))}</textarea>
         <div class="toolbar">
-          <input type="text" id="strategyRationale" placeholder="rationale" />
-          <button id="strategyApply" class="primary">Save as new version</button>
-          <button id="strategyPropose">Propose update</button>
+          <input type="text" id="strategyRationale" placeholder="rationale" ${roAttr()} />
+          <button id="strategyApply" class="primary" ${roAttr()}>Save as new version</button>
+          <button id="strategyPropose" ${roAttr()}>Propose update</button>
         </div>
       </div>
       <div class="panel">
@@ -481,8 +569,8 @@ function renderMission() {
             <pre>${esc(JSON.stringify(p.strategy, null, 2))}</pre>
             <div class="small muted">${esc(p.rationale ?? "")} · ${when(p.at)}</div>
             <div class="toolbar">
-              <button data-approve-strategy="${esc(p.proposalId)}" class="primary">Approve</button>
-              <button data-reject-strategy="${esc(p.proposalId)}" class="danger">Reject</button>
+              <button data-approve-strategy="${esc(p.proposalId)}" class="primary" ${roAttr()}>Approve</button>
+              <button data-reject-strategy="${esc(p.proposalId)}" class="danger" ${roAttr()}>Reject</button>
             </div>
           </div>`).join("") : `<div class="muted small">No pending proposals.</div>`}
         <div class="k" style="margin-top:12px">Version history</div>
@@ -496,30 +584,34 @@ function renderMission() {
 
 function wireMission() {
   document.getElementById("secondaryApply")?.addEventListener("click", async () => {
+    if (isReadOnly()) return;
     try {
       await api("/mission/secondary", { method: "POST", body: { text: document.getElementById("secondaryText").value, rationale: document.getElementById("secondaryRationale").value } });
       await loadMission();
     } catch (err) { alert(err.message); }
   });
   document.getElementById("secondaryPropose")?.addEventListener("click", async () => {
+    if (isReadOnly()) return;
     try {
       await api("/mission/proposals", { method: "POST", body: { text: document.getElementById("secondaryText").value, rationale: document.getElementById("secondaryRationale").value } });
       await loadMission();
     } catch (err) { alert(err.message); }
   });
   document.getElementById("primaryApply")?.addEventListener("click", async () => {
+    if (isReadOnly()) return;
     const text = document.getElementById("primaryText").value;
     if (!confirm("Amend the primary mission? This is an audited operator action.")) return;
     try { await api("/mission/primary", { method: "POST", body: { text, rationale: "operator amendment" } }); await loadMission(); }
     catch (err) { alert(err.message); }
   });
   for (const el of document.querySelectorAll("[data-approve-mission]")) {
-    el.addEventListener("click", async () => { try { await api(`/mission/proposals/${encodeURIComponent(el.dataset.approveMission)}/approve`, { method: "POST", body: {} }); await loadMission(); } catch (err) { alert(err.message); } });
+    el.addEventListener("click", async () => { if (isReadOnly()) return; try { await api(`/mission/proposals/${encodeURIComponent(el.dataset.approveMission)}/approve`, { method: "POST", body: {} }); await loadMission(); } catch (err) { alert(err.message); } });
   }
   for (const el of document.querySelectorAll("[data-reject-mission]")) {
-    el.addEventListener("click", async () => { try { await api(`/mission/proposals/${encodeURIComponent(el.dataset.rejectMission)}/reject`, { method: "POST", body: {} }); await loadMission(); } catch (err) { alert(err.message); } });
+    el.addEventListener("click", async () => { if (isReadOnly()) return; try { await api(`/mission/proposals/${encodeURIComponent(el.dataset.rejectMission)}/reject`, { method: "POST", body: {} }); await loadMission(); } catch (err) { alert(err.message); } });
   }
   document.getElementById("strategyApply")?.addEventListener("click", async () => {
+    if (isReadOnly()) return;
     try {
       const strategy = JSON.parse(document.getElementById("strategyText").value);
       await api("/strategy", { method: "POST", body: { strategy, rationale: document.getElementById("strategyRationale").value } });
@@ -527,6 +619,7 @@ function wireMission() {
     } catch (err) { alert(`invalid strategy JSON or server error: ${err.message}`); }
   });
   document.getElementById("strategyPropose")?.addEventListener("click", async () => {
+    if (isReadOnly()) return;
     try {
       const strategy = JSON.parse(document.getElementById("strategyText").value);
       await api("/strategy/proposals", { method: "POST", body: { strategy, rationale: document.getElementById("strategyRationale").value } });
@@ -534,10 +627,10 @@ function wireMission() {
     } catch (err) { alert(`invalid strategy JSON or server error: ${err.message}`); }
   });
   for (const el of document.querySelectorAll("[data-approve-strategy]")) {
-    el.addEventListener("click", async () => { try { await api(`/strategy/proposals/${encodeURIComponent(el.dataset.approveStrategy)}/approve`, { method: "POST", body: {} }); await loadMission(); } catch (err) { alert(err.message); } });
+    el.addEventListener("click", async () => { if (isReadOnly()) return; try { await api(`/strategy/proposals/${encodeURIComponent(el.dataset.approveStrategy)}/approve`, { method: "POST", body: {} }); await loadMission(); } catch (err) { alert(err.message); } });
   }
   for (const el of document.querySelectorAll("[data-reject-strategy]")) {
-    el.addEventListener("click", async () => { try { await api(`/strategy/proposals/${encodeURIComponent(el.dataset.rejectStrategy)}/reject`, { method: "POST", body: {} }); await loadMission(); } catch (err) { alert(err.message); } });
+    el.addEventListener("click", async () => { if (isReadOnly()) return; try { await api(`/strategy/proposals/${encodeURIComponent(el.dataset.rejectStrategy)}/reject`, { method: "POST", body: {} }); await loadMission(); } catch (err) { alert(err.message); } });
   }
 }
 
@@ -552,6 +645,7 @@ function renderCycles() {
   if (!c) return;
   main.innerHTML = `
     <h2 class="section-title">Review Cycles</h2>
+    ${isReadOnly() ? `<div class="panel notice"><div class="title">Inspection-only workspace</div><div class="small muted">Cycles are shown read-only; opening and closing are disabled.</div></div>` : ""}
     <div class="panel">
       <div class="k">Cycle ledger</div>
       <div class="small muted">A cycle opens every ${fmt(c.interval)} uniquely consumed articles — a checkpoint, never a cap. Each records the mission &amp; strategy versions active when it opened.</div>
@@ -566,12 +660,13 @@ function renderCycles() {
             <td>${fmt(cy.missionVersion)}</td>
             <td>${fmt(cy.strategyVersion)}</td>
             <td class="small">${esc(cy.notes ?? "—")}</td>
-            <td>${cy.status === "open" ? `<button data-close-cycle="${esc(cy.reviewCycleId)}" class="primary">Close</button>` : ""}</td>
+            <td>${cy.status === "open" ? `<button data-close-cycle="${esc(cy.reviewCycleId)}" class="primary" ${roAttr()}>Close</button>` : ""}</td>
           </tr>`).join("") || `<tr><td colspan="9" class="muted">No cycles yet (need ${fmt(c.interval)} consumed articles to open the first).</td></tr>`}
       </table>
     </div>`;
   for (const el of document.querySelectorAll("[data-close-cycle]")) {
     el.addEventListener("click", async () => {
+      if (isReadOnly()) return;
       const notes = prompt("Closing notes (recorded):") ?? "";
       try { await api(`/review-cycles/${encodeURIComponent(el.dataset.closeCycle)}/close`, { method: "POST", body: { notes } }); await loadCycles(); }
       catch (err) { alert(err.message); }
@@ -591,6 +686,10 @@ function renderHistory() {
   const r = h.registry;
   main.innerHTML = `
     <h2 class="section-title">Training History</h2>
+    <div class="small muted" style="margin:-6px 0 12px">
+      workspace <strong>${esc(h.workspace?.id ?? "—")}</strong>${h.workspace?.readOnly ? " (inspection-only)" : ""} ·
+      python store <code>${esc(h.pythonStore?.root ?? "—")}</code>
+    </div>
     ${h.discrepancies.length ? `<div class="panel notice">
       <div class="title warn">${h.discrepancies.length} discrepancy(ies) between Node registry and Python store — reported, not silently reconciled</div>
       <ul class="small">${h.discrepancies.map((d) => `<li>${esc(d.kind)}${d.version ? ` — ${esc(d.version)}` : ""}${d.detail ? ` (${esc(d.detail)})` : ""}</li>`).join("")}</ul>
@@ -599,15 +698,21 @@ function renderHistory() {
     <div class="cols">
       <div class="panel">
         <div class="k">Training runs (Node registry)</div>
-        <table><tr><th>Run</th><th>Status</th><th>Records</th><th>Score (base→trained)</th><th>Loss (base→trained)</th><th>Δ</th><th>Started</th></tr>
+        <table><tr><th>Run</th><th>Status</th><th>Records</th><th>Versions (parent→candidate)</th><th>Promotion</th><th>Score (base→trained)</th><th>Loss (base→trained)</th><th>Δ</th><th>Started</th></tr>
           ${r.runs.slice().reverse().map((run) => `
-            <tr><td class="small">${esc(run.runId)}</td>
-            <td>${badge(run.promotionStatus === "promoted" ? "REVIEWED" : run.promotionStatus === "rejected" ? "REJECTED" : "PENDING_REVIEW", run.status)}</td>
+            ${(() => { const prom = run.promotionStatus ?? run.status; return `
+            <tr><td class="small">${esc(run.runId)}${run.candidate?.modelId ? `<div class="muted">${esc(run.candidate.modelId)}</div>` : ""}</td>
+            <td>${badge(prom === "promoted" ? "REVIEWED" : prom === "rejected" ? "REJECTED" : "PENDING_REVIEW", run.status)}</td>
             <td>${fmt(run.recordCount)}</td>
+            <td class="small">${run.pythonVersion ? `${run.parentVersion ? `${esc(run.parentVersion)} → ` : ""}${esc(run.pythonVersion)}` : "—"}
+              ${run.datasetHash ? `<div class="muted" title="${esc(run.datasetHash)}">data ${esc(shortHash(run.datasetHash))}</div>` : ""}</td>
+            <td class="small">${esc(run.promotionStatus ?? "—")}${run.activatedVersion ? `<div class="muted">active ${esc(run.activatedVersion)}</div>` : ""}</td>
             <td>${run.baselineScore == null && run.trainedScore == null ? "—" : `${fmt(run.baselineScore)} → ${fmt(run.trainedScore)}`}</td>
-            <td>${run.baselineLoss == null && run.trainedLoss == null ? "—" : `${fmt(run.baselineLoss)} → ${fmt(run.trainedLoss)}`}</td>
-            <td>${run.evaluationDelta == null ? "—" : `${run.evaluationDelta > 0 ? "+" : ""}${run.evaluationDelta.toFixed(3)}`}</td>
-            <td class="small">${when(run.startedAt)}</td></tr>`).join("") || `<tr><td colspan="7" class="muted">No runs yet. Run <code>npm run train</code>.</td></tr>`}
+            <td>${run.baselineLoss == null && run.trainedLoss == null ? "—" : `${fmt(run.baselineLoss)} → ${fmt(run.trainedLoss)}`}
+              ${run.candidate?.avgTrainLoss != null ? `<div class="muted" title="mean training-tail loss (candidate meta)">train avg ${fmt(run.candidate.avgTrainLoss)}</div>` : ""}
+              ${run.candidate?.note ? `<div class="muted" title="${esc(run.candidate.note)}">promotion note ⓘ</div>` : ""}</td>
+            <td>${run.lossDelta == null ? "—" : `${run.lossDelta > 0 ? "+" : ""}${run.lossDelta.toFixed(3)}`}</td>
+            <td class="small">${when(run.startedAt)}</td></tr>`; })()}`).join("") || `<tr><td colspan="9" class="muted">No runs yet. Run <code>npm run train</code>.</td></tr>`}
         </table>
       </div>
       <div class="panel">
@@ -626,6 +731,15 @@ function renderHistory() {
       <div class="k">Python brain store (authoritative for committed artifacts) <span class="sm">${storeStatus()}</span></div>
       ${renderPythonStore(h.pythonStore)}
     </div>
+
+    ${h.evaluationSet ? `<div class="panel">
+      <div class="k">Frozen evaluation set (identity)</div>
+      <div class="small muted">${esc(h.evaluationSet.dir)}</div>
+      <table><tr><th>File</th><th>Bytes</th><th>sha256</th></tr>
+        ${h.evaluationSet.files.map((f) => `<tr><td>${esc(f.file)}</td><td>${f.bytes}</td><td class="small" title="${esc(f.sha256)}">${esc(shortHash(f.sha256))}</td></tr>`).join("") || `<tr><td colspan="3" class="muted">No files.</td></tr>`}
+      </table>
+      <div class="small muted">The frozen hold-out the promotion gate scores against — never used for training.</div>
+    </div>` : ""}
   `;
 }
 
@@ -809,6 +923,9 @@ function connectSSE() {
 
 // -------------------------------------------------------------------- boot
 for (const b of document.querySelectorAll("#tabs button")) b.addEventListener("click", () => setTab(b.dataset.tab));
-refresh();
+document.getElementById("workspaceSelect")?.addEventListener("change", (e) => selectWorkspace(e.target.value));
+loadWorkspaces().catch((err) => {
+  main.innerHTML = `<div class="panel notice"><div class="title bad">Cannot load workspaces</div><div class="muted">${esc(err.message)}</div></div>`;
+});
 connectSSE();
 setInterval(() => { if (!state.live) updatePills(); }, 5000);

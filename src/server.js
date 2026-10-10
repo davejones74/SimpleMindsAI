@@ -52,7 +52,7 @@ app.post("/api/ingest", async (req, res) => {
   }
 });
 
-attachAdmin({ app, store, registry, governance, chat });
+attachAdmin({ app, store, registry, governance, chat, workspaces: config.workspaces, pythonStorePath: config.pythonStore });
 
 app.listen(config.port, config.host, () =>
   console.log(`GraphQL -> http://${config.host}:${config.port}/graphql   portal -> http://${config.host}:${config.port}/admin`),

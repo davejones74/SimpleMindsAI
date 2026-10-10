@@ -5,12 +5,61 @@
  * any of those implementations, and historical runs stay explainable.
  */
 
+import { readFileSync } from "node:fs";
+
 const env = (name, dflt) => {
   const v = process.env[name];
   return v === undefined || v === "" ? dflt : v;
 };
 const num = (name, dflt) => Number(env(name, dflt));
 const bool = (name, dflt) => /^(1|true|yes)$/i.test(env(name, String(dflt)));
+
+/**
+ * Allow-listed extra workspaces for the Observatory. The `development` store is
+ * always implicit (the live, writable store the server booted with). Entries
+ * here let an operator inspect another store — e.g. a completed trial — through
+ * the SAME domain/storage services, WITHOUT changing which store the server
+ * writes to. Provided as JSON via `SMA_WORKSPACES`, or a path via
+ * `SMA_WORKSPACES_FILE`.
+ *
+ * Each entry: `{ id, label?, kind?, pythonStore, articles, registry,
+ * governance?, snapshots?, models?, evaluation?, raw? }`. Anything that is not
+ * `kind: "development"` is inspection-only (read-only) by construction, so a
+ * trial workspace can never receive a mutation.
+ */
+function parseWorkspaces() {
+  const raw = env("SMA_WORKSPACES", null);
+  const file = env("SMA_WORKSPACES_FILE", null);
+  let parsed = [];
+  try {
+    if (raw) parsed = JSON.parse(raw);
+    else if (file) parsed = JSON.parse(readFileSync(file, "utf8"));
+  } catch (err) {
+    throw new Error(`invalid workspace configuration: ${err.message}`);
+  }
+  if (!Array.isArray(parsed)) throw new Error("SMA_WORKSPACES must be a JSON array of workspace objects");
+  return parsed.map((w) => {
+    if (!w || typeof w !== "object" || !w.id) throw new Error("each workspace requires an id");
+    const kind = w.kind === "development" ? "development" : "inspection";
+    const registry = w.registry ?? w.registryDir ?? null;
+    return {
+      id: String(w.id),
+      label: String(w.label ?? w.id),
+      kind,
+      readOnly: kind !== "development",
+      paths: {
+        pythonStore: w.pythonStore ?? w.store ?? null,
+        articles: w.articles ?? w.articleDir ?? null,
+        registry,
+        governance: w.governance ?? w.governanceDir ?? registry,
+        snapshots: w.snapshots ?? w.snapshotDir ?? null,
+        models: w.models ?? w.modelDir ?? null,
+        evaluation: w.evaluation ?? w.evaluationDir ?? null,
+        raw: w.raw ?? w.rawDir ?? null,
+      },
+    };
+  });
+}
 
 export const config = {
   paths: {
@@ -143,4 +192,9 @@ export const config = {
   crawlMaxRedirects: num("CRAWL_MAX_REDIRECTS", 5),
   crawlRespectRobots: bool("CRAWL_RESPECT_ROBOTS", true),
   crawlUserAgent: env("CRAWL_USER_AGENT", "SimpleMindsAI/0.2 (+https://github.com/davejones74/SimpleMindsAI)"),
+
+  // ---- Observatory workspaces (allow-listed; `development` is implicit) ----
+  // Extra, inspection-only stores the portal may display (e.g. a completed
+  // trial). The live development store is always present and is the default.
+  workspaces: parseWorkspaces(),
 };

@@ -44,8 +44,8 @@ const COLLECTIONS = {
 const LEGACY_FILES = ["prompts.ndjson", "completions.ndjson", "rewards.ndjson", "state.ndjson", "runs.ndjson"];
 
 export class ArticleStore {
-  static async open(dir = process.env.ARTICLE_DIR ?? process.env.BUFFER_DIR ?? path.resolve("data", "articles")) {
-    const s = new ArticleStore(dir);
+  static async open(dir = process.env.ARTICLE_DIR ?? process.env.BUFFER_DIR ?? path.resolve("data", "articles"), { readOnly = false } = {}) {
+    const s = new ArticleStore(dir, { readOnly });
     await s.#loadFromDisk();
     return s;
   }
@@ -54,10 +54,17 @@ export class ArticleStore {
     return contentHash(text);
   }
 
-  constructor(dir, { policy = DEFAULT_POLICY } = {}) {
+  /**
+   * `readOnly: true` opens an inspection view: no directory is created and no
+   * append streams are opened, so merely reading a store (e.g. another
+   * workspace's completed trial) can never create or mutate a file. Every
+   * mutating method throws.
+   */
+  constructor(dir, { policy = DEFAULT_POLICY, readOnly = false } = {}) {
     this.dir = dir;
     this.policy = policy;
-    mkdirSync(dir, { recursive: true });
+    this.readOnly = readOnly;
+    if (!readOnly) mkdirSync(dir, { recursive: true });
 
     this.articles = new Map();
     this.articleOrder = [];
@@ -67,12 +74,18 @@ export class ArticleStore {
     this.consumption = []; // durable appearances
 
     this.#streams = {};
-    for (const name of Object.keys(COLLECTIONS)) {
-      this.#streams[name] = createWriteStream(path.join(this.dir, COLLECTIONS[name]), { flags: "a" });
+    if (!readOnly) {
+      for (const name of Object.keys(COLLECTIONS)) {
+        this.#streams[name] = createWriteStream(path.join(this.dir, COLLECTIONS[name]), { flags: "a" });
+      }
     }
   }
 
   #streams;
+
+  #assertWritable() {
+    if (this.readOnly) throw new Error("ArticleStore is read-only (inspection workspace)");
+  }
 
   async #loadFromDisk() {
     const lines = async (file) => {
@@ -125,6 +138,7 @@ export class ArticleStore {
   }
 
   #persist(name, record) {
+    this.#assertWritable();
     return this.#awaitWrite(this.#streams[name], JSON.stringify(record) + "\n");
   }
 
@@ -173,6 +187,7 @@ export class ArticleStore {
     missionRelevance = null,
     reviewRequested = false,
   } = {}) {
+    this.#assertWritable();
     if (!text || !String(text).trim()) throw new Error("article text is required");
     const hash = contentHash(text);
     const dup = this.byHash.get(hash);
@@ -295,6 +310,7 @@ export class ArticleStore {
     suggestedImportance = null,
     reviewCycleId = null,
   } = {}) {
+    this.#assertWritable();
     const article = this.articles.get(articleId);
     if (!article) throw new Error(`unknown article: ${articleId}`);
     const decision = evaluateVerdict(article, { verdict, score, authority }, this.policy);
@@ -344,6 +360,7 @@ export class ArticleStore {
 
   /** Deterministic autonomous pass: queue INGESTED articles that policy selects. */
   async selectForReview({ limit = 500 } = {}) {
+    this.#assertWritable();
     const selected = [];
     for (const id of this.articleOrder) {
       if (selected.length >= limit) break;
@@ -359,6 +376,7 @@ export class ArticleStore {
 
   // --------------------------------------------------------- operator acts
   async setImportance(articleId, importance, { actor = AUTHORITY.HUMAN } = {}) {
+    this.#assertWritable();
     if (!isImportance(importance)) throw new Error(`invalid importance: ${importance}`);
     const article = this.articles.get(articleId);
     if (!article) throw new Error(`unknown article: ${articleId}`);
@@ -368,6 +386,7 @@ export class ArticleStore {
   }
 
   async setStatus(articleId, status, { actor = AUTHORITY.HUMAN, reason = null } = {}) {
+    this.#assertWritable();
     if (!isStatus(status)) throw new Error(`invalid status: ${status}`);
     const article = this.articles.get(articleId);
     if (!article) throw new Error(`unknown article: ${articleId}`);
@@ -377,6 +396,7 @@ export class ArticleStore {
   }
 
   async requestReview(articleId, { actor = AUTHORITY.HUMAN, reason = null } = {}) {
+    this.#assertWritable();
     const article = this.articles.get(articleId);
     if (!article) throw new Error(`unknown article: ${articleId}`);
     await this.#event({ type: "review-requested", articleId, actor, reason });
@@ -391,6 +411,7 @@ export class ArticleStore {
    * explicit historical re-appearance without pretending it is the first.
    */
   async markConsumed(articleIds, { runId, allowReuse = false } = {}) {
+    this.#assertWritable();
     const consumed = [];
     const skipped = [];
     for (const articleId of articleIds) {
@@ -476,6 +497,7 @@ export class ArticleStore {
 
   // --------------------------------------------------------------- purge
   async #reopen(name) {
+    this.#assertWritable();
     const p = path.join(this.dir, COLLECTIONS[name]);
     if (!this.#streams[name].writableEnded) await this.#end(name);
     await this.#persistEmpty(p);
@@ -502,6 +524,7 @@ export class ArticleStore {
 
   /** Wipe transient collections. The durable consumption ledger survives. */
   async purgeBuffer() {
+    this.#assertWritable();
     for (const name of ["articles", "reviews", "events"]) await this.#reopen(name);
     this.articles.clear();
     this.articleOrder.length = 0;

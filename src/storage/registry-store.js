@@ -32,8 +32,8 @@ const COLLECTIONS = {
 const RECOVERIES_FILE = "lock-recoveries.ndjson";
 
 export class RegistryStore {
-  static async open(dir = process.env.REGISTRY_DIR ?? path.resolve("data", "registry")) {
-    const s = new RegistryStore(dir);
+  static async open(dir = process.env.REGISTRY_DIR ?? path.resolve("data", "registry"), { readOnly = false } = {}) {
+    const s = new RegistryStore(dir, { readOnly });
     await s.#loadFromDisk();
     return s;
   }
@@ -42,9 +42,15 @@ export class RegistryStore {
   #lockRecord = null;
   #lockTimer = null;
 
-  constructor(dir) {
+  /**
+   * `readOnly: true` opens an inspection view: no directory is created and no
+   * append streams are opened, so inspecting another workspace's registry can
+   * never create or mutate a file. Every mutating method throws.
+   */
+  constructor(dir, { readOnly = false } = {}) {
     this.dir = dir;
-    mkdirSync(`${dir}/evaluations`, { recursive: true });
+    this.readOnly = readOnly;
+    if (!readOnly) mkdirSync(`${dir}/evaluations`, { recursive: true });
     this.snapshots = [];
     this.models = new Map(); // modelId -> static registration record
     this.modelEvents = new Map();
@@ -53,9 +59,15 @@ export class RegistryStore {
     this.evaluations = [];
 
     this.#streams = {};
-    for (const name of Object.keys(COLLECTIONS)) {
-      this.#streams[name] = createWriteStream(path.join(dir, COLLECTIONS[name]), { flags: "a" });
+    if (!readOnly) {
+      for (const name of Object.keys(COLLECTIONS)) {
+        this.#streams[name] = createWriteStream(path.join(dir, COLLECTIONS[name]), { flags: "a" });
+      }
     }
+  }
+
+  #assertWritable() {
+    if (this.readOnly) throw new Error("RegistryStore is read-only (inspection workspace)");
   }
 
   async #loadFromDisk() {
@@ -95,6 +107,7 @@ export class RegistryStore {
   }
 
   #persist(name, record) {
+    this.#assertWritable();
     return this.#awaitWrite(this.#streams[name], JSON.stringify(record) + "\n");
   }
 
@@ -122,6 +135,7 @@ export class RegistryStore {
 
   // ------------------------------------------------------- snapshots
   async createSnapshot(manifest) {
+    this.#assertWritable();
     const rec = { id: randomUUID().slice(0, 8), createdAt: new Date().toISOString(), ...manifest };
     this.snapshots.push(rec);
     await this.#persist("snapshots", rec);
@@ -132,6 +146,7 @@ export class RegistryStore {
 
   // ---------------------------------------------------------- models
   async registerModel({ kind, baseModel, parentModelId = null, trainingRunId = null, datasetId = null, checkpointPath = null, meta = {} }) {
+    this.#assertWritable();
     const modelId = this.nextModelId();
     const rec = { modelId, kind, baseModel, parentModelId, trainingRunId, datasetId, checkpointPath, meta, createdAt: new Date().toISOString(), status: "candidate" };
     this.models.set(modelId, rec);
@@ -140,6 +155,7 @@ export class RegistryStore {
   }
 
   async modelEvent(modelId, { status = "candidate", evaluationScore = null, evalRunId = null, note = null }) {
+    this.#assertWritable();
     if (!this.models.has(modelId)) throw new Error(`unknown model ${modelId}`);
     const rec = { modelId, status, evaluationScore, evalRunId, at: new Date().toISOString(), note };
     const arr = this.modelEvents.get(modelId) ?? [];
@@ -159,7 +175,7 @@ export class RegistryStore {
     let status = last?.status ?? "candidate";
     // A registered model without any event is a candidate by definition.
     if (!events.length) status = "candidate";
-    return { ...base, status, evaluationScore, evalRunId };
+    return { ...base, status, evaluationScore, evalRunId, note: last?.note ?? null, at: last?.at ?? null };
   }
 
   listModels() { return [...this.models.keys()].map((id) => this.getModel(id)); }
@@ -173,6 +189,7 @@ export class RegistryStore {
 
   // ------------------------------------------------------------ runs
   async createRun(input) {
+    this.#assertWritable();
     const runId = this.nextRunId();
     const rec = { runId, status: "created", startedAt: new Date().toISOString(), completedAt: null, ...input };
     this.runs.set(runId, rec);
@@ -182,6 +199,7 @@ export class RegistryStore {
   }
 
   async runEvent(runId, { status, note = null }) {
+    this.#assertWritable();
     if (!this.runs.has(runId)) throw new Error(`unknown run ${runId}`);
     const rec = { runId, status, at: new Date().toISOString(), note };
     const arr = this.runEvents.get(runId) ?? [];
@@ -192,6 +210,7 @@ export class RegistryStore {
   }
 
   async completeRun(runId, { status, ...patch }) {
+    this.#assertWritable();
     // Patch the static registration line's mutable-fields view but ALWAYS
     // record the terminal state as an event — the historical line is untouched.
     const base = this.runs.get(runId);
@@ -216,6 +235,7 @@ export class RegistryStore {
    * transition, not a rewrite — the historical creation line stays intact.
    */
   async recoverStaleRuns(graceMs = 10 * 60 * 1000) {
+    this.#assertWritable();
     const now = Date.now();
     const staleIds = [];
     for (const run of this.listRuns()) {
@@ -231,6 +251,7 @@ export class RegistryStore {
 
   // ------------------------------------------------------ evaluation
   async recordEvaluation(rec) {
+    this.#assertWritable();
     this.evaluations.push(rec);
     await this.#persist("evaluations", rec);
     return rec;
@@ -310,6 +331,7 @@ export class RegistryStore {
   }
 
   async #recordRecovery(record) {
+    this.#assertWritable();
     try {
       appendFileSync(path.join(this.dir, RECOVERIES_FILE), `${JSON.stringify({ at: new Date().toISOString(), ...record })}\n`);
     } catch { /* recovery log is best-effort durable */ }
@@ -323,6 +345,7 @@ export class RegistryStore {
   }
 
   async acquireRunLock(staleMs = 10 * 60 * 1000, { runId = null, attempt = 0 } = {}) {
+    this.#assertWritable();
     const owner = {
       pid: process.pid,
       host: os.hostname(),
@@ -363,12 +386,14 @@ export class RegistryStore {
 
   /** Attach the run id to the lock we already hold, so a crash is recoverable. */
   bindRunLock(runId) {
+    this.#assertWritable();
     if (!this.#lockRecord) return;
     this.#lockRecord = { ...this.#lockRecord, runId, heartbeatAt: new Date().toISOString() };
     try { writeFileSync(this.lockPath(), JSON.stringify(this.#lockRecord)); } catch { /* ignore */ }
   }
 
   breakRunLock() {
+    this.#assertWritable();
     this.#stopLockHeartbeat();
     if (existsSync(this.lockPath())) unlinkSync(this.lockPath());
   }
