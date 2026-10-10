@@ -1,16 +1,21 @@
 # SimpleMindsAI — Python compute plane, AMD ROCm backend.
 #
-# For the Ryzen AI HX 370 / 890M (gfx1151) deployment host. Installs the
+# For the Ryzen AI HX 370 / Radeon 890M (gfx1150) deployment host. Installs the
 # vendor-neutral dependencies, then the ROCm build of torch:
 #
 #   pip install -r requirements-rocm.txt
 #
-# The exact ROCm/torch pin below is the AMD multi-arch gfx1151 candidate and
-# MUST be verified against the target host's ROCm release and kernel before it
-# is trusted — the ROCm wheel set is tied to the driver/kernel version, and a
-# mismatched pin installs but then fails at import or reports no device. See
-# the ROCm install docs referenced in the README; replace the pin here with the
-# one the host actually supports and commit that change.
+# ARCH CORRECTED 2026-10-10: the HX 370 / 890M is gfx1150 (RDNA 3.5, Strix
+# Point), confirmed by `rocminfo` on the deployment host and by AMD's ROCm 7.14
+# PyTorch support matrix. The earlier gfx1151 pin was wrong — gfx1151 is Strix
+# Halo (Ryzen AI Max / Radeon 8050S), a different APU, and would have pulled the
+# wrong device package.
+#
+# The multi-arch wheels are self-contained: a host `torch` wheel plus the
+# device-specific `rocm-sdk-device-gfx1150` and ROCm libraries, all from
+# repo.amd.com. PyTorch therefore does NOT depend on the distro-packaged ROCm;
+# only the in-kernel amdgpu driver and the gfx target matter. The `+rocm7.14.0`
+# tag names the AMD ROCm release the wheel carries, not `apt`'s ROCm version.
 #
 # After install, confirm the backend and that the GPU is really targeted:
 #
@@ -31,4 +36,4 @@
 
 # --- ROCm runtime -------------------------------------------------------
 --extra-index-url https://repo.amd.com/rocm/whl-multi-arch/
-torch[device-gfx1151]==2.12.0+rocm7.14.0
+torch[device-gfx1150]==2.12.0+rocm7.14.0
