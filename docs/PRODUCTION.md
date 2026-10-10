@@ -72,29 +72,55 @@ dave-X1PRO  (Minisforum X1 Pro HX-370, Ubuntu, AMD Ryzen AI HX 370 / 890M, XDNA2
 | CompanionAI Nginx snippet | `[CURRENT]` `/etc/nginx/snippets/companionai-locations.conf`, included in the x1pro vhost |
 | Ollama | `[CURRENT]` `ollama` v0.40.1 installed, `active`, `http://127.0.0.1:11434` |
 | DDNS timer | `[CURRENT]` `godaddy-ddns.timer` active, updates the GoDaddy A record |
-| ROCm | `[CURRENT]` `rocminfo` present; reports **`gfx1150`** |
+| ROCm | `[CURRENT]` ROCm 7.1.0 (`hipconfig 7.1.52801`); `rocminfo` reports GPU **`gfx1150`** (+ `gfx11-generic`) |
 | Python | `[CURRENT]` `python3` 3.14.4 |
-| **Node.js / npm** | **`[CURRENT]` ABSENT — not installed on the host** |
+| **Node.js / npm** | **`[CURRENT]` Node.js v22.22.1 installed system-wide** |
 | SimpleMindsAI checkout | `[CURRENT]` `/home/dave/Repositories/SimpleMindsAI` (developer working tree, owned by `dave`) |
 
 Two consequences worth stating plainly:
 
-1. **Node.js is a prerequisite, not a detail.** Nothing in this deployment runs until
-   `node` and `npm` are installed system-wide. See §14 step 1.
+1. **Node.js was the prerequisite, and it is now satisfied.** `node` and `npm` are installed
+   system-wide (v22.22.1). The resolved `npm` path still needs recording for the unit file
+   (`command -v npm`); see §11 step 1.
 2. **The checkout is a developer working tree, not a deployment target.** Following the
    CompanionAI precedent, the application is installed to `/opt/simpleminds` and its mutable data
    lives in `/var/lib/simpleminds`, so a `git pull` or redeploy cannot clobber the buffer,
    registry, snapshots or brain store.
 
-### 2.1 The ROCm arch mismatch `[TBD]`
+### 2.1 The ROCm arch mismatch `[VALIDATED]` — resolved
 
-`python/requirements-rocm.txt` pins the AMD multi-arch wheel
-`torch[device-gfx1151]==2.12.0+rocm7.14.0`, but this host reports **`gfx1150`** from `rocminfo`.
-That is exactly the trap the requirements file warns about: the ROCm wheel set is tied to the
-driver/kernel and the gfx target, and a mismatched pin imports but can report no device or
-mis-target. **Do not trust the pin as written; verify against the host's ROCm/kernel before the
-Python plane is used.** The `gfx1151` pin in the requirements file is the value to change and
-commit once the host's supported target is confirmed, not an assumption to deploy on.
+The mismatch was real, and it was a **documentation bug, not a host fault**. The host is correct:
+the Radeon 890M in the Ryzen AI 9 HX 370 is **`gfx1150`** (RDNA 3.5, Strix Point). `gfx1151` is
+Strix Halo (Ryzen AI Max / Radeon 8050S), a different APU. Both `rocminfo` on this host and AMD's
+own GPU specification table and ROCm 7.14 PyTorch support matrix list the HX 370 / 890M as
+`gfx1150`.
+
+Investigated on 2026-10-10:
+
+| Fact | Value |
+|---|---|
+| `rocminfo` GPU agent | `gfx1150` (plus `gfx11-generic`); **no `gfx1151` target present** |
+| AMD spec, Ryzen AI 9 HX 370 / Radeon 890M | RDNA 3.5, **`gfx1150`** |
+| Distro ROCm | 7.1.0 (`hipconfig 7.1.52801`) — the Radeon/Ryzen track |
+| Kernel / driver | `7.0.0-38-generic`, in-kernel `amdgpu` |
+| Host Python | 3.14.4 (cp314 wheels exist for the pin below) |
+| AMD-validated pin for this APU | `torch[device-gfx1150]==2.12.0+rocm7.14.0` |
+
+Two corrections follow, both applied to `python/requirements-rocm.txt`:
+
+1. **The device extra was wrong.** `device-gfx1151` → `device-gfx1150`. AMD publishes
+   `rocm-sdk-device-gfx1150`, and its PyTorch playbook gives the gfx1150 command verbatim for
+   this exact APU. The old pin would have installed the wrong architecture's device package.
+2. **The "ROCm wheel set is tied to the driver/kernel version" warning is obsolete for these
+   wheels.** The AMD multi-arch wheels are self-contained — a host `torch` wheel plus
+   `rocm-sdk-device-gfx1150` and the ROCm libraries from `repo.amd.com`. PyTorch therefore does
+   **not** depend on the distro's ROCm 7.1.0 packages; only the in-kernel `amdgpu` driver and the
+   `gfx1150` target matter. `+rocm7.14.0` names the ROCm release the wheel carries, not `apt`'s.
+
+`[TBD]` still to confirm by running, not reading: `python -m sma.brain preflight` reports the
+device as `gfx1150` and bf16 works. The pin now matches AMD's matrix for this APU; the runtime
+check is the backstop. Note residual community reports of gfx1150 Linux rough edges (e.g.
+`hipMallocManaged`/GTT limits) — operator-facing, not pin-blocking.
 
 ---
 
@@ -386,9 +412,9 @@ LockPersonality=yes
 WantedBy=multi-user.target
 ```
 
-`[TBD]` The `ExecStart` path depends on where Node is installed. Confirm with `command -v npm`
-(NodeSource places it at `/usr/bin/npm`; nvm would place it under a user home, which a system
-service cannot use — install system-wide).
+`[CURRENT]` The `ExecStart` path is `/usr/bin/npm` (`command -v npm` on this host), matching the
+unit file. Node.js v22.22.1 is installed system-wide (NodeSource); a user-home `nvm` install would
+not work for a system service.
 
 ### 8.2 `simpleminds-perpetual.service` — `npm run perpetual` `[PLANNED]`
 
@@ -507,18 +533,18 @@ forwarded.** SimpleMindsAI adds no new inbound port.
 
 ## 11. Deployment sequence (planned runbook)
 
-Nothing below has been executed. This is the ordered procedure for the test session.
+Only Step 1 has been executed (Node.js installed). The rest is the ordered procedure for the
+test session.
 
-### Step 1 — Node.js `[PLANNED]`
+### Step 1 — Node.js `[CURRENT]`
+
+`[CURRENT]` Node.js **v22.22.1** is installed system-wide, satisfying `engines.node >= 20`.
 
 ```bash
-# Node >=20 (package.json engines). Install system-wide, e.g. NodeSource:
-curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
-sudo apt-get install -y nodejs
 node --version && command -v npm
 ```
 
-Record the installed version and the resolved `npm` path for the unit file.
+Record the resolved `npm` path for the unit file (NodeSource places it at `/usr/bin/npm`).
 
 ### Step 2 — service account and directories `[PLANNED]`
 
@@ -585,7 +611,7 @@ Not wired to the Node plane; documented for the record.
 ```bash
 cd /opt/simpleminds/python
 sudo -u simpleminds python3 -m venv .venv
-sudo -u simpleminds .venv/bin/pip install -r requirements-rocm.txt   # after fixing the gfx pin (§2.1)
+sudo -u simpleminds .venv/bin/pip install -r requirements-rocm.txt   # gfx1150 pin already set (§2.1)
 sudo -u simpleminds env SMA_STORE=/var/lib/simpleminds/store .venv/bin/python -m sma.brain init --config small
 ```
 
@@ -595,8 +621,8 @@ sudo -u simpleminds env SMA_STORE=/var/lib/simpleminds/store .venv/bin/python -m
 
 ### Host prerequisites
 
-- [ ] `node --version` reports a version satisfying `engines.node >= 20`.
-- [ ] `command -v npm` resolves to the path used in `simpleminds.service`.
+- [x] `node --version` reports v22.22.1, satisfying `engines.node >= 20`.
+- [x] `command -v npm` resolves to `/usr/bin/npm`, the path used in `simpleminds.service`.
 - [ ] `ollama list` shows the configured `OLLAMA_MODEL` tag.
 - [ ] `rocminfo` gfx target recorded and matched to the ROCm wheel before any Python run.
 
@@ -659,7 +685,7 @@ sudo nginx -t && sudo systemctl reload nginx
 | 1 | Actual wall-clock duration of one `npm run perpetual` cycle | Sets the timer cadence (§8.3) |
 | 2 | Does a timer cadence of one minute ever overlap a running cycle? | systemd single-instance + `RUN.lock`; measure anyway |
 | 3 | Is concurrent `/api/ingest` safe against a running cycle? | §9 |
-| 4 | Correct ROCm wheel pin for `gfx1150` | §2.1 |
+| 4 | Correct ROCm wheel pin for `gfx1150` | **Resolved** — `device-gfx1150` (§2.1) |
 | 5 | Does the API need authentication before `/simpleminds/` is public? | §10 |
 | 6 | Bind Node to loopback? | §4.1 |
 | 7 | Teacher model residency vs cadence | §8.4 |

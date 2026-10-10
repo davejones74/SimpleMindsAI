@@ -149,7 +149,7 @@ python -m venv .venv
 
 # pick exactly ONE backend profile (torch is not in the common requirements):
 #   -cuda : NVIDIA RTX 4090 dev box
-#   -rocm : AMD Ryzen AI HX 370 / 890M (gfx1151) deployment host
+#   -rocm : AMD Ryzen AI HX 370 / 890M (gfx1150) deployment host
 pip install -r requirements-cuda.txt      # NVIDIA
 # pip install -r requirements-rocm.txt    # AMD ROCm
 

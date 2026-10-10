@@ -119,7 +119,7 @@ def backend_of_resume(recorded_environment: Optional[Dict[str, Any]]) -> Optiona
 def _arch_string(props) -> str:
     """A stable architecture identifier for the device.
 
-    On ROCm this is the gfx target (e.g. "gfx1151") from `gcnArchName`. On CUDA
+    On ROCm this is the gfx target (e.g. "gfx1150") from `gcnArchName`. On CUDA
     it is the compute capability ("8.9"). Note that on a *CUDA* build
     `gcnArchName` is present and returns the device *name*, not an arch, so the
     vendor must be checked explicitly rather than by attribute presence.
@@ -134,7 +134,7 @@ def _arch_string(props) -> str:
 def _memory_shared_with_host(props, backend: str) -> bool:
     """Whether the device memory is shared with the host rather than dedicated.
 
-    An APU (the ROCm target here, gfx11xx / gfx1151) reports the whole
+    An APU (the ROCm target here, gfx11xx / gfx1150) reports the whole
     carve-out as `total_memory`; it is not a dedicated VRAM budget, and the 3B
     memory preflight must not treat it like a discrete card's 24 GB.
     """

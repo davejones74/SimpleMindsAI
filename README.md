@@ -158,7 +158,7 @@ python -m venv .venv
 
 # pick exactly ONE backend profile:
 pip install -r requirements-cuda.txt      # NVIDIA (RTX 4090 dev box)
-# pip install -r requirements-rocm.txt    # AMD ROCm (Ryzen AI HX 370 / 890M, gfx1151)
+# pip install -r requirements-rocm.txt    # AMD ROCm (Ryzen AI HX 370 / 890M, gfx1150)
 
 python -m pytest                                  # 158 tests
 python -m sma.brain init   --config small --out $SMA_STORE
