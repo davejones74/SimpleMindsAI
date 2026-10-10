@@ -271,7 +271,9 @@ most relevant to deployment:
 | `PROMOTE_MAX_LOSS` | `Infinity` | Ceiling on candidate loss. |
 | `PROMOTE_REQUIRE_FINITE` | `true` | Reject non-finite losses. |
 | `TRAIN_LR` / `TRAIN_STEPS` / `TRAIN_SEQ_LEN` / `TRAIN_MICRO_BATCH` / `TRAIN_GRAD_ACCUM` | `1e-4`, `60`, `128`, `2`, `2` | Python trainer hyperparameters passed by the Node orchestrator. |
+| `TRAIN_WARMUP` / `TRAIN_VAL_BLOCKS` / `TRAIN_EVAL_EVERY` / `TRAIN_TIMEOUT_MS` | `10`, `2`, `10`, `3600000` | LR warmup steps, held-out validation blocks, validation-record interval (0 keeps the legacy two endpoints), and trainer subprocess timeout. |
 | `TRAIN_COMPUTE_DTYPE` | `bfloat16` | Compute dtype. Use `float32` on CPU (see below). |
+| `INIT_CONFIG` | `small` | `sma.brain init --config` architecture (random init). |
 | `CRAWL_MODE` | `fixture` | `fixture` \| `real`. `real` fetches ONLY the explicit `CRAWL_URLS`. |
 
 The full, authoritative list lives in `.env.example` and `src/config.js`. The

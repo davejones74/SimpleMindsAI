@@ -100,7 +100,7 @@ following groups:
 | Domain | `src/domain/article.js`, `src/domain/review-policy.js` | Authoritative article lifecycle and importance, and the review-policy rules for autonomous selection and teacher/human transitions. |
 | Storage | `src/storage/article-store.js`, `src/storage/registry-store.js` | The authoritative `Article` ledger, and the append-only registry (ledger + `RUN.lock`). A legacy pair-buffer is detect-only. |
 | Dataset | `src/dataset/snapshot.js`, `src/dataset/evaluation-set.js` | Immutable, hash-sealed snapshots, and the frozen, leak-guarded evaluation set. |
-| Training orchestration | `src/training/lifecycle.js`, `src/training/trainer-interface.js`, `src/training/evaluator.js`, `src/training/model-handle.js`, `src/training/loss-evaluator.js`, `src/training/python-promotion.js`, `src/training/python-trainer.js` | Lifecycle, the (stub) trainer interface, the legacy evaluator, and the authoritative causal-LM loss gate that drives promotion. |
+| Training orchestration | `src/training/lifecycle.js`, `src/training/trainer-interface.js`, `src/training/evaluator.js`, `src/training/model-handle.js`, `src/training/loss-evaluator.js`, `src/training/python-promotion.js`, `src/training/python-trainer.js` | Lifecycle, the trainer selector (real Python CausalLM trainer by default; the stub is a legacy, explicitly opt-in path via `TRAINER_KIND=stub`), the legacy evaluator, and the authoritative causal-LM loss gate that drives promotion. |
 | Brain / chat / reward | `src/brain/brain.js`, `src/brain/python-cli.js`, `src/brain/student-worker.js`, `src/chat/`, `src/reward/` | The Python CLI bridge, the student worker owner, the chat server, and the advisory reward scorer. |
 | Curriculum | `src/curriculum/validation.js` | The deterministic gate every LLM-proposed curriculum must pass. |
 | API / CLI | `src/graphql/`, `src/cli/` | GraphQL schema and resolvers, and the one-shot runners (`train`, `evaluate`, `promote`, `reject`, `perpetual`). |
@@ -289,12 +289,23 @@ moves to the candidate and the resident worker is reloaded so the **next** chat
 turn is answered by the new brain; on `rejected` or `not_evaluated` the pointer
 does not move. Token-F1 remains available as a **supplementary** indicator only.
 
-Measured on the frozen `data/evaluation/eval-001.jsonl` (science Q/A), CPU:
+Measured on the frozen `data/evaluation/eval-001.jsonl` (science Q/A), CPU,
+`--seq-len 32 --micro-batch 2 --verify-weights` (see
+[How checks 8 and 9 are measured](PROOF.md#how-checks-8-and-9-are-measured)):
 
-| version | trained steps | eval loss | note |
-|---|---|---|---|
-| `v001` | 0 | 11.9452 | within the init band |
-| `v002` | 60 | 11.5915 | improvement 0.3537 → promotable |
+| version | trained steps | eval loss | datasetHash | note |
+|---|---|---|---|---|
+| `v001` | 0 | 11.9452 | `d4677e09…` | within the init band; `lossSignature.applies` |
+| `v002` | 60 | 11.5915 | `d4677e09…` | improvement 0.3537 → promotable; band no longer applies |
+
+Both report the identical `datasetHash`
+(`d4677e09878a155c0bd4cab61baf807ba6413a7f2172fa91e9f1463979344374`), which is
+what makes the pair comparable, and both pass `--verify-weights`
+(`verifiedAll: true`) — the evaluation hashes the loaded tensors against the
+manifest and runs under `torch.no_grad()`, so it cannot move a weight. These
+frozen-set numbers are distinct from the fixture training-curve losses
+(11.83 → 7.72 train, 11.82 → 11.54 validation); only the frozen comparison is a
+promotion signal.
 
 Regression tests drive the real store copy: a **worse** candidate (`v001` over
 `v002`) is rejected and the active pointer is unchanged; a **better** candidate
@@ -321,8 +332,9 @@ exposes it deliberately.
 | Live Chat | the real active student worker, with the student version and generation status; it never falls back to the teacher |
 | Mission & Strategy | primary/secondary mission and collection strategy with `propose → review → approve/reject → apply`; AI may propose secondary-mission and strategy changes only |
 | Training History | **both** sources — the Node registry (orchestration/audit) and the read-only Python `SMA_STORE` (committed versions, `active.json`, provenance, metrics); unavailable metrics are reported as unavailable, never as zero |
+| Trends & Metrics | deterministic trend classification (improving / worsening / plateauing / potentially-overfitting / insufficient evidence) over recorded, comparable losses. The classifier in `src/admin/metrics.js` is a pure function — no I/O, no randomness — fed from train-state files and frozen eval-set records; validation and training losses are only ever compared within the same dataset hash. |
 
-REST surface (all under `/api/admin`): `overview`, `articles` (+`/:id`),
+REST surface (all under `/api/admin`): `overview`, `metrics`, `articles` (+`/:id`),
 `articles/select-for-review`, `articles/:id/request-review`,
 `articles/:id/importance`, `articles/:id/status`, `articles/:id/review`,
 `review-cycles` (+`/ensure`, `/:id/close`), `mission` (+`/secondary`, `/primary`,

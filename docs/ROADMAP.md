@@ -233,6 +233,14 @@ Real, unfixed, and listed so they are not mistaken for intended behavior.
 5. **`TeacherClient` has no `complete` implementation.**
 6. **`promptsPage` cursor plus trained-filter can skip rows**; move to a keyset
    cursor as the buffer grows.
+7. **The critic fixture cannot approve articles.** In fixture mode
+   (`OLLAMA_FIXTURE=true`) `src/services/ollama-client.js` detects the critic via
+   `/reward model/i` in the system prompt, but the critic prompt in
+   `src/reward/reward-scorer.js` no longer contains "reward model", so the fixture
+   returns a generic hit: raw score 5, verdict `uncertain`, no approval. Fixture-mode
+   `npm run perpetual` therefore loops past review without ever reaching training;
+   review needs a real Ollama critic or a human decision. Fix, with a regression
+   test, is a separate code change.
 
 ---
 

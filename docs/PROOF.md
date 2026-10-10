@@ -104,8 +104,8 @@ are recorded there deliberately unimplemented.
 | 5 | `train` runs real optimization on the fixture corpus and produces `v002` | done |
 | 6 | `v002` reloads from disk into a fresh process | done — 74 persisted tensors re-hash byte-identical; 2 non-persistent RoPE buffers recomputed by the loader and reconciled to their recorded digest at the recorded dtype |
 | 7 | Every trainable parameter changes materially; buffers stay put | done |
-| 8 | Evaluation produces a loss number | done — `v001` scores 11.836, inside the `[10.5, 12.5]` init band |
-| 9 | Loss decreases in the expected direction | done — `v002` 8.836 < `v001` 11.836 on the identical frozen set |
+| 8 | Evaluation produces a loss number | done — `v001` scores 11.9452, inside the `[10.5, 12.5]` init band |
+| 9 | Loss decreases in the expected direction | done — `v002` 11.5915 < `v001` 11.9452 on the identical frozen set, improvement 0.3537 |
 | 10 | Versions are comparable and the diff is explainable | done — same architecture; 74/74 params named and changed; 0 buffers drifted |
 | 11 | Generation runs from a checkpoint (nonsense output is fine) | done |
 | 12 | Provenance and init manifest are persisted | done |
@@ -114,14 +114,41 @@ Nonsense generations at step 11 are **expected and acceptable**. A model that ha
 seen a few thousand tokens of English should not produce English. The point is
 that the plumbing works.
 
+### How checks 8 and 9 are measured
+
+Checks 8 and 9 are the **frozen cross-checkpoint comparison**, not the training
+curve. Both versions are scored by the same code path
+(`python -m sma.brain eval`) on the same immutable file:
+
+```
+python -m sma.brain eval --version v001 --eval-set data/evaluation/eval-001.jsonl `
+    --seq-len 32 --micro-batch 2 --device cpu --verify-weights --out $SMA_STORE
+```
+
+`v001` → 11.9452 (trained steps 0; the ln(V) init band applies), `v002` →
+11.5915 (60 steps; the band no longer applies), improvement 0.3537. Both report
+the same `datasetHash`
+(`d4677e09878a155c0bd4cab61baf807ba6413a7f2172fa91e9f1463979344374`), which is
+what makes the pair comparable, and both pass `--verify-weights` (`verifiedAll:
+true`) — the evaluation loads the committed tensors, hashes them and runs under
+`torch.no_grad()`, so it cannot move a weight. The device is pinned to CPU here
+for reproducibility; the promotion gate instead uses `SMA_DEVICE` (default
+`auto`).
+
+This is deliberately a **different** measurement from the fixture training run
+below, which reports the loss on the tiny `tiny_en.txt` fixture corpus the run
+was trained on. The two must not be conflated: the fixture numbers describe the
+optimizer moving five memorised blocks, while the frozen numbers above describe
+both checkpoints on held-out science Q/A they were not trained on.
+
 ### What `v002` does and does not prove
 
 `v002` was trained for 60 steps on the 4 KB fixture corpus — 7 blocks, 5 of them
-train. Train loss fell 11.83 → 7.72; validation loss moved 11.82 → 11.54. **That
-gap is memorization of five blocks, not learning**, and the honest reading is
-that the model still knows almost nothing. It is supposed to. The fixture exists
-to prove the machinery moves real gradients into real weights and can be resumed,
-not to produce a language model.
+train. On that *fixture* corpus, train loss fell 11.83 → 7.72 and validation loss
+moved 11.82 → 11.54. **That gap is memorization of five blocks, not learning**,
+and the honest reading is that the model still knows almost nothing. It is
+supposed to. The fixture exists to prove the machinery moves real gradients into
+real weights and can be resumed, not to produce a language model.
 
 So check 5 passing means *"the optimizer, the precision model, the guards, the
 provenance and the resume path work"* — nothing more. Any claim that the model has

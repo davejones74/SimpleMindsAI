@@ -61,7 +61,8 @@ src/
                                detect-only), registry-store (append-only ledger, RUN.lock),
                                governance-store (append-only mission/strategy/proposal versions)
   dataset/                     snapshot, evaluation-set (frozen, leak-guarded)
-  training/                    lifecycle, trainer-interface (stub), evaluator, model-handle,
+  training/                    lifecycle, trainer-interface (real Python trainer by default;
+                               stub only via TRAINER_KIND=stub), evaluator, model-handle,
                                loss-evaluator + python-promotion (authoritative loss gate)
   brain/ chat/ reward/         python-cli + student-worker + brain.js (student only), chat server,
                                reward scorer (advisory only)
@@ -69,7 +70,8 @@ src/
   admin/                       portal REST/SSE routes, change-feed, governance services,
                                read-only Python store reader, public/ SPA (vanilla JS)
 
-test/                          83 node:test tests (domain, stores, admin portal, worker/promotion)
+test/                          108 node:test tests — 107 pass, 1 fail (pre-existing trends
+                               classifier defect, see README "Testing")
 test-support/                  shared Python-prerequisite test helpers (not auto-discovered)
 ```
 
@@ -84,27 +86,50 @@ snapshot *format* does not.
 
 ```bash
 npm install
-npm test                 # 83 node:test tests (domain, stores, admin portal, worker/promotion)
+npm test
 
-npm start                # GraphQL → http://localhost:4000/graphql, portal → http://localhost:4000/admin
+npm start
 $env:OLLAMA_FIXTURE="true"; $env:OLLAMA_MODEL="deepseek-r1:8b"; npm run crawl
-npm run curate           # raw docs → ollama(clean) → buffer
-npm run plan             # LLM is advisory; must pass the deterministic gate
-npm run train            # NOTE: stub trainer — no real backprop yet
-npm run chat             # http://localhost:8787 — serves the active Python student
+npm run curate
+npm run plan
+npm run init:brain
+npm run train
+npm run chat
 ```
 
-`npm run train` currently computes statistics and calls the stub trainer. **It
-does not train a neural network.** Real training is the Python CLI
-(`python -m sma.brain train`). This is the single most important caveat in the
-project.
+Briefly: `npm start` serves the GraphQL API and the admin portal; `crawl`,
+`curate` and `plan` harvest, clean and gate-draft the corpus; `init:brain` seeds
+the first random `COMMITTED` checkpoint into `$SMA_STORE` (run once, before the
+first `train`).
+
+`npm run train` runs the full Python-backed CausalLM lifecycle by default: it
+selects `pythonTrainer`, runs `sma.brain train` (real random-init optimization
+with resumable state in `$SMA_STORE`), evaluates parent and candidate on the
+frozen eval set, and drives the loss gate. `npm run init:brain` must be run once
+before the first training run so a `COMMITTED` parent version exists. The legacy
+stub is reachable only by setting `TRAINER_KIND=stub`, in which case `npm run
+train` calls the stub interface and performs no backprop.
+
+`npm run train` is the training **step**, not the whole loop: it does not discover
+or review articles. The snapshot collects only `REVIEWED` articles that have not
+already been consumed (`src/dataset/snapshot.js`); with none present, it fails
+fast with `train failed: dataset empty after snapshot guards (no reviewed,
+unconsumed articles)`. For the full server-free autonomous loop — discover →
+curate → **review** → snapshot → plan → baseline-eval → train → candidate-eval →
+promote/reject, repeating — use `npm run perpetual`. Review requires a real Ollama
+critic or a human decision in the admin portal; `OLLAMA_FIXTURE=true` stubs the
+curator but the critic fixture cannot approve (see
+[known defects](ROADMAP.md#known-defects)).
 
 `npm run chat` does not fall back to a teacher: it starts the Python student
 worker, loads the `COMMITTED` version named by `$SMA_STORE/active.json`, and
 returns `503` if no version is active or the worker is down.
 
 Server-free one-shot CLIs: `train`, `evaluate`, `promote`, `reject`, `perpetual`
-(`PERPETUAL_CYCLES=n`, `OLLAMA_FIXTURE=true` for CI).
+(`PERPETUAL_CYCLES=n`, `OLLAMA_FIXTURE=true` for CI). Fixture caveat: the critic
+fixture scores `uncertain` for every article, so fixture-mode `perpetual`
+stops short of training — review needs a real critic or a human decision
+(known defect 7, [ROADMAP.md](ROADMAP.md#known-defects)).
 
 ---
 
@@ -191,12 +216,14 @@ line on stdin, one response per line on stdout, echoing `id`); see
 
 | Suite | Command | Count |
 |---|---|---|
-| Node data plane | `npm test` (from repo root) | 83 `node:test` tests |
-| Python compute plane | `python -m pytest` (from `python/`) | 158 pytest tests |
+| Node data plane | `npm test` (from repo root) | 108 `node:test` tests — 107 pass, 1 fail |
+| Python compute plane | `python -m pytest` (from `python/`) | 158 pytest tests — all pass |
 
-Both suites pass on the verified development machine. The Python suite includes
-proof/init, check-7 training, publication/store, Phase 1 checks 6/8/9/10/11, the
-student worker, portability and the Phase 2 preflight.
+Both suites were run on the verified development machine; see README "Testing"
+for the exact counts and the description of the single pre-existing Node
+failure. The Python suite includes proof/init, check-7 training,
+publication/store, Phase 1 checks 6/8/9/10/11, the student worker, portability
+and the Phase 2 preflight.
 
 When adding a test that exercises a real model, **state its compute dtype
 deliberately**: a bf16-on-CPU test silently bills ~220× for nothing (see

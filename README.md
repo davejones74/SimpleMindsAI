@@ -31,7 +31,7 @@ Verified on the development machine (Windows, RTX 4090 24,564 MiB, CUDA capabili
 
 | | |
 |---|---|
-| Node data plane | 83/83 `node:test` tests pass |
+| Node data plane | 108 `node:test` tests — 107 pass, 1 pre-existing fail (see [Testing](#testing)) |
 | Python compute plane | 158/158 pytest tests pass |
 | Checkpoint `v001` | committed, 62M params, provenance recorded |
 | Checkpoint `v002` | committed, 60 real steps, 74/74 params moved, 2 buffers unchanged |
@@ -41,8 +41,8 @@ Train loss fell 11.83 → 7.72 while validation moved 11.82 → 11.54 — that g
 of five blocks, not learning. Check 5 passing means *the optimizer, precision model, guards,
 provenance and resume path work*; it does not mean the model knows English. See
 [Proof obligations and the Phase 1 gate](docs/PROOF.md#what-v002-does-and-does-not-prove) for
-the full reading. `npm run train` is a stub and does **not** train a neural network; real
-training is the Python CLI (`python -m sma.brain train`).
+the full reading. `npm run train` runs the real Python-backed CausalLM trainer by
+default; the legacy stub is only reachable by explicitly setting `TRAINER_KIND=stub`.
 
 ---
 
@@ -97,21 +97,52 @@ the design (see [Architecture](docs/ARCHITECTURE.md)).
 - **Python 3.14** with a virtual environment for the compute plane.
 - Exactly one torch backend: NVIDIA CUDA or AMD ROCm (torch is intentionally not in the common
   requirements).
-- Ollama with a teacher model, or `OLLAMA_FIXTURE=true` for a deterministic stub.
+- Ollama with a teacher model, or `OLLAMA_FIXTURE=true` for a deterministic stub
+  (see the fixture caveat under [Node data plane](#node-data-plane)).
 
 ### Node data plane
 
 ```bash
 npm install
-npm test                 # 83 node:test tests (domain, stores, admin portal, worker/promotion)
+npm test
 
-npm start                # GraphQL → http://localhost:4000/graphql, portal → http://localhost:4000/admin
+npm start
 $env:OLLAMA_FIXTURE="true"; $env:OLLAMA_MODEL="deepseek-r1:8b"; npm run crawl
-npm run curate           # raw docs → ollama(clean) → buffer
-npm run plan             # LLM is advisory; must pass the deterministic gate
-npm run train            # NOTE: stub trainer — no real backprop yet
-npm run chat             # http://localhost:8787 — serves the active Python student
+npm run curate
+npm run plan
+npm run init:brain
+npm run train
+npm run chat
 ```
+
+`npm run train` is the training **step**, not the whole loop: it snapshot-plans a
+curated dataset, runs the real Python-backed CausalLM trainer on it, and drives
+the causal-LM loss gate. It does **not** discover or review articles, and it fails
+fast with `train failed: dataset empty after snapshot guards (no reviewed,
+unconsumed articles)` when the article store holds no reviewed-and-unconsumed
+material — the snapshot collects only `REVIEWED` articles that have not already
+been consumed (`src/dataset/snapshot.js`). The legacy stub trainer is reachable
+only via `TRAINER_KIND=stub`.
+
+The **autonomous workflow** and the **individual step** are different commands:
+
+- `npm run perpetual` is the full server-free loop: discover → curate → **review** →
+  snapshot → plan → baseline-eval → train → candidate-eval → promote/reject,
+  then repeat. Review requires the teacher critic (real Ollama) or a human
+  decision.
+- `npm run train` is just the training step. Run it on its own once reviewed,
+  unconsumed articles exist — produced by the critic, or by a human review in the
+  admin portal at `http://localhost:4000/admin`.
+
+Server-free one-shot CLI runners are also available: `npm run evaluate`, `npm run
+promote`, `npm run reject`, `npm run perpetual` (see
+[Development](docs/DEVELOPMENT.md)).
+
+**Fixture caveat.** `OLLAMA_FIXTURE=true` stubs the curator and most Ollama round
+trips, but the critic fixture currently scores `uncertain` (5/10) for every
+article, so fixture-mode `npm run perpetual` cannot reach the training stage on
+its own: review still needs a real Ollama critic or a human decision. Recorded as
+known defect 7 in the [Roadmap](docs/ROADMAP.md#known-defects).
 
 `npm run chat` does not fall back to a teacher: it starts the Python student worker, loads the
 `COMMITTED` version named by `$SMA_STORE/active.json`, and returns `503` if no version is active
@@ -136,8 +167,11 @@ python -m sma.brain status --out $SMA_STORE
 python -m sma.student --out $SMA_STORE
 ```
 
-Train a child version. `--lr` is required and has no default, on purpose — the correct value
-depends on optimizer, batch size, sequence length, model size, schedule and warm-up:
+Training directly from the Python plane exercises the optimization pipeline
+independently of the Node article-review workflow; useful for testing the trainer
+in isolation, but **not** the normal end-to-end path (use the Node plane for that).
+`--lr` is required and has no default, on purpose — the correct value depends on
+optimizer, batch size, sequence length, model size, schedule and warm-up:
 
 ```bash
 python -m sma.brain train --parent v001 --corpus sma\fixtures\tiny_en.txt `
@@ -177,8 +211,9 @@ the project invariants are in [Architecture](docs/ARCHITECTURE.md).
 
 ## Roadmap summary
 
-- **Phase 0** — the harvest/curate/plan/registry loop with a stub trainer (the existing Node
-  data plane).
+- **Phase 0** — the harvest/curate/plan/registry loop with the stub trainer (the
+  existing Node data plane; the stub is retained only as an explicitly opt-in
+  `TRAINER_KIND=stub` path, real training is the default since Phase 1).
 - **Phase 1 — 62M proof** — all twelve checks, complete.
 - **Phase 2 — 3B** — repeat checks 1–12 at 3B, after an empirical memory preflight.
 - **Phase 3 — perpetual** — years of continuous training that never caps or resets.
@@ -207,13 +242,23 @@ The full index is at [docs/README.md](docs/README.md).
 ## Testing
 
 ```bash
-npm test                    # Node data plane: 83 node:test tests (repo root)
+npm test                    # Node data plane: 108 node:test tests (repo root)
 cd python; python -m pytest # Python compute plane: 158 pytest tests
 ```
 
-Both suites pass on the verified development machine. A documentation-only change must leave
-both suites passing and must not modify application code, training algorithms, model behaviour,
-APIs, dependencies, build configuration, or runtime configuration.
+Measured on the verified development machine (Windows, RTX 4090): Python
+**158/158 pass**; Node **107/108 pass, 1 fail**. The failing Node test is
+pre-existing and unrelated to the Python plane: `test/metrics.test.js` expects
+the trends classifier to drop non-finite / `loss: null` samples, but
+`finitePoints` (`src/admin/metrics.js:37`) coerces `loss: null` to `0` with
+`Number(...)`, so the sample is kept and `evidence.points` is 5 instead of 4. It
+is a genuine code defect, not an environment limitation. The candidate-dependent
+worker/promotion tests run only when the real Python store with committed `v001`
+and `v002` is present; they skip otherwise.
+
+A documentation-only change must leave both suites passing and must not modify
+application code, training algorithms, model behaviour, APIs, dependencies,
+build configuration, or runtime configuration.
 
 ---
 
