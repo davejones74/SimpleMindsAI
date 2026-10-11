@@ -94,6 +94,7 @@ table.data tr:hover td { background: var(--panel-2); }
 .badge.approve { color: var(--good); border-color: var(--good); }
 .badge.reject { color: var(--bad); border-color: var(--bad); }
 .badge.uncertain { color: var(--warn); border-color: var(--warn); }
+.badge.suggested { border-style: dashed; opacity: .9; }
 
 .empty { color: var(--muted); padding: 24px; text-align: center; border: 1px dashed var(--border); border-radius: var(--radius); }
 .loading { color: var(--muted); padding: 20px; }

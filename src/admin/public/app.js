@@ -309,7 +309,7 @@ function articleTable() {
         <td style="max-width:420px"><a href="#" data-open="${esc(x.articleId)}">${esc((x.text ?? "").slice(0, 110))}${(x.text ?? "").length > 110 ? "…" : ""}</a>
           <div class="small muted">${esc(x.articleId)}</div></td>
         <td>${esc(x.domain ?? "—")}</td>
-        <td>${badge(x.importance.toUpperCase(), x.importance)}${x.suggestedImportance ? ` <span class="small muted">sugg ${esc(x.suggestedImportance)}</span>` : ""}</td>
+        <td>${badge(x.importance.toUpperCase(), x.importance)}${x.suggestedImportance ? ` ${badge(`suggested ${String(x.suggestedImportance).toUpperCase()}`, `sugg: ${x.suggestedImportance}`)}` : ""}</td>
         <td>${badge(x.status, x.status)}</td>
         <td>${x.trainable ? "✔" : "—"}</td>
         <td>${x.consumedAt ? `<span title="${esc(x.consumedRef ?? "")}">${when(x.consumedAt)}</span>` : "—"}</td>
@@ -892,8 +892,9 @@ function lossSvg(m) {
       ${yTicks.map((v) => `<line x1="${P.l}" y1="${sy(v).toFixed(1)}" x2="${W - P.r}" y2="${sy(v).toFixed(1)}" stroke="var(--border)" stroke-dasharray="2 4"/><text x="${P.l - 8}" y="${(sy(v) + 3.5).toFixed(1)}" text-anchor="end" font-size="10" fill="var(--muted)">${v.toFixed(2)}</text>`).join("")}
       ${xTicks.map((s) => `<text x="${sx(s).toFixed(1)}" y="${H - 10}" text-anchor="middle" font-size="10" fill="var(--muted)">${Math.round(s)}</text>`).join("")}
       <text x="${P.l}" y="${H - 26}" font-size="10" fill="var(--muted)">step</text>
-      ${trainPts.length ? `<polyline points="${path(trainPts)}" fill="none" stroke="var(--accent-2)" stroke-width="1.2" stroke-dasharray="4 3"/>` : ""}
-      ${valPts.length ? `<polyline points="${path(valPts)}" fill="none" stroke="var(--accent)" stroke-width="2"/>` : ""}
+      ${trainPts.length ? `<path d="${path(trainPts)}" fill="none" stroke="var(--accent-2)" stroke-width="1.2" stroke-dasharray="4 3"/>` : ""}
+      ${trainPts.map((p) => `<circle cx="${sx(p.step).toFixed(1)}" cy="${sy(p.loss).toFixed(1)}" r="1.4" fill="var(--accent-2)"><title>training step ${p.step}: loss ${fmt(p.loss)}</title></circle>`).join("")}
+      ${valPts.length ? `<path d="${path(valPts)}" fill="none" stroke="var(--accent)" stroke-width="2"/>` : ""}
       ${valPts.map((p) => `<circle cx="${sx(p.step).toFixed(1)}" cy="${sy(p.loss).toFixed(1)}" r="2" fill="var(--accent)"><title>validation step ${p.step}: loss ${fmt(p.loss)}${p.version ? ` · ${esc(p.version)}` : ""}</title></circle>`).join("")}
       ${markers.map((mk) => `<polygon points="${diamond(sx(mk.step), sy(mk.loss))}" fill="var(--bad)"><title>frozen eval-set checkpoint ${esc(mk.version)}: loss ${fmt(mk.loss)}${mk.promotionStatus ? ` · ${esc(mk.promotionStatus)}` : ""}</title></polygon>`).join("")}
       <rect x="${W - 248}" y="0" width="248" height="38" fill="var(--panel)" opacity="0.92"/>
