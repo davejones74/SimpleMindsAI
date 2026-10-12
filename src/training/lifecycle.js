@@ -1,6 +1,8 @@
 import path from "node:path";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, writeFile, readFile } from "node:fs/promises";
+import { readFileSync } from "node:fs";
 import { config } from "../config.js";
+import { createHash } from "node:crypto";
 import { collectRowsFromArticles, buildSnapshot } from "../dataset/snapshot.js";
 import { loadEvaluationSet, makeEvalGuard } from "../dataset/evaluation-set.js";
 import { validateCurriculum, fallbackCurriculum } from "../curriculum/validation.js";
@@ -25,6 +27,37 @@ import { modelHandle } from "./model-handle.js";
  * re-collects them — no duplicate, no loss. RecoverStaleRuns() marks any run
  * stranded in created/running/evaluating as failed on the next start.
  */
+function computeFileHash(filePath) {
+  return createHash("sha256")
+    .update(readFileSync(filePath, "utf8"), "utf8")
+    .digest("hex");
+}
+
+
+
+/** Persist the run manifest as JSON for crash recovery and audit. */
+async function persistManifest(manifestPath, manifest) {
+  await mkdir(path.dirname(manifestPath), { recursive: true });
+  await writeFile(manifestPath, JSON.stringify(manifest, null, 2), "utf8");
+}
+
+/** Read the run manifest if it exists; return null when absent. */
+async function readManifest(manifestPath) {
+  try {
+    const raw = await readFile(manifestPath, "utf8");
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+/** Update the run manifest with current state. */
+async function updateManifest(manifestPath, manifest, fields) {
+  const updated = { ...manifest, ...fields };
+  await persistManifest(manifestPath, updated);
+  return updated;
+}
+
 export async function executeFullRun({
   registry,
   deps = {},
@@ -135,6 +168,27 @@ export async function executeFullRun({
     registry.bindRunLock(runId);
     await registry.runEvent(runId, { status: "running", note: "snapshot+plan locked in" });
 
+    // Initialize the run manifest for crash recovery and audit (Refinements #1, #2, #3).
+    // The manifest is persisted to disk so that on restart we can recover the
+    // last completed stage without double‑consuming or incorrectly activating.
+    const manifestPath = path.join(options.paths?.snapshots ?? config.paths.snapshots, `${runId}-manifest.json`);
+    const manifest = {
+      runId,
+      status: "created",
+      snapshotArticleIds: snapshot.rows.map((r) => r.articleId),
+      evaluationSetHash: computeFileHash(evalSet.file),
+      baselineLoss: null,
+      candidateLoss: null,
+      decision: null,
+      consumed: false,
+      activated: false,
+      error: null,
+    };
+    await persistManifest(manifestPath, manifest);
+    await updateManifest(manifestPath, manifest, {
+      status: "running",
+    });
+
     // ---- BASELINE evaluation (before training) ----
     const baselineResult = pythonMode
       ? await evaluateLoss({
@@ -208,19 +262,73 @@ export async function executeFullRun({
     // never move the active pointer.
     const terminal = decision.decision === "promoted" ? "promoted" : "rejected";
 
-    // ---- the exactly-once commit: only after training + eval succeeded ----
-    const consumption = await commitConsumption(snapshot.manifest.articleIds ?? snapshot.rows.map((r) => r.articleId), runId);
-    const commitResultCount = consumption?.consumed?.length ?? snapshot.manifest.articleIds.length;
-
-    // ---- move the serving pointer ONLY on a real promotion ----
-    let activated = null;
-    if (pythonMode && decision.decision === "promoted") {
-      activated = await setActive(trainingResult.version, {
-        store: config.pythonStore ?? undefined,
-        bin: config.pythonBin ?? undefined,
-        models: options.paths?.models ?? config.paths.models,
+    // ---- consumption commit for completed evaluation runs ----
+    // Rule (Refinement #1):
+    //   - Failed training or evaluation: do not commit consumption; retry safely.
+    //   - Completed evaluation, candidate rejected: record consumption for the
+    //     completed run, but do not promote the candidate.
+    //   - Completed evaluation, candidate promoted: record consumption and update
+    //     the serving model according to the existing lifecycle.
+    // Consumption is only committed when training AND evaluation both succeeded
+    // (i.e., we reached this point). The manifest records the decision for crash
+    // recovery.
+    if (pythonMode) {
+      // Record evaluation set hash for provenance and promotion gate (Refinement #3)
+      const evalSetHash = computeFileHash(evalSet.file);
+      updateManifest(manifestPath, manifest, {
+        evaluationSetHash: evalSetHash,
+        baselineLoss: baselineResult.loss,
+        candidateLoss: candidateResult.loss,
+        decision: decision.decision,
       });
-      if (worker) await worker.reload();
+    }
+
+    if (decision.decision === "not_evaluated") {
+      // Training or evaluation failed before producing comparable results.
+      // Do not commit consumption; leave articles unconsumed for retry.
+      manifest.consumed = false;
+      await updateManifest(manifestPath, manifest, { consumed: false, status: "failed", error: decision.reason ?? "not_evaluated" });
+    } else if (decision.decision === "rejected") {
+      // Completed evaluation, candidate rejected: record consumption but do not
+      // promote. This keeps the consumption ledger truthful even when the
+      // promotion gate correctly rejects a model (Refinement #1).
+      const consumption = await commitConsumption(
+        snapshot.manifest.articleIds ?? snapshot.rows.map((r) => r.articleId),
+        runId
+      );
+      manifest.consumed = true;
+      manifest.activated = false;
+      await updateManifest(manifestPath, manifest, {
+        consumed: true,
+        activated: false,
+        status: "rejected",
+      });
+      // Activate the serving pointer only on promotion — not on rejection.
+      let activated = null;
+    } else {
+      // decision.decision === "promoted": completed evaluation, candidate
+      // promoted: record consumption and update the serving model.
+      const consumption = await commitConsumption(
+        snapshot.manifest.articleIds ?? snapshot.rows.map((r) => r.articleId),
+        runId
+      );
+      manifest.consumed = true;
+      manifest.activated = true;
+      await updateManifest(manifestPath, manifest, {
+        consumed: true,
+        activated: true,
+        status: "promoted",
+      });
+      // Activate the serving pointer ONLY on a real promotion.
+      let activated = null;
+      if (pythonMode && decision.decision === "promoted") {
+        activated = await setActive(trainingResult.version, {
+          store: config.pythonStore ?? undefined,
+          bin: config.pythonBin ?? undefined,
+          models: options.paths?.models ?? config.paths.models,
+        });
+        if (worker) await worker.reload();
+      }
     }
 
     // ---- persist the decision on the model, then close the run ----
@@ -281,6 +389,40 @@ export async function executeFullRun({
       run: registry.getRun(runId),
     };
   } catch (err) {
+    // Attempt recovery from the run manifest if the process crashed mid-stream.
+    // This prevents double-consumption, incorrect activation, and lost evaluation
+    // results when the process dies after evaluation succeeded but before
+    // consumption was committed (Refinement #4).
+    if (runId) {
+      try {
+        const manifestPath = path.join(options.paths?.snapshots ?? config.paths.snapshots, `${runId}-manifest.json`);
+        const savedManifest = await readManifest(manifestPath);
+        if (savedManifest && savedManifest.status === "evaluated" && savedManifest.consumed === false) {
+          // Evaluation succeeded but consumption was not yet written.
+          // Re-commit consumption idempotently (will succeed even if already written).
+          await recoverFromManifest(
+            registry,
+            runId,
+            savedManifest,
+            snapshot,
+            commitConsumption,
+            setActive,
+            trainingResult,
+            pythonMode,
+            worker,
+            options,
+            logger,
+          );
+        } else if (savedManifest && savedManifest.status === "failed") {
+          // Run already marked as failed; no further recovery needed.
+        } else {
+          // Unknown state; mark the run as failed.
+          await registry.runEvent(runId, { status: "failed", note: "crash recovery: unknown state " + JSON.stringify(savedManifest) });
+        }
+      } catch (recErr) {
+        logger.error && logger.error(`[lifecycle] run ${runId} recovery error: ${recErr.message}`);
+      }
+    }
     if (runId) {
       await registry.runEvent(runId, { status: "failed", note: err.message });
       logger.error && logger.error(`[lifecycle] run ${runId} failed: ${err.message}`);

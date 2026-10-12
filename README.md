@@ -246,6 +246,7 @@ python -m sma.brain status --out $SMA_STORE
 python -m sma.student --out $SMA_STORE
 ```
 
+
 Training directly from the Python plane exercises the optimization pipeline
 independently of the Node article-review workflow; useful for testing the trainer
 in isolation, but **not** the normal end-to-end path (use the Node plane for that).
