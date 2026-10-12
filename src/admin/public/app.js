@@ -14,6 +14,12 @@ const state = {
   cycles: null,
   history: null,
   trends: null,
+  control: null, // { jobs, eligibility, teacher, versions }
+  jobDetail: null,
+  // Shared model-version selector: pinned per workspace, independent of the
+  // active pointer and of a running job's training parent.
+  versions: [],
+  selectedVersion: null,
   live: false,
   seq: 0,
 };
@@ -22,6 +28,18 @@ const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "
 const fmt = (v) => (v === null || v === undefined ? "—" : typeof v === "number" ? (Number.isInteger(v) ? v.toLocaleString() : v.toFixed(3)) : String(v));
 const when = (iso) => (iso ? new Date(iso).toLocaleString() : "—");
 const badge = (cls, text) => `<span class="badge ${esc(cls)}">${esc(text)}</span>`;
+
+/**
+ * The shared model-version scope. The pinned version is a VIEWING selector — it
+ * never moves the active pointer and never changes a running job's parent. It is
+ * kept strictly separate from "active" and from a job's "training parent".
+ */
+function versionScope() {
+  const v = state.selectedVersion;
+  const active = state.overview?.pythonStore?.activeVersion ?? state.workspaceInfo?.activeVersion ?? null;
+  if (!v) return `<span class="pill" title="no pinned version; views follow the active pointer">scope: active${active ? ` ${esc(active)}` : ""}</span>`;
+  return `<span class="pill" title="pinned for viewing only; the active pointer is unchanged">scope: pinned ${esc(v)}</span>`;
+}
 
 /** True when the selected workspace is inspection-only (all mutations blocked). */
 const isReadOnly = () => state.workspaceInfo?.readOnly === true;
@@ -71,10 +89,62 @@ function selectWorkspace(id) {
   state.cycles = null;
   state.history = null;
   state.trends = null;
+  state.control = null;
+  state.jobDetail = null;
+  state.versions = [];
+  state.selectedVersion = readPinnedVersion(id);
   renderWorkspaceBanner();
   updatePills();
-  refresh();
+  loadVersions().finally(refresh);
 }
+
+// ------------------------------------------------- shared model-version pin
+const pinKey = (wsId) => `sma.version.${wsId ?? "default"}`;
+function readPinnedVersion(wsId) {
+  try { return localStorage.getItem(pinKey(wsId)) || null; } catch { return null; }
+}
+function writePinnedVersion(wsId, version) {
+  try { version ? localStorage.setItem(pinKey(wsId), version) : localStorage.removeItem(pinKey(wsId)); } catch { /* ignore */ }
+}
+
+/**
+ * Load the committed brain versions for the selected workspace and populate the
+ * header selector. Versions are loaded dynamically from the selected workspace's
+ * registry; the selector is honest when the store is unavailable.
+ */
+async function loadVersions() {
+  let data;
+  try { data = await api("/brain/versions"); } catch { data = { available: false, versions: [] }; }
+  state.versions = data?.versions ?? [];
+  const sel = document.getElementById("modelVersion");
+  if (!sel) return;
+  if (!data?.available || !state.versions.length) {
+    sel.innerHTML = `<option value="">${data?.available ? "no committed versions" : "store unavailable"}</option>`;
+    sel.disabled = true;
+    state.selectedVersion = null;
+    return;
+  }
+  sel.disabled = false;
+  const committed = state.versions.filter((v) => v.committed);
+  // A pinned version that no longer exists in this store is dropped rather than
+  // silently mapped to a different one.
+  if (state.selectedVersion && !state.versions.some((v) => v.version === state.selectedVersion)) {
+    state.selectedVersion = null;
+    writePinnedVersion(state.workspace, null);
+  }
+  sel.innerHTML = [
+    `<option value="">active/default</option>`,
+    ...committed.map((v) => `<option value="${esc(v.version)}">${esc(v.version)}${v.parentVersion ? ` ← ${esc(v.parentVersion)}` : ""}</option>`),
+  ].join("");
+  sel.value = state.selectedVersion ?? "";
+}
+
+function setPinnedVersion(version) {
+  state.selectedVersion = version || null;
+  writePinnedVersion(state.workspace, state.selectedVersion);
+  render();
+}
+
 
 function renderWorkspaceBanner() {
   const el = document.getElementById("workspaceBanner");
@@ -117,6 +187,7 @@ async function refresh() {
     updatePills();
     if (state.tab === "dashboard") renderDashboard();
     if (state.tab === "articles") await loadArticles();
+    if (state.tab === "control") await loadControl();
     if (state.tab === "chat") await loadChat();
     if (state.tab === "mission") await loadMission();
     if (state.tab === "cycles") await loadCycles();
@@ -152,6 +223,7 @@ function updatePills() {
 function render() {
   if (state.tab === "dashboard") renderDashboard();
   else if (state.tab === "articles") renderArticles();
+  else if (state.tab === "control") renderControl();
   else if (state.tab === "chat") renderChat();
   else if (state.tab === "mission") renderMission();
   else if (state.tab === "cycles") renderCycles();
@@ -171,7 +243,7 @@ function renderDashboard() {
   const s = a.byStatus;
   const legacy = o.legacy?.present ?? [];
   main.innerHTML = `
-    <h2 class="section-title">Dashboard</h2>
+    <h2 class="section-title">Dashboard <span class="sm">${versionScope()}</span></h2>
     <div class="grid">
       ${statCard("Total articles", a.totalArticles)}
       ${statCard("Pending review", a.pendingReview)}
@@ -455,13 +527,14 @@ function renderChat() {
   const c = state.chat;
   const id = c.identity ?? {};
   main.innerHTML = `
-    <h2 class="section-title">Live Chat</h2>
+    <h2 class="section-title">Live Chat <span class="sm">${versionScope()}</span></h2>
     <div class="panel">
       <div class="toolbar">
         <span class="k">Student</span>
         ${badge(id.available ? "REVIEWED" : "REJECTED", id.available ? "available" : "unavailable")}
-        <span class="muted small">mode: ${esc(id.mode ?? "—")} · version: ${esc(id.version ?? "none")}</span>
+        <span class="muted small">mode: ${esc(id.mode ?? "—")} · serving version: ${esc(id.version ?? "none")}</span>
       </div>
+      <div class="small muted" style="margin:-2px 0 8px">Conversations are pinned to the serving checkpoint named above; the version selector changes only which version's history/metrics you inspect, not what answers here.</div>
       ${!id.available ? `<div class="small warn">No committed student version is active. The chat has no teacher fallback — this is reported honestly rather than faked.</div>` : ""}
       <div class="chat">
         <div class="log" id="chatLog">
@@ -685,7 +758,7 @@ function renderHistory() {
   if (!h) return;
   const r = h.registry;
   main.innerHTML = `
-    <h2 class="section-title">Training History</h2>
+    <h2 class="section-title">Training History <span class="sm">${versionScope()}</span></h2>
     <div class="small muted" style="margin:-6px 0 12px">
       workspace <strong>${esc(h.workspace?.id ?? "—")}</strong>${h.workspace?.readOnly ? " (inspection-only)" : ""} ·
       python store <code>${esc(h.pythonStore?.root ?? "—")}</code>
@@ -745,7 +818,7 @@ function renderHistory() {
 
 // ------------------------------------------------------- trends & metrics
 async function loadTrends() {
-  state.trends = await api("/metrics");
+  state.trends = await api(`/metrics${state.selectedVersion ? `?version=${encodeURIComponent(state.selectedVersion)}` : ""}`);
   renderTrends();
 }
 
@@ -788,7 +861,7 @@ function renderTrends() {
       : m.reason
         ? `<div class="panel notice"><div class="muted">${esc(m.reason)}</div></div>`
         : trendsBody(m);
-  main.innerHTML = `<h2 class="section-title">Trends &amp; Metrics</h2>${body}`;
+  main.innerHTML = `<h2 class="section-title">Trends &amp; Metrics <span class="sm">${versionScope()}</span></h2>${body}`;
 }
 
 function trendsBody(m) {
@@ -904,6 +977,215 @@ function lossSvg(m) {
     ${markers.length ? `<div class="small muted">◆ = frozen eval-set benchmark (data/evaluation), dataset ${esc(shortHash(m.markers[0].datasetHash) ?? "unkeyed")} — plotted at each version's final step, not in-training.</div>` : ""}`;
 }
 
+// ------------------------------------------------------- learning & training
+async function loadControl() {
+  const [jobs, eligibility, teacher, versions] = await Promise.all([
+    api("/jobs").catch((err) => ({ error: err.message, jobs: [] })),
+    api("/training/eligibility").catch((err) => ({ error: err.message })),
+    api("/teacher").catch((err) => ({ error: err.message })),
+    api("/brain/versions").catch((err) => ({ error: err.message, available: false, versions: [] })),
+  ]);
+  state.control = { jobs: jobs.jobs ?? [], jobsError: jobs.error ?? null, eligibility, teacher, versions: versions.versions ?? [], versionsUnavailable: versions.available === false };
+  state.versions = versions.versions ?? state.versions;
+  renderControl();
+}
+
+function teacherPanel(t) {
+  if (t?.error) return `<div class="panel notice"><div class="title warn">Teacher readiness unavailable</div><div class="small muted">${esc(t.error)}</div></div>`;
+  const cls = t.ready ? "REVIEWED" : "REJECTED";
+  return `<div class="panel">
+    <div class="k">Teacher readiness (Ollama)</div>
+    <div class="toolbar">${badge(cls, t.ready ? "ready" : "not ready")}
+      <span class="small muted">model <code>${esc(t.model ?? "—")}</code> · mode ${esc(t.mode ?? "—")}</span></div>
+    ${t.reason ? `<div class="small ${t.ready ? "muted" : "warn"}">${esc(t.reason)}</div>` : ""}
+    <div class="small muted">digest ${esc(t.digest ?? "—")}${t.matchesExpectedDigest === null || t.matchesExpectedDigest === undefined ? "" : ` · pinned match ${t.matchesExpectedDigest}`}</div>
+    ${t.tags?.length ? `<div class="small muted">installed: ${t.tags.map(esc).join(", ")}</div>` : ""}
+  </div>`;
+}
+
+function activeJob(kind) {
+  return (state.control?.jobs ?? []).find((j) => j.kind === kind && !j.terminal) ?? null;
+}
+
+function renderControl() {
+  const c = state.control;
+  if (!c) return;
+  const elig = c.eligibility ?? {};
+  const learning = activeJob("learning");
+  const training = activeJob("training");
+  const fresh = activeJob("fresh-brain");
+  const committed = (c.versions ?? []).filter((v) => v.committed);
+  if (state.control.versionsUnavailable) { /* store unavailable — reported below */ }
+
+  main.innerHTML = `
+    <h2 class="section-title">Learning &amp; Training <span class="sm">${versionScope()}</span></h2>
+    ${isReadOnly() ? `<div class="panel notice"><div class="title">Inspection-only workspace</div><div class="small muted">Managed lifecycle work runs only against the live development store. Start/stop controls are disabled here.</div></div>` : ""}
+    ${c.jobsError ? `<div class="panel notice"><div class="title warn">Job supervisor unavailable</div><div class="small muted">${esc(c.jobsError)}</div></div>` : ""}
+    ${teacherPanel(c.teacher)}
+
+    <div class="cols">
+      <div class="panel">
+        <div class="k">Learning ${learning ? badge("PENDING_REVIEW", learning.status) : badge("INGESTED", "idle")}</div>
+        <div class="small muted">Harvest the explicitly-configured sources, curate with the teacher, ingest and review. No autonomous source discovery.</div>
+        <div class="toolbar" style="margin-top:8px">
+          <select id="learnMode" ${roAttr()}>
+            <option value="bounded">bounded (single pass)</option>
+            <option value="continuous">continuous (poll)</option>
+          </select>
+          <label class="small muted">target articles</label>
+          <input type="number" id="learnTarget" value="100" min="1" style="width:90px" ${roAttr()} />
+          <label class="small muted">max raw docs (0=all)</label>
+          <input type="number" id="learnRaw" value="0" min="0" style="width:90px" ${roAttr()} />
+        </div>
+        <div class="toolbar">
+          <button id="learnStart" class="primary" ${roAttr()}>Start learning</button>
+          <button id="learnStop" class="danger" ${roAttr()} ${learning ? "" : "disabled"}>Stop</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="k">Training ${training ? badge("PENDING_REVIEW", training.status) : badge("INGESTED", "idle")}</div>
+        <div class="small muted">Eligible reviewed+unconsumed now: <strong>${fmt(elig.trainable)}</strong> (min ${fmt(elig.minEligible)}).${elig.eligible ? "" : " One-shot refuses below the gate rather than training on nothing."}</div>
+        <div class="toolbar" style="margin-top:8px">
+          <select id="trainMode" ${roAttr()}>
+            <option value="one-shot">one-shot</option>
+            <option value="continuous">continuous (wait for material)</option>
+          </select>
+          <label class="small muted">parent</label>
+          <select id="trainParent" ${roAttr()}>
+            <option value="">active baseline</option>
+            ${committed.map((v) => `<option value="${esc(v.version)}">${esc(v.version)}${v.parentVersion ? ` ← ${esc(v.parentVersion)}` : ""}</option>`).join("")}
+          </select>
+          <label class="small muted">min eligible</label>
+          <input type="number" id="trainMin" value="1" min="1" style="width:80px" ${roAttr()} />
+        </div>
+        <div class="toolbar">
+          <button id="trainStart" class="primary" ${roAttr()}>Start training</button>
+          <button id="trainStop" class="danger" ${roAttr()} ${training ? "" : "disabled"}>Stop</button>
+        </div>
+        <div class="small muted">The selected parent is validated fail-closed; an unknown/inconsistent version is refused, never swapped for the active pointer.</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="k">Fresh brain ${fresh ? badge("PENDING_REVIEW", fresh.status) : ""}</div>
+      <div class="small muted">Create a genuinely randomly-initialised brain (no pretrained student weights), registered as an unpromoted candidate. It never activates itself.</div>
+      <div class="toolbar" style="margin-top:8px">
+        <label class="small muted">seed</label>
+        <input type="number" id="freshSeed" value="0" style="width:100px" ${roAttr()} />
+        <label class="small muted">config</label>
+        <input type="text" id="freshConfig" placeholder="(configured default)" ${roAttr()} />
+        <button id="freshStart" class="danger" ${roAttr()}>Create fresh brain</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="k">Job history (durable, append-only)</div>
+      <table><tr><th>Job</th><th>Kind</th><th>Mode</th><th>Status</th><th>Phase</th><th>Progress</th><th>Created</th><th></th></tr>
+        ${c.jobs.map((j) => `
+          <tr>
+            <td class="small"><a href="#" data-job="${esc(j.jobId)}">${esc(j.jobId)}</a></td>
+            <td>${esc(j.kind)}</td>
+            <td class="small">${esc(j.mode ?? "—")}</td>
+            <td>${badge(j.terminal ? (j.status === "completed" ? "REVIEWED" : j.status === "failed" ? "REJECTED" : "PENDING_REVIEW") : "PENDING_REVIEW", j.status)}</td>
+            <td class="small">${esc(j.phase ?? "—")}</td>
+            <td class="small">${esc(j.progress ? JSON.stringify(j.progress) : "—")}</td>
+            <td class="small">${when(j.createdAt)}</td>
+            <td>${j.terminal ? "" : `<button data-stop="${esc(j.jobId)}" class="danger" ${roAttr()}>Stop</button>`}</td>
+          </tr>`).join("") || `<tr><td colspan="8" class="muted">No jobs yet.</td></tr>`}
+      </table>
+      ${c.jobs.some((j) => j.note || j.error || j.result) ? `<div class="small muted" style="margin-top:8px">
+        ${c.jobs.slice(0, 6).map((j) => `<div><strong>${esc(j.jobId)}</strong> ${esc(j.error ?? j.note ?? "")} ${j.result?.decision ? `· decision ${esc(j.result.decision)}` : ""}${j.result?.version ? `· ${esc(j.result.version)}` : ""}</div>`).join("")}
+      </div>` : ""}
+    </div>
+    <div id="jobDetail"></div>
+  `;
+  wireControl();
+}
+
+function wireControl() {
+  document.getElementById("learnStart")?.addEventListener("click", async (e) => {
+    if (isReadOnly()) return;
+    e.target.disabled = true;
+    try {
+      await api("/learning/start", { method: "POST", body: {
+        mode: document.getElementById("learnMode").value,
+        targetArticles: Number(document.getElementById("learnTarget").value),
+        maxRawDocs: Number(document.getElementById("learnRaw").value),
+      } });
+      await loadControl();
+    } catch (err) { alert(err.message); e.target.disabled = false; }
+  });
+  document.getElementById("learnStop")?.addEventListener("click", async (e) => {
+    if (isReadOnly()) return;
+    e.target.disabled = true;
+    try { await api("/learning/stop", { method: "POST", body: {} }); await loadControl(); }
+    catch (err) { alert(err.message); e.target.disabled = false; }
+  });
+  document.getElementById("trainStart")?.addEventListener("click", async (e) => {
+    if (isReadOnly()) return;
+    e.target.disabled = true;
+    try {
+      await api("/training/start", { method: "POST", body: {
+        mode: document.getElementById("trainMode").value,
+        parentVersion: document.getElementById("trainParent").value || null,
+        minEligible: Number(document.getElementById("trainMin").value),
+      } });
+      await loadControl();
+    } catch (err) { alert(err.message); e.target.disabled = false; }
+  });
+  document.getElementById("trainStop")?.addEventListener("click", async (e) => {
+    if (isReadOnly()) return;
+    e.target.disabled = true;
+    try { await api("/training/stop", { method: "POST", body: {} }); await loadControl(); }
+    catch (err) { alert(err.message); e.target.disabled = false; }
+  });
+  document.getElementById("freshStart")?.addEventListener("click", async (e) => {
+    if (isReadOnly()) return;
+    if (!confirm("Create a fresh, randomly-initialised brain version? It will NOT be activated.")) return;
+    e.target.disabled = true;
+    try {
+      const body = { confirm: true, seed: Number(document.getElementById("freshSeed").value) };
+      const cfg = document.getElementById("freshConfig").value.trim();
+      if (cfg) body.config = cfg;
+      await api("/brain/fresh", { method: "POST", body });
+      await loadControl();
+    } catch (err) { alert(err.message); e.target.disabled = false; }
+  });
+  for (const el of document.querySelectorAll("[data-stop]")) {
+    el.addEventListener("click", async () => {
+      if (isReadOnly()) return;
+      try { await api(`/jobs/${encodeURIComponent(el.dataset.stop)}/stop`, { method: "POST", body: {} }); await loadControl(); }
+      catch (err) { alert(err.message); }
+    });
+  }
+  for (const el of document.querySelectorAll("[data-job]")) {
+    el.addEventListener("click", (e) => { e.preventDefault(); openJob(el.dataset.job); });
+  }
+}
+
+async function openJob(jobId) {
+  const box = document.getElementById("jobDetail");
+  box.innerHTML = `<div class="panel loading">Loading job…</div>`;
+  try {
+    const d = await api(`/jobs/${encodeURIComponent(jobId)}`);
+    box.innerHTML = `
+      <div class="panel">
+        <div class="toolbar"><strong>${esc(jobId)}</strong> ${badge(d.job.status, d.job.status)}
+          <span class="small muted">${esc(d.job.kind)} · ${esc(d.job.mode)}</span>
+          <span style="flex:1"></span><button data-close-job>close</button></div>
+        ${d.job.error ? `<div class="small bad">${esc(d.job.error)}</div>` : ""}
+        ${d.job.note ? `<div class="small muted">${esc(d.job.note)}</div>` : ""}
+        ${d.job.result ? `<pre class="small">${esc(JSON.stringify(d.job.result, null, 2))}</pre>` : ""}
+        <div class="k" style="margin-top:8px">Log</div>
+        <div class="log-box small">${(d.log ?? []).map((l) => `<div><span class="muted">${when(l.at)}</span> [${esc(l.stream)}] ${esc(l.text)}</div>`).join("") || `<div class="muted">no log lines</div>`}</div>
+      </div>`;
+    box.querySelector("[data-close-job]")?.addEventListener("click", () => (box.innerHTML = ""));
+  } catch (err) {
+    box.innerHTML = `<div class="panel notice"><span class="bad">${esc(err.message)}</span></div>`;
+  }
+}
+
 // --------------------------------------------------------------------- SSE
 function connectSSE() {
   if (!window.EventSource) return;
@@ -925,6 +1207,7 @@ function connectSSE() {
 // -------------------------------------------------------------------- boot
 for (const b of document.querySelectorAll("#tabs button")) b.addEventListener("click", () => setTab(b.dataset.tab));
 document.getElementById("workspaceSelect")?.addEventListener("change", (e) => selectWorkspace(e.target.value));
+document.getElementById("modelVersion")?.addEventListener("change", (e) => setPinnedVersion(e.target.value));
 loadWorkspaces().catch((err) => {
   main.innerHTML = `<div class="panel notice"><div class="title bad">Cannot load workspaces</div><div class="muted">${esc(err.message)}</div></div>`;
 });

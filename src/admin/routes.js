@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { changeFeed as defaultFeed } from "./change-feed.js";
 import { readPythonStore, readPythonTrainState } from "./python-store.js";
 import { createWorkspaceRegistry } from "./workspace.js";
+import { probeTeacher } from "./teacher.js";
 import {
   bestCheckpoint,
   classifyTrend,
@@ -33,7 +34,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
  * `x-sma-workspace` header). Inspection-only workspaces refuse every mutation
  * with 403 and never run seeding writes on read endpoints.
  */
-export function attachAdmin({ app, store, registry, governance, chat, changeFeed = defaultFeed, pythonStorePath = null, workspaces = [], logger = console }) {
+export function attachAdmin({ app, store, registry, governance, chat, changeFeed = defaultFeed, pythonStorePath = null, workspaces = [], supervisor = null, logger = console }) {
   const workspaceRegistry = createWorkspaceRegistry({ store, registry, governance, chat, pythonStorePath, workspaces });
 
   const router = express.Router();
@@ -45,6 +46,17 @@ export function attachAdmin({ app, store, registry, governance, chat, changeFeed
   const asyncRoute = (fn) => (req, res) => Promise.resolve(fn(req, res)).catch((err) => fail(res, err));
 
   const emit = (type, data) => changeFeed.emit(type, data);
+
+  // Long-running lifecycle work (learning/training/fresh-brain) is owned by a
+  // single supervisor bound to the live writable development store. Inspection
+  // workspaces can read job history but never start or stop work.
+  const requireSupervisor = (res) => {
+    if (!supervisor) {
+      res.status(503).json({ error: "job supervisor is not available in this deployment" });
+      return null;
+    }
+    return supervisor;
+  };
 
   const identity = (w, py) => ({
     id: w.id,
@@ -441,6 +453,132 @@ export function attachAdmin({ app, store, registry, governance, chat, changeFeed
     });
   }));
 
+  // ------------------------------------------------------------ jobs / learning
+  router.get("/jobs", asyncRoute(async (_req, res) => {
+    const sup = requireSupervisor(res);
+    if (!sup) return;
+    ok(res, { jobs: sup.listJobs() });
+  }));
+
+  router.get("/jobs/:jobId", asyncRoute(async (req, res) => {
+    const sup = requireSupervisor(res);
+    if (!sup) return;
+    const job = sup.getJob(req.params.jobId);
+    if (!job) return fail(res, new Error(`unknown job ${req.params.jobId}`), 404);
+    ok(res, { job, log: sup.getLog(req.params.jobId, { limit: 200 }) });
+  }));
+
+  router.get("/jobs/:jobId/log", asyncRoute(async (req, res) => {
+    const sup = requireSupervisor(res);
+    if (!sup) return;
+    ok(res, { jobId: req.params.jobId, log: sup.getLog(req.params.jobId, { after: req.query.after ?? null, limit: Number(req.query.limit) || 500 }) });
+  }));
+
+  router.post("/jobs/:jobId/stop", blockWrites, asyncRoute(async (req, res) => {
+    const sup = requireSupervisor(res);
+    if (!sup) return;
+    const job = await sup.stop(req.params.jobId);
+    emit("job.status", { jobId: job.jobId, status: job.status });
+    ok(res, { job });
+  }));
+
+  router.post("/learning/start", blockWrites, asyncRoute(async (req, res) => {
+    const sup = requireSupervisor(res);
+    if (!sup) return;
+    const job = await sup.startLearning({
+      mode: req.body?.mode,
+      targetArticles: req.body?.targetArticles,
+      maxRawDocs: req.body?.maxRawDocs,
+      maxCycles: req.body?.maxCycles,
+    });
+    ok(res, { job });
+  }));
+
+  router.post("/learning/stop", blockWrites, asyncRoute(async (req, res) => {
+    const sup = requireSupervisor(res);
+    if (!sup) return;
+    const active = sup.activeJobOfKind("learning");
+    if (!active) return ok(res, { job: null, note: "no active learning job" });
+    const job = await sup.stop(active.jobId);
+    ok(res, { job });
+  }));
+
+  router.post("/training/start", blockWrites, asyncRoute(async (req, res) => {
+    const sup = requireSupervisor(res);
+    if (!sup) return;
+    const job = await sup.startTraining({
+      mode: req.body?.mode,
+      parentVersion: req.body?.parentVersion ?? null,
+      minEligible: req.body?.minEligible,
+    });
+    ok(res, { job });
+  }));
+
+  router.post("/training/stop", blockWrites, asyncRoute(async (req, res) => {
+    const sup = requireSupervisor(res);
+    if (!sup) return;
+    const active = sup.activeJobOfKind("training");
+    if (!active) return ok(res, { job: null, note: "no active training job" });
+    const job = await sup.stop(active.jobId);
+    ok(res, { job });
+  }));
+
+  router.get("/training/eligibility", asyncRoute(async (req, res) => {
+    const stats = req.workspace.services.store.getStats();
+    const minEligible = Number(req.query.minEligible) || config.jobs.training.minEligible;
+    ok(res, {
+      workspace: req.workspace.id,
+      trainable: stats.trainable,
+      minEligible,
+      eligible: stats.trainable >= minEligible,
+    });
+  }));
+
+  router.post("/brain/fresh", blockWrites, asyncRoute(async (req, res) => {
+    const sup = requireSupervisor(res);
+    if (!sup) return;
+    const job = await sup.freshBrain({
+      confirm: req.body?.confirm === true,
+      config: req.body?.config,
+      seed: req.body?.seed,
+    });
+    ok(res, { job });
+  }));
+
+  // ------------------------------------------------- teacher + brain versions
+  router.get("/teacher", asyncRoute(async (_req, res) => {
+    const result = await probeTeacher({
+      endpoint: config.ollamaEndpoint,
+      model: config.ollamaModel,
+      expectedDigest: config.ollamaModelDigest,
+      fixture: config.ollamaFixture,
+      timeoutMs: config.ollamaReadinessTimeoutMs,
+    });
+    ok(res, result);
+  }));
+
+  router.get("/brain/versions", asyncRoute(async (req, res) => {
+    const w = req.workspace;
+    const py = readPythonStore(w.pythonStorePath);
+    ok(res, {
+      workspace: identity(w, py),
+      available: py.available,
+      reason: py.reason ?? null,
+      activeVersion: py.activeVersion ?? null,
+      versions: (py.versions ?? []).map((v) => ({
+        version: v.version,
+        committed: Boolean(v.committed),
+        committedAt: v.committedAt ?? null,
+        artifactName: v.artifactName ?? null,
+        artifactNameError: v.artifactNameError ?? null,
+        parentVersion: v.trainState?.parentVersion ?? null,
+        stepsCompleted: v.trainState?.stepsCompleted ?? null,
+        initialValidationLoss: v.initialValidationLoss ?? null,
+        finalValidationLoss: v.finalValidationLoss ?? null,
+      })),
+    });
+  }));
+
   // ------------------------------------------------------------------ SSE
   router.get("/events", (req, res) => {
     res.writeHead(200, {
@@ -467,7 +605,7 @@ export function attachAdmin({ app, store, registry, governance, chat, changeFeed
   app.get("/admin/*", (_req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
 
   logger.log?.(`admin portal mounted at /admin (api: /api/admin)`);
-  return { router, workspaceRegistry, changeFeed };
+  return { router, workspaceRegistry, changeFeed, supervisor };
 }
 
 /**

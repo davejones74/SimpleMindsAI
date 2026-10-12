@@ -98,8 +98,19 @@ export async function executeFullRun({
 
     // ---- TrainingRun record (status: created) ----
     // The Python path resolves its committed parent FIRST: the registry baseline
-    // model and the run's baseModel must reference the real serving lineage.
-    const pythonBaseline = pythonMode ? await t.resolveBaseline() : null;
+    // model and the run's baseModel must reference the real serving lineage. An
+    // explicit training-parent (from the dashboard selector) is validated
+    // fail-closed via resolveVersion and never silently swapped for the active
+    // pointer.
+    const requestedParent = options.parentVersion ?? null;
+    const pythonBaseline = pythonMode
+      ? requestedParent
+        ? (typeof t.resolveVersion === "function" ? await t.resolveVersion(requestedParent) : null)
+        : await t.resolveBaseline()
+      : null;
+    if (pythonMode && requestedParent && !pythonBaseline) {
+      throw new Error(`trainer cannot resolve an explicit parent version (${requestedParent})`);
+    }
     const baselineModel = pythonMode
       ? await ensurePythonBaselineModel(registry, pythonBaseline)
       : await ensureBaselineModel(registry);

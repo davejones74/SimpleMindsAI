@@ -16,6 +16,38 @@ const num = (name, dflt) => Number(env(name, dflt));
 const bool = (name, dflt) => /^(1|true|yes)$/i.test(env(name, String(dflt)));
 
 /**
+ * Load a local `.env` file so the documented, gitignored configuration actually
+ * applies without a shell export. Real environment variables always WIN: a line
+ * is only applied when the variable is not already set, so `OLLAMA_MODEL=... npm
+ * start` still overrides the file. Path defaults to `./.env`, overridable with
+ * `SMA_ENV_FILE`. Skipped under the Node test runner (and when `SMA_SKIP_ENV_FILE`
+ * is set) so the suite sees the same deterministic defaults as a bare checkout.
+ */
+function loadDotEnv() {
+  if (process.env.SMA_SKIP_ENV_FILE || process.env.NODE_TEST_CONTEXT) return;
+  const file = process.env.SMA_ENV_FILE ?? path.join(process.cwd(), ".env");
+  if (!existsSync(file)) return;
+  let raw;
+  try {
+    raw = readFileSync(file, "utf8");
+  } catch {
+    return; // an unreadable .env must never take the server down
+  }
+  for (const line of raw.split(/\r?\n/)) {
+    const m = /^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/.exec(line);
+    if (!m) continue;
+    const key = m[1];
+    if (process.env[key] !== undefined) continue; // real environment wins
+    let val = m[2];
+    if (val.length >= 2 && ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'")))) {
+      val = val.slice(1, -1);
+    }
+    process.env[key] = val;
+  }
+}
+loadDotEnv();
+
+/**
  * Allow-listed extra workspaces for the Observatory. The `development` store is
  * always implicit (the live, writable store the server booted with). Entries
  * here let an operator inspect another store — e.g. a completed trial — through
@@ -89,6 +121,12 @@ export const config = {
   // NOTE: on consumer rigs `:latest` is a 4-7GB distill, not the 671B MoE.
   ollamaModel: env("OLLAMA_MODEL", "deepseek-r1:latest"),
   ollamaFixture: bool("OLLAMA_FIXTURE", false),
+  // Optional pinned teacher identity. When set, the readiness probe reports
+  // whether the configured model tag resolves to exactly this digest, so a
+  // silently-retagged or substituted teacher is caught rather than trusted.
+  // The development environment pins `ssfdre38/gemma4-turbo:e4b` in `.env`.
+  ollamaModelDigest: env("OLLAMA_MODEL_DIGEST", null),
+  ollamaReadinessTimeoutMs: num("OLLAMA_READINESS_TIMEOUT_MS", 5000),
 
   // ---- Provenance versions (bump on behaviour change) ----
   criticModel: env("CRITIC_MODEL", "deepseek-r1:latest"),
@@ -203,4 +241,29 @@ export const config = {
   // Extra, inspection-only stores the portal may display (e.g. a completed
   // trial). The live development store is always present and is the default.
   workspaces: parseWorkspaces(),
+
+  // ---- Managed lifecycle jobs (learning / training / fresh-brain) ----
+  // The JobSupervisor owns long-running work triggered from the Observatory.
+  // Jobs are foreground-observable, cooperatively cancellable, and never
+  // auto-resume after a restart (a stranded job is reported, not silently
+  // continued). Defaults are deliberately modest so a UI click cannot launch an
+  // unbounded GPU run by accident.
+  jobs: {
+    // How often a continuous job re-checks for eligible material / new work.
+    pollIntervalMs: num("JOBS_POLL_INTERVAL_MS", 60_000),
+    // Cooperative-cancel window before the child process tree is force-killed.
+    stopGraceMs: num("JOB_STOP_GRACE_MS", 15_000),
+    learning: {
+      // Bounded learning stops once this many *trainable* articles exist, or
+      // when the configured sources are exhausted (reported honestly either way).
+      targetArticles: num("LEARNING_TARGET_ARTICLES", 100),
+      // Safety cap on raw documents processed per bounded run (0 = no cap).
+      maxRawDocs: num("LEARNING_MAX_RAW_DOCS", 0),
+    },
+    training: {
+      // A one-shot run refuses to start below this many eligible articles
+      // (reviewed + unconsumed); continuous runs wait for them instead.
+      minEligible: num("TRAIN_MIN_ELIGIBLE", 1),
+    },
+  },
 };

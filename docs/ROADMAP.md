@@ -61,6 +61,47 @@ Verified state (see [PROOF.md](PROOF.md) for the checks):
 The honest caveat on `v002` (memorization of a five-block fixture, not learning)
 is recorded in [PROOF.md](PROOF.md#what-v002-does-and-does-not-prove).
 
+**Managed learning lifecycle & Observatory controls (new).** The admin portal now
+drives the harvest → curate → review → train → evaluate → promote lifecycle as
+durable, observable jobs instead of ad-hoc scripts:
+
+- A single `JobSupervisor` owns learning, training and fresh-brain jobs against
+  the one live writable `development` store. Job creation, status transitions,
+  progress and output are appended to an append-only log, so history survives a
+  restart.
+- Jobs are **cooperative-first**: stop signals an abort; the process tree is
+  terminated after a bounded grace period, never leaving a partial checkpoint or
+  a misrepresented `running` state. Nothing auto-resumes on boot — a job the
+  process left non-terminal is reconciled against the actual lifecycle/registry/
+  checkpoint state and reported as `interrupted` (or `completed` if promotion
+  really committed before the crash).
+- Bounded learning performs a single pass and reports **source exhaustion**
+  honestly rather than pretending a target was reached; continuous learning polls
+  at a configurable interval. One-shot training **refuses below the eligible
+  gate** instead of training on nothing; continuous training waits for material.
+- Training honours an explicit `parentVersion` resolved **fail-closed** from the
+  store; an unknown/inconsistent version is refused, never silently swapped for
+  the active pointer.
+- Fresh brains are genuinely randomly initialised (no pretrained student
+  weights), recorded with source/revision hashes, and registered as an
+  **unpromoted** candidate — they never activate themselves.
+- Teacher readiness is probed before work starts and reports the actual
+  configured Ollama model, availability and (when pinned) digest match; no
+  fallback teacher is ever substituted.
+- The portal adds a "Learning & Training" tab (teacher readiness, eligibility,
+  start/stop, job history + log, fresh-brain creation) and a **shared model-version
+  selector** loaded dynamically from the selected workspace's registry. The
+  selector is a viewing scope: it is kept strictly separate from the active
+  pointer and from a running job's training parent, is persisted per workspace,
+  and feeds the metrics/history views.
+
+**Limitations of the above.** The version selector scopes Dashboard/Chat/History/
+Trends and the metrics request; the chat endpoint still answers from the serving
+checkpoint, so a pinned version is a *inspection* scope rather than a per-version
+serving switch. Promoted-model activation remains a separate explicit action.
+This milestone was verified on the development machine with the Node and Python
+suites and a live server/API smoke test — not on the X1 Pro.
+
 ---
 
 ## Work in progress

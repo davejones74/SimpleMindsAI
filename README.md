@@ -199,6 +199,34 @@ be inspected alongside development (v003) with no risk of mutating it.
 store is reported `available:false` (its endpoints return `503`), never
 fabricated.
 
+### Driving the lifecycle from the Observatory
+
+The **Learning & Training** tab drives the same lifecycle as `npm run perpetual`/`npm run train`
+as durable, observable jobs, backed by a single `JobSupervisor` bound to the live
+development store:
+
+- **Learning** — bounded (one pass, reports source exhaustion honestly) or continuous
+  (polls for new material at `JOBS_POLL_INTERVAL_MS`, default 60000).
+- **Training** — one-shot (refuses below the eligible gate) or continuous (waits for
+  eligible reviewed+unconsumed articles). An explicit training parent can be chosen;
+  it is resolved fail-closed from the store and never silently replaced by the active pointer.
+- **Fresh brain** — creates a genuinely randomly-initialised version (no pretrained
+  student weights) as an unpromoted candidate; it never activates itself.
+- **Stop** is cooperative-first with a bounded grace period before the process tree is
+  terminated; **no job auto-resumes** on restart (non-terminal jobs are reconciled and
+  reported as `interrupted`).
+- **Teacher readiness** is probed before work and reports the actual configured Ollama
+  model, availability and pinned digest match.
+
+The header **model version** selector is loaded dynamically from the selected store and
+pins the version used by Dashboard, Chat view, Training History and Trends. It is a
+*viewing scope only*: it never moves the active pointer or changes a running job's parent,
+and chat still answers from the serving checkpoint.
+
+Related endpoints: `GET/POST /api/admin/jobs*`, `/learning/start|stop`,
+`/training/start|stop`, `/training/eligibility`, `/brain/fresh`, `/teacher`,
+`/brain/versions`.
+
 ### Python compute plane
 
 ```bash

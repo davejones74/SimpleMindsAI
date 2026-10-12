@@ -328,6 +328,7 @@ exposes it deliberately.
 |---|---|
 | Dashboard | ledger + registry + Python store at a glance, plus live connection state |
 | Articles | every article and its state, per-article review history, importance, and request-review / set-importance actions |
+| Learning & Training | teacher readiness, training eligibility, start/stop for learning and training (bounded/continuous, explicit training parent), fresh-brain creation, and durable job history + log |
 | Review Cycles | open checkpoint cycles (every 1,000 consumed articles — an interval, not a cap) |
 | Live Chat | the real active student worker, with the student version and generation status; it never falls back to the teacher |
 | Mission & Strategy | primary/secondary mission and collection strategy with `propose → review → approve/reject → apply`; AI may propose secondary-mission and strategy changes only |
@@ -342,6 +343,30 @@ REST surface (all under `/api/admin`): `overview`, `metrics`, `articles` (+`/:id
 `training-history`, `python-store`, `chat` (+`/chat/identity`). The mission and
 strategy stores are append-only: every change is a new version recording origin,
 actor, rationale and the proposal/review-cycle it came from.
+
+**Managed lifecycle jobs.** Long-running work (learning, training, fresh-brain)
+is owned by a single `JobSupervisor` (`src/jobs/`) bound to the one live writable
+`development` store; inspection workspaces can read job history but never start
+or stop work. Jobs are durable: creation, status transitions, progress and output
+are appended to `jobs.ndjson` / `job-events.ndjson` / `job-log.ndjson`, so history
+survives a restart. Cancellation is cooperative-first — an abort signal is raised,
+`runJsonProcess` kills the spawned process tree after a bounded grace period, and
+`killProcessTree` (`src/jobs/process.js`) is the Windows/Ubuntu last resort.
+Nothing auto-resumes on boot: `reconcile()` folds each non-terminal job against
+the real lifecycle/registry/checkpoint/promotion state and reports `interrupted`
+(or `completed` if promotion genuinely committed before the crash). Training
+resolves an explicit `parentVersion` fail-closed via the python-trainer
+(`resolvePythonVersion`), and fresh brains are registered unpromoted — the
+learner never activates itself. Related endpoints: `jobs` (+`/:id`, `/:id/log`,
+`/:id/stop`), `learning/start|stop`, `training/start|stop`, `training/eligibility`,
+`brain/fresh`, `teacher`, `brain/versions`.
+
+The header **model-version selector** loads committed versions dynamically from
+the selected workspace's `readPythonStore` and pins the scope for Dashboard, Chat
+view, Training History and Trends (`?version=` on `metrics`). It is deliberately
+separate from the active pointer and from a job's training parent: pinning only
+changes which version's history/metrics are inspected, never serving or training
+targets.
 
 Live updates use Server-Sent Events at `/api/admin/events`: a `hello` frame
 carrying the current sequence, then `change` frames (plus a `resync` frame if the

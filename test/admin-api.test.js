@@ -9,6 +9,7 @@ import { RegistryStore } from "../src/storage/registry-store.js";
 import { GovernanceStore } from "../src/admin/governance-store.js";
 import { ChangeFeed } from "../src/admin/change-feed.js";
 import { attachAdmin } from "../src/admin/routes.js";
+import { JobSupervisor } from "../src/jobs/supervisor.js";
 
 const tmp = () => path.join(mkdtempSync(path.join(tmpdir(), "sma-admin-")));
 
@@ -25,6 +26,8 @@ async function harness() {
   const changeFeed = new ChangeFeed();
   const app = express();
   app.use(express.json());
+  const supervisor = new JobSupervisor({ store, registry, governance, changeFeed, dir: tmp() });
+  await supervisor.init({ reconcile: false });
   attachAdmin({
     app,
     store,
@@ -33,16 +36,18 @@ async function harness() {
     chat: stubChat,
     changeFeed,
     pythonStorePath: path.join(tmp(), "empty-python-store"),
+    supervisor,
     logger: { log() {} },
   });
   const server = app.listen(0);
   await new Promise((r) => server.once("listening", r));
   const base = `http://127.0.0.1:${server.address().port}`;
   return {
-    base, store, registry, governance, changeFeed,
+    base, store, registry, governance, changeFeed, supervisor,
     async close() {
       server.closeAllConnections?.();
       await new Promise((r) => server.close(r));
+      await supervisor.close();
       await store.close();
       await registry.close();
       await governance.close();
@@ -54,6 +59,60 @@ const jget = async (url) => {
   const res = await fetch(url);
   return { status: res.status, body: await res.json() };
 };
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+test("admin API: jobs, eligibility, brain versions, teacher readiness, guarded start/stop", async () => {
+  const h = await harness();
+  try {
+    const empty = await jget(`${h.base}/api/admin/jobs`);
+    assert.equal(empty.status, 200);
+    assert.deepEqual(empty.body.jobs, []);
+
+    const elig = await jget(`${h.base}/api/admin/training/eligibility`);
+    assert.equal(elig.status, 200);
+    assert.equal(elig.body.trainable, 0);
+    assert.equal(elig.body.eligible, false);
+
+    const versions = await jget(`${h.base}/api/admin/brain/versions`);
+    assert.equal(versions.status, 200);
+    assert.equal(versions.body.available, false);
+    assert.deepEqual(versions.body.versions, []);
+
+    const teacher = await jget(`${h.base}/api/admin/teacher`);
+    assert.equal(teacher.status, 200);
+    assert.equal(typeof teacher.body.ready, "boolean");
+
+    // unknown job stop => 404
+    const missing = await jpost(`${h.base}/api/admin/jobs/nope/stop`);
+    assert.equal(missing.status, 404);
+
+    // fresh brain requires explicit confirmation => 400 from the supervisor
+    const unconfirmed = await jpost(`${h.base}/api/admin/brain/fresh`, { confirm: false });
+    assert.equal(unconfirmed.status, 400);
+
+    // A one-shot training start with no eligible material becomes a durable,
+    // failed job (never a second run).
+    const started = await jpost(`${h.base}/api/admin/training/start`, { mode: "one-shot", minEligible: 1 });
+    assert.equal(started.status, 200);
+    const jobId = started.body.job.jobId;
+
+    let job = null;
+    for (let i = 0; i < 100; i++) {
+      job = (await jget(`${h.base}/api/admin/jobs/${jobId}`)).body.job;
+      if (job?.terminal) break;
+      await sleep(20);
+    }
+    assert.equal(job.status, "failed");
+    assert.match(job.error, /insufficient eligible material/);
+
+    const listed = await jget(`${h.base}/api/admin/jobs`);
+    assert.equal(listed.body.jobs.length, 1);
+    assert.equal(listed.body.jobs[0].jobId, jobId);
+  } finally {
+    await h.close();
+  }
+});
+
 const jpost = async (url, body) => {
   const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body ?? {}) });
   return { status: res.status, body: await res.json() };

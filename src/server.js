@@ -11,6 +11,7 @@ import { GovernanceStore } from "./admin/governance-store.js";
 import { attachAdmin } from "./admin/routes.js";
 import { changeFeed } from "./admin/change-feed.js";
 import { createChatService } from "./chat/chat-service.js";
+import { JobSupervisor } from "./jobs/supervisor.js";
 import { resolvers } from "./graphql/resolvers.js";
 
 /**
@@ -52,8 +53,25 @@ app.post("/api/ingest", async (req, res) => {
   }
 });
 
-attachAdmin({ app, store, registry, governance, chat, workspaces: config.workspaces, pythonStorePath: config.pythonStore });
+const supervisor = new JobSupervisor({
+  store,
+  registry,
+  governance,
+  changeFeed,
+  pythonStorePath: config.pythonStore ?? null,
+  pythonBin: config.pythonBin ?? undefined,
+});
+await supervisor.init({ reconcile: true });
 
-app.listen(config.port, config.host, () =>
+attachAdmin({ app, store, registry, governance, chat, workspaces: config.workspaces, pythonStorePath: config.pythonStore, supervisor });
+
+const httpServer = app.listen(config.port, config.host, () =>
   console.log(`GraphQL -> http://${config.host}:${config.port}/graphql   portal -> http://${config.host}:${config.port}/admin`),
 );
+
+for (const signal of ["SIGINT", "SIGTERM"]) {
+  process.on(signal, async () => {
+    await supervisor.close().catch(() => {});
+    httpServer.close(() => process.exit(0));
+  });
+}

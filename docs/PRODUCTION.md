@@ -60,6 +60,16 @@ that must be installed alongside it (§11 step 8).
 > actually learns is a function of cohort size and cadence, which are settled by measurement
 > (§14), not assumed here.
 
+> **Managed lifecycle controls (dev-milestone note).** The Observatory now exposes
+> interruptible, durable learning/training/fresh-brain jobs plus a shared model-version
+> selector. These were verified on the development machine (Node + Python suites, plus a live
+> server/API smoke test) and **do not change the X1 Pro deployment steps below** — the new
+> variables are optional bounds (`JOBS_POLL_INTERVAL_MS`, `JOB_STOP_GRACE_MS`,
+> `LEARNING_TARGET_ARTICLES`, `LEARNING_MAX_RAW_DOCS`, `TRAIN_MIN_ELIGIBLE`); defaults
+> are safe. The `runJsonProcess`/`killProcessTree` cancellation path is
+> exercised on Windows and designed for Ubuntu; target-hardware operation remains `[PLANNED]`
+> and was not exercised for this milestone.
+
 ---
 
 ## 2. Target host and current state

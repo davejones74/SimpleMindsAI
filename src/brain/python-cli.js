@@ -3,6 +3,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { killProcessTree } from "../jobs/process.js";
+import { abortError } from "../jobs/cancel.js";
 
 /**
  * Thin Node bridge to the Python compute plane (`python -m sma.*`).
@@ -69,11 +71,16 @@ export function runJsonProcess({
   timeoutMs = 300_000,
   cwd = PYTHON_DIR,
   env = {},
+  signal = null,
 } = {}) {
   return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(abortError());
+      return;
+    }
     let child;
     try {
-      child = spawn(bin, args, { cwd, env, windowsHide: true });
+      child = spawn(bin, args, { cwd, env, windowsHide: true, detached: process.platform !== "win32" });
     } catch (err) {
       reject(err);
       return;
@@ -82,44 +89,51 @@ export function runJsonProcess({
     let stdout = "";
     let stderr = "";
     let settled = false;
-    const timer = setTimeout(() => {
+    const settle = (fn, arg) => {
       if (settled) return;
       settled = true;
-      child.kill();
-      reject(new Error(`python timed out after ${timeoutMs}ms: ${args.join(" ")}`));
+      clearTimeout(timer);
+      signal?.removeEventListener?.("abort", onAbort);
+      fn(arg);
+    };
+    const timer = setTimeout(() => {
+      // Timeout is a forced termination of the whole tree.
+      settle(reject, new Error(`python timed out after ${timeoutMs}ms: ${args.join(" ")}`));
+      killProcessTree(child);
     }, timeoutMs);
+    const onAbort = () => {
+      // Cancellation: kill the process tree, then surface an AbortError.
+      settle(reject, abortError("python subprocess cancelled"));
+      killProcessTree(child);
+    };
+    signal?.addEventListener?.("abort", onAbort, { once: true });
 
     child.stdout.on("data", (d) => { stdout += d; });
     child.stderr.on("data", (d) => { stderr += d; });
     child.on("error", (err) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      reject(err);
+      settle(reject, err);
     });
     child.on("close", (code) => {
       if (settled) return;
-      settled = true;
-      clearTimeout(timer);
       if (code !== 0) {
-        reject(new Error(`python exited ${code}: ${stderr.trim().slice(-800) || "(no stderr)"}`));
+        settle(reject, new Error(`python exited ${code}: ${stderr.trim().slice(-800) || "(no stderr)"}`));
         return;
       }
       let parsed;
       try {
         parsed = JSON.parse(stdout.trim());
       } catch {
-        reject(new Error(`python did not emit a JSON object: ${stdout.trim().slice(0, 200)}`));
+        settle(reject, new Error(`python did not emit a JSON object: ${stdout.trim().slice(0, 200)}`));
         return;
       }
-      resolve({ ...parsed, stderr });
+      settle(resolve, { ...parsed, stderr });
     });
   });
 }
 
 /**
  * Run one `sma.brain` subprocess and return the parsed JSON object.
- * Rejects on non-zero exit, timeout, or non-JSON stdout.
+ * Rejects on non-zero exit, timeout, cancellation, or non-JSON stdout.
  */
 export function runPython(args, {
   timeoutMs = 300_000,
@@ -127,6 +141,7 @@ export function runPython(args, {
   bin = resolvePythonBin(),
   cwd = PYTHON_DIR,
   env = {},
+  signal = null,
 } = {}) {
   return runJsonProcess({
     bin,
@@ -134,5 +149,6 @@ export function runPython(args, {
     timeoutMs,
     cwd,
     env: pythonEnv(store, env),
+    signal,
   });
 }

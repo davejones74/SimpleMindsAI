@@ -157,3 +157,10 @@ header.top select { max-width: 260px; }
 .workspace-banner.inspection .ws-flag { color: var(--accent); }
 .workspace-banner.unavailable { border-left: 4px solid var(--bad); }
 .workspace-banner.unavailable .ws-flag { color: var(--bad); }
+
+/* Learning & Training controls */
+.section-title .sm { font-weight: 400; font-size: 13px; margin-left: 8px; }
+.log-box { max-height: 260px; overflow: auto; background: var(--panel-2); padding: 8px; border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; line-height: 1.5; }
+.log-box div { white-space: pre-wrap; word-break: break-word; }
+.panel pre.small { max-height: 300px; overflow: auto; }
+

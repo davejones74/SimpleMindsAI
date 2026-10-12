@@ -35,12 +35,13 @@ export async function resolvePythonBaseline({
   bin = config.pythonBin ?? undefined,
   run = runPython,
   timeoutMs = 120_000,
+  signal = null,
 } = {}) {
   const root = storeRoot(store);
 
   let status;
   try {
-    status = await run(["status"], { store, bin, timeoutMs });
+    status = await run(["status"], { store, bin, timeoutMs, signal });
   } catch (err) {
     throw new NoBaselineError(
       `cannot reach the Python store at ${root}: ${err.message}. ` +
@@ -54,7 +55,7 @@ export async function resolvePythonBaseline({
 
   let activeVersion = null;
   try {
-    const active = await run(["active"], { store, bin, timeoutMs });
+    const active = await run(["active"], { store, bin, timeoutMs, signal });
     activeVersion = active?.activeVersion ?? null;
   } catch {
     activeVersion = null;
@@ -88,6 +89,40 @@ export async function resolvePythonBaseline({
 }
 
 /**
+ * Resolve an EXPLICIT committed parent version (the dashboard's training-parent
+ * selector). Fail-closed and symmetric with `resolvePythonBaseline`: an unknown,
+ * uncommitted, or integrity-failing version is never silently swapped for the
+ * active pointer.
+ */
+export async function resolvePythonVersion(version, {
+  store = config.pythonStore ?? undefined,
+  bin = config.pythonBin ?? undefined,
+  run = runPython,
+  timeoutMs = 120_000,
+  signal = null,
+} = {}) {
+  const root = storeRoot(store);
+  if (!version) throw new NoBaselineError("a parent version is required", { store: root });
+
+  let status;
+  try {
+    status = await run(["status"], { store, bin, timeoutMs, signal });
+  } catch (err) {
+    throw new NoBaselineError(`cannot reach the Python store at ${root}: ${err.message}`, { store: root });
+  }
+  const entry = (status.versions ?? []).find((v) => v.version === version);
+  if (!entry) throw new NoBaselineError(`requested parent ${version} does not exist in ${root}`, { store: root });
+  if (!entry.committed) throw new NoBaselineError(`requested parent ${version} is not committed in ${root}`, { store: root });
+  if (entry.artifactNameError || !entry.artifactName) {
+    throw new NoBaselineError(
+      `requested parent ${version} failed integrity check (${entry.artifactNameError ?? "no artifact name"})`,
+      { store: root },
+    );
+  }
+  return { version, path: path.join(root, version) };
+}
+
+/**
  * @returns {{kind:"python", version, resolveBaseline, train}}
  */
 export function pythonTrainer({
@@ -106,6 +141,7 @@ export function pythonTrainer({
   timeoutMs = config.trainTimeoutMs,
   run = runPython,
   version = config.pythonTrainerVersion,
+  signal = null,
 } = {}) {
   const root = storeRoot(store);
   const resolvedDtype = device === "cpu" ? "float32" : computeDtype;
@@ -113,7 +149,8 @@ export function pythonTrainer({
   return {
     kind: "python",
     version,
-    resolveBaseline: () => resolvePythonBaseline({ store, bin, run }),
+    resolveBaseline: () => resolvePythonBaseline({ store, bin, run, signal }),
+    resolveVersion: (v) => resolvePythonVersion(v, { store, bin, run, signal }),
 
     async train({ datasetFile, runId, configuration = {} }) {
       if (!datasetFile) {
@@ -124,7 +161,7 @@ export function pythonTrainer({
       // corpus is found regardless of the child's cwd.
       const corpusFile = path.isAbsolute(datasetFile) ? datasetFile : path.resolve(REPO_ROOT, datasetFile);
       const parentVersion =
-        configuration.parentVersion ?? (await resolvePythonBaseline({ store, bin, run })).version;
+        configuration.parentVersion ?? (await resolvePythonBaseline({ store, bin, run, signal })).version;
 
       const args = [
         "train",
@@ -144,7 +181,7 @@ export function pythonTrainer({
       if (runId) args.push("--run-id", String(runId));
 
       const t0 = Date.now();
-      const out = await run(args, { store, bin, timeoutMs });
+      const out = await run(args, { store, bin, timeoutMs, signal });
       if (!out.ok || out.published === false) {
         throw new Error(`python training did not publish (${out.kind ?? "error"}): ${out.error ?? "unknown"}`);
       }
