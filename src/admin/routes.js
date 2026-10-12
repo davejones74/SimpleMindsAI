@@ -514,6 +514,22 @@ export function attachAdmin({ app, store, registry, governance, chat, conversati
     ok(res, { job });
   }));
 
+  router.post("/jobs/:jobId/pause", blockWrites, asyncRoute(async (req, res) => {
+    const sup = requireSupervisor(res);
+    if (!sup) return;
+    const job = await sup.pause(req.params.jobId);
+    emit("job.status", { jobId: job.jobId, status: job.status });
+    ok(res, { job });
+  }));
+
+  router.post("/jobs/:jobId/resume", blockWrites, asyncRoute(async (req, res) => {
+    const sup = requireSupervisor(res);
+    if (!sup) return;
+    const job = await sup.resume(req.params.jobId);
+    emit("job.status", { jobId: job.jobId, status: job.status });
+    ok(res, { job });
+  }));
+
   router.post("/learning/start", blockWrites, asyncRoute(async (req, res) => {
     const sup = requireSupervisor(res);
     if (!sup) return;

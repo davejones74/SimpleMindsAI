@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { Frontier, canonicalURL } from "./frontier.js";
+import { Frontier } from "../frontier.js";
 import { config } from "../config.js";
 import { fetchDocument, parseRobots, robotsAllows, assertUrlAllowed, contentHashFor } from "./fetcher.js";
 
@@ -458,11 +458,18 @@ export async function harvest({
   respectRobots = config.crawlRespectRobots,
   userAgent = config.crawlUserAgent,
 } = {}) {
+  const decided = classifyCrawlMode({ mode, urls });
+
+  async function writeJsonLines(filePath, records) {
+    const content = records.length > 0 ? records.map((r) => JSON.stringify(r)).join("\n") + "\n" : "[]\n";
+    await writeFile(filePath, content);
+  }
+
   // If frontier is provided and we're in real mode, use frontier-managed cycle(s)
   if (frontier && mode === "real") {
     // Seed frontier from CRAWL_URLS if not already seeded
     await seedFrontierFromConfig(frontier);
-    
+
     // Run bounded cycles
     const result = await runCrawlBatches({
       frontier,
@@ -471,14 +478,14 @@ export async function harvest({
         // Could emit progress here; for now just aggregate
       },
     });
-    
+
     // After cycles, collect whatever documents are available from the frontier's visited URLs
     // For backward compatibility, also allow direct fetch of provided URLs
     if (urls.length) {
       const directResult = await collectDocuments({ mode: "real", urls, allowPrivate, respectRobots, userAgent });
       return directResult;
     }
-    
+
     // Return summary of frontier-managed cycle(s)
     return {
       mode: "real",
@@ -492,9 +499,20 @@ export async function harvest({
     };
   }
 
-  const decided = classifyCrawlMode({ mode, urls });
   if (decided.mode === "fixture") {
-    return { mode: "fixture", capability: CAPABILITY.fixture, documents: FIXTURE_DOCS.map((t) => fixtureRecord(t)), failures: [] };
+    const filePath = path.join(dir, "corpus.jsonl");
+    await mkdir(dir, { recursive: true });
+    await writeJsonLines(filePath, FIXTURE_DOCS.map((t) => fixtureRecord(t)));
+    const failuresPath = path.join(dir, "failures.jsonl");
+    await writeJsonLines(failuresPath, []);
+    return {
+      mode: "fixture",
+      capability: CAPABILITY.fixture,
+      documents: [],
+      failures: [],
+      file: filePath,
+      failuresFile: failuresPath,
+    };
   }
 
   const documents = [];
@@ -506,7 +524,7 @@ export async function harvest({
         const groups = await loadRobots(url, { timeoutMs: 5000, allowPrivate, userAgent });
         const { pathname, search } = new URL(url);
         if (!robotsAllows(groups, `${pathname}${search}`, userAgent)) {
-          failures.push({ url, ok: false, reason: "robots-disallowed" });
+          failures.push({ url, ok: false, reason: "robots-disallowed", crawlMode: "real", capability: CAPABILITY.real });
           continue;
         }
       }
@@ -526,10 +544,24 @@ export async function harvest({
         capability: CAPABILITY.real,
       });
     } catch (err) {
-      failures.push({ url, ok: false, reason: err?.code ?? err?.message ?? "fetch-failed" });
+      failures.push({ url, ok: false, reason: err?.code ?? err?.message ?? "fetch-failed", crawlMode: "real", capability: CAPABILITY.real });
     }
   }
-  return { mode: "real", capability: CAPABILITY.real, documents, failures };
+
+  const filePath = path.join(dir, "corpus.jsonl");
+  await mkdir(dir, { recursive: true });
+  await writeJsonLines(filePath, documents);
+  const failuresPath = path.join(dir, "failures.jsonl");
+  await writeJsonLines(failuresPath, failures);
+
+  return {
+    mode: "real",
+    capability: CAPABILITY.real,
+    documents,
+    failures,
+    file: filePath,
+    failuresFile: failuresPath,
+  };
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

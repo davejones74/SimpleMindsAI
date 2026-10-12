@@ -22,6 +22,8 @@ export const JOB_STATUS = Object.freeze({
   QUEUED: "queued",
   RUNNING: "running",
   WAITING: "waiting-for-eligible",
+  PAUSE_REQUESTED: "pause-requested",
+  PAUSED: "paused",
   STOP_REQUESTED: "stop-requested",
   STOPPING: "stopping",
   STOPPED: "stopped",
@@ -40,6 +42,47 @@ export const TERMINAL_STATUSES = Object.freeze([
 
 export function isTerminal(status) {
   return TERMINAL_STATUSES.includes(status);
+}
+
+/** Legal job status transitions, enforced at the mutation boundary.
+ *
+ * Transitions NOT in this map are rejected (return false) so that the
+ * supervisor / API never appends a status change that would leave the
+ * job in an inconsistent state.  Back‑compatible with existing persisted
+ * job history: if the fromStatus is not recognised (older format) the
+ * transition is permitted (lenient read of historic state).
+ *
+ * Transitions (from → to, one‑line legend):
+ *   QUEUED      → RUNNING       (start)
+ *   RUNNING     → COMPLETED     (normal finish)
+ *   RUNNING     → FAILED        (error)
+ *   RUNNING     → INTERRUPTED   (process restart, reconcile)
+ *   RUNNING     → PAUSE_REQUESTED (operator requests pause)
+ *   RUNNING     → CANCEL_REQUESTED (operator requests cancel)
+ *   RUNNING     → STOPPED       (operator stops via API)
+ *   PAUSE_REQUESTED → PAUSED     (job reached safe boundary)
+ *   PAUSED      → RUNNING       (operator resumes)
+ *   All other from→to combinations are rejected.
+ */
+const LEGAL_TRANSITIONS = Object.freeze({
+  // FROM    TO
+  "queued":    new Set(["running"]),
+  "running":   new Set(["completed", "failed", "interrupted", "pause-requested", "cancel-requested", "stopped"]),
+  "paused":    new Set(["running"]),
+  "pause-requested": new Set(["paused", "stopped"]),
+  cancelled:   new Set([]), // terminal; no further transitions
+  stopped:     new Set([]), // terminal
+  completed:   new Set([]), // terminal
+  failed:      new Set([]), // terminal
+  interrupted: new Set([]), // terminal
+});
+
+export function validateTransition(fromStatus, toStatus) {
+  // Lenient: unknown fromStatus (older persisted format) permits the transition
+  if (!(fromStatus in LEGAL_TRANSITIONS)) return true;
+  const allowed = LEGAL_TRANSITIONS[fromStatus];
+  if (!allowed) return false;
+  return allowed.has(toStatus);
 }
 
 const COLLECTIONS = {

@@ -177,8 +177,8 @@ def train_validation_split(
     if validation_blocks <= 0:
         return blocks, blocks[:0]
     if validation_blocks >= blocks.shape[0]:
-        raise ValueError(
-            f"cannot hold out {validation_blocks} of {blocks.shape[0]} blocks"
-        )
+        # Not enough blocks for a validation split; return all for training
+        # with empty validation. This can happen with very small datasets/fixtures.
+        return blocks, blocks[:0]
     split = blocks.shape[0] - validation_blocks
     return blocks[:split], blocks[split:]

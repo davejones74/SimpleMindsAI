@@ -61,7 +61,10 @@ export function scoreToVerdict(score, { minScore = config.review.minScore, uncer
  * and the verdict decides eligibility. It is deliberately NOT part of the loss.
  */
 export class ReviewScorer {
-  constructor({ ollama = new OllamaClient({ temperature: config.criticTemperature }) } = {}) {
+  constructor({ ollama = new OllamaClient({ 
+  temperature: config.criticTemperature, 
+  model: config.criticModel ?? config.ollamaModel  // criticModel overrides, fallback to ollamaModel
+}) } = {}) {
     this.ollama = ollama;
     this.criticVersion = config.criticVersion;
     this.rubricVersion = config.rubricVersion;

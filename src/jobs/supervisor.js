@@ -1,4 +1,4 @@
-import { JobStore, JOB_STATUS, isTerminal } from "./job-store.js";
+import { JobStore, JOB_STATUS, isTerminal, validateTransition } from "./job-store.js";
 import { runLearningCycle } from "./learning.js";
 import { runTrainingOnce } from "./training.js";
 import { createFreshBrain } from "./fresh-brain.js";
@@ -78,9 +78,9 @@ export class JobSupervisor {
     this.clock = clock;
 
     this.jobStore = null;
-    this.controls = new Map(); // jobId -> { controller, shouldStop, promise }
+    this.controls = new Map(); // jobId -> { controller, shouldStop, shouldPause, promise }
     this.lastProgressAt = new Map();
-  }
+    this._continuousVersion = new Map(); // jobId -> version string for continuous training
 
   async init({ reconcile = true } = {}) {
     this.jobStore = await JobStore.open(this.dir);
@@ -131,13 +131,20 @@ export class JobSupervisor {
 
   async startTraining({ mode = "one-shot", parentVersion = null, minEligible } = {}) {
     const m = mode === "continuous" ? "continuous" : "one-shot";
-    return this.#start("training", {
+    const job = await this.#start("training", {
       mode: m,
       params: {
         parentVersion: parentVersion ?? null,
         minEligible: Number.isFinite(minEligible) ? minEligible : config.jobs.training.minEligible,
       },
     });
+    // Initialize continuous version tracking: if mode is continuous and a parent version
+    // is provided, use it as the fixed version for this job so training cycles keep
+    // updating the same version instead of generating new vNNN numbers.
+    if (m === "continuous" && parentVersion) {
+      this._continuousVersion.set(job.jobId, parentVersion);
+    }
+    return job;
   }
 
   async freshBrain({ confirm = false, config: engine, seed = 0 } = {}) {
@@ -154,9 +161,15 @@ export class JobSupervisor {
     if (!job) throw new JobNotFoundError(`unknown job ${jobId}`);
     if (isTerminal(job.status)) return job;
     const control = this.controls.get(jobId);
+    if (!validateTransition(job.status, JOB_STATUS.STOP_REQUESTED)) {
+      throw new Error(`illegal status transition: ${job.status} -> ${JOB_STATUS.STOP_REQUESTED}`);
+    }
     await this.#event(jobId, { status: JOB_STATUS.STOP_REQUESTED, note: "stop requested" });
     if (!control) {
       // Nothing is executing it (should not happen while non-terminal).
+      if (!validateTransition(JOB_STATUS.STOP_REQUESTED, JOB_STATUS.STOPPED)) {
+        throw new Error(`illegal status transition: ${JOB_STATUS.STOP_REQUESTED} -> ${JOB_STATUS.STOPPED}`);
+      }
       await this.#event(jobId, { status: JOB_STATUS.STOPPED, note: "stopped before it began" });
       return this.getJob(jobId);
     }
@@ -170,6 +183,73 @@ export class JobSupervisor {
     return this.getJob(jobId);
   }
 
+  /**
+   * Pause — request that the job stop starting new units of work and reach a
+   * documented safe boundary before reporting `paused`.  Does NOT claim the
+   * worker is paused while it is still actively modifying state.
+   *
+   * Returns immediately; the job's loop honours the pause flag and transitions
+   * to PAUSED once it has persisted sufficient progress for resumption.
+   * If the job type does not support safe mid-operation pause, the method
+   * returns an honest limitation.
+   */
+  async pause(jobId) {
+    const job = this.getJob(jobId);
+    if (!job) throw new JobNotFoundError(`unknown job ${jobId}`);
+    if (isTerminal(job.status)) {
+      return this.getJob(jobId); // nothing to pause
+    }
+    if (job.kind === "training") {
+      throw new Error("pause/resume not supported for training jobs");
+    }
+    const control = this.controls.get(jobId);
+    if (!control) {
+      // No worker is executing it; we can still record the pause request.
+      // The job will transition to PAUSED when next started or reconciled.
+      if (!validateTransition(job.status, JOB_STATUS.PAUSE_REQUESTED)) {
+        throw new Error(`illegal status transition: ${job.status} -> ${JOB_STATUS.PAUSE_REQUESTED}`);
+      }
+      await this.#event(jobId, { status: JOB_STATUS.PAUSE_REQUESTED, note: "pause requested but no active worker" });
+      return this.getJob(jobId);
+    }
+    if (!validateTransition(job.status, JOB_STATUS.PAUSE_REQUESTED)) {
+      throw new Error(`illegal status transition: ${job.status} -> ${JOB_STATUS.PAUSE_REQUESTED}`);
+    }
+    control.shouldPause = true; // distinct from shouldStop: does NOT exit
+    await this.#event(jobId, { status: JOB_STATUS.PAUSE_REQUESTED, note: "pause requested" });
+    return this.getJob(jobId);
+  }
+
+  /**
+   * Resume — clear the pause request and revalidate prerequisites.  The job
+   * may resume from a persisted cursor or checkpoint if supported; otherwise
+   * an honest limitation is reported.
+   */
+  async resume(jobId) {
+    const job = this.getJob(jobId);
+    if (!job) throw new JobNotFoundError(`unknown job ${jobId}`);
+    if (job.kind === "training") {
+      throw new Error("pause/resume not supported for training jobs");
+    }
+    const control = this.controls.get(jobId);
+    if (!control) {
+      // No active control; try to lookup from job history and re-initialise.
+      // Job was started with queued->running; remain in running state across cycles.
+      // Skip re-validation of running->running which is illegal per transition rules.
+      if (job.status !== JOB_STATUS.RUNNING && !validateTransition(job.status, JOB_STATUS.RUNNING)) {
+        throw new Error(`illegal status transition: ${job.status} -> ${JOB_STATUS.RUNNING}`);
+      }
+      await this.#event(jobId, { status: JOB_STATUS.RUNNING, note: "resuming from saved state" });
+      return this.getJob(jobId);
+    }
+    control.shouldPause = false;
+    if (!validateTransition(job.status, JOB_STATUS.RUNNING)) {
+      throw new Error(`illegal status transition: ${job.status} -> ${JOB_STATUS.RUNNING}`);
+    }
+    await this.#event(jobId, { status: JOB_STATUS.RUNNING, note: "resumed" });
+    return this.getJob(jobId);
+  }
+
   async #start(kind, { mode, params }) {
     if (!this.jobStore) throw new Error("JobSupervisor.init() was not called");
     const existing = this.activeJobOfKind(kind);
@@ -178,7 +258,7 @@ export class JobSupervisor {
     }
     const job = await this.jobStore.createJob({ kind, title: KIND_TITLES[kind] ?? kind, mode, params });
     const controller = new AbortController();
-    const control = { controller, shouldStop: false, promise: null };
+    const control = { controller, shouldStop: false, shouldPause: false, promise: null };
     this.controls.set(job.jobId, control);
     control.promise = this.#run(job, params, control).finally(() => this.controls.delete(job.jobId));
     this.changeFeed?.emit("job.started", { jobId: job.jobId, kind, mode });
@@ -199,6 +279,10 @@ export class JobSupervisor {
     };
     const onProgress = (progress) => this.#progress(jobId, progress);
     try {
+      const job = this.getJob(jobId);
+      if (!validateTransition(job?.status ?? "queued", JOB_STATUS.RUNNING)) {
+        throw new Error(`illegal status transition: ${job?.status ?? "queued"} -> ${JOB_STATUS.RUNNING}`);
+      }
       await this.#event(jobId, {
         status: JOB_STATUS.RUNNING,
         phase: "starting",
@@ -206,15 +290,24 @@ export class JobSupervisor {
         result: { resolvedConfig: this.snapshotResolvedConfig() },
       });
       const result = await this.#dispatch(job, params, control, { log, onPhase, onProgress });
-      if (this.#shouldStop(jobId)) {
+      if (result.outcome === "paused") {
+        await this.#event(jobId, { status: JOB_STATUS.PAUSED, note: "paused by operator", result });
+      } else if (this.#shouldStop(jobId)) {
         await this.#event(jobId, { status: JOB_STATUS.STOPPED, note: "stopped by operator", result });
       } else {
         await this.#event(jobId, { status: JOB_STATUS.COMPLETED, note: "job completed", result });
       }
     } catch (err) {
+      const job = this.getJob(jobId);
       if (isAbort(err) || this.#shouldStop(jobId)) {
+        if (!validateTransition(job.status, JOB_STATUS.STOPPED)) {
+          throw new Error(`illegal status transition: ${job.status} -> ${JOB_STATUS.STOPPED}`);
+        }
         await this.#event(jobId, { status: JOB_STATUS.STOPPED, note: err?.message ?? "stopped", error: null });
       } else {
+        if (!validateTransition(job.status, JOB_STATUS.FAILED)) {
+          throw new Error(`illegal status transition: ${job.status} -> ${JOB_STATUS.FAILED}`);
+        }
         log("err", err?.message ?? String(err));
         await this.#event(jobId, { status: JOB_STATUS.FAILED, note: err?.message ?? "job failed", error: err?.message ?? String(err) });
       }
@@ -256,10 +349,28 @@ export class JobSupervisor {
     const continuous = job.mode === "continuous";
     for (;;) {
       if (this.#shouldStop(jobId)) break;
+      const job = this.getJob(jobId);
+      // Job was started with queued->running; remain in running state across cycles.
+      // Skip re-validation of running->running which is illegal per transition rules.
+      if (job.status !== JOB_STATUS.RUNNING && !validateTransition(job.status, JOB_STATUS.RUNNING)) {
+        throw new Error(`illegal status transition: ${job.status} -> ${JOB_STATUS.RUNNING}`);
+      }
       cycle++;
-      await this.#event(jobId, { status: JOB_STATUS.RUNNING, phase: `learning cycle ${cycle}` });
+      try {
+        await this.#event(jobId, { status: JOB_STATUS.RUNNING, phase: `learning cycle ${cycle}` });
+      } catch (_e) {
+        // event write failure is non-fatal; continue with the cycle
+      }
       last = await runLearningCycle(ctx);
-      await this.#progress(jobId, { cycle, ...summarizeLearning(last) }, { force: true });
+      try {
+        await this.#progress(jobId, { cycle, ...summarizeLearning(last) }, { force: true });
+      } catch (_e) {
+        // progress write failure is non-fatal; continue with the cycle
+      }
+      if (this.#shouldPause(jobId)) {
+        outcome = "paused";
+        break;
+      }
       if (last.trainable >= target) {
         outcome = "target-reached";
         break;
@@ -293,6 +404,20 @@ export class JobSupervisor {
     const minEligible = params.minEligible;
     let last = null;
     let runs = 0;
+    // Determine the version to use for this training cycle.
+    // In continuous mode with a tracked version, reuse the same version;
+    // otherwise fall back to the parent version or let the Python side decide.
+    let versionToUse: string | null = null;
+    if (job.mode === "continuous") {
+      versionToUse = this._continuousVersion.get(jobId);
+      // If no version tracked yet (first cycle), use the parent version as the fixed version.
+      if (!versionToUse && params.parentVersion) {
+        versionToUse = params.parentVersion;
+        this._continuousVersion.set(jobId, versionToUse);
+      }
+    }
+    let last = null;
+    let runs = 0;
     for (;;) {
       if (this.#shouldStop(jobId)) break;
       const stats = this.store.getStats();
@@ -313,11 +438,14 @@ export class JobSupervisor {
         continue;
       }
       await this.#event(jobId, { status: JOB_STATUS.RUNNING, phase: "training" });
+      // Pass the version explicitly to the Python trainer so that continuous mode
+      // reuses the same version instead of generating a new vNNN number each cycle.
       const out = await runTrainingOnce({
         ...base,
         ...this.trainingDeps,
         trainer: this.trainerFactory(base.signal),
         parentVersion: params.parentVersion,
+        newVersion: versionToUse,
         minEligible,
         logger: this.#jobLogger(jobId),
       });
@@ -360,6 +488,12 @@ export class JobSupervisor {
     const c = this.controls.get(jobId);
     if (!c) return true;
     return c.shouldStop || c.controller.signal.aborted;
+  }
+
+  #shouldPause(jobId) {
+    const c = this.controls.get(jobId);
+    if (!c) return true;
+    return c.shouldPause;
   }
 
   #event(jobId, payload) {

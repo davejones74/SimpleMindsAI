@@ -341,8 +341,10 @@ def cmd_train(args: argparse.Namespace) -> Dict[str, Any]:
         raise FileNotFoundError(
             f"parent {parent} is not committed ({parent_dir}); refusing to train from it"
         )
-
-    version = args.version or store.next_version(root)
+    # When running without an explicit --version, reuse the parent version
+    # so that continuous training cycles keep updating the same checkpoint
+    # instead of generating a new vNNN number each run (v007, v008, …).
+    version = args.version or parent
     device = _resolve_device(args.device)
     node_run_id = _validate_run_id(getattr(args, "run_id", None))
     t0 = time.perf_counter()

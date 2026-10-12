@@ -132,21 +132,35 @@ export const config = {
   // NOTE: on consumer rigs `:latest` is a 4-7GB distill, not the 671B MoE.
   ollamaModel: env("OLLAMA_MODEL", "deepseek-r1:latest"),
   ollamaFixture: bool("OLLAMA_FIXTURE", false),
-  // Optional pinned teacher identity. When set, the readiness probe reports
-  // whether the configured model tag resolves to exactly this digest, so a
-  // silently-retagged or substituted teacher is caught rather than trusted.
-  // The development environment pins `ssfdre38/gemma4-turbo:e4b` in `.env`.
+  // Teacher model identifier — used by OllamaClient for ALL chat/completions
+  // (curator, critic, planner). Set via OLLAMA_MODEL env var.
+  ollamaModel: env("OLLAMA_MODEL", "deepseek-r1:latest"),
+
+  // Critic model identifier — when set, overrides the teacher model
+  // used specifically for critic scoring in ReviewScorer. When not set,
+  // falls back to OLLAMA_MODEL for complete backward compatibility.
+  // Set via CRITIC_MODEL env var; records its value in review provenance.
+  criticModel: env("CRITIC_MODEL", null),
+
+  // When critModel is explicitly null, the effective model used by the
+  // critic is OLLAMA_MODEL. When set, it overrides the model for critic
+  // scoring only; the teacher (curator/planner) still uses OLLAMA_MODEL.
+  // This separation enables operators to use different models for review
+  // versus curation without changing the primary model configuration.
+  //
+  // DEPRECATED: Previously `criticModel` defaulted to `"deepseek-r1:latest"`
+  // and was never actually read to override the Ollama client model.
+  // It now correctly controls the ReviewScorer's model selection.
   ollamaModelDigest: env("OLLAMA_MODEL_DIGEST", null),
   ollamaReadinessTimeoutMs: num("OLLAMA_READINESS_TIMEOUT_MS", 5000),
 
   // ---- Provenance versions (bump on behaviour change) ----
-  criticModel: env("CRITIC_MODEL", "deepseek-r1:latest"),
-  criticVersion: env("CRITIC_VERSION", "critic-v1"),
+  trainerKind: env("TRAINER_KIND", "python"), // python (default) | stub (explicit)
   rubricVersion: env("RUBRIC_VERSION", "rubric-v1"),
+  criticVersion: env("CRITIC_VERSION", "critic-v1"),
   curriculumVersion: env("CURRICULUM_VERSION", "curriculum-v1"),
   trainerVersion: env("TRAINER_VERSION", "stub-v1"),
   evaluatorVersion: env("EVALUATOR_VERSION", "eval-v1"),
-  baseModel: env("BASE_MODEL", "deepseek-r1:latest"),
   trainerKind: env("TRAINER_KIND", "python"), // python (default) | stub (explicit)
   pythonTrainerVersion: env("PYTHON_TRAINER_VERSION", "python-v1"),
 

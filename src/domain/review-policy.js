@@ -45,7 +45,7 @@ export function sampleUnit(articleId, salt = DEFAULT_POLICY.salt) {
 
 /**
  * Decide whether an article should enter teacher review.
- * @returns {{selected: boolean, reasons: string[], sample: number}}
+ * @returns {{selected: boolean, reasons: string[], sample: number, sampleReason?: string}}
  */
 export function selectionDecision(article, policy = DEFAULT_POLICY) {
   const reasons = [];
@@ -66,9 +66,27 @@ export function selectionDecision(article, policy = DEFAULT_POLICY) {
   return { selected: reasons.length > 0, reasons, sample };
 }
 
+/** Determines if two articles are near-duplicates based on content overlap.
+ *  Uses word-shingle Jaccard similarity; does NOT treat a shared prefix as
+ *  sufficient evidence of duplication.  Designed to supplement exact
+ *  contentHash deduplication. */
+export function nearDuplicateSimilarity(textA, textB, shingleSize = 6) {
+  if (!textA || !textB) return 0;
+  const tokensA = new Set(
+    ...Array.from(textA.matchAll(new RegExp(`\\w{${shingleSize}}`, "g"))).map((m) => m[0])
+  );
+  const tokensB = new Set(
+    ...Array.from(textB.matchAll(new RegExp(`\\w{${shingleSize}}`, "g"))).map((m) => m[0])
+  );
+  if (tokensA.size === 0 || tokensB.size === 0) return 0;
+  const intersection = new Set([...tokensA].filter((x) => tokensB.has(x))).size;
+  const union = tokensA.size + tokensB.size - intersection;
+  return intersection / union;
+}
+
 /**
  * Compute the target review state for a verdict WITHOUT mutating anything.
- * @returns {{apply: boolean, status: string, decidedBy: string|null, reason: string}}
+ * @returns {{apply: boolean, status: string, decidedBy: string|null, reason: string, deferralReason?: string}}
  */
 export function evaluateVerdict(article, { verdict, score, authority = AUTHORITY.TEACHER }, policy = DEFAULT_POLICY) {
   const current = article?.status;
@@ -88,17 +106,18 @@ export function evaluateVerdict(article, { verdict, score, authority = AUTHORITY
   }
 
   if (verdict === VERDICT.REJECT) {
-    return { apply: true, status: STATUS.REJECTED, decidedBy: AUTHORITY.TEACHER, reason: "teacher rejected" };
+    return { apply: true, status: STATUS.REJECTED, decidedBy: AUTHORITY.TEACHER, reason: "teacher rejected", deferralReason: "explicit_reject" };
   }
   if (verdict === VERDICT.APPROVE) {
     const s = Number(score);
     if (Number.isFinite(s) && s >= policy.approveMinScore) {
-      return { apply: true, status: STATUS.REVIEWED, decidedBy: AUTHORITY.TEACHER, reason: `teacher approved (score ${s})` };
+      return { apply: true, status: STATUS.REVIEWED, decidedBy: AUTHORITY.TEACHER, reason: `teacher approved (score ${s})`, deferralReason: void 0 };
     }
-    return { apply: false, status: STATUS.PENDING_REVIEW, decidedBy, reason: `approve ignored: score ${score ?? "?"} below ${policy.approveMinScore}` };
+    const scoreReason = `approve ignored: score ${score ?? "?"} below ${policy.approveMinScore}`;
+    return { apply: false, status: STATUS.PENDING_REVIEW, decidedBy, reason: scoreReason, deferralReason: "low_teacher_score" };
   }
   // uncertain
-  return { apply: false, status: STATUS.PENDING_REVIEW, decidedBy, reason: "teacher uncertain — stays pending" };
+  return { apply: false, status: STATUS.PENDING_REVIEW, decidedBy, reason: "teacher uncertain — stays pending", deferralReason: "teacher_uncertain" };
 }
 
 export { isTrainable };

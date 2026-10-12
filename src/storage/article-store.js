@@ -331,6 +331,7 @@ export class ArticleStore {
       applied: decision.apply,
       resultingStatus: decision.status,
       reason: decision.reason,
+      deferralReason: decision.deferralReason,
       at: new Date().toISOString(),
     };
     const arr = this.reviews.get(articleId) ?? [];

@@ -95,6 +95,7 @@ export async function executeFullRun({
   }
 
   let runId = null;
+  let consumption; // defined in each branch, used in trainerNotes
   try {
     // ---- immutable evaluation set (frozen on first load) ----
     const evalSet = await loadEvaluationSet({
@@ -292,7 +293,7 @@ export async function executeFullRun({
       // Completed evaluation, candidate rejected: record consumption but do not
       // promote. This keeps the consumption ledger truthful even when the
       // promotion gate correctly rejects a model (Refinement #1).
-      const consumption = await commitConsumption(
+      consumption = await commitConsumption(
         snapshot.manifest.articleIds ?? snapshot.rows.map((r) => r.articleId),
         runId
       );
@@ -308,7 +309,7 @@ export async function executeFullRun({
     } else {
       // decision.decision === "promoted": completed evaluation, candidate
       // promoted: record consumption and update the serving model.
-      const consumption = await commitConsumption(
+      consumption = await commitConsumption(
         snapshot.manifest.articleIds ?? snapshot.rows.map((r) => r.articleId),
         runId
       );
@@ -373,7 +374,7 @@ export async function executeFullRun({
       trainerNotes: {
         note: trainingResult.note ?? (trainer?.kind === "stub" ? "stub trainer (placeholder kernels)" : null),
         checkpointPath: trainingResult.checkpointPath,
-        articlesConsumed: commitResultCount,
+        articlesConsumed: commitConsumption,
         alreadyConsumedSkipped: consumption?.skipped?.length ?? 0,
         leakExcluded: snapshot.excluded.length,
       },
