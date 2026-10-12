@@ -82,6 +82,7 @@ export function createWorkspaceRegistry({
   registry,
   governance,
   chat,
+  conversations = null,
   pythonStorePath = null,
   workspaces = [],
 } = {}) {
@@ -95,7 +96,7 @@ export function createWorkspaceRegistry({
     readOnly: false,
     pythonStorePath,
     paths: null,
-    services: { store, registry, governance, chat },
+    services: { store, registry, governance, chat, conversations },
     ...buildServices(governance),
   });
 
@@ -166,7 +167,7 @@ export function createWorkspaceRegistry({
         const s = await ArticleStore.open(w.paths.articles, { readOnly: true });
         const r = await RegistryStore.open(w.paths.registry, { readOnly: true });
         const g = await GovernanceStore.open(w.paths.governance ?? w.paths.registry, { readOnly: true });
-        w.services = { store: s, registry: r, governance: g, chat: INSPECTION_CHAT };
+        w.services = { store: s, registry: r, governance: g, chat: INSPECTION_CHAT, conversations: null, conversations: null };
         Object.assign(w, buildServices(g));
       })();
     }

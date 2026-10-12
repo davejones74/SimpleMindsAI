@@ -39,6 +39,15 @@ function loadDotEnv() {
     const key = m[1];
     if (process.env[key] !== undefined) continue; // real environment wins
     let val = m[2];
+    // Inline comments: an unquoted `#` preceded by whitespace starts a comment,
+    // so `SMA_DEVICE=auto   # auto | cpu | cuda` loads `auto`. A `#` glued to the
+    // value (`PASSWORD=abc#def`) is data, and a quoted value keeps everything up
+    // to its closing quote. Without this, every documented inline comment became
+    // part of the value — `--device "auto # auto | cpu | cuda"`, `--eval-every
+    // NaN` — which the compute plane would reject.
+    const comment = val.search(/\s#/);
+    if (comment !== -1 && val[0] !== '"' && val[0] !== "'") val = val.slice(0, comment);
+    val = val.trim();
     if (val.length >= 2 && ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'")))) {
       val = val.slice(1, -1);
     }
@@ -110,6 +119,7 @@ export const config = {
     models: env("MODEL_DIR", "data/models"),
     governance: env("GOVERNANCE_DIR", env("REGISTRY_DIR", "data/registry")),
     raw: env("RAW_DIR", "data/raw"),
+    chat: env("CHAT_DIR", "data/chat"), // durable conversation log (NDJSON)
   },
 
   // ---- Server bind (admin portal is mounted on the existing server) ----

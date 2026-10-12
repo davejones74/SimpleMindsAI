@@ -51,6 +51,12 @@ export class StudentWorker extends EventEmitter {
     this._restarts = 0;
     this._stopping = false;
     this._startPromise = null;
+    // All protocol writes are serialized through this promise chain so at most
+    // ONE request is in flight at a time. That makes a version-pinned generate
+    // (which loads its checkpoint as part of the same request) atomic with
+    // respect to overlapping requests: no turn can ever observe weights loaded
+    // on behalf of another turn.
+    this._queue = Promise.resolve();
   }
 
   async start() {
@@ -161,7 +167,18 @@ export class StudentWorker extends EventEmitter {
     }, delay).unref?.();
   }
 
-  _send(op, payload = {}, { timeoutMs = this.requestTimeoutMs } = {}) {
+  _send(op, payload = {}, opts = {}) {
+    return this._enqueue(() => this._sendNow(op, payload, opts));
+  }
+
+  /** Serialize every protocol write; keep the chain alive across failures. */
+  _enqueue(fn) {
+    const run = this._queue.then(fn, fn);
+    this._queue = run.then(() => {}, () => {});
+    return run;
+  }
+
+  _sendNow(op, payload = {}, { timeoutMs = this.requestTimeoutMs } = {}) {
     if (!this.child || !this.available) {
       return Promise.reject(new Error("student worker is not running"));
     }
@@ -187,8 +204,10 @@ export class StudentWorker extends EventEmitter {
     return this._send("ping", {}, { timeoutMs: 10_000 });
   }
 
-  async load(version) {
-    const out = await this._send("load", version ? { version } : {}, { timeoutMs: Math.max(this.requestTimeoutMs, 60_000) });
+  async load(version, { verify = false } = {}) {
+    const payload = { ...(version ? { version } : {}) };
+    if (verify) payload.verify = true;
+    const out = await this._send("load", payload, { timeoutMs: Math.max(this.requestTimeoutMs, 60_000) });
     this.version = out.version;
     return out;
   }
@@ -210,6 +229,7 @@ export class StudentWorker extends EventEmitter {
       text: out.text,
       version: out.version,
       artifactName: out.artifactName,
+      integrity: out.integrity,
       mode: out.mode,
       promptTokens: out.promptTokens,
       generatedTokens: out.generatedTokens,

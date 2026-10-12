@@ -15,11 +15,17 @@ import { readActiveVersion } from "./python-cli.js";
  * marker, so a partially written checkpoint can never be served. Promotion
  * swaps the active pointer and the chat server calls `reload()`.
  *
- * `respond()` is always served by the CURRENT active model: before each turn it
- * re-reads `active.json` and reloads the resident worker when the pointer moved
- * (a promotion from another process — `npm run train`, the perpetual loop —
- * must not require a server restart to take effect). An unreadable or absent
- * pointer leaves the resident brain untouched.
+ * `respond()` without a version is served by the CURRENT active model: before
+ * each turn it re-reads `active.json` and reloads the resident worker when the
+ * pointer moved (a promotion from another process — `npm run train`, the
+ * perpetual loop — must not require a server restart to take effect). An
+ * unreadable or absent pointer leaves the resident brain untouched.
+ *
+ * `respond(message, { version })` is served by that EXACT committed version. The
+ * worker loads it inside the generate request (verified against its manifest),
+ * so the active pointer is never consulted or changed, and overlapping requests
+ * cannot observe each other's weights. A missing/corrupt version fails loudly;
+ * it is never silently swapped for the active checkpoint.
  *
  * The chat server only ever calls `respond()`.
  */
@@ -68,7 +74,12 @@ export class Brain {
 
   async respond(message, opts = {}) {
     const t0 = performance.now();
-    await this.resyncActive();
+    const { version = null, ...genOpts } = opts;
+    // A pinned version is loaded as part of the generate request itself (in the
+    // Python worker), so overlapping requests can never share mis-loaded
+    // weights and the active pointer is never read or moved. An unpinned turn
+    // follows the active pointer, resyncing when a promotion moved it.
+    if (!version) await this.resyncActive();
     if (!this.worker.available) {
       throw new Error(
         "student brain unavailable: the Python student worker is not running; " +
@@ -77,16 +88,19 @@ export class Brain {
     }
     let out;
     try {
-      out = await this.worker.generate(String(message), opts);
+      out = await this.worker.generate(String(message), version ? { ...genOpts, version, verify: true } : genOpts);
     } catch (err) {
       throw new Error(`student brain failed to answer: ${err.message}`);
     }
+    if (out.version) this.version = out.version;
+    if (out.artifactName) this.artifactName = out.artifactName;
     return {
       reply: out.text,
       latencyMs: Math.round(performance.now() - t0),
       mode: this.mode,
       version: out.version ?? this.version,
       artifactName: out.artifactName ?? this.artifactName,
+      integrity: out.integrity ?? null,
       generatedTokens: out.generatedTokens,
     };
   }

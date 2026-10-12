@@ -11,6 +11,7 @@ import { GovernanceStore } from "./admin/governance-store.js";
 import { attachAdmin } from "./admin/routes.js";
 import { changeFeed } from "./admin/change-feed.js";
 import { createChatService } from "./chat/chat-service.js";
+import { ConversationStore } from "./chat/conversation-store.js";
 import { JobSupervisor } from "./jobs/supervisor.js";
 import { resolvers } from "./graphql/resolvers.js";
 
@@ -30,7 +31,12 @@ const typeDefs = readFileSync(path.join(__dirname, "graphql", "schema.graphql"),
 const store = await ArticleStore.open(config.paths.articles);
 const registry = await RegistryStore.open(config.paths.registry);
 const governance = await GovernanceStore.open(config.paths.governance);
-const chat = createChatService({ store });
+const conversations = await ConversationStore.open(path.join(config.paths.chat, "conversations.ndjson"));
+const chat = createChatService({
+  store,
+  conversations,
+  pythonStorePath: config.pythonStore ?? null,
+});
 await chat.start();
 
 const server = new ApolloServer({ typeDefs, resolvers });
@@ -63,7 +69,17 @@ const supervisor = new JobSupervisor({
 });
 await supervisor.init({ reconcile: true });
 
-attachAdmin({ app, store, registry, governance, chat, workspaces: config.workspaces, pythonStorePath: config.pythonStore, supervisor });
+attachAdmin({
+  app,
+  store,
+  registry,
+  governance,
+  chat,
+  conversations,
+  workspaces: config.workspaces,
+  pythonStorePath: config.pythonStore,
+  supervisor,
+});
 
 const httpServer = app.listen(config.port, config.host, () =>
   console.log(`GraphQL -> http://${config.host}:${config.port}/graphql   portal -> http://${config.host}:${config.port}/admin`),

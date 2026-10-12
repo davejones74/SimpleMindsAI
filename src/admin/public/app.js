@@ -8,7 +8,14 @@ const state = {
   overview: null,
   articles: { items: [], nextCursor: null, filters: {} },
   selectedArticle: null,
-  chat: { messages: [], identity: null, sending: false },
+  chat: {
+    messages: [],
+    identity: null,
+    sending: false,
+    conversations: [],
+    currentConversationId: null,
+    currentConvVersion: null,
+  },
   mission: null,
   strategy: null,
   cycles: null,
@@ -142,7 +149,15 @@ async function loadVersions() {
 function setPinnedVersion(version) {
   state.selectedVersion = version || null;
   writePinnedVersion(state.workspace, state.selectedVersion);
-  render();
+  // Changing selector opens a new conversation (never switches mid-conversation).
+  if (state.tab === "chat") {
+    state.chat.messages = [];
+    state.chat.currentConversationId = null;
+    state.chat.currentConvVersion = state.selectedVersion || null;
+    renderChat();
+  } else {
+    render();
+  }
 }
 
 
@@ -520,28 +535,43 @@ function wireDetail(a) {
 // -------------------------------------------------------------------- chat
 async function loadChat() {
   try { state.chat.identity = await api("/chat/identity"); } catch (err) { state.chat.identity = { error: err.message }; }
+  if (!state.chat.currentConversationId && state.selectedVersion) {
+    state.chat.currentConvVersion = state.selectedVersion;
+  }
+  if (!state.chat.currentConvVersion) {
+    state.chat.currentConvVersion = state.selectedVersion || null;
+  }
   renderChat();
 }
 
 function renderChat() {
   const c = state.chat;
   const id = c.identity ?? {};
+  const vScope = versionScope();
+  const curVer = c.currentConvVersion || null;
+  const curId = c.currentConversationId || null;
+  const convInfo = curId ? `${curId.slice(0, 8)} · pinned v${curVer ?? "?"}` : "no conversation selected";
   main.innerHTML = `
-    <h2 class="section-title">Live Chat <span class="sm">${versionScope()}</span></h2>
+    <h2 class="section-title">Live Chat <span class="sm">${vScope}</span></h2>
     <div class="panel">
+      <div class="toolbar">
+        <button id="chatNewBtn" class="ghost">New conversation</button>
+        <span class="spacer"></span>
+        <span class="muted small">${esc(convInfo)}</span>
+      </div>
       <div class="toolbar">
         <span class="k">Student</span>
         ${badge(id.available ? "REVIEWED" : "REJECTED", id.available ? "available" : "unavailable")}
         <span class="muted small">mode: ${esc(id.mode ?? "—")} · serving version: ${esc(id.version ?? "none")}</span>
       </div>
-      <div class="small muted" style="margin:-2px 0 8px">Conversations are pinned to the serving checkpoint named above; the version selector changes only which version's history/metrics you inspect, not what answers here.</div>
+      <div class="small muted" style="margin:-2px 0 8px">Conversations are pinned to the checkpoint version they were created with; the header version selector opens a new conversation when changed (it never switches a live one).</div>
       ${!id.available ? `<div class="small warn">No committed student version is active. The chat has no teacher fallback — this is reported honestly rather than faked.</div>` : ""}
       <div class="chat">
         <div class="log" id="chatLog">
           ${c.messages.length ? c.messages.map((m) => `
             <div class="msg ${esc(m.role)}">${esc(m.text)}<span class="meta">${esc(m.meta ?? "")}</span></div>`).join("") : `<div class="msg system">Say something to the current brain.</div>`}
         </div>
-        <div class="compose">
+        <div class="composer">
           <input id="chatInput" placeholder="Message the brain…" ${id.available ? "" : "disabled"} />
           <button id="chatSend" class="primary" ${id.available ? "" : "disabled"}>Send</button>
         </div>
@@ -556,16 +586,34 @@ function renderChat() {
     renderChat();
     document.getElementById("chatLog").scrollTop = 1e9;
     try {
-      const r = await api("/chat", { method: "POST", body: { message: text } });
-      c.messages.push({ role: "brain", text: r.reply, meta: `v${r.version ?? "?"} · ${new Date().toLocaleTimeString()}` });
+      const body = { message: text };
+      if (c.currentConversationId) body.conversationId = c.currentConversationId;
+      else if (c.currentConvVersion) body.version = c.currentConvVersion;
+      const r = await api("/chat", { method: "POST", body });
+      const meta = [];
+      if (r.version) meta.push(`v${r.version}`);
+      if (r.integrity) meta.push(r.integrity);
+      meta.push(new Date().toLocaleTimeString());
+      c.messages.push({ role: "brain", text: r.reply, meta: meta.join(" · ") });
+      if (r.conversationId && !c.currentConversationId) {
+        c.currentConversationId = r.conversationId;
+      }
     } catch (err) {
       c.messages.push({ role: "system", text: `error: ${err.message}`, meta: "" });
     }
     renderChat();
     document.getElementById("chatLog").scrollTop = 1e9;
   };
+  const newConv = async () => {
+    c.messages = [];
+    c.currentConversationId = null;
+    c.currentConvVersion = state.selectedVersion || null;
+    renderChat();
+    document.getElementById("chatInput")?.focus();
+  };
   document.getElementById("chatSend")?.addEventListener("click", send);
   document.getElementById("chatInput")?.addEventListener("keydown", (e) => { if (e.key === "Enter") send(); });
+  document.getElementById("chatNewBtn")?.addEventListener("click", newConv);
 }
 
 // ------------------------------------------------------- mission & strategy

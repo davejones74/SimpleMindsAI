@@ -34,8 +34,16 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
  * `x-sma-workspace` header). Inspection-only workspaces refuse every mutation
  * with 403 and never run seeding writes on read endpoints.
  */
-export function attachAdmin({ app, store, registry, governance, chat, changeFeed = defaultFeed, pythonStorePath = null, workspaces = [], supervisor = null, logger = console }) {
-  const workspaceRegistry = createWorkspaceRegistry({ store, registry, governance, chat, pythonStorePath, workspaces });
+export function attachAdmin({ app, store, registry, governance, chat, conversations = null, changeFeed = defaultFeed, pythonStorePath = null, workspaces = [], supervisor = null, logger = console }) {
+  const workspaceRegistry = createWorkspaceRegistry({
+    store,
+    registry,
+    governance,
+    chat,
+    conversations,
+    pythonStorePath,
+    workspaces,
+  });
 
   const router = express.Router();
   router.use(express.json({ limit: "2mb" }));
@@ -192,11 +200,35 @@ export function attachAdmin({ app, store, registry, governance, chat, changeFeed
 
   // ---------------------------------------------------------------- chat
   router.get("/chat/identity", asyncRoute(async (req, res) => ok(res, req.workspace.services.chat.identity())));
+  router.get("/chat/conversations", asyncRoute(async (req, res) => {
+    const w = req.workspace;
+    const list = w.services.chat.listConversations?.({ workspace: w.id }) ?? [];
+    ok(res, list);
+  }));
+  router.post("/chat/conversations", blockWrites, asyncRoute(async (req, res) => {
+    const w = req.workspace;
+    const v = req.body?.version ?? null;
+    try {
+      const c = await w.services.chat.createConversation({ version: v, workspace: w.id });
+      ok(res, c);
+    } catch (err) {
+      fail(res, err, 400);
+    }
+  }));
+  router.get("/chat/conversations/:id", asyncRoute(async (req, res) => {
+    const w = req.workspace;
+    const c = w.services.chat.getConversation?.(req.params.id) ?? null;
+    if (!c) return fail(res, new Error("conversation not found"), 404);
+    ok(res, c);
+  }));
   router.post("/chat", blockWrites, asyncRoute(async (req, res) => {
     const message = String(req.body?.message ?? "").trim();
     if (!message) return fail(res, new Error("message required"));
     try {
-      const out = await req.workspace.services.chat.respond(message);
+      const out = await req.workspace.services.chat.respond(message, {
+        version: req.body?.version ?? null,
+        conversationId: req.body?.conversationId ?? null,
+      });
       emit("chat.message", { at: out.at ?? new Date().toISOString() });
       ok(res, out);
     } catch (err) {

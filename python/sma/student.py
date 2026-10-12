@@ -50,11 +50,18 @@ class StudentWorker:
         self.artifact_name: Optional[str] = None
         self.model = None
         self.tokenizer = None
+        self.last_integrity: Optional[str] = None
+        # Versions whose persisted tensors have already been re-hashed against
+        # their manifest in THIS process. Checkpoints are immutable and
+        # append-only, so verifying once per version per process is sufficient;
+        # re-hashing 62M parameters on every load would dominate latency.
+        self._verified: set = set()
 
     # ------------------------------------------------------------- loading
-    def load(self, version: Optional[str]) -> Dict[str, Any]:
+    def load(self, version: Optional[str], verify: bool = False) -> Dict[str, Any]:
         from . import store
 
+        explicit = version is not None
         if version is None:
             version = store.active_version(self.root)
             if version is None:
@@ -70,6 +77,26 @@ class StudentWorker:
         )
         model.eval()
         manifest = store.read_json(version_dir / "init-manifest.json")
+
+        # Integrity: an explicitly requested version is verified against the
+        # digests its manifest committed. A mismatch means the bytes on disk are
+        # not the bytes the store claims, and the load fails loudly rather than
+        # serving a corrupt checkpoint.
+        integrity = "skipped"
+        if verify:
+            integrity = "cached" if version in self._verified else "verified"
+            if version not in self._verified:
+                report = brain_mod._verify_weights(model, manifest)
+                if not report.get("verified"):
+                    raise ValueError(
+                        f"integrity check failed for {version}: "
+                        f"{len(report.get('mismatched') or [])} mismatched, "
+                        f"{len(report.get('missing') or [])} missing, "
+                        f"{len(report.get('unexpected') or [])} unexpected tensor(s); "
+                        "refusing to serve a checkpoint that does not match its manifest"
+                    )
+                self._verified.add(version)
+
         try:
             artifact = store.artifact_name(manifest)
         except ValueError:
@@ -80,10 +107,12 @@ class StudentWorker:
         self.device = device
         self.version = version
         self.artifact_name = artifact
+        self.last_integrity = integrity
         brain_mod._log(
-            f"student loaded {version} ({artifact or 'unattributed'}) on {device}"
+            f"student loaded {version} ({artifact or 'unattributed'}) on {device} "
+            f"[integrity={integrity}]"
         )
-        return self._describe(model)
+        return {**self._describe(model), "integrity": integrity}
 
     def _describe(self, model) -> Dict[str, Any]:
         return {
@@ -100,7 +129,7 @@ class StudentWorker:
         if op in ("ping", "hello"):
             return {"pong": True, "pid": os.getpid(), "protocol": PROTOCOL_VERSION}
         if op == "load":
-            return self.load(request.get("version"))
+            return self.load(request.get("version"), verify=bool(request.get("verify")))
         if op == "reload":
             return self.load(None)
         if op == "version":
@@ -114,6 +143,17 @@ class StudentWorker:
         raise ValueError(f"unknown op: {op!r}")
 
     def generate(self, request: Dict[str, Any]) -> Dict[str, Any]:
+        # Version-aware serving: if the caller pins a version, load it as part of
+        # THIS single request, so a concurrent request can never observe weights
+        # loaded for another version. The active pointer is never consulted or
+        # changed on this path.
+        requested = request.get("version")
+        if requested is not None:
+            if not isinstance(requested, str) or not requested:
+                raise ValueError("`version` must be a non-empty string when provided")
+            if requested != self.version:
+                self.load(requested, verify=bool(request.get("verify", True)))
+
         if self.model is None:
             raise RuntimeError("no version loaded; send a `load` request first")
         prompt = request.get("prompt")
@@ -133,6 +173,7 @@ class StudentWorker:
         return {
             "version": self.version,
             "artifactName": self.artifact_name,
+            "integrity": self.last_integrity,
             "text": result["text"],
             "mode": result["mode"],
             "promptTokens": result["promptTokens"],

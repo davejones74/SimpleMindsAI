@@ -47,6 +47,30 @@ export function readActiveVersion(store = resolveStoreRoot()) {
   }
 }
 
+/**
+ * The committed versions present in a store, sorted. "Committed" is the real
+ * gate (the `COMMITTED` marker written last), never "directory exists" — a
+ * partially written checkpoint is not a servable version.
+ */
+export function listCommittedVersions(store = resolveStoreRoot()) {
+  try {
+    return fs
+      .readdirSync(store, { withFileTypes: true })
+      .filter((d) => d.isDirectory() && /^v\d+$/.test(d.name))
+      .map((d) => d.name)
+      .filter((name) => fs.existsSync(path.join(store, name, "COMMITTED")))
+      .sort();
+  } catch {
+    return [];
+  }
+}
+
+/** True only for a version directory that carries the COMMITTED marker. */
+export function isCommittedVersion(store, version) {
+  if (!version) return false;
+  return fs.existsSync(path.join(store, version, "COMMITTED"));
+}
+
 export function pythonEnv(store = resolveStoreRoot(), extra = {}) {
   return {
     ...process.env,
