@@ -248,6 +248,24 @@ export const config = {
   crawlRespectRobots: bool("CRAWL_RESPECT_ROBOTS", true),
   crawlUserAgent: env("CRAWL_USER_AGENT", "SimpleMindsAI/0.2 (+https://github.com/davejones74/SimpleMindsAI)"),
 
+  // ---- Phase 3: bounded crawling discovery ----
+  // Domain allow-list: comma-separated; empty defaults to CRAWL_URLS hosts only.
+  // Expanding requires explicit operator configuration via env var.
+  crawlAllowedDomains: env("CRAWL_ALLOWED_DOMAINS", "").split(",").map((s) => s.trim()).filter(Boolean),
+  // Max depth: seeds depth=0, each discovered link adds 1
+  crawlMaxDepth: num("CRAWL_MAX_DEPTH", "2"),
+  // Pages per acquisition cycle (bounded run, not cumulative budget)
+  crawlPagesPerCycle: num("CRAWL_PAGES_PER_CYCLE", "50"),
+  // Total page budget across all cycles; 0 = unlimited cumulative
+  crawlTotalBudget: num("CRAWL_TOTAL_BUDGET", "0"),
+  // Per-host concurrency: max simultaneous in-flight fetches per host
+  crawlHostConcurrency: num("CRAWL_HOST_CONCURRENCY", "2"),
+  // Min time between refetches same host (ms); works with concurrency so concurrency=2
+  // cannot unintentionally bypass cooldown
+  crawlCooldownMs: num("CRAWL_COOLDOWN_MS", "30000"),
+  // Retry limit per URL before deferral
+  crawlRetryLimit: num("CRAWL_RETRY_LIMIT", "2"),
+
   // ---- Observatory workspaces (allow-listed; `development` is implicit) ----
   // Extra, inspection-only stores the portal may display (e.g. a completed
   // trial). The live development store is always present and is the default.
