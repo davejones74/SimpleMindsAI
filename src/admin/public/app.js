@@ -393,7 +393,7 @@ function articleTable() {
   return `<table><tr><th>Article</th><th>Domain</th><th>Importance</th><th>Status</th><th>Trainable</th><th>Consumed</th><th>Actions</th></tr>
     ${items.map((x) => `
       <tr data-id="${esc(x.articleId)}">
-        <td style="max-width:420px"><a href="#" data-open="${esc(x.articleId)}">${esc((x.text ?? "").slice(0, 110))}${(x.text ?? "").length > 110 ? "…" : ""}</a>
+        <td class="wrap" style="max-width:420px"><a href="#" data-open="${esc(x.articleId)}">${esc((x.text ?? "").slice(0, 110))}${(x.text ?? "").length > 110 ? "…" : ""}</a>
           <div class="small muted">${esc(x.articleId)}</div></td>
         <td>${esc(x.domain ?? "—")}</td>
         <td>${badge(x.importance.toUpperCase(), x.importance)}${x.suggestedImportance ? ` ${badge(`suggested ${String(x.suggestedImportance).toUpperCase()}`, `sugg: ${x.suggestedImportance}`)}` : ""}</td>
@@ -856,8 +856,8 @@ function renderHistory() {
     ${h.evaluationSet ? `<div class="panel">
       <div class="k">Frozen evaluation set (identity)</div>
       <div class="small muted">${esc(h.evaluationSet.dir)}</div>
-      <table><tr><th>File</th><th>Bytes</th><th>sha256</th></tr>
-        ${h.evaluationSet.files.map((f) => `<tr><td>${esc(f.file)}</td><td>${f.bytes}</td><td class="small" title="${esc(f.sha256)}">${esc(shortHash(f.sha256))}</td></tr>`).join("") || `<tr><td colspan="3" class="muted">No files.</td></tr>`}
+      <table><tr><th>File</th><th>Bytes</th><th class="wrap">sha256</th></tr>
+        ${h.evaluationSet.files.map((f) => `<tr><td>${esc(f.file)}</td><td>${f.bytes}</td><td class="small wrap" title="${esc(f.sha256)}">${esc(shortHash(f.sha256))}</td></tr>`).join("") || `<tr><td colspan="3" class="muted">No files.</td></tr>`}
       </table>
       <div class="small muted">The frozen hold-out the promotion gate scores against — never used for training.</div>
     </div>` : ""}
@@ -1055,6 +1055,42 @@ function activeJob(kind) {
   return (state.control?.jobs ?? []).find((j) => j.kind === kind && !j.terminal) ?? null;
 }
 
+/**
+ * Compact, human-readable job progress. The stored value is a plain object of
+ * varying shape per job kind; dumping `JSON.stringify` into the table cell made
+ * the columns overflow the page. Render the meaningful counters instead, and
+ * never a raw JSON blob.
+ */
+function progressText(p) {
+  if (!p || typeof p !== "object") return esc(p ?? "");
+  const rows = [
+    ["cycle", v => `${v}`],
+    ["target", v => (p.cycle === undefined ? `target ${v}` : `/${v}`)],
+    ["mode", v => String(v)],
+    ["rawDocs", v => `docs ${v}`],
+    ["ingested", v => `ingested ${v}`],
+    ["deduped", v => `deduped ${v}`],
+    ["reviewed", v => `reviewed ${v}`],
+    ["trainable", v => `trainable ${v}`],
+    ["corpusCeiling", v => `source ceiling ${v}`],
+    ["runs", v => `runs ${v}`],
+    ["improvement", v => `improvement ${v}`],
+    ["promoted", v => (v ? "promoted" : null)],
+    ["processedRawDocs", v => `raw ${v}/${p.rawDocs}`],
+    ["failures", v => (v ? `failures ${v}` : null)],
+    ["sourceExhausted", v => (v ? "source exhausted" : null)],
+  ];
+  const out = [];
+  for (const [key, fmt] of rows) {
+    const v = p[key];
+    if (v === undefined || v === null) continue;
+    const s = fmt(v);
+    if (s === null || s === undefined || s === "") continue;
+    out.push(s);
+  }
+  return out.length ? esc(out.join(" · ")) : esc(JSON.stringify(p));
+}
+
 function renderControl() {
   const c = state.control;
   if (!c) return;
@@ -1129,20 +1165,20 @@ function renderControl() {
 
     <div class="panel">
       <div class="k">Job history (durable, append-only)</div>
-      <table><tr><th>Job</th><th>Kind</th><th>Mode</th><th>Status</th><th>Phase</th><th>Progress</th><th>Created</th><th></th></tr>
+      <table><tr><th>Job</th><th>Kind</th><th>Mode</th><th>Status</th><th>Phase</th><th class="wrap">Progress</th><th>Created</th><th></th></tr>
         ${c.jobs.map((j) => `
           <tr>
-            <td class="small"><a href="#" data-job="${esc(j.jobId)}">${esc(j.jobId)}</a></td>
+            <td class="small wrap"><a href="#" data-job="${esc(j.jobId)}">${esc(j.jobId)}</a></td>
             <td>${esc(j.kind)}</td>
             <td class="small">${esc(j.mode ?? "—")}</td>
             <td>${badge(j.terminal ? (j.status === "completed" ? "REVIEWED" : j.status === "failed" ? "REJECTED" : "PENDING_REVIEW") : "PENDING_REVIEW", j.status)}</td>
-            <td class="small">${esc(j.phase ?? "—")}</td>
-            <td class="small">${esc(j.progress ? JSON.stringify(j.progress) : "—")}</td>
+            <td class="small wrap">${esc(j.phase ?? "—")}</td>
+            <td class="small wrap">${progressText(j.progress)}</td>
             <td class="small">${when(j.createdAt)}</td>
             <td>${j.terminal ? "" : `<button data-stop="${esc(j.jobId)}" class="danger" ${roAttr()}>Stop</button>`}</td>
           </tr>`).join("") || `<tr><td colspan="8" class="muted">No jobs yet.</td></tr>`}
       </table>
-      ${c.jobs.some((j) => j.note || j.error || j.result) ? `<div class="small muted" style="margin-top:8px">
+      ${c.jobs.some((j) => j.note || j.error || j.result) ? `<div class="small muted wrap" style="margin-top:8px">
         ${c.jobs.slice(0, 6).map((j) => `<div><strong>${esc(j.jobId)}</strong> ${esc(j.error ?? j.note ?? "")} ${j.result?.decision ? `· decision ${esc(j.result.decision)}` : ""}${j.result?.version ? `· ${esc(j.result.version)}` : ""}</div>`).join("")}
       </div>` : ""}
     </div>

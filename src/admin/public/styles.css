@@ -106,6 +106,10 @@ table.list th, table.data th { color: var(--muted); font-weight: 600; }
 table { width: 100%; border-collapse: collapse; }
 th, td { text-align: left; vertical-align: top; padding: 8px 10px; border-bottom: 1px solid var(--border); font-size: 13px; }
 th { color: var(--muted); font-size: 12px; }
+/* Long free-text cells (progress summaries, error notes, file hashes) must wrap
+   inside the table instead of widening the page past the viewport. */
+td.wrap, th.wrap { overflow-wrap: anywhere; word-break: break-word; min-width: 0; }
+td.small.wrap { line-height: 1.45; }
 
 .chat { display: flex; flex-direction: column; }
 .chat .log {

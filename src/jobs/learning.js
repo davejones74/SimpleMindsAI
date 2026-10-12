@@ -52,6 +52,13 @@ export async function runLearningCycle(ctx) {
         sourceUrl: doc.url ?? null,
         fetchedContentHash: doc.contentHash ?? null,
         fetchedAt: doc.fetchedAt ?? null,
+        // An operator asking this job for N *trainable* articles is explicitly
+        // requesting that what it acquires enters review. Without this the
+        // `selectionDecision` sampling gate (~10%) decides instead, so a small
+        // acquisition is silently dropped and the job reports `trainable: 0`
+        // even though it ingested everything it fetched. The critic still
+        // decides every verdict — review entry is not approval.
+        reviewRequested: true,
       });
       if (rec.deduped) deduped++;
       else ingested++;
@@ -83,7 +90,13 @@ export async function runLearningCycle(ctx) {
   }
 
   const stats = store.getStats();
+  // Exhaustion is detected, never assumed: a pass that ingests nothing (all
+  // deduped, no documents, or every fetch failed) has no more material to give.
   const sourceExhausted = ingested === 0 && (rawDocs === 0 || deduped > 0 || (result.failures?.length ?? 0) > 0);
+  // The fixture "source" is a hard-coded document set, so its ceiling is known
+  // up front. Surfacing it lets the operator see that a multi-article target is
+  // unreachable on fixtures instead of reading "completed" as "acquired".
+  const corpusCeiling = result.mode === "fixture" && rawDocs > 0 ? rawDocs : null;
   return {
     mode: result.mode,
     capability: result.capability,
@@ -93,6 +106,7 @@ export async function runLearningCycle(ctx) {
     deduped,
     reviewed,
     trainable: stats.trainable,
+    corpusCeiling,
     failures: result.failures ?? [],
     sourceExhausted,
   };

@@ -39,14 +39,15 @@ function loadDotEnv() {
     const key = m[1];
     if (process.env[key] !== undefined) continue; // real environment wins
     let val = m[2];
-    // Inline comments: an unquoted `#` preceded by whitespace starts a comment,
-    // so `SMA_DEVICE=auto   # auto | cpu | cuda` loads `auto`. A `#` glued to the
-    // value (`PASSWORD=abc#def`) is data, and a quoted value keeps everything up
-    // to its closing quote. Without this, every documented inline comment became
-    // part of the value — `--device "auto # auto | cpu | cuda"`, `--eval-every
-    // NaN` — which the compute plane would reject.
-    const comment = val.search(/\s#/);
-    if (comment !== -1 && val[0] !== '"' && val[0] !== "'") val = val.slice(0, comment);
+    // Inline comments: a `#` that starts the value, or is preceded by
+    // whitespace, starts a comment — so `SMA_DEVICE=auto   # auto | cpu | cuda`
+    // loads `auto` and `CRAWL_URLS=   # ...` loads `` (empty). The leading-match
+    // case matters because the regex above has already consumed the whitespace
+    // after `=`, so the `#` arrives at position 0 with nothing preceding it.
+    // A `#` glued to a non-empty value (`PASSWORD=abc#def`) is data, and a
+    // quoted value keeps everything up to its closing quote.
+    const comment = /(^|\s)#/.exec(val);
+    if (comment && val[0] !== '"' && val[0] !== "'") val = val.slice(0, comment.index);
     val = val.trim();
     if (val.length >= 2 && ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'")))) {
       val = val.slice(1, -1);

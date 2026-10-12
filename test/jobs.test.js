@@ -130,6 +130,58 @@ test("learning cycle: acquires + dedupes, and reports exhaustion honestly", asyn
   await store.close();
 });
 
+test("learning cycle: articles it acquires enter review, so they can become trainable", async () => {
+  // The acquisition job's contract is "N TRAINABLE articles". Previously the
+  // ingested articles were left to `selectionDecision`'s ~10% sampling gate, so
+  // a small acquisition was silently dropped and the job reported
+  // `reviewed: 0, trainable: 0` after ingesting everything it had fetched.
+  const store = await ArticleStore.open(tmp());
+  // Each raw document must curate to a DISTINCT unit, otherwise the second is
+  // legitimately deduped by content hash and the acquisition count is 1.
+  fakeOllama.__n = 0;
+  const out = await runLearningCycle({
+    store,
+    ollama: {
+      model: "teacher-x",
+      clean: async () => {
+        fakeOllama.__n += 1;
+        return [{ text: `A curated reasoning unit of sufficient length #${fakeOllama.__n}.`, domain: "reasoning" }];
+      },
+    },
+    scorer: fakeScorer,
+    collectDocuments: async () => ({
+      mode: "fixture",
+      capability: "fixture-harvest",
+      documents: [
+        { text: "First fixture document about reasoning and logic.", domain: "reasoning", source: "fixture" },
+        { text: "Second fixture document about recursion and proof.", domain: "reasoning", source: "fixture" },
+      ],
+      failures: [],
+    }),
+    maxRawDocs: 0,
+  });
+
+  assert.equal(out.ingested, 2, "both documents must be acquired");
+  assert.equal(out.reviewed, 2, "acquired articles must reach the teacher critic, not a sampling gate");
+  assert.equal(out.trainable, 2, "reviewed + approved articles are trainable");
+
+  await store.close();
+});
+
+test("learning cycle: reports the fixture source ceiling instead of implying it can meet any target", async () => {
+  const store = await ArticleStore.open(tmp());
+  const out = await runLearningCycle({
+    store,
+    ollama: fakeOllama,
+    scorer: fakeScorer,
+    collectDocuments: fakeHarvest(),
+    maxRawDocs: 0,
+  });
+  assert.equal(out.mode, "fixture");
+  assert.equal(out.corpusCeiling, out.rawDocs, "a fixture source can never supply more than it holds");
+  await store.close();
+});
+
 test("learning cycle: reviews a queued article through the teacher scorer", async () => {
   const store = await ArticleStore.open(tmp());
   const a = await store.ingestArticle({ text: "An explicitly queued review candidate with enough prose.", domain: "reasoning" });

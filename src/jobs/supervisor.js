@@ -267,8 +267,7 @@ export class JobSupervisor {
       if (last.sourceExhausted) {
         outcome = "sources-exhausted";
         break;
-      }
-      if (params.maxCycles > 0 && cycle >= params.maxCycles) {
+      }      if (params.maxCycles > 0 && cycle >= params.maxCycles) {
         outcome = "max-cycles";
         break;
       }
@@ -499,6 +498,7 @@ function summarizeLearning(r) {
     deduped: r.deduped,
     reviewed: r.reviewed,
     trainable: r.trainable,
+    corpusCeiling: r.corpusCeiling ?? null,
     failures: r.failures?.length ?? 0,
     sourceExhausted: r.sourceExhausted,
   };
