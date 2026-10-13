@@ -13,6 +13,10 @@
  *   - a version trained without periodic validation sampling is represented by
  *     its two recorded endpoints, which is too little to classify a trend —
  *     the UI says so instead of fabricating a verdict.
+ *
+ * The same honesty rules govern the run-event markers: a run is an EVENT, not a
+ * published model version, so a run with no recorded evaluation is marked as
+ * having no metric rather than plotted at zero.
  */
 
 export const VERDICT = Object.freeze({
@@ -158,8 +162,7 @@ export function classifyTrend(validation, training = null, thresholds = {}) {
   };
 }
 
-/** Loss series recorded for a version while it trained. */
-export function deriveSeries(trainState) {
+/** Loss series recorded for a version while it trained. */export function deriveSeries(trainState) {
   const ts = trainState && typeof trainState === "object" ? trainState : {};
   const validation = finitePoints(ts.validationHistory);
   let sampling = "none";
@@ -245,4 +248,133 @@ export function bestCheckpoint(entries) {
     if (!cur || e.loss < cur.loss) bestByHash.set(e.datasetHash, { ...e });
   }
   return [...bestByHash.values()];
+}
+
+// --------------------------------------------------------------- run events
+//
+// A diamond on the Trends graph is a RUN, not a version. That distinction
+// matters: most runs never become versions at all (they are rejected, they fail,
+// or they are still running), and hiding them would make an unbroken line of
+// successful promotions out of a lineage that actually had many failures. The
+// markers below are therefore derived from persisted run/event data alone, and
+// they carry whatever the ledger really recorded — a missing metric stays null,
+// so the UI can say "not recorded" instead of inventing a number.
+
+/** Run outcomes, as recorded in `run-events.ndjson` / the completion patch. */
+export const RUN_OUTCOME = Object.freeze({
+  PROMOTED: "promoted",
+  REJECTED: "rejected",
+  NOT_EVALUATED: "not_evaluated",
+  FAILED: "failed",
+  IN_PROGRESS: "in_progress",
+});
+
+export const RUN_OUTCOME_LABELS = Object.freeze({
+  [RUN_OUTCOME.PROMOTED]: "Promoted",
+  [RUN_OUTCOME.REJECTED]: "Rejected",
+  [RUN_OUTCOME.NOT_EVALUATED]: "Not evaluated",
+  [RUN_OUTCOME.FAILED]: "Failed",
+  [RUN_OUTCOME.IN_PROGRESS]: "In progress",
+});
+
+/**
+ * Finite number, or null.
+ *
+ * Every "missing" flavour is rejected explicitly and BEFORE coercion, because
+ * `Number(null)`, `Number("")`, `Number(false)` and `Number([])` are all 0 — a
+ * missing metric must never become a measured zero, which would read as a loss
+ * of exactly nothing.
+ */
+function finiteOrNull(value) {
+  if (value === null || value === undefined || value === "" || typeof value === "boolean") return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+/**
+ * First entry of `[[value, label], ...]` that holds a finite number.
+ * Returns `{ value, source }`, or null when none of them is finite.
+ */
+function firstFinite(candidates) {
+  for (const [value, source] of candidates) {
+    const n = finiteOrNull(value);
+    if (n !== null) return { value: n, source };
+  }
+  return null;
+}
+
+/**
+ * Outcome of a run: a terminal failure outranks a promotion decision (a run
+ * that later failed is not a promotion), then the durable promotion decision,
+ * then the durable run status, then "still running".
+ */
+export function resolveRunOutcome(run) {
+  const status = typeof run?.status === "string" ? run.status : null;
+  const decision = typeof run?.promotionStatus === "string" ? run.promotionStatus : null;
+  if (status === "failed") return RUN_OUTCOME.FAILED;
+  if (decision === RUN_OUTCOME.PROMOTED) return RUN_OUTCOME.PROMOTED;
+  if (decision === RUN_OUTCOME.NOT_EVALUATED) return RUN_OUTCOME.NOT_EVALUATED;
+  if (decision === RUN_OUTCOME.REJECTED) return RUN_OUTCOME.REJECTED;
+  if (status === RUN_OUTCOME.PROMOTED) return RUN_OUTCOME.PROMOTED;
+  if (status === RUN_OUTCOME.REJECTED) return RUN_OUTCOME.REJECTED;
+  return RUN_OUTCOME.IN_PROGRESS;
+}
+
+/**
+ * Turn persisted runs (+ their durable candidate models) into graph events.
+ *
+ * `models` supplies the durable model-event score, which survives a restart
+ * even though the run completion patch does not, so `loss` keeps its meaning
+ * after the process that produced it is gone.
+ *
+ * Every field is nullable on purpose: a run that produced no version, no
+ * dataset hash or no evaluation produces a row with nulls, not a fabricated
+ * column. `state` is left for the caller because it is the only sight of the
+ * Python store (this module must stay I/O-free).
+ */
+export function deriveRunEvents(runs, models = []) {
+  const byRun = new Map();
+  for (const m of models ?? []) {
+    if (m && m.trainingRunId) byRun.set(m.trainingRunId, m);
+  }
+
+  const events = [];
+  for (const run of runs ?? []) {
+    if (!run || !run.runId) continue;
+    const candidate = byRun.get(run.runId) ?? null;
+    const outcome = resolveRunOutcome(run);
+    // Only candidate losses, never the baseline: a baseline is the PARENT's
+    // score and plotting it here would claim an improvement that never happened.
+    const loss = firstFinite([
+      [run.trainedEvaluation?.loss, "run.trainedEvaluation"],
+      [candidate?.evaluationScore, "modelEvent.evaluationScore"],
+    ]);
+    events.push({
+      runId: run.runId,
+      outcome,
+      version: run.runLinkage?.pythonVersion ?? candidate?.meta?.pythonVersion ?? null,
+      parentVersion: run.runLinkage?.parentVersion ?? candidate?.meta?.parentVersion ?? null,
+      loss: loss?.value ?? null,
+      lossSource: loss?.source ?? null,
+      datasetHash: run.runLinkage?.datasetHash ?? candidate?.meta?.datasetHash ?? null,
+      evaluationDatasetHash: run.runLinkage?.evaluationDatasetHash ?? null,
+      tokensSeen: finiteOrNull(run.trainedEvaluation?.tokensSeen ?? candidate?.meta?.tokensSeen),
+      evaluationDelta: finiteOrNull(run.evaluationDelta),
+      activatedVersion: run.activatedVersion ?? null,
+      promoted: outcome === RUN_OUTCOME.PROMOTED,
+      startedAt: run.startedAt ?? null,
+      completedAt: run.completedAt ?? null,
+      trainedAt: run.completedAt ?? run.startedAt ?? null,
+      note: run.trainerNotes?.note ?? null,
+    });
+  }
+
+  // Newest recorded event first, deterministically: time, then id as tiebreak.
+  events.sort((a, b) => {
+    const ta = a.trainedAt ? Date.parse(a.trainedAt) : 0;
+    const tb = b.trainedAt ? Date.parse(b.trainedAt) : 0;
+    if (ta !== tb) return tb - ta;
+    return String(b.runId).localeCompare(String(a.runId));
+  });
+  return events;
 }

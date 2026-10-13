@@ -384,6 +384,36 @@ exposes it deliberately.
 | Training History | **both** sources — the Node registry (orchestration/audit) and the read-only Python `SMA_STORE` (committed versions, `active.json`, provenance, metrics); unavailable metrics are reported as unavailable, never as zero |
 | Trends & Metrics | deterministic trend classification (improving / worsening / plateauing / potentially-overfitting / insufficient evidence) over recorded, comparable losses. The classifier in `src/admin/metrics.js` is a pure function — no I/O, no randomness — fed from train-state files and frozen eval-set records; validation and training losses are only ever compared within the same dataset hash. |
 
+#### A diamond is a run, not a version
+
+Every marker on the Trends graph is a **recorded run**, derived from the
+persisted `run-events`/`model-events` by `deriveRunEvents`
+(`src/admin/metrics.js`), never from the in-memory completion patch — which is
+why an outcome stays readable after the process that produced it is gone. All
+five outcomes are drawn: promoted, rejected, `not_evaluated`, failed and
+in-progress. Only a minority of runs ever become versions, so hiding the rest
+would draw an unbroken line of successes out of a lineage that also had
+rejections, failures and abandoned attempts.
+
+Two honesty rules are load-bearing, and both are pinned by tests:
+
+- **A missing metric stays missing.** `finiteOrNull` rejects
+  `null` / `undefined` / `""` / booleans *before* coercion, because
+  `Number(null)`, `Number("")` and `Number(false)` are all `0` — a missing loss
+  would otherwise plot as a loss of exactly nothing. An event with no recorded
+  loss is drawn hollow, on the top edge of the plot band, with the tooltip
+  saying `loss not recorded`.
+- **A run's loss is never the parent's.** Only candidate losses are read
+  (`run.trainedEvaluation.loss`, then the durable
+  `modelEvent.evaluationScore`). `baselineEvaluation` is deliberately never
+  consulted, so no diamond can claim an improvement that did not happen.
+
+Position: an event whose candidate still exists in the lineage plots at that
+candidate's own final step (`stepBasis: "run-final-step"`). Anything else — a
+rejected candidate, a run that failed before training — has no step of its own
+and plots at the lineage's final recorded step, labelled `lineage-end` in the
+tooltip so the placement is never read as a measurement.
+
 REST surface (all under `/api/admin`): `overview`, `metrics`, `articles` (+`/:id`),
 `articles/select-for-review`, `articles/:id/request-review`,
 `articles/:id/importance`, `articles/:id/status`, `articles/:id/review`,

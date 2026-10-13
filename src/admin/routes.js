@@ -10,6 +10,7 @@ import { probeTeacher } from "./teacher.js";
 import {
   bestCheckpoint,
   classifyTrend,
+  deriveRunEvents,
   deriveSeries,
   downsample,
   mergeChain,
@@ -364,34 +365,55 @@ export function attachAdmin({ app, store, registry, governance, chat, conversati
       maxPoints,
     );
 
-    // Markers: frozen eval-set benchmark records of artifacts in this lineage.
-    // Join runs to their durable candidate model (runLinkage is not persisted
-    // on the immutable run line), so a restarted process still shows the
-    // promotion point and its frozen-set loss.
+    // Events: EVERY recorded run, whether or not it produced a version. Joining
+    // through the durable candidate model keeps the outcome, the version and the
+    // frozen-set loss readable after a restart — the completion patch that the
+    // process held never made it to runs.ndjson.
     const modelsByRun = new Map(
       w.services.registry.listModels().filter((m) => m.trainingRunId).map((m) => [m.trainingRunId, m]),
     );
-    const markers = [];
-    for (const r of w.services.registry.listRuns()) {
-      const cand = modelsByRun.get(r.runId) ?? null;
-      const version = r.runLinkage?.pythonVersion ?? cand?.meta?.pythonVersion ?? null;
-      if (!version || !lineage.some((v) => v.version === version)) continue;
-      const loss = Number.isFinite(r.trainedEvaluation?.loss)
-        ? r.trainedEvaluation.loss
-        : (Number.isFinite(cand?.evaluationScore) ? cand.evaluationScore : NaN);
-      if (!Number.isFinite(loss)) continue;
-      markers.push({
-        runId: r.runId,
-        version,
-        loss: Number(loss),
-        status: r.status,
-        promotionStatus: r.promotionStatus ?? cand?.status ?? null,
-        activatedVersion: r.activatedVersion ?? (cand?.status === "promoted" ? cand.meta.pythonVersion : null),
-        trainedAt: r.completedAt ?? r.startedAt ?? null,
-        datasetHash: r.runLinkage?.datasetHash ?? cand?.meta?.datasetHash ?? null,
-        tokensSeen: r.trainedEvaluation?.tokensSeen ?? cand?.meta?.tokensSeen ?? null,
-      });
+    const events = deriveRunEvents(w.services.registry.listRuns(), [...modelsByRun.values()]);
+
+    // Step placement. A run whose candidate still exists in the lineage plots at
+    // that candidate's own final step; anything else (a rejected or discarded
+    // candidate, a run that failed before training) has no recorded step of its
+    // own and plots at the end of the lineage's recorded range, labelled as such
+    // in the tooltip so the position is never read as a measurement.
+    const stepsByVersion = new Map(lineage.map((v) => [v.version, v]));
+    // Fallback end of the lineage: the last step any version actually recorded,
+    // used only for events that have no step of their own.
+    const lineageStepsEnd = lineage.reduce((acc, v) => {
+      const s = v.trainState?.stepsCompleted;
+      return Number.isInteger(s) && s > 0 ? Math.max(acc, s - 1) : acc;
+    }, null);
+    const lineageEnd = validationChain.to ?? trainingChain.to ?? lineageStepsEnd ?? null;
+    for (const e of events) {
+      const seg = e.version ? stepsByVersion.get(e.version) : null;
+      const own = Number.isInteger(seg?.trainState?.stepsCompleted) && seg.trainState.stepsCompleted > 0
+        ? seg.trainState.stepsCompleted - 1
+        : null;
+      e.step = own !== null ? own : lineageEnd;
+      e.stepBasis = own !== null ? "run-final-step" : "lineage-end";
+      e.inLineage = Boolean(e.version && stepsByVersion.has(e.version));
     }
+
+    // `markers` is the frozen-eval-set subset (a finite loss, plottable on the
+    // loss axis). Kept for callers that only want measurable evidence; the graph
+    // draws from `events` so unmeasured runs stay visible.
+    const markers = events
+      .filter((e) => Number.isFinite(e.loss) && Number.isInteger(e.step))
+      .map((e) => ({
+        runId: e.runId,
+        version: e.version,
+        loss: e.loss,
+        status: e.outcome,
+        promotionStatus: e.outcome,
+        activatedVersion: e.activatedVersion,
+        trainedAt: e.trainedAt,
+        datasetHash: e.datasetHash,
+        tokensSeen: e.tokensSeen,
+        step: e.step,
+      }));
 
     const training = segments.map((s) => ({
       version: s.version,
@@ -425,6 +447,7 @@ export function attachAdmin({ app, store, registry, governance, chat, conversati
       },
       training,
       markers,
+      events,
       best: bestCheckpoint(
         segments
           .map((s) => {

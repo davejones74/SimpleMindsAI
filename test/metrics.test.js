@@ -8,6 +8,9 @@ import {
   downsample,
   selectEffectiveVersion,
   bestCheckpoint,
+  RUN_OUTCOME,
+  resolveRunOutcome,
+  deriveRunEvents,
 } from "../src/admin/metrics.js";
 
 const DEFAULTS = { minPoints: 3, improveDrop: 0.01, worsenRise: 0.05, overfitValRise: 0.02 };
@@ -209,4 +212,83 @@ test("bestCheckpoint: keeps the lowest loss per dataset hash only", () => {
 
 test("bestCheckpoint: ignores non-finite losses", () => {
   assert.deepEqual(bestCheckpoint([{ version: "v001", loss: null, datasetHash: "x" }]), []);
+});
+
+// --------------------------------------------------------------- run events
+//
+// A diamond is a run/event, not a published model version. These tests pin the
+// two rules that matter: every recorded run produces an event, and a missing
+// metric stays missing.
+
+test("resolveRunOutcome: prefers the promotion decision over the run status", () => {
+  assert.equal(resolveRunOutcome({ status: "rejected", promotionStatus: "not_evaluated" }), RUN_OUTCOME.NOT_EVALUATED);
+  assert.equal(resolveRunOutcome({ status: "promoted", promotionStatus: "promoted" }), RUN_OUTCOME.PROMOTED);
+});
+
+test("resolveRunOutcome: a terminal failure outranks a promotion decision", () => {
+  assert.equal(resolveRunOutcome({ status: "failed", promotionStatus: "promoted" }), RUN_OUTCOME.FAILED);
+});
+
+test("resolveRunOutcome: falls back to the durable run status, then in-progress", () => {
+  assert.equal(resolveRunOutcome({ status: "rejected" }), RUN_OUTCOME.REJECTED);
+  assert.equal(resolveRunOutcome({ status: "running" }), RUN_OUTCOME.IN_PROGRESS);
+  assert.equal(resolveRunOutcome({ status: "created" }), RUN_OUTCOME.IN_PROGRESS);
+  assert.equal(resolveRunOutcome({}), RUN_OUTCOME.IN_PROGRESS);
+  assert.equal(resolveRunOutcome(null), RUN_OUTCOME.IN_PROGRESS);
+});
+
+test("deriveRunEvents: emits an event for every run, measured or not", () => {
+  const runs = [
+    { runId: "r1", status: "promoted", promotionStatus: "promoted", startedAt: "2026-10-13T10:00:00Z", trainedEvaluation: { loss: 10.5, version: "v002" }, runLinkage: { pythonVersion: "v002", datasetHash: "h" }, evaluationDelta: 0.5 },
+    { runId: "r2", status: "rejected", promotionStatus: "rejected", startedAt: "2026-10-13T11:00:00Z" },
+    { runId: "r3", status: "failed", startedAt: "2026-10-13T12:00:00Z" },
+    { runId: "r4", status: "running", startedAt: "2026-10-13T13:00:00Z" },
+  ];
+  const events = deriveRunEvents(runs, []);
+  assert.equal(events.length, 4);
+  assert.deepEqual(events.map((e) => e.outcome), ["in_progress", "failed", "rejected", "promoted"]);
+  assert.equal(events.find((e) => e.outcome === "promoted").loss, 10.5);
+});
+
+test("deriveRunEvents: a missing loss is null, never zero", () => {
+  const events = deriveRunEvents([
+    { runId: "r1", status: "rejected" },
+    { runId: "r2", status: "failed", trainedEvaluation: { loss: null } },
+    { runId: "r3", status: "failed", trainedEvaluation: { loss: Number.NaN } },
+  ]);
+  for (const e of events) {
+    assert.equal(e.loss, null);
+    assert.equal(e.lossSource, null);
+  }
+});
+
+test("deriveRunEvents: takes the candidate loss from the durable model event", () => {
+  const events = deriveRunEvents(
+    [{ runId: "r1", status: "promoted", runLinkage: { pythonVersion: "v004", datasetHash: "h" } }],
+    [{ modelId: "m1", trainingRunId: "r1", status: "promoted", evaluationScore: 11.38, meta: { pythonVersion: "v004", datasetHash: "h", tokensSeen: 30720 } }],
+  );
+  assert.equal(events[0].loss, 11.38);
+  assert.equal(events[0].lossSource, "modelEvent.evaluationScore");
+  assert.equal(events[0].tokensSeen, 30720);
+  assert.equal(events[0].version, "v004");
+});
+
+test("deriveRunEvents: never falls back to the baseline (parent) loss", () => {
+  const events = deriveRunEvents([
+    { runId: "r1", status: "rejected", baselineEvaluation: { loss: 11.8 }, trainedEvaluation: { loss: null } },
+  ]);
+  assert.equal(events[0].loss, null);
+});
+
+test("deriveRunEvents: a run with no version still reports one", () => {
+  const events = deriveRunEvents([{ runId: "r1", status: "running" }]);
+  assert.equal(events.length, 1);
+  assert.equal(events[0].version, null);
+  assert.equal(events[0].promoted, false);
+});
+
+test("deriveRunEvents: empty or malformed input is empty, not a crash", () => {
+  assert.deepEqual(deriveRunEvents([], []), []);
+  assert.deepEqual(deriveRunEvents(null), []);
+  assert.deepEqual(deriveRunEvents([null, {}, { status: "running" }], null), []);
 });

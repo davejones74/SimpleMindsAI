@@ -111,6 +111,22 @@ th { color: var(--muted); font-size: 12px; }
 td.wrap, th.wrap { overflow-wrap: anywhere; word-break: break-word; min-width: 0; }
 td.small.wrap { line-height: 1.45; }
 
+/* Section sub-tabs: Training History and Trends each stack several wide tables,
+   and a 10-column table squeezed into a half-width grid cell renders every
+   character on its own line. They split into tabs instead. */
+nav.subtabs { display: flex; gap: 8px; margin: 2px 0 14px; flex-wrap: wrap; }
+nav.subtabs button {
+  background: transparent; border: 1px solid var(--border); color: var(--muted);
+  padding: 5px 12px; border-radius: 8px; font-size: 12px; cursor: pointer;
+}
+nav.subtabs button:hover { color: var(--text); }
+nav.subtabs button.active { color: var(--text); background: var(--panel-2); border-color: var(--accent); }
+
+/* A free-text column must keep enough width to stay a paragraph. Without a
+   floor, the auto table layout starves it to a single character and
+   `overflow-wrap: anywhere` turns every character into its own line. */
+td.reason, th.reason { min-width: 16rem; max-width: 40rem; }
+
 .chat { display: flex; flex-direction: column; }
 .chat .log {
   height: 55vh; overflow-y: auto; padding: 12px; background: var(--panel-2);

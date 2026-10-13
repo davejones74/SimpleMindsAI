@@ -21,6 +21,11 @@ const state = {
   cycles: null,
   history: null,
   trends: null,
+  // Which sub-tab of Training History / Trends is showing. Sections that stack
+  // several wide tables are tabbed so a table always gets the full width it
+  // needs; defaulting to the first entry keeps the initial render unchanged.
+  historyTab: "runs",
+  trendsTab: "trend",
   control: null, // { jobs, eligibility, teacher, versions }
   // Persisted Learning & Training form selections, so a re-render (from SSE,
   // polling, or after Start/Stop) never silently resets the operator's choice
@@ -811,6 +816,7 @@ function renderHistory() {
   const h = state.history;
   if (!h) return;
   const r = h.registry;
+  const tab = state.historyTab;
   main.innerHTML = `
     <h2 class="section-title">Training History <span class="sm">${versionScope()}</span></h2>
     <div class="small muted" style="margin:-6px 0 12px">
@@ -822,52 +828,107 @@ function renderHistory() {
       <ul class="small">${h.discrepancies.map((d) => `<li>${esc(d.kind)}${d.version ? ` — ${esc(d.version)}` : ""}${d.detail ? ` (${esc(d.detail)})` : ""}</li>`).join("")}</ul>
     </div>` : `<div class="panel"><span class="ok">Registry and Python store agree.</span> <span class="small muted">Node = orchestration/audit; Python = committed artifacts.</span></div>`}
 
-    <div class="cols">
-      <div class="panel">
-        <div class="k">Training runs (Node registry)</div>
-        <table><tr><th>Run</th><th>Status</th><th>Records</th><th>Versions (parent→candidate)</th><th>Promotion</th><th>Score (base→trained)</th><th>Loss (base→trained)</th><th>Δ</th><th class="wrap">Reason</th><th>Started</th></tr>
-          ${r.runs.slice().reverse().map((run) => `
-            ${(() => { const prom = run.promotionStatus ?? run.status; const reason = run.candidate?.note ?? run.note ?? null; return `
-            <tr><td class="small">${esc(run.runId)}${run.candidate?.modelId ? `<div class="muted">${esc(run.candidate.modelId)}</div>` : ""}</td>
-            <td>${badge(prom === "promoted" ? "REVIEWED" : prom === "rejected" ? "REJECTED" : "PENDING_REVIEW", run.status)}</td>
-            <td>${fmt(run.recordCount)}</td>
-            <td class="small">${run.pythonVersion ? `${run.parentVersion ? `${esc(run.parentVersion)} → ` : ""}${esc(run.pythonVersion)}` : "—"}
-              ${run.datasetHash ? `<div class="muted" title="${esc(run.datasetHash)}">data ${esc(shortHash(run.datasetHash))}</div>` : ""}</td>
-            <td class="small">${esc(run.promotionStatus ?? "—")}${run.activatedVersion ? `<div class="muted">active ${esc(run.activatedVersion)}</div>` : ""}</td>
-            <td>${run.baselineScore == null && run.trainedScore == null ? "—" : `${fmt(run.baselineScore)} → ${fmt(run.trainedScore)}`}</td>
-            <td>${run.baselineLoss == null && run.trainedLoss == null ? "—" : `${fmt(run.baselineLoss)} → ${fmt(run.trainedLoss)}`}
-              ${run.candidate?.avgTrainLoss != null ? `<div class="muted" title="mean training-tail loss (candidate meta)">train avg ${fmt(run.candidate.avgTrainLoss)}</div>` : ""}</td>
-            <td>${run.lossDelta == null ? "—" : `${run.lossDelta > 0 ? "+" : ""}${run.lossDelta.toFixed(3)}`}</td>
-            <td class="small wrap">${reason ? `<span title="${esc(reason)}">${esc(reason)}</span>` : "—"}</td>
-            <td class="small">${when(run.startedAt)}</td></tr>`; })()}`).join("") || `<tr><td colspan="10" class="muted">No runs yet. Run <code>npm run train</code>.</td></tr>`}
-        </table>
-      </div>
-      <div class="panel">
-        <div class="k">Models (Node registry)</div>
-        <table><tr><th>Model</th><th>Kind</th><th>Status</th><th>Score</th></tr>
-          ${r.models.slice().reverse().map((m) => `
-            <tr><td class="small">${esc(m.modelId)}</td><td>${esc(m.kind)}</td>
-            <td>${badge(m.status === "promoted" ? "REVIEWED" : m.status === "rejected" ? "REJECTED" : "PENDING_REVIEW", m.status)}</td>
-            <td>${fmt(m.evaluationScore)}</td></tr>`).join("") || `<tr><td colspan="4" class="muted">No models.</td></tr>`}
-        </table>
-        <div class="small muted" style="margin-top:6px">active: ${esc(r.activeModel?.modelId ?? "none")}</div>
-      </div>
-    </div>
+    ${subtabs("historyTab", [
+      ["runs", `Training runs (${r.runs.length})`],
+      ["models", `Models (${r.models.length})`],
+      ["python", `Python store (${h.pythonStore?.versions?.length ?? 0})`],
+      ["eval", "Evaluation set"],
+    ])}
 
-    <div class="panel">
-      <div class="k">Python brain store (authoritative for committed artifacts) <span class="sm">${storeStatus()}</span></div>
-      ${renderPythonStore(h.pythonStore)}
-    </div>
-
-    ${h.evaluationSet ? `<div class="panel">
-      <div class="k">Frozen evaluation set (identity)</div>
-      <div class="small muted">${esc(h.evaluationSet.dir)}</div>
-      <table><tr><th>File</th><th>Bytes</th><th class="wrap">sha256</th></tr>
-        ${h.evaluationSet.files.map((f) => `<tr><td>${esc(f.file)}</td><td>${f.bytes}</td><td class="small wrap" title="${esc(f.sha256)}">${esc(shortHash(f.sha256))}</td></tr>`).join("") || `<tr><td colspan="3" class="muted">No files.</td></tr>`}
-      </table>
-      <div class="small muted">The frozen hold-out the promotion gate scores against — never used for training.</div>
-    </div>` : ""}
+    ${tab === "runs" ? runsPanel(r) : ""}
+    ${tab === "models" ? modelsPanel(r) : ""}
+    ${tab === "python" ? pythonStorePanel(h.pythonStore) : ""}
+    ${tab === "eval" ? evalSetPanel(h.evaluationSet) : ""}
   `;
+  bindSubtabs();
+}
+
+/**
+ * Training runs at full width. Ten columns cannot share a half-width grid cell:
+ * the auto layout starves the free-text column to one character and
+ * `overflow-wrap: anywhere` renders every character on its own line.
+ */
+function runsPanel(r) {
+  const rows = r.runs.slice().reverse().map(runRow).join("");
+  return `<div class="panel">
+    <div class="k">Training runs (Node registry)</div>
+    <div class="small muted" style="margin-bottom:8px">
+      One row per recorded run — including runs that were rejected, failed or never finished. A run becomes a published version only when it is promoted.
+    </div>
+    <table><tr><th>Run</th><th>Status</th><th>Records</th><th>Versions (parent→candidate)</th><th>Promotion</th><th>Score (base→trained)</th><th>Loss (base→trained)</th><th>Δ</th><th class="reason">Reason</th><th>Started</th></tr>
+      ${rows || `<tr><td colspan="10" class="muted">No runs yet. Run <code>npm run train</code>.</td></tr>`}
+    </table>
+  </div>`;
+}
+
+function runRow(run) {
+  const prom = run.promotionStatus ?? run.status;
+  const reason = run.candidate?.note ?? run.note ?? null;
+  const lineage = run.pythonVersion ? `${run.parentVersion ? `${esc(run.parentVersion)} → ` : ""}${esc(run.pythonVersion)}` : "—";
+  const dataCell = run.datasetHash
+    ? `<div class="muted" title="dataset hash ${esc(run.datasetHash)}">data ${esc(shortHash(run.datasetHash))}</div>`
+    : "";
+  const activeCell = run.activatedVersion
+    ? `<div class="muted" title="version this run activated">active ${esc(run.activatedVersion)}</div>`
+    : "";
+  const trainAvg = run.candidate?.avgTrainLoss != null
+    ? `<div class="muted" title="mean training-tail loss (candidate meta)">train avg ${fmt(run.candidate.avgTrainLoss)}</div>`
+    : "";
+  const score = run.baselineScore == null && run.trainedScore == null ? "—" : `${fmt(run.baselineScore)} → ${fmt(run.trainedScore)}`;
+  const loss = run.baselineLoss == null && run.trainedLoss == null ? "—" : `${fmt(run.baselineLoss)} → ${fmt(run.trainedLoss)}${trainAvg}`;
+  const delta = run.lossDelta == null ? "—" : `${run.lossDelta > 0 ? "+" : ""}${run.lossDelta.toFixed(3)}`;
+  return `<tr>
+    <td class="small">${esc(run.runId)}${run.candidate?.modelId ? `<div class="muted" title="candidate model id">${esc(run.candidate.modelId)}</div>` : ""}</td>
+    <td>${badge(prom === "promoted" ? "REVIEWED" : prom === "rejected" ? "REJECTED" : "PENDING_REVIEW", run.status)}</td>
+    <td>${fmt(run.recordCount)}</td>
+    <td class="small">${lineage}${dataCell}</td>
+    <td class="small">${esc(run.promotionStatus ?? "—")}${activeCell}</td>
+    <td>${score}</td>
+    <td>${loss}</td>
+    <td>${delta}</td>
+    <td class="small reason">${reason ? `<span title="${esc(reason)}">${esc(reason)}</span>` : "—"}</td>
+    <td class="small">${when(run.startedAt)}</td>
+  </tr>`;
+}
+
+function modelsPanel(r) {
+  const rows = r.models.slice().reverse().map((m) => `<tr>
+    <td class="small">${esc(m.modelId)}</td>
+    <td>${esc(m.kind)}</td>
+    <td>${badge(m.status === "promoted" ? "REVIEWED" : m.status === "rejected" ? "REJECTED" : "PENDING_REVIEW", m.status)}</td>
+    <td>${fmt(m.evaluationScore)}</td>
+  </tr>`).join("");
+  return `<div class="panel">
+    <div class="k">Models (Node registry)</div>
+    <table><tr><th>Model</th><th>Kind</th><th>Status</th><th>Score</th></tr>
+      ${rows || `<tr><td colspan="4" class="muted">No models.</td></tr>`}
+    </table>
+    <div class="small muted" style="margin-top:6px">active: ${esc(r.activeModel?.modelId ?? "none")}</div>
+  </div>`;
+}
+
+function pythonStorePanel(py) {
+  return `<div class="panel">
+    <div class="k">Python brain store (authoritative for committed artifacts) <span class="sm">${storeStatus()}</span></div>
+    ${renderPythonStore(py)}
+  </div>`;
+}
+
+function evalSetPanel(evalSet) {
+  if (!evalSet) return `<div class="panel"><div class="muted">No frozen evaluation set configured.</div></div>`;
+  const rows = evalSet.files.map((f) => `<tr>
+    <td>${esc(f.file)}</td>
+    <td>${f.bytes}</td>
+    <td class="small wrap" title="${esc(f.sha256)}">${esc(shortHash(f.sha256))}</td>
+  </tr>`).join("");
+  return `<div class="panel">
+    <div class="k">Frozen evaluation set (identity)</div>
+    <div class="small muted">${esc(evalSet.dir)}</div>
+    <table><tr><th>File</th><th>Bytes</th><th class="wrap">sha256</th></tr>
+      ${rows || `<tr><td colspan="3" class="muted">No files.</td></tr>`}
+    </table>
+    <div class="small muted">The frozen hold-out the promotion gate scores against — never used for training.</div>
+  </div>`;
 }
 
 // ------------------------------------------------------- trends & metrics
@@ -895,6 +956,41 @@ function trendCard(k, vHtml) {
   return `<div class="card"><div class="k">${esc(k)}</div><div class="v">${vHtml}</div></div>`;
 }
 
+/**
+ * Section sub-tabs. `options` = [[key, label], ...]; the active key lives in
+ * `state[stateKey]`, and re-rendering is the caller's job so a tab switch can
+ * reuse already-loaded data instead of refetching.
+ *
+ * `data-subtab`/`data-subkey` are deliberately NOT `data-tab`/`data-key`: the
+ * top-level portal nav already uses `data-tab` on its own buttons, and sharing
+ * the attribute would make the sub-tab binder leak into the main nav.
+ */
+function subtabs(stateKey, options) {
+  const active = state[stateKey];
+  return `<nav class="subtabs">${options
+    .map(([key, label]) => `<button type="button" class="${active === key ? "active" : ""}" data-subtab="${stateKey}" data-subkey="${esc(key)}">${esc(label)}</button>`)
+    .join("")}</nav>`;
+}
+
+/**
+ * Wire every `[data-subtab]` button to set its section's key and re-render.
+ * Called from the section renderers themselves (not from `render()`), because
+ * the tabs are rebuilt by each innerHTML assignment and `load*()` renders
+ * without going through `render()`.
+ */
+function bindSubtabs() {
+  for (const btn of main.querySelectorAll("button[data-subtab]")) {
+    btn.addEventListener("click", () => {
+      const key = btn.dataset.subkey;
+      const section = btn.dataset.subtab;
+      if (state[section] === key) return;
+      state[section] = key;
+      if (section === "historyTab") renderHistory();
+      else if (section === "trendsTab") renderTrends();
+    });
+  }
+}
+
 function samplingLabel(k) {
   if (k === "periodic") return badge("REVIEWED", "periodic");
   if (k === "endpoints") return badge("PENDING_REVIEW", "endpoints only");
@@ -916,6 +1012,7 @@ function renderTrends() {
         ? `<div class="panel notice"><div class="muted">${esc(m.reason)}</div></div>`
         : trendsBody(m);
   main.innerHTML = `<h2 class="section-title">Trends &amp; Metrics <span class="sm">${versionScope()}</span></h2>${body}`;
+  bindSubtabs();
 }
 
 function trendsBody(m) {
@@ -927,39 +1024,52 @@ function trendsBody(m) {
   const valLost = ev.first == null && ev.last == null ? "—" : `${fmt(ev.first)} → ${fmt(ev.last)}`;
   const best = (m.best ?? []).filter((b) => Number.isFinite(b.loss));
   const thresholds = m.thresholds ?? {};
+  const tab = state.trendsTab;
   return `
-    <div class="grid">
-      ${trendCard("Trend", badge(TREND_BADGE[verdict] ?? "PENDING_REVIEW", label))}
-      ${trendCard("Validation loss", `${valLost}${ev.best == null ? "" : ` <span class="muted small">best ${fmt(ev.best)}</span>`}`)}
-      ${trendCard("Steps covered", m.chain?.fromStep == null ? "—" : `${fmt(m.chain.fromStep)} → ${fmt(m.chain.toStep)}`)}
-      ${trendCard("Effective version", `${esc(m.effectiveVersion ?? "—")} ${samplingLabel(seg?.sampling)}`)}
-      ${trendCard("Best checkpoint", best.length ? best.map((b) => `${esc(b.version ?? b.runId ?? "?")} <span class="muted small">${fmt(b.loss)} <span title="${esc(b.datasetHash ?? "")}">${esc(shortHash(b.datasetHash) ?? "unkeyed")}</span></span>`).join("<br>") : "—")}
-    </div>
-    <div class="panel">
-      <div class="k">Why ${label.toLowerCase()}</div>
-      <div class="prose">${esc(t.reason ?? "No classification reason recorded.")}</div>
-      <div class="small muted" style="margin-top:6px">
-        Evidence: ${fmt(ev.points)} finite validation sample(s) · first step ${fmt(ev.firstStep)} → last step ${fmt(ev.lastStep)} ·
-        thresholds minPoints ${fmt(thresholds.minPoints)} · improve ≥ ${fmt(thresholds.improveDrop)} · worsen ≥ ${fmt(thresholds.worsenRise)} · overfit val ≥ ${fmt(thresholds.overfitValRise)}
+    ${subtabs("trendsTab", [
+      ["trend", "Verdict"],
+      ["chart", "Loss chart"],
+      ["lineage", `Lineage segments (${(m.segments ?? []).length})`],
+      ["events", `Run events (${(m.events ?? []).length})`],
+    ])}
+
+    ${tab === "trend" ? `
+      <div class="grid">
+        ${trendCard("Trend", badge(TREND_BADGE[verdict] ?? "PENDING_REVIEW", label))}
+        ${trendCard("Validation loss", `${valLost}${ev.best == null ? "" : ` <span class="muted small">best ${fmt(ev.best)}</span>`}`)}
+        ${trendCard("Steps covered", m.chain?.fromStep == null ? "—" : `${fmt(m.chain.fromStep)} → ${fmt(m.chain.toStep)}`)}
+        ${trendCard("Effective version", `${esc(m.effectiveVersion ?? "—")} ${samplingLabel(seg?.sampling)}`)}
+        ${trendCard("Best checkpoint", best.length ? best.map((b) => `${esc(b.version ?? b.runId ?? "?")} <span class="muted small">${fmt(b.loss)} <span title="${esc(b.datasetHash ?? "")}">${esc(shortHash(b.datasetHash) ?? "unkeyed")}</span></span>`).join("<br>") : "—")}
       </div>
-    </div>
-    <div class="panel">
-      <div class="k">Loss over training steps ${m.datasetHash ? `<span class="small muted">(dataset ${esc(shortHash(m.datasetHash))})</span>` : ""}</div>
-      ${lossSvg(m)}
-      <div class="small muted" style="margin-top:8px">
-        Validation is measured on the held-out tail of the SAME corpus (token-weighted mean cross-entropy over the full vocabulary); training loss is the in-run mean per step. They are only ever compared within one dataset hash. ${seg?.sampling !== "periodic" ? `This version recorded only the opening and closing validations — set <code>TRAIN_EVAL_EVERY</code> ≥ 1 to sample a full curve.` : ""}
-      </div>
-    </div>
-    <div class="cols">
       <div class="panel">
-        <div class="k">Lineage segments</div>
+        <div class="k">Why ${label.toLowerCase()}</div>
+        <div class="prose">${esc(t.reason ?? "No classification reason recorded.")}</div>
+        <div class="small muted" style="margin-top:6px">
+          Evidence: ${fmt(ev.points)} finite validation sample(s) · first step ${fmt(ev.firstStep)} → last step ${fmt(ev.lastStep)} ·
+          thresholds minPoints ${fmt(thresholds.minPoints)} · improve ≥ ${fmt(thresholds.improveDrop)} · worsen ≥ ${fmt(thresholds.worsenRise)} · overfit val ≥ ${fmt(thresholds.overfitValRise)}
+        </div>
+      </div>` : ""}
+
+    ${tab === "chart" ? `
+      <div class="panel">
+        <div class="k">Loss over training steps ${m.datasetHash ? `<span class="small muted">(dataset ${esc(shortHash(m.datasetHash))})</span>` : ""}</div>
+        ${lossSvg(m)}
+        <div class="small muted" style="margin-top:8px">
+          Validation is measured on the held-out tail of the SAME corpus (token-weighted mean cross-entropy over the full vocabulary); training loss is the in-run mean per step. They are only ever compared within one dataset hash. ${seg?.sampling !== "periodic" ? `This version recorded only the opening and closing validations — set <code>TRAIN_EVAL_EVERY</code> ≥ 1 to sample a full curve.` : ""}
+        </div>
+      </div>` : ""}
+
+    ${tab === "lineage" ? `
+      <div class="panel">
+        <div class="k">Lineage segments <span class="sm">${eventsSummary(m)}</span></div>
         ${segmentsTable(m)}
-      </div>
+      </div>` : ""}
+
+    ${tab === "events" ? `
       <div class="panel">
-        <div class="k">Frozen eval-set checkpoints (data/evaluation)</div>
-        ${markersTable(m)}
-      </div>
-    </div>
+        <div class="k">Run events <span class="sm">${eventsSummary(m)}</span></div>
+        ${eventsTable(m)}
+      </div>` : ""}
   `;
 }
 
@@ -978,13 +1088,48 @@ function segmentsTable(m) {
       </tr>`).join("")}</table>`;
 }
 
-function markersTable(m) {
-  const mk = m.markers ?? [];
-  if (!mk.length) return `<div class="muted small">No frozen eval-set benchmark records for this lineage yet.</div>`;
-  return `<table><tr><th>Version</th><th>Loss</th><th>Status</th><th>Trained</th></tr>
-    ${mk.slice().reverse().map((x) => `
-      <tr><td>${esc(x.version)}</td><td>${fmt(x.loss)}</td>
-      <td>${badge(x.promotionStatus === "promoted" ? "REVIEWED" : x.promotionStatus === "rejected" ? "REJECTED" : "PENDING_REVIEW", x.promotionStatus ?? x.status ?? "?")}</td>
+const RUN_EVENT_LABEL = {
+  promoted: "Promoted",
+  rejected: "Rejected",
+  not_evaluated: "Not evaluated",
+  failed: "Failed",
+  in_progress: "In progress",
+};
+
+const RUN_EVENT_BADGE = {
+  promoted: "REVIEWED",
+  rejected: "REJECTED",
+  not_evaluated: "PENDING_REVIEW",
+  failed: "REJECTED",
+  in_progress: "INGESTED",
+};
+
+/** Outcome-aware colour. A run with no recorded loss is drawn hollow, so an
+ * unmeasured event never looks like a low one. */
+const RUN_EVENT_FILL = {
+  promoted: "var(--good)",
+  rejected: "var(--bad)",
+  not_evaluated: "var(--warn)",
+  failed: "var(--bad)",
+  in_progress: "var(--accent)",
+};
+
+function eventsSummary(m) {
+  const ev = m.events ?? [];
+  if (!ev.length) return `<span class="small muted">(none recorded)</span>`;
+  const counts = {};
+  for (const e of ev) counts[e.outcome] = (counts[e.outcome] ?? 0) + 1;
+  return `<span class="small muted">${ev.length} run(s) — ${Object.entries(RUN_EVENT_LABEL).map(([k, l]) => `${counts[k] ?? 0} ${l.toLowerCase()}`).join(" · ")}</span>`;
+}
+
+function eventsTable(m) {
+  const ev = m.events ?? [];
+  if (!ev.length) return `<div class="muted small">No runs recorded for this store yet.</div>`;
+  return `<table><tr><th>Run</th><th>Loss</th><th>Outcome</th><th>When</th></tr>
+    ${ev.map((x) => `
+      <tr><td class="small">${esc(x.runId)}${x.version ? ` <span class="muted">${esc(x.version)}</span>` : ""}</td>
+      <td>${x.loss == null ? `<span class="muted">not recorded</span>` : fmt(x.loss)}</td>
+      <td>${badge(RUN_EVENT_BADGE[x.outcome] ?? "PENDING_REVIEW", RUN_EVENT_LABEL[x.outcome] ?? x.outcome ?? "?")}</td>
       <td class="small">${when(x.trainedAt)}</td></tr>`).join("")}</table>`;
 }
 
@@ -992,16 +1137,17 @@ function lossSvg(m) {
   const W = 760, H = 300, P = { l: 64, r: 20, t: 18, b: 40 };
   const valPts = (m.chain?.points ?? []).filter((p) => Number.isFinite(p.loss));
   const trainPts = (m.training ?? []).flatMap((s) => (s.points ?? []).filter((p) => Number.isFinite(p.loss)));
-  const markers = (m.markers ?? [])
-    .map((mk) => {
-      const seg = (m.segments ?? []).find((s) => s.version === mk.version);
-      const step = seg && Number.isInteger(seg.stepsCompleted) ? seg.stepsCompleted - 1 : null;
-      return { ...mk, step };
-    })
-    .filter((mk) => mk.step !== null);
-  const losses = [...valPts, ...trainPts, ...markers].map((p) => p.loss).filter(Number.isFinite);
+  // Every recorded run is plotted. One without a finite loss is still placed
+  // (at its own final step when the version survives, else at the end of the
+  // lineage) but drawn hollow, so its position claims a step, not a loss.
+  const events = (m.events ?? [])
+    .map((e) => ({ ...e, step: Number.isInteger(e.step) ? e.step : null }))
+    .filter((e) => e.step !== null);
+  const measured = events.filter((e) => e.loss != null && Number.isFinite(e.loss));
+  const unmeasured = events.filter((e) => !(e.loss != null && Number.isFinite(e.loss)));
+  const losses = [...valPts, ...trainPts, ...measured].map((p) => p.loss).filter(Number.isFinite);
   if (losses.length < 2) return `<div class="empty">No finite loss series recorded for this version. Train with <code>config.trainEvalEvery ≥ 1</code> to record a curve.</div>`;
-  const steps = [...valPts, ...trainPts, ...markers].map((p) => p.step).filter((s) => Number.isInteger(s));
+  const steps = [...valPts, ...trainPts, ...events].map((p) => p.step).filter((s) => Number.isInteger(s));
   if (!steps.length) return `<div class="empty">No step axis recorded.</div>`;
   let min = Math.min(...losses), max = Math.max(...losses);
   const range = max - min;
@@ -1012,10 +1158,27 @@ function lossSvg(m) {
   const sy = (v) => P.t + ((max - v) / (max - min || 1)) * (H - P.t - P.b);
   const path = (pts) => pts.map((p, i) => `${i ? "L" : "M"}${sx(p.step).toFixed(1)},${sy(p.loss).toFixed(1)}`).join(" ");
   const diamond = (x, y) => `${x},${(y - 5).toFixed(1)} ${(x + 5).toFixed(1)},${y.toFixed(1)} ${x},${(y + 5).toFixed(1)} ${(x - 5).toFixed(1)},${y.toFixed(1)}`;
+  const tooltip = (e) => {
+    const parts = [`run ${esc(e.runId)}`, `${RUN_EVENT_LABEL[e.outcome] ?? e.outcome}`];
+    parts.push(e.version ? esc(e.version) : "no version");
+    parts.push(e.loss == null ? "loss not recorded" : `loss ${fmt(e.loss)}`);
+    if (e.evaluationDelta != null) parts.push(`improvement ${fmt(e.evaluationDelta)}`);
+    if (e.tokensSeen != null) parts.push(`${fmt(e.tokensSeen)} tokens`);
+    if (e.activatedVersion) parts.push(`active ${esc(e.activatedVersion)}`);
+    if (e.stepBasis === "lineage-end") parts.push("plotted at the lineage's final step (own step not recorded)");
+    if (!e.inLineage) parts.push(`outside this dataset lineage (${esc(shortHash(e.datasetHash) ?? "unkeyed")})`);
+    return parts.join(" · ");
+  };
   const yTicks = [0, 0.25, 0.5, 0.75, 1].map((f) => max - f * (max - min));
   const xTicks = xMax === xMin ? [xMin] : [0, 0.25, 0.5, 0.75, 1].map((f) => xMin + f * (xSpan));
+  // Unmeasured events sit on the TOP EDGE of the plot band, above every data
+  // point and never on the loss curve: the position states "this run happened",
+  // and only the tooltip explains that it has no loss.
+  const unmeasuredY = P.t + 4;
+  const legend = (x, y, fill, label) =>
+    `<polygon points="${diamond(x, y)}" fill="${fill}"/><text x="${x + 9}" y="${(y + 3.5).toFixed(1)}" font-size="10" fill="var(--muted)">${label}</text>`;
   return `
-    <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Training vs validation loss over training steps" style="width:100%;height:auto">
+    <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Training vs validation loss over training steps, with every recorded run" style="width:100%;height:auto">
       ${yTicks.map((v) => `<line x1="${P.l}" y1="${sy(v).toFixed(1)}" x2="${W - P.r}" y2="${sy(v).toFixed(1)}" stroke="var(--border)" stroke-dasharray="2 4"/><text x="${P.l - 8}" y="${(sy(v) + 3.5).toFixed(1)}" text-anchor="end" font-size="10" fill="var(--muted)">${v.toFixed(2)}</text>`).join("")}
       ${xTicks.map((s) => `<text x="${sx(s).toFixed(1)}" y="${H - 10}" text-anchor="middle" font-size="10" fill="var(--muted)">${Math.round(s)}</text>`).join("")}
       <text x="${P.l}" y="${H - 26}" font-size="10" fill="var(--muted)">step</text>
@@ -1023,12 +1186,19 @@ function lossSvg(m) {
       ${trainPts.map((p) => `<circle cx="${sx(p.step).toFixed(1)}" cy="${sy(p.loss).toFixed(1)}" r="1.4" fill="var(--accent-2)"><title>training step ${p.step}: loss ${fmt(p.loss)}</title></circle>`).join("")}
       ${valPts.length ? `<path d="${path(valPts)}" fill="none" stroke="var(--accent)" stroke-width="2"/>` : ""}
       ${valPts.map((p) => `<circle cx="${sx(p.step).toFixed(1)}" cy="${sy(p.loss).toFixed(1)}" r="2" fill="var(--accent)"><title>validation step ${p.step}: loss ${fmt(p.loss)}${p.version ? ` · ${esc(p.version)}` : ""}</title></circle>`).join("")}
-      ${markers.map((mk) => `<polygon points="${diamond(sx(mk.step), sy(mk.loss))}" fill="var(--bad)"><title>frozen eval-set checkpoint ${esc(mk.version)}: loss ${fmt(mk.loss)}${mk.promotionStatus ? ` · ${esc(mk.promotionStatus)}` : ""}</title></polygon>`).join("")}
-      <rect x="${W - 248}" y="0" width="248" height="38" fill="var(--panel)" opacity="0.92"/>
-      <line x1="${W - 238}" y1="12" x2="${W - 220}" y2="12" stroke="var(--accent)" stroke-width="2"/><text x="${W - 212}" y="16" font-size="10" fill="var(--muted)">validation (held-out)</text>
-      <line x1="${W - 238}" y1="28" x2="${W - 220}" y2="28" stroke="var(--accent-2)" stroke-width="1.2" stroke-dasharray="4 3"/><text x="${W - 212}" y="32" font-size="10" fill="var(--muted)">training</text>
+      ${unmeasured.map((e) => `<polygon points="${diamond(sx(e.step), unmeasuredY)}" fill="var(--panel)" stroke="${RUN_EVENT_FILL[e.outcome] ?? "var(--muted)"}" stroke-width="1.6" stroke-dasharray="2 2"><title>${tooltip(e)}</title></polygon>`).join("")}
+      ${measured.map((e) => `<polygon points="${diamond(sx(e.step), sy(e.loss))}" fill="${RUN_EVENT_FILL[e.outcome] ?? "var(--muted)"}"><title>${tooltip(e)}</title></polygon>`).join("")}
+      <rect x="${W - 306}" y="0" width="306" height="78" fill="var(--panel)" opacity="0.92"/>
+      <line x1="${W - 296}" y1="12" x2="${W - 280}" y2="12" stroke="var(--accent)" stroke-width="2"/><text x="${W - 272}" y="16" font-size="10" fill="var(--muted)">validation (held-out)</text>
+      <line x1="${W - 296}" y1="28" x2="${W - 280}" y2="28" stroke="var(--accent-2)" stroke-width="1.2" stroke-dasharray="4 3"/><text x="${W - 272}" y="32" font-size="10" fill="var(--muted)">training</text>
+      ${legend(W - 296, 50, "var(--good)", "promoted")}
+      ${legend(W - 152, 50, "var(--bad)", "rejected / failed")}
+      ${legend(W - 296, 66, "var(--warn)", "not evaluated")}
+      ${legend(W - 152, 66, "var(--accent)", "in progress")}
     </svg>
-    ${markers.length ? `<div class="small muted">◆ = frozen eval-set benchmark (data/evaluation), dataset ${esc(shortHash(m.markers[0].datasetHash) ?? "unkeyed")} — plotted at each version's final step, not in-training.</div>` : ""}`;
+    <div class="small muted" style="margin-top:8px">
+      ◆ = a recorded run (event), not a published version — colour is the outcome. A hollow ◆ has no recorded loss; it is placed at its own final step, or at the lineage's final step when that is all the ledger recorded, and it sits on the top edge so it is never read as a loss value. Runs outside this dataset lineage are labelled in the tooltip. Dataset ${esc(shortHash(m.datasetHash) ?? "unkeyed")}.
+    </div>`;
 }
 
 // ------------------------------------------------------- learning & training

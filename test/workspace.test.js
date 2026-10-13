@@ -46,7 +46,7 @@ function seedPythonStore(root, version, { parentVersion = null, valLoss = 2.5, t
 }
 
 /** Build a self-contained workspace (articles + registry + python store) on disk. */
-async function buildWorkspace(dir, { articles = [], pythonVersion = "v004", parent = "v003", valLoss = 2.5, trainLoss = 3.0, run = null } = {}) {
+async function buildWorkspace(dir, { articles = [], pythonVersion = "v004", parent = "v003", valLoss = 2.5, trainLoss = 3.0, run = null, extraRuns = [] } = {}) {
   const arts = path.join(dir, "articles");
   const reg = path.join(dir, "registry");
   const pyRoot = path.join(dir, "store");
@@ -78,6 +78,33 @@ async function buildWorkspace(dir, { articles = [], pythonVersion = "v004", pare
       baselineEvaluation: { loss: valLoss + 0.4 },
       runLinkage: { pythonVersion, parentVersion: parent, datasetHash: model.datasetHash ?? "trainhash" },
     });
+    // Extra runs exercise the non-promotion outcomes with no candidate model at
+    // all, which is exactly the case a version-only view would hide.
+    for (const extra of extraRuns) {
+      const r2 = await registry.createRun({ datasetId: "dataset-x", trainerKind: "python", baseModelVersion: parent, recordCount: articles.length });
+      await registry.runEvent(r2.runId, { status: extra.status });
+      if (extra.evaluationScore != null) {
+        const m2 = await registry.registerModel({
+          kind: "python",
+          baseModel: "base",
+          parentModelId: null,
+          trainingRunId: r2.runId,
+          datasetId: "dataset-x",
+          checkpointPath: path.join(pyRoot, extra.pythonVersion ?? pythonVersion),
+          meta: { pythonVersion: extra.pythonVersion ?? null, parentVersion: parent, datasetHash: extra.datasetHash ?? "trainhash", tokensSeen: extra.tokensSeen ?? null },
+        });
+        await registry.modelEvent(m2.modelId, { status: extra.status === "rejected" ? "rejected" : "candidate", evaluationScore: extra.evaluationScore });
+      }
+      if (extra.status === "promoted" || extra.status === "rejected" || extra.status === "failed") {
+        await registry.completeRun(r2.runId, {
+          status: extra.status,
+          promotionStatus: extra.promotionStatus ?? extra.status,
+          trainedEvaluation: extra.loss != null ? { loss: extra.loss, version: extra.pythonVersion ?? null } : null,
+          evaluationDelta: extra.evaluationDelta ?? null,
+          runLinkage: { pythonVersion: extra.pythonVersion ?? null, parentVersion: parent, datasetHash: extra.datasetHash ?? "trainhash" },
+        });
+      }
+    }
   }
   await registry.close();
 
@@ -115,6 +142,15 @@ async function harness() {
         note: "loss 11.8392 -> 11.3805 (improvement 0.4587); loss improved by 0.4587 on 4c647fb91f2314e97e4d085e54251cedad42f9988f7a5c402f1de55ee4095c1b",
       },
     },
+    // A rejected candidate (no published version), a hard failure, and a run
+    // that is still in progress: all recorded, none published. The loss has to
+    // come from the durable model event, because the run completion patch is
+    // in-memory only and never reaches runs.ndjson.
+    extraRuns: [
+      { status: "rejected", evaluationScore: 11.95, datasetHash: "2074f38ab01048fe5e7795125e877795e9f8c4e8030f1260440508f6bc9dfa12", tokensSeen: 30720 },
+      { status: "failed" },
+      { status: "evaluating" },
+    ],
   });
 
   const store = await ArticleStore.open(dev.arts);
@@ -202,7 +238,9 @@ test("workspaces: overview reads the selected store and never mixes them", async
     assert.equal(trial.body.workspace.readOnly, true);
     assert.equal(trial.body.articles.totalArticles, 3);
     assert.equal(trial.body.pythonStore.activeVersion, "v004");
-    assert.equal(trial.body.registry.runCount, 1);
+    // One promoted run plus a rejected candidate, a failure and an in-progress
+    // run: runCount counts RUNS, so all four are present.
+    assert.equal(trial.body.registry.runCount, 4);
 
     // Re-read development after the trial to prove nothing bled across.
     const dev2 = await jget(`${h.base}/api/admin/overview?workspace=development`);
@@ -246,11 +284,31 @@ test("workspaces: training-history + metrics load the trial from persisted artif
     assert.equal(m.body.effectiveVersion, "v004");
     const seg = m.body.segments.find((s) => s.version === "v004");
     assert.equal(seg.finalValidationLoss, 2.5);
-    assert.equal(m.body.markers.length, 1);
-    assert.equal(m.body.markers[0].version, "v004");
-    assert.equal(m.body.markers[0].loss, 11.380511601765951);
-    assert.equal(m.body.markers[0].promotionStatus, "promoted");
-    assert.equal(m.body.markers[0].tokensSeen, 30720);
+    // `markers` is the measurable subset of those events: a finite loss and a
+    // plottable step. Two of the four runs qualify, including the rejected one.
+    assert.equal(m.body.markers.length, 2);
+    const promotedMarker = m.body.markers.find((mk) => mk.version === "v004");
+    assert.equal(promotedMarker.loss, 11.380511601765951);
+    assert.equal(promotedMarker.promotionStatus, "promoted");
+    assert.equal(promotedMarker.tokensSeen, 30720);
+    assert.ok(m.body.markers.some((mk) => mk.promotionStatus === "rejected" && mk.loss === 11.95));
+
+    // Diamonds are RUNS, not versions: the rejected candidate, the failed run
+    // and the in-progress run are all present even though only one of the four
+    // runs produced a published version.
+    const byOutcome = Object.fromEntries(m.body.events.map((e) => [e.outcome, e]));
+    assert.deepEqual(Object.keys(byOutcome).sort(), ["failed", "in_progress", "promoted", "rejected"]);
+    assert.equal(byOutcome.rejected.loss, 11.95);
+    assert.equal(byOutcome.rejected.version, null);
+    assert.equal(byOutcome.failed.loss, null);
+    assert.equal(byOutcome.in_progress.loss, null);
+    assert.equal(byOutcome.promoted.loss, 11.380511601765951);
+    assert.equal(byOutcome.promoted.version, "v004");
+    // Every event carries a step so the graph can place it, and events with no
+    // loss say so instead of inventing one.
+    for (const e of m.body.events) assert.ok(Number.isInteger(e.step), `${e.outcome} has no step`);
+    assert.equal(m.body.events.find((e) => e.outcome === "promoted").stepBasis, "run-final-step");
+    assert.equal(m.body.events.find((e) => e.outcome === "failed").stepBasis, "lineage-end");
 
     // The same run id exists in development with a DIFFERENT python version.
     const devHist = await jget(`${h.base}/api/admin/training-history?workspace=development`);
