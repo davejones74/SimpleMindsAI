@@ -124,7 +124,7 @@ The Python plane owns the accelerator. Its modules (`python/sma/`):
 | `store.py` | Immutable versions, atomic commit, durability, heartbeat, content-addressed naming, export and verify. |
 | `data.py` | Ingestion, content hashes, `concatenate-chunk-v1` packing, and the train/validation split. |
 | `train.py` | The precision model, guards, instrumentation, and resumable train state. |
-| `brain.py` | The CLI and the one-JSON-object subprocess contract (`init`, `status`, `train`, `eval`, `generate`, `diff`, `export`, `verify-export`, `active`, `preflight`). |
+| `brain.py` | The CLI and the one-JSON-object subprocess contract (`init`, `status`, `corpus-info`, `train` (+`--stage-only`), `publish`, `discard`, `eval` (+`--staged`), `generate`, `diff`, `export`, `verify-export`, `active`). |
 | `student.py` | The long-lived chat worker (framed stdio, hot active brain). |
 | `preflight.py` | The read-only Phase 2 memory/portability budget that gates a long 3B run. |
 | `portability.py` | Platform and backend detection, and the bf16 probe. |
@@ -149,11 +149,12 @@ flowchart LR
   B --> C{Review}
   C -->|REVIEWED only| D[Plan / curriculum gate]
   D --> E[Frozen snapshot]
-  E --> F[Python train]
-  F --> G[Immutable vNNN + COMMITTED]
+  E --> F[Python train --stage-only]
+  F --> G[Staged candidate vNNN.tmp unpublished]
   G --> H[Eval parent vs candidate on frozen set]
-  H -->|improvement| I[Move active.json]
-  H -->|no improvement| G
+  H -->|no improvement| X[Discard candidate + keep record]
+  H -->|improvement| P[Publish vNNN + COMMITTED]
+  P --> I[Move active.json]
   I --> J[Student worker reload]
   J --> K[Chat]
 ```
@@ -168,6 +169,54 @@ Key boundary rules:
   final say.
 - A committed version is immutable and append-only. `active.json` is the only
   mutable pointer, and it is a deployment concept, never part of a manifest.
+
+---
+
+## Three states of a brain: run, staged candidate, published version
+
+The lifecycle deliberately separates three things that earlier shared one name,
+because conflating them is exactly how a rejected candidate leaked into the
+version lineage as a new `vNNN`:
+
+| State | On disk | Visible as a version? | Mutable? |
+| --- | --- | --- | --- |
+| **Training run** | Node `TrainingRun` record + frozen snapshot + `_runs/vNNN.train-state.pt` | no | a run is a process, not an artifact |
+| **Staged candidate** | `SMA_STORE/vNNN.tmp/` (full checkpoint, **no** `COMMITTED`) | no — `list_versions` skips it | yes; deleted on rejection |
+| **Published version** | `SMA_STORE/vNNN/` + `COMMITTED` | yes | no — immutable and append-only |
+
+**Commit-on-promotion.** A real (Python) training run builds its checkpoint with
+`--stage-only`, which writes an *unpublished* `vNNN.tmp` and nothing else. The
+candidate is then scored on the frozen eval set via `eval --staged`, which reads
+the `.tmp` directory in place. Only if the loss gate promotes it does the
+lifecycle run `brain publish`, which (`os.replace` + `COMMITTED`) turns the
+candidate into an immutable `vNNN`. A rejected candidate is removed with
+`brain discard --keep-record <dir>`, which drops the weights but copies the small
+provenance record (manifest, train-state, provenance, parameter diff) so a
+rejection is still auditable. **A rejected candidate never appears in the
+published version list and never becomes active.**
+
+**Why the version number is not re-allocated.** Node serialises real runs behind
+`RUN.lock`, and `store.next_version` skips `.tmp` names, so a staged candidate’s
+number is stable from staging to publication. `stage_dir` clears any stale
+`vNNN.tmp` before it starts, so a crash never leaves a candidate that a later run
+would publish under the wrong lineage.
+
+**Crash-safety and idempotence.** The commit tail runs in a fixed order —
+**publication → active-pointer update → manifest completion → consumption
+commit** — and every step is durable and idempotent: `publish` on an
+already-committed version is a no-op, activating the same version is a no-op, and
+`markConsumed` skips what is already consumed. The exactly-once consumption
+commit runs **last**, so a crash between any two steps is recovered in-process
+from the run manifest (`decision`, `status`, `consumed`) by retrying the next
+step — never by re-running training, never by guessing. A rejected candidate is
+never published; a promoted-but-not-yet-consumed run is re-published,
+re-activated, and re-consumed without duplicating either the version or the
+consumption. The `.tmp` directory a killed process leaves behind is invisible to
+every consumer and re-swept (`store.sweep_stale_staging`) or overwritten by the
+next `stage_dir`.
+
+Older stores legitimately contain versions that predate this rule; they are left
+untouched. The rule governs only how *new* candidates become versions.
 
 ---
 
@@ -434,29 +483,32 @@ pins this so a future transformers upgrade that aligns the defaults is noticed.
 6. **Never promote without an evaluation.** Enforced by the causal-LM loss gate
    (`src/training/loss-evaluator.js` + `src/training/python-promotion.js`); an
    unevaluable candidate is `not_evaluated`, never promoted.
-7. **Checkpoints are immutable and append-only.** `vNNN` directories are never
+7. **A rejected candidate never becomes a version.** Training stages an
+   unpublished `vNNN.tmp`; only a promoted candidate is published into an
+   immutable `vNNN`. See *Three states of a brain*.
+8. **Checkpoints are immutable and append-only.** `vNNN` directories are never
    rewritten.
-8. **Every checkpoint carries provenance.** Seed, initializer, config source,
+9. **Every checkpoint carries provenance.** Seed, initializer, config source,
    tensor hashes, and the structural audit result.
-9. **A failed or corrupted run never replaces the active brain.** Numerical
-   failure, a lost process, or a crash mid-run must leave the previous brain
-   serving. Detection, logging, and safe checkpoint-or-fail are Phase 1
-   requirements.
-10. **Consumed training material stays reconstructable.** Article content hashes,
+10. **A failed or corrupted run never replaces the active brain.** Numerical
+    failure, a lost process, or a crash mid-run must leave the previous brain
+    serving. Detection, logging, and safe checkpoint-or-fail are Phase 1
+    requirements.
+11. **Consumed training material stays reconstructable.** Article content hashes,
     packing parameters, and the per-version contribution record are retained so
     historical training sets can be rebuilt for replay later. Replay itself is a
     later experiment; losing the ability to reconstruct history is not
     recoverable.
-11. **Master weights are fp32, always.** Compute may be bf16; the dtype the
+12. **Master weights are fp32, always.** Compute may be bf16; the dtype the
     optimizer updates may not be. With bf16 masters, 17 of 74 parameters receive
     gradients and then round away to unchanged — silently, with a falling loss
     curve and no error. See
     [bf16 master weights silently freeze 17 parameters](FINDINGS.md#bf16-master-weights-silently-freeze-17-parameters).
-12. **There is no default learning rate.** `--lr` is required and `TrainConfig`
+13. **There is no default learning rate.** `--lr` is required and `TrainConfig`
     has no default. The right value depends on optimizer, batch size, sequence
     length, model size, schedule and warm-up; a constant in the code would be a
     number that looks measured and is not. A test fails if one is reintroduced.
-13. **A resume must not cross a changed corpus or config.** Resume verifies
+14. **A resume must not cross a changed corpus or config.** Resume verifies
     `datasetHash` and every config field except `steps`, and refuses if the step
     target does not advance. Silently continuing against different data would make
     the recorded attribution a lie.

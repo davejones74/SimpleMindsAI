@@ -29,6 +29,15 @@ PACKING_STRATEGY = "concatenate-chunk-v1"
 SEPARATOR_TOKEN = "\n\n"
 
 
+class InsufficientCorpusError(ValueError):
+    """The corpus cannot form even one fixed-length block.
+
+    This is an *operator* condition (too little reviewed material for the chosen
+    `--seq-len`), not a training fault. Callers distinguish it from a numerical
+    failure so a continuous job can wait for more material instead of crashing.
+    """
+
+
 @dataclass(frozen=True)
 class PackRecord:
     """Everything needed to rebuild this exact token stream."""
@@ -144,7 +153,7 @@ def pack(
         dtype=torch.long,
     )
     if blocks.numel() == 0:
-        raise ValueError(
+        raise InsufficientCorpusError(
             f"corpus has {total} tokens, fewer than one {sequence_length}-token block; "
             "lower --seq-len or supply more text"
         )

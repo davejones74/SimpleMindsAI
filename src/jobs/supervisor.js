@@ -28,6 +28,29 @@ export class JobNotFoundError extends Error {
 const KIND_TITLES = { learning: "Learning", training: "Training", "fresh-brain": "Fresh brain" };
 
 /**
+ * Connectivity failures — a loss of internet, an unreachable teacher or source,
+ * or a timeout. These are TRANSIENT, so a learning job pauses and retries on
+ * resume instead of recording "source exhausted" (which would be a lie: the
+ * sources are fine, we simply could not reach them). HTTP status errors
+ * (FETCH_STATUS: 404/500) and content-type refusals are NOT transient and keep
+ * their existing fail-closed behaviour.
+ */
+const NETWORK_FAILURE_RE =
+  /^(fetch_network|fetch_timeout|fetch_dns|econnrefused|econnreset|enotfound|eai_again|etimedout|ehostunreach|enetunreach|epipe|und_err_connect_timeout|und_err_headers_timeout|und_err_socket)$/i;
+
+function isNetworkFailure(failure) {
+  const reason = String(failure?.reason ?? "").toLowerCase();
+  if (!reason) return false;
+  if (NETWORK_FAILURE_RE.test(reason)) return true;
+  return /network|getaddrinfo|socket hang up|offline|connection refused|timed out/.test(reason);
+}
+
+function isNetworkError(err) {
+  if (!err) return false;
+  return isNetworkFailure({ reason: err.code }) || isNetworkFailure({ reason: err.message });
+}
+
+/**
  * JobSupervisor — owns the long-running lifecycle work the Observatory starts.
  *
  * Design rules:
@@ -80,7 +103,7 @@ export class JobSupervisor {
     this.jobStore = null;
     this.controls = new Map(); // jobId -> { controller, shouldStop, shouldPause, promise }
     this.lastProgressAt = new Map();
-    this._continuousVersion = new Map(); // jobId -> version string for continuous training
+  }
 
   async init({ reconcile = true } = {}) {
     this.jobStore = await JobStore.open(this.dir);
@@ -131,20 +154,13 @@ export class JobSupervisor {
 
   async startTraining({ mode = "one-shot", parentVersion = null, minEligible } = {}) {
     const m = mode === "continuous" ? "continuous" : "one-shot";
-    const job = await this.#start("training", {
+    return this.#start("training", {
       mode: m,
       params: {
         parentVersion: parentVersion ?? null,
         minEligible: Number.isFinite(minEligible) ? minEligible : config.jobs.training.minEligible,
       },
     });
-    // Initialize continuous version tracking: if mode is continuous and a parent version
-    // is provided, use it as the fixed version for this job so training cycles keep
-    // updating the same version instead of generating new vNNN numbers.
-    if (m === "continuous" && parentVersion) {
-      this._continuousVersion.set(job.jobId, parentVersion);
-    }
-    return job;
   }
 
   async freshBrain({ confirm = false, config: engine, seed = 0 } = {}) {
@@ -199,8 +215,8 @@ export class JobSupervisor {
     if (isTerminal(job.status)) {
       return this.getJob(jobId); // nothing to pause
     }
-    if (job.kind === "training") {
-      throw new Error("pause/resume not supported for training jobs");
+    if (job.status === JOB_STATUS.PAUSED || job.status === JOB_STATUS.PAUSE_REQUESTED) {
+      return this.getJob(jobId); // already paused or pausing
     }
     const control = this.controls.get(jobId);
     if (!control) {
@@ -228,9 +244,6 @@ export class JobSupervisor {
   async resume(jobId) {
     const job = this.getJob(jobId);
     if (!job) throw new JobNotFoundError(`unknown job ${jobId}`);
-    if (job.kind === "training") {
-      throw new Error("pause/resume not supported for training jobs");
-    }
     const control = this.controls.get(jobId);
     if (!control) {
       // No active control; try to lookup from job history and re-initialise.
@@ -243,6 +256,10 @@ export class JobSupervisor {
       return this.getJob(jobId);
     }
     control.shouldPause = false;
+    control.networkPaused = false; // clears an automatic network pause too
+    if (job.status === JOB_STATUS.RUNNING) {
+      return this.getJob(jobId); // nothing to emit; the worker is already running
+    }
     if (!validateTransition(job.status, JOB_STATUS.RUNNING)) {
       throw new Error(`illegal status transition: ${job.status} -> ${JOB_STATUS.RUNNING}`);
     }
@@ -258,7 +275,7 @@ export class JobSupervisor {
     }
     const job = await this.jobStore.createJob({ kind, title: KIND_TITLES[kind] ?? kind, mode, params });
     const controller = new AbortController();
-    const control = { controller, shouldStop: false, shouldPause: false, promise: null };
+    const control = { controller, shouldStop: false, shouldPause: false, networkPaused: false, promise: null };
     this.controls.set(job.jobId, control);
     control.promise = this.#run(job, params, control).finally(() => this.controls.delete(job.jobId));
     this.changeFeed?.emit("job.started", { jobId: job.jobId, kind, mode });
@@ -349,6 +366,13 @@ export class JobSupervisor {
     const continuous = job.mode === "continuous";
     for (;;) {
       if (this.#shouldStop(jobId)) break;
+      // Operator pause: stop starting new units of work and wait at this safe
+      // boundary (also reached when a pause arrives during the inter-cycle gate).
+      if (this.#shouldPause(jobId)) {
+        await this.#holdPause(jobId);
+        if (this.#shouldStop(jobId)) { outcome = "stopped"; break; }
+        continue;
+      }
       const job = this.getJob(jobId);
       // Job was started with queued->running; remain in running state across cycles.
       // Skip re-validation of running->running which is illegal per transition rules.
@@ -361,15 +385,41 @@ export class JobSupervisor {
       } catch (_e) {
         // event write failure is non-fatal; continue with the cycle
       }
-      last = await runLearningCycle(ctx);
+      try {
+        last = await runLearningCycle(ctx);
+      } catch (err) {
+        if (isNetworkError(err)) {
+          await this.#networkPause(jobId, err.message);
+          if (this.#shouldStop(jobId)) { outcome = "stopped"; break; }
+          cycle--; // retry the same cycle once connectivity is restored
+          continue;
+        }
+        throw err;
+      }
       try {
         await this.#progress(jobId, { cycle, ...summarizeLearning(last) }, { force: true });
       } catch (_e) {
         // progress write failure is non-fatal; continue with the cycle
       }
+      // Operator pause: stop starting new units of work and wait at this safe
+      // boundary. The worker stays alive and resumes the remainder on request.
       if (this.#shouldPause(jobId)) {
-        outcome = "paused";
-        break;
+        await this.#holdPause(jobId);
+        if (this.#shouldStop(jobId)) { outcome = "stopped"; break; }
+        continue;
+      }
+      // Automatic network pause: a whole pass fetched nothing and every failure
+      // was a connectivity error. Hold and retry on resume instead of falsely
+      // declaring "source exhausted" — the sources are fine, they were unreachable.
+      if (
+        (last?.rawDocs ?? 0) === 0 &&
+        (last?.failures?.length ?? 0) > 0 &&
+        last.failures.every(isNetworkFailure)
+      ) {
+        await this.#networkPause(jobId, String(last.failures[0]?.reason ?? "network unavailable"));
+        if (this.#shouldStop(jobId)) { outcome = "stopped"; break; }
+        cycle--; // retry the same cycle once connectivity is restored
+        continue;
       }
       if (last.trainable >= target) {
         outcome = "target-reached";
@@ -378,7 +428,8 @@ export class JobSupervisor {
       if (last.sourceExhausted) {
         outcome = "sources-exhausted";
         break;
-      }      if (params.maxCycles > 0 && cycle >= params.maxCycles) {
+      }
+      if (params.maxCycles > 0 && cycle >= params.maxCycles) {
         outcome = "max-cycles";
         break;
       }
@@ -404,22 +455,16 @@ export class JobSupervisor {
     const minEligible = params.minEligible;
     let last = null;
     let runs = 0;
-    // Determine the version to use for this training cycle.
-    // In continuous mode with a tracked version, reuse the same version;
-    // otherwise fall back to the parent version or let the Python side decide.
-    let versionToUse: string | null = null;
-    if (job.mode === "continuous") {
-      versionToUse = this._continuousVersion.get(jobId);
-      // If no version tracked yet (first cycle), use the parent version as the fixed version.
-      if (!versionToUse && params.parentVersion) {
-        versionToUse = params.parentVersion;
-        this._continuousVersion.set(jobId, versionToUse);
-      }
-    }
-    let last = null;
-    let runs = 0;
     for (;;) {
       if (this.#shouldStop(jobId)) break;
+      // Operator pause: a single Python training run cannot be interrupted mid-step,
+      // so we hold at the safe boundary BETWEEN runs (and while waiting for eligible
+      // material). The worker stays alive and resumes the remainder on request.
+      if (this.#shouldPause(jobId)) {
+        await this.#holdPause(jobId);
+        if (this.#shouldStop(jobId)) break;
+        continue;
+      }
       const stats = this.store.getStats();
       if (stats.trainable < minEligible) {
         if (job.mode === "one-shot") {
@@ -438,21 +483,47 @@ export class JobSupervisor {
         continue;
       }
       await this.#event(jobId, { status: JOB_STATUS.RUNNING, phase: "training" });
-      // Pass the version explicitly to the Python trainer so that continuous mode
-      // reuses the same version instead of generating a new vNNN number each cycle.
-      const out = await runTrainingOnce({
-        ...base,
-        ...this.trainingDeps,
-        trainer: this.trainerFactory(base.signal),
-        parentVersion: params.parentVersion,
-        newVersion: versionToUse,
-        minEligible,
-        logger: this.#jobLogger(jobId),
-      });
+      // Each cycle publishes a NEW immutable version (vNNN) from the parent; the
+      // Python side allocates the next number, so continuous runs never collide.
+      let out;
+      try {
+        out = await runTrainingOnce({
+          ...base,
+          ...this.trainingDeps,
+          trainer: this.trainerFactory(base.signal),
+          parentVersion: params.parentVersion,
+          minEligible,
+          logger: this.#jobLogger(jobId),
+        });
+      } catch (err) {
+        // A corpus too small to form one block is an operator condition, not a
+        // training fault: a continuous job waits for more reviewed material (the
+        // articles stay unconsumed), while a one-shot job fails with the clear
+        // message instead of a Python traceback.
+        if (err?.code === "INSUFFICIENT_CORPUS") {
+          if (job.mode === "one-shot") throw err;
+          await this.#event(jobId, {
+            status: JOB_STATUS.WAITING,
+            phase: "waiting-for-corpus",
+            note: err.message,
+          });
+          await this.#gate(jobId, config.jobs.pollIntervalMs);
+          continue;
+        }
+        throw err;
+      }
       runs++;
       last = summarizeRun(out, this.registry);
       await this.#progress(jobId, { runs, ...last }, { force: true });
-      if (job.mode === "one-shot") break;
+      if (job.mode === "one-shot") {
+        // Honor a pause that arrived while the single run was executing, so the
+        // operator sees PAUSED (and can resume/stop) instead of an abrupt finish.
+        if (this.#shouldPause(jobId)) {
+          await this.#holdPause(jobId);
+          if (this.#shouldStop(jobId)) break;
+        }
+        break;
+      }
       await this.#gate(jobId, config.jobs.pollIntervalMs);
     }
     return { outcome: this.#shouldStop(jobId) ? "stopped" : "completed", runs, ...(last ?? {}) };
@@ -492,8 +563,52 @@ export class JobSupervisor {
 
   #shouldPause(jobId) {
     const c = this.controls.get(jobId);
-    if (!c) return true;
-    return c.shouldPause;
+    if (!c) return false; // no worker => nothing is (or can be) paused
+    return Boolean(c.shouldPause);
+  }
+
+  /**
+   * Hold gate — the worker stays ALIVE while paused. It waits asynchronously
+   * (no busy-spin) until the operator resumes (clearing `shouldPause` and/or
+   * `networkPaused`) or stops the job. A stopped job resolves so the caller can
+   * break out and report `stopped`; only an abort rejects.
+   */
+  #holdGate(jobId) {
+    const c = this.controls.get(jobId);
+    if (!c) return Promise.reject(abortError());
+    if (c.controller.signal.aborted) return Promise.reject(abortError());
+    if (c.shouldStop) return Promise.resolve();
+    if (!c.shouldPause && !c.networkPaused) return Promise.resolve();
+    return new Promise((resolve, reject) => {
+      const done = (fn, arg) => {
+        clearInterval(interval);
+        c.controller.signal.removeEventListener("abort", onAbort);
+        fn(arg);
+      };
+      const interval = setInterval(() => {
+        if (c.shouldStop || c.controller.signal.aborted || (!c.shouldPause && !c.networkPaused)) done(resolve);
+      }, 200);
+      interval.unref?.();
+      const onAbort = () => done(reject, abortError());
+      c.controller.signal.addEventListener("abort", onAbort, { once: true });
+    });
+  }
+
+  /** Operator pause: report PAUSED at the safe boundary, then hold the worker. */
+  async #holdPause(jobId) {
+    await this.#event(jobId, { status: JOB_STATUS.PAUSED, note: "paused at safe boundary; waiting for resume" });
+    await this.#holdGate(jobId);
+  }
+
+  /** Connectivity pause: flag the transient condition, report PAUSED, then hold. */
+  async #networkPause(jobId, reason) {
+    const c = this.controls.get(jobId);
+    if (c) c.networkPaused = true;
+    await this.#event(jobId, {
+      status: JOB_STATUS.PAUSED,
+      note: `paused: network unavailable (${reason}); will retry on resume`,
+    });
+    await this.#holdGate(jobId);
   }
 
   #event(jobId, payload) {
@@ -523,8 +638,11 @@ export class JobSupervisor {
         fn(arg);
       };
       const timer = setTimeout(() => finish(resolve), Math.max(0, ms));
+      // Wake early on stop OR an operator pause request, so a pause requested
+      // while waiting (e.g. training's 60s material poll) reaches the loop's
+      // safe boundary promptly instead of after the full interval.
       const interval = setInterval(() => {
-        if (c.shouldStop) finish(resolve);
+        if (c.shouldStop || c.shouldPause) finish(resolve);
       }, 200);
       interval.unref?.();
       const onAbort = () => finish(reject, abortError());

@@ -88,6 +88,16 @@ export async function executeFullRun({
     ? null
     : new Evaluator({ complete: complete ?? (await import("./model-handle.js")).makeCompletor(), registry });
 
+  // Commit-on-promotion requires a trainer that can stage an unpublished
+  // candidate and then publish or discard it. The stub trainer and the fake
+  // trainers in tests expose neither, so staging is gated on the capability
+  // rather than on `pythonMode` alone; without it the old (immediate-publish)
+  // behaviour is preserved exactly.
+  const stagingSupported =
+    pythonMode &&
+    typeof t.publishCandidate === "function" &&
+    typeof t.discardCandidate === "function";
+
   // Recovery is lock-driven: acquiring the lock reclaims a dead owner's run
   // (see RegistryStore.acquireRunLock) without blanket-failing unrelated runs.
   if (!(await registry.acquireRunLock(config.runLockStaleMs))) {
@@ -96,9 +106,19 @@ export async function executeFullRun({
 
   let runId = null;
   let consumption; // defined in each branch, used in trainerNotes
+  // Hoisted so the crash-recovery path can re-drive the idempotent commit
+  // sequence from the persisted manifest without re-running training.
+  let evalSet = null;
+  let snapshot = null;
+  let trainingResult = null;
+  let baselineResult = null;
+  let candidateResult = null;
+  let decision = null;
+  let manifest = null;
+  let manifestPath = null;
   try {
     // ---- immutable evaluation set (frozen on first load) ----
-    const evalSet = await loadEvaluationSet({
+    evalSet = await loadEvaluationSet({
       datasetId: options.evalDatasetId,
       dir: options.paths?.evaluation,
       seed: evalSeed,
@@ -106,7 +126,7 @@ export async function executeFullRun({
 
     // ---- immutable, capped, leak-guarded snapshot ----
     const { rows } = collectRowsFromArticles(store, { limit });
-    const snapshot = await buildSnapshot({
+    snapshot = await buildSnapshot({
       registry,
       rowsRaw: rows,
       dir: options.paths?.snapshots,
@@ -145,6 +165,26 @@ export async function executeFullRun({
     if (pythonMode && requestedParent && !pythonBaseline) {
       throw new Error(`trainer cannot resolve an explicit parent version (${requestedParent})`);
     }
+
+    // ---- corpus preflight (Python path only) ----
+    // A snapshot shorter than one `--seq-len` block cannot train. Sizing it here
+    // (tokenizer only, no model load) keeps a too-small snapshot from ever
+    // becoming a failed TrainingRun, and lets a continuous job wait for more
+    // material instead of crashing with a Python traceback.
+    if (pythonMode && typeof t.preflight === "function") {
+      const info = await t.preflight({
+        datasetFile: snapshot.manifest.file,
+        parentVersion: pythonBaseline?.version ?? null,
+      });
+      if (info && info.ok === false) {
+        const err = new Error(
+          info.error ?? "insufficient corpus: the snapshot cannot form one training block",
+        );
+        err.code = info.code ?? "INSUFFICIENT_CORPUS";
+        err.blockCount = info.blockCount ?? 0;
+        throw err;
+      }
+    }
     const baselineModel = pythonMode
       ? await ensurePythonBaselineModel(registry, pythonBaseline)
       : await ensureBaselineModel(registry);
@@ -172,8 +212,8 @@ export async function executeFullRun({
     // Initialize the run manifest for crash recovery and audit (Refinements #1, #2, #3).
     // The manifest is persisted to disk so that on restart we can recover the
     // last completed stage without double‑consuming or incorrectly activating.
-    const manifestPath = path.join(options.paths?.snapshots ?? config.paths.snapshots, `${runId}-manifest.json`);
-    const manifest = {
+    manifestPath = path.join(options.paths?.snapshots ?? config.paths.snapshots, `${runId}-manifest.json`);
+    manifest = {
       runId,
       status: "created",
       snapshotArticleIds: snapshot.rows.map((r) => r.articleId),
@@ -181,6 +221,7 @@ export async function executeFullRun({
       baselineLoss: null,
       candidateLoss: null,
       decision: null,
+      published: false,
       consumed: false,
       activated: false,
       error: null,
@@ -191,7 +232,7 @@ export async function executeFullRun({
     });
 
     // ---- BASELINE evaluation (before training) ----
-    const baselineResult = pythonMode
+    baselineResult = pythonMode
       ? await evaluateLoss({
           version: pythonBaseline.version,
           evalSetFile: evalSet.file,
@@ -207,10 +248,15 @@ export async function executeFullRun({
         });
 
     // ---- train (never touches the live buffer; reads the snapshot file) ----
-    const trainingResult = await t.train({
+    // With a staging-capable trainer the candidate is built as an UNPUBLISHED
+    // `vNNN.tmp`; it becomes an immutable `vNNN` only if the loss gate promotes
+    // it. Without staging support (stub/fake trainers) the trainer publishes
+    // immediately, exactly as before.
+    trainingResult = await t.train({
       datasetFile: snapshot.manifest.file,
       baseModel: baselineModel.modelId,
       runId,
+      stageOnly: stagingSupported,
       configuration: {
         plan,
         checkpointDir: options.paths?.models ?? config.paths.models,
@@ -240,10 +286,11 @@ export async function executeFullRun({
 
     // ---- AFTER evaluation (candidate) ----
     await registry.runEvent(runId, { status: "evaluating", note: "candidate evaluation running" });
-    const candidateResult = pythonMode
+    candidateResult = pythonMode
       ? await evaluateLoss({
           version: trainingResult.version,
           evalSetFile: evalSet.file,
+          staged: trainingResult.staged === true,
           store: config.pythonStore ?? undefined,
           bin: config.pythonBin ?? undefined,
           device: config.studentDevice,
@@ -256,80 +303,87 @@ export async function executeFullRun({
         });
 
     // ---- deterministic promote/reject ----
-    const decision = pythonMode ? decidePromotionByLoss(baselineResult, candidateResult, {}) : decidePromotion(baselineResult, candidateResult, config);
+    decision = pythonMode ? decidePromotionByLoss(baselineResult, candidateResult, {}) : decidePromotion(baselineResult, candidateResult, config);
 
-    // A raw "not_evaluated" is a rejection for lifecycle bookkeeping: it must
-    // never leave a run non-terminal (which recovery would later flag) and must
-    // never move the active pointer.
-    const terminal = decision.decision === "promoted" ? "promoted" : "rejected";
+    // Commit-on-promotion: with a staging-capable trainer the candidate is an
+    // unpublished `vNNN.tmp` right now. It is promoted into an immutable `vNNN`
+    // ONLY on a real promotion, and discarded (provenance retained) otherwise, so
+    // a rejected candidate never enters the published lineage nor becomes active.
+    const stagedCandidate = stagingSupported && trainingResult.staged === true;
+    const published = stagedCandidate || trainingResult.published !== false;
 
-    // ---- consumption commit for completed evaluation runs ----
-    // Rule (Refinement #1):
-    //   - Failed training or evaluation: do not commit consumption; retry safely.
-    //   - Completed evaluation, candidate rejected: record consumption for the
-    //     completed run, but do not promote the candidate.
-    //   - Completed evaluation, candidate promoted: record consumption and update
-    //     the serving model according to the existing lifecycle.
-    // Consumption is only committed when training AND evaluation both succeeded
-    // (i.e., we reached this point). The manifest records the decision for crash
-    // recovery.
     if (pythonMode) {
-      // Record evaluation set hash for provenance and promotion gate (Refinement #3)
-      const evalSetHash = computeFileHash(evalSet.file);
-      updateManifest(manifestPath, manifest, {
-        evaluationSetHash: evalSetHash,
+      // Record the evaluation-set hash for provenance and the promotion gate.
+      await updateManifest(manifestPath, manifest, {
+        evaluationSetHash: computeFileHash(evalSet.file),
         baselineLoss: baselineResult.loss,
         candidateLoss: candidateResult.loss,
         decision: decision.decision,
       });
     }
 
+    // Consumption rule (Refinement #1):
+    //   - not_evaluated (training/eval failed): do not consume; retry safely.
+    //   - rejected: consume the completed run, never promote.
+    //   - promoted: publish, activate, complete the manifest, then consume.
+    //
+    // The ordering publication -> active pointer -> manifest -> consumption is
+    // load-bearing: every earlier step is durable and idempotent, and the
+    // exactly-once consumption commit runs last, so a crash between any two steps
+    // is recoverable by retrying the next one without double-consuming.
     if (decision.decision === "not_evaluated") {
-      // Training or evaluation failed before producing comparable results.
-      // Do not commit consumption; leave articles unconsumed for retry.
-      manifest.consumed = false;
-      await updateManifest(manifestPath, manifest, { consumed: false, status: "failed", error: decision.reason ?? "not_evaluated" });
+      if (stagedCandidate) await discardRejected(t, trainingResult.version, runId, options, logger);
+      await updateManifest(manifestPath, manifest, {
+        consumed: false,
+        published: false,
+        status: "failed",
+        error: decision.reason ?? "not_evaluated",
+      });
     } else if (decision.decision === "rejected") {
-      // Completed evaluation, candidate rejected: record consumption but do not
-      // promote. This keeps the consumption ledger truthful even when the
-      // promotion gate correctly rejects a model (Refinement #1).
+      if (stagedCandidate) await discardRejected(t, trainingResult.version, runId, options, logger);
+      await updateManifest(manifestPath, manifest, {
+        consumed: false,
+        published: false,
+        activated: false,
+        status: "rejected",
+      });
       consumption = await commitConsumption(
         snapshot.manifest.articleIds ?? snapshot.rows.map((r) => r.articleId),
         runId
       );
       manifest.consumed = true;
       manifest.activated = false;
-      await updateManifest(manifestPath, manifest, {
-        consumed: true,
-        activated: false,
-        status: "rejected",
-      });
-      // Activate the serving pointer only on promotion — not on rejection.
-      let activated = null;
+      await updateManifest(manifestPath, manifest, { consumed: true });
     } else {
-      // decision.decision === "promoted": completed evaluation, candidate
-      // promoted: record consumption and update the serving model.
-      consumption = await commitConsumption(
-        snapshot.manifest.articleIds ?? snapshot.rows.map((r) => r.articleId),
-        runId
-      );
-      manifest.consumed = true;
-      manifest.activated = true;
-      await updateManifest(manifestPath, manifest, {
-        consumed: true,
-        activated: true,
-        status: "promoted",
-      });
-      // Activate the serving pointer ONLY on a real promotion.
-      let activated = null;
-      if (pythonMode && decision.decision === "promoted") {
-        activated = await setActive(trainingResult.version, {
+      // decision.decision === "promoted": 1) publication, 2) active pointer,
+      // 3) manifest completion, 4) consumption commit.
+      if (stagedCandidate) {
+        await t.publishCandidate(trainingResult.version, {
+          store: config.pythonStore ?? undefined,
+          bin: config.pythonBin ?? undefined,
+        });
+      }
+      if (pythonMode) {
+        await setActive(trainingResult.version, {
           store: config.pythonStore ?? undefined,
           bin: config.pythonBin ?? undefined,
           models: options.paths?.models ?? config.paths.models,
         });
         if (worker) await worker.reload();
       }
+      await updateManifest(manifestPath, manifest, {
+        consumed: false,
+        published,
+        activated: true,
+        status: "promoted",
+      });
+      consumption = await commitConsumption(
+        snapshot.manifest.articleIds ?? snapshot.rows.map((r) => r.articleId),
+        runId
+      );
+      manifest.consumed = true;
+      manifest.activated = true;
+      await updateManifest(manifestPath, manifest, { consumed: true });
     }
 
     // ---- persist the decision on the model, then close the run ----
@@ -390,47 +444,68 @@ export async function executeFullRun({
       run: registry.getRun(runId),
     };
   } catch (err) {
-    // Attempt recovery from the run manifest if the process crashed mid-stream.
-    // This prevents double-consumption, incorrect activation, and lost evaluation
-    // results when the process dies after evaluation succeeded but before
-    // consumption was committed (Refinement #4).
+    // Crash recovery. A crash after the promotion decision but before the
+    // exactly-once consumption commit must be re-driven here; every step it
+    // retries is durable and idempotent (publishing an already-committed version
+    // is a no-op, activating the same version is a no-op, consumption skips what
+    // is already consumed), so retrying never duplicates a version or a
+    // consumption.
     if (runId) {
       try {
-        const manifestPath = path.join(options.paths?.snapshots ?? config.paths.snapshots, `${runId}-manifest.json`);
+        manifestPath =
+          manifestPath ?? path.join(options.paths?.snapshots ?? config.paths.snapshots, `${runId}-manifest.json`);
         const savedManifest = await readManifest(manifestPath);
-        if (savedManifest && savedManifest.status === "evaluated" && savedManifest.consumed === false) {
-          // Evaluation succeeded but consumption was not yet written.
-          // Re-commit consumption idempotently (will succeed even if already written).
-          await recoverFromManifest(
-            registry,
+        if (savedManifest && savedManifest.decision === "promoted" && savedManifest.consumed === false) {
+          await completePromotion({
             runId,
             savedManifest,
-            snapshot,
+            manifestPath,
+            trainer: t,
+            trainerResult: trainingResult,
+            options,
             commitConsumption,
             setActive,
-            trainingResult,
-            pythonMode,
             worker,
-            options,
-            logger,
-          );
+          });
+        } else if (
+          savedManifest &&
+          savedManifest.decision === "rejected" &&
+          savedManifest.consumed === false
+        ) {
+          // Evaluation completed and rejected the candidate, but consumption was
+          // never committed: discard the staged candidate (idempotent) and close
+          // the ledger. The candidate is never published.
+          if (producedStage(trainingResult, stagingSupported) && trainingResult?.version) {
+            await discardRejected(t, trainingResult.version, runId, options, logger);
+          }
+          consumption = await commitConsumption(savedManifest.snapshotArticleIds ?? [], runId);
+          await updateManifest(manifestPath, savedManifest, { consumed: true });
         } else if (savedManifest && savedManifest.status === "failed") {
-          // Run already marked as failed; no further recovery needed.
+          // Already terminal; nothing to re-drive.
         } else {
-          // Unknown state; mark the run as failed.
-          await registry.runEvent(runId, { status: "failed", note: "crash recovery: unknown state " + JSON.stringify(savedManifest) });
+          await registry.runEvent(runId, {
+            status: "failed",
+            note: "crash recovery: no completed decision to commit",
+          });
         }
       } catch (recErr) {
         logger.error && logger.error(`[lifecycle] run ${runId} recovery error: ${recErr.message}`);
       }
     }
     if (runId) {
-      await registry.runEvent(runId, { status: "failed", note: err.message });
-      logger.error && logger.error(`[lifecycle] run ${runId} failed: ${err.message}`);
+      try {
+        await registry.runEvent(runId, { status: "failed", note: `training run failed: ${err.message}` });
+      } catch (eventErr) {
+        logger.error && logger.error(`[lifecycle] could not record failure for ${runId}: ${eventErr.message}`);
+      }
     }
     throw err;
   } finally {
-    registry.releaseRunLock();
+    try {
+      registry.releaseRunLock();
+    } catch {
+      // releasing a lock that is already gone is not a failure
+    }
   }
 }
 
@@ -460,6 +535,82 @@ async function ensurePythonBaselineModel(registry, baseline) {
     meta: { pythonVersion: baseline.version, adopted: true },
   });
   return modelHandle(base);
+}
+
+/** True when this run's trainer produced an unpublished staged candidate. */
+function producedStage(trainingResult, stagingSupported) {
+  return stagingSupported && trainingResult?.staged === true;
+}
+
+/**
+ * Discard a rejected staged candidate while retaining its small provenance
+ * record. Fail-soft: a discard problem must never turn a clean rejection into a
+ * failed run, and the staged directory is re-swept on the next run anyway.
+ */
+async function discardRejected(trainer, version, runId, options, logger) {
+  const recordDir = path.join(
+    options.paths?.snapshots ?? config.paths.snapshots,
+    "rejected",
+    `${runId}-${version}`,
+  );
+  try {
+    return await trainer.discardCandidate(version, {
+      store: config.pythonStore ?? undefined,
+      bin: config.pythonBin ?? undefined,
+      recordDir,
+    });
+  } catch (err) {
+    logger?.error && logger.error(`[lifecycle] discard of staged ${version} failed: ${err.message}`);
+    return null;
+  }
+}
+
+/**
+ * Re-drive the idempotent tail of a promotion after a crash: publish (no-op if
+ * already committed), move the active pointer, complete the manifest, then
+ * commit consumption last. The candidate version is read from the trainer result
+ * when in-process, or from the manifest on a restart.
+ */
+async function completePromotion({
+  runId,
+  savedManifest,
+  manifestPath,
+  trainer,
+  trainerResult,
+  options,
+  commitConsumption,
+  setActive,
+  worker,
+}) {
+  const version = trainerResult?.version ?? savedManifest.resultVersion ?? null;
+  if (!version) {
+    await updateManifest(manifestPath, savedManifest, {
+      status: "failed",
+      error: "promotion recovery found no candidate version",
+    });
+    return null;
+  }
+  if (producedStage(trainerResult, true) && typeof trainer.publishCandidate === "function") {
+    await trainer.publishCandidate(version, {
+      store: config.pythonStore ?? undefined,
+      bin: config.pythonBin ?? undefined,
+    });
+  }
+  await setActive(version, {
+    store: config.pythonStore ?? undefined,
+    bin: config.pythonBin ?? undefined,
+    models: options.paths?.models ?? config.paths.models,
+  });
+  if (worker) await worker.reload();
+  await updateManifest(manifestPath, savedManifest, {
+    published: true,
+    activated: true,
+    status: "promoted",
+    consumed: false,
+  });
+  const consumption = await commitConsumption(savedManifest.snapshotArticleIds ?? [], runId);
+  await updateManifest(manifestPath, savedManifest, { consumed: true });
+  return consumption;
 }
 
 function fmt(x) {

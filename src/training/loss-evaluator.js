@@ -25,6 +25,7 @@ import { config } from "../config.js";
 export async function evaluateVersionLoss({
   version,
   evalSetFile,
+  staged = false,
   store = config.pythonStore ?? undefined,
   bin = config.pythonBin ?? undefined,
   device = config.studentDevice,
@@ -43,22 +44,24 @@ export async function evaluateVersionLoss({
     // The Python child runs from python/ while evalSetFile is repo-root
     // relative; resolve it so the frozen eval set is found regardless of cwd.
     const evalSet = path.isAbsolute(evalSetFile) ? evalSetFile : path.resolve(REPO_ROOT, evalSetFile);
-    const out = await runPython(
-      [
-        "eval",
-        "--version", version,
-        "--eval-set", evalSet,
-        "--seq-len", String(seqLen),
-        "--micro-batch", String(microBatch),
-        "--device", device,
-        "--verify-weights",
-      ],
-      { store, bin, timeoutMs },
-    );
+    const args = [
+      "eval",
+      "--version", version,
+      "--eval-set", evalSet,
+      "--seq-len", String(seqLen),
+      "--micro-batch", String(microBatch),
+      "--device", device,
+      "--verify-weights",
+    ];
+    // A staged candidate has no COMMITTED marker yet; evaluate its `.tmp`
+    // directory in place so the promotion decision precedes publication.
+    if (staged) args.push("--staged");
+    const out = await runPython(args, { store, bin, timeoutMs });
     const loss = out.evalLoss;
     const ok = Number.isFinite(loss);
     return {
       version,
+      staged,
       loss: ok ? loss : null,
       datasetHash: out.evaluationSet?.datasetHash ?? null,
       evaluationSet: out.evaluationSet ?? null,
@@ -68,7 +71,7 @@ export async function evaluateVersionLoss({
       error: ok ? null : "python eval returned a non-finite loss",
     };
   } catch (err) {
-    return { version, loss: null, datasetHash: null, evaluationSet: null, ok: false, error: err.message };
+    return { version, staged, loss: null, datasetHash: null, evaluationSet: null, ok: false, error: err.message };
   }
 }
 

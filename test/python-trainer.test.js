@@ -24,6 +24,12 @@ function makeFakeBrain({ status, active = null, train = null, evalLossByVersion 
       return { ok: true, verb: "active", activeVersion: active };
     }
     if (verb === "train") return train;
+    if (verb === "publish") {
+      return { ok: true, verb: "publish", version: args[args.indexOf("--version") + 1], published: true, alreadyCommitted: false };
+    }
+    if (verb === "discard") {
+      return { ok: true, verb: "discard", version: args[args.indexOf("--version") + 1], discarded: true };
+    }
     if (verb === "eval") {
       const version = args[args.indexOf("--version") + 1];
       return { ok: true, verb: "eval", version, evalLoss: evalLossByVersion[version], evaluationSet: { datasetHash: "EVALHASH" } };
@@ -110,6 +116,41 @@ test("pythonTrainer.train fails closed when Python does not publish", async () =
     t.train({ datasetFile: "corpus.jsonl", runId: "run-9", configuration: { parentVersion: "v001" } }),
     /did not publish \(numerical_failure\): loss spiked/,
   );
+});
+
+test("pythonTrainer.train --stage-only stages without publishing and points at the .tmp dir", async () => {
+  const { run, calls } = makeFakeBrain({
+    status: { versions: [{ version: "v001", committed: true }] },
+    active: "v001",
+    train: { ok: true, published: false, staged: true, version: "v004", parentVersion: "v001", articleCount: 5 },
+  });
+  const t = pythonTrainer({ run, device: "cpu" });
+  const res = await t.train({ datasetFile: "corpus.jsonl", runId: "run-4", stageOnly: true, configuration: { parentVersion: "v001" } });
+
+  assert.equal(res.staged, true);
+  assert.equal(res.published, false);
+  assert.equal(res.version, "v004");
+  assert.ok(res.checkpointPath.endsWith(path.join("v004.tmp")), res.checkpointPath);
+  const trainCall = calls.find((c) => c[0] === "train");
+  assert.ok(trainCall.includes("--stage-only"), "stage-only forwarded to Python");
+});
+
+test("pythonTrainer.publishCandidate / discardCandidate forward to the publish and discard verbs", async () => {
+  const { run, calls } = makeFakeBrain({
+    status: { versions: [{ version: "v001", committed: true }] },
+    active: "v001",
+  });
+  const t = pythonTrainer({ run, device: "cpu" });
+  assert.ok(typeof t.publishCandidate === "function" && typeof t.discardCandidate === "function");
+
+  await t.publishCandidate("v004");
+  await t.discardCandidate("v005", { recordDir: "rejected/v005" });
+
+  const publishCall = calls.find((c) => c[0] === "publish");
+  const discardCall = calls.find((c) => c[0] === "discard");
+  assert.equal(publishCall[publishCall.indexOf("--version") + 1], "v004");
+  assert.equal(discardCall[discardCall.indexOf("--version") + 1], "v005");
+  assert.equal(discardCall[discardCall.indexOf("--keep-record") + 1], "rejected/v005");
 });
 
 // ----------------------------------------------------------- full lifecycle
@@ -234,6 +275,193 @@ test("python-mode lifecycle: an unevaluable candidate never activates and closes
   assert.equal(out.run.status, "rejected");
   assert.equal(out.run.promotionStatus, "not_evaluated");
   assert.equal(activated, false);
+  await store.close();
+  await registry.close();
+});
+
+// ------------------------------------------------ commit-on-promotion (staging)
+
+/**
+ * A trainer that supports staging: `train` must be asked to stage, and the
+ * candidate becomes a version only via `publishCandidate`.
+ */
+function stagingRunDeps({
+  store,
+  lossFor,
+  onActivate = () => {},
+  onPublish = () => {},
+  onDiscard = () => {},
+  onEvaluate = () => {},
+  failActivateOnce = false,
+  version = "v002",
+}) {
+  let activateCalls = 0;
+  const trainer = {
+    kind: "python",
+    version: "python-staging",
+    resolveBaseline: async () => ({ version: "v001", path: "/store/v001" }),
+    train: async ({ runId, stageOnly }) => {
+      if (!stageOnly) throw new Error("staging trainer must be asked to stage");
+      return {
+        checkpointPath: `/store/${version}.tmp`,
+        version,
+        staged: true,
+        published: false,
+        parentVersion: "v001",
+        trainingRunId: "trid",
+        nodeRunId: runId,
+        datasetHash: "DATAHASH",
+        recordsProcessed: 3,
+        finalTrainLoss: 1.2,
+        note: "python causal-LM training",
+      };
+    },
+    publishCandidate: async (v) => {
+      onPublish(v);
+      return { ok: true, version: v, published: true, alreadyCommitted: false };
+    },
+    discardCandidate: async (v, { recordDir } = {}) => {
+      onDiscard(v, recordDir);
+      return { ok: true, version: v, discarded: true };
+    },
+  };
+  return {
+    store,
+    trainer,
+    evalSeed: async () => EVAL_SEED,
+    evaluateLoss: async ({ version: v, staged }) => {
+      onEvaluate(v, staged === true);
+      return { ...lossFor(v), staged: staged === true };
+    },
+    setActive: async (v) => {
+      activateCalls += 1;
+      if (failActivateOnce && activateCalls === 1) throw new Error("activation crashed");
+      onActivate(v);
+      return { version: v };
+    },
+  };
+}
+
+test("staging: a promoted candidate is published exactly once, activated once, and never discarded", async () => {
+  const registry = await RegistryStore.open(tmp());
+  const store = await seededStore();
+  const options = { paths: { snapshots: tmp(), models: tmp(), plans: tmp(), evaluation: tmp() } };
+  const published = [];
+  const discarded = [];
+  const activated = [];
+  const evalStaged = [];
+
+  const out = await executeFullRun({
+    registry,
+    options,
+    deps: stagingRunDeps({
+      store,
+      lossFor: (v) => ({ version: v, loss: v === "v001" ? 2.0 : 1.4, datasetHash: "EVALSET", ok: true }),
+      onPublish: (v) => published.push(v),
+      onDiscard: (v) => discarded.push(v),
+      onActivate: (v) => activated.push(v),
+      onEvaluate: (v, staged) => evalStaged.push([v, staged]),
+    }),
+  });
+
+  assert.equal(out.decision.decision, "promoted");
+  assert.equal(out.run.status, "promoted");
+  assert.deepEqual(published, ["v002"], "the staged candidate is promoted into a version");
+  assert.deepEqual(discarded, [], "a promoted candidate is never discarded");
+  assert.deepEqual(activated, ["v002"]);
+  assert.equal(evalStaged.find(([v]) => v === "v001")?.[1], false, "the committed baseline is scored in place");
+  assert.equal(evalStaged.find(([v]) => v === "v002")?.[1], true, "the candidate is scored as staged before publication");
+  assert.equal(store.getStats().uniqueConsumed, 3);
+  await store.close();
+  await registry.close();
+});
+
+test("staging: a rejected candidate is never published and is discarded with its record retained", async () => {
+  const registry = await RegistryStore.open(tmp());
+  const store = await seededStore();
+  const options = { paths: { snapshots: tmp(), models: tmp(), plans: tmp(), evaluation: tmp() } };
+  const published = [];
+  const discarded = [];
+  const activated = [];
+
+  const out = await executeFullRun({
+    registry,
+    options,
+    deps: stagingRunDeps({
+      store,
+      lossFor: (v) => ({ version: v, loss: v === "v001" ? 1.4 : 2.0, datasetHash: "EVALSET", ok: true }),
+      onPublish: (v) => published.push(v),
+      onDiscard: (v, recordDir) => discarded.push([v, recordDir]),
+      onActivate: (v) => activated.push(v),
+    }),
+  });
+
+  assert.equal(out.decision.decision, "rejected");
+  assert.deepEqual(published, [], "a rejected candidate must never become a version");
+  assert.equal(discarded.length, 1);
+  assert.equal(discarded[0][0], "v002");
+  assert.match(discarded[0][1], /rejected[\\/]/, "rejection provenance is retained somewhere durable");
+  assert.deepEqual(activated, [], "a rejected candidate never moves the pointer");
+  assert.equal(store.getStats().uniqueConsumed, 3, "a completed rejection still records consumption");
+  await store.close();
+  await registry.close();
+});
+
+test("staging: an unevaluable candidate is discarded and leaves articles unconsumed", async () => {
+  const registry = await RegistryStore.open(tmp());
+  const store = await seededStore();
+  const options = { paths: { snapshots: tmp(), models: tmp(), plans: tmp(), evaluation: tmp() } };
+  const published = [];
+  const discarded = [];
+
+  const out = await executeFullRun({
+    registry,
+    options,
+    deps: stagingRunDeps({
+      store,
+      lossFor: (v) => (v === "v001"
+        ? { version: v, loss: 1.4, datasetHash: "EVALSET", ok: true }
+        : { version: v, loss: null, datasetHash: null, ok: false, error: "eval failed" }),
+      onPublish: (v) => published.push(v),
+      onDiscard: (v) => discarded.push(v),
+    }),
+  });
+
+  assert.equal(out.decision.decision, "not_evaluated");
+  assert.deepEqual(published, []);
+  assert.deepEqual(discarded, ["v002"]);
+  assert.equal(store.getStats().uniqueConsumed, 0, "a failed evaluation must not consume articles");
+  await store.close();
+  await registry.close();
+});
+
+test("staging crash recovery: a crash after the decision re-drives publish/activate/consume without duplicating", async () => {
+  const registry = await RegistryStore.open(tmp());
+  const store = await seededStore();
+  const options = { paths: { snapshots: tmp(), models: tmp(), plans: tmp(), evaluation: tmp() } };
+  const published = [];
+  const activated = [];
+
+  await assert.rejects(
+    executeFullRun({
+      registry,
+      options,
+      deps: stagingRunDeps({
+        store,
+        lossFor: (v) => ({ version: v, loss: v === "v001" ? 2.0 : 1.4, datasetHash: "EVALSET", ok: true }),
+        onPublish: (v) => published.push(v),
+        onActivate: (v) => activated.push(v),
+        failActivateOnce: true,
+      }),
+    }),
+    /activation crashed/,
+  );
+
+  // Publication is idempotent: it ran in the branch and again during recovery.
+  assert.ok(published.every((v) => v === "v002"));
+  assert.ok(published.length >= 1);
+  assert.ok(activated.includes("v002"), "the retry moved the pointer");
+  assert.equal(store.getStats().uniqueConsumed, 3, "consumption happened exactly once");
   await store.close();
   await registry.close();
 });

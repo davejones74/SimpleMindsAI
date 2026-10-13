@@ -376,8 +376,43 @@ def test_packing_rejects_a_corpus_smaller_than_one_block(tokenizer):
             "contentHash": hashlib.sha256(text.encode("utf-8")).hexdigest(),
         }
     ]
-    with pytest.raises(ValueError, match="fewer than one"):
+    # A typed error so callers can wait for more material instead of treating an
+    # undersized corpus as a training fault.
+    with pytest.raises(data_mod.InsufficientCorpusError, match="fewer than one"):
         data_mod.pack(tokenizer, docs, 4096, FIXTURE_CORPUS)
+
+
+def test_corpus_info_sizes_a_snapshot_without_loading_the_model(tmp_path, tokenizer):
+    """`corpus-info` is the cheap preflight: parent tokenizer only, no model.
+
+    It must agree with `pack` on both outcomes so the Node lifecycle can refuse
+    (or wait) before spending a TrainingRun.
+    """
+    import argparse
+
+    from sma import brain, store
+
+    root = tmp_path / "models"
+    parent_dir = store.version_path(root, "v001")
+    tokenizer.save_pretrained(parent_dir)
+    store.commit_marker(parent_dir, {"configName": "small"})
+
+    tiny = tmp_path / "tiny.jsonl"
+    tiny.write_text('{"articleId": "x", "text": "too short"}\n', encoding="utf-8")
+
+    undersized = brain.cmd_corpus_info(
+        argparse.Namespace(out=str(root), parent="v001", corpus=[str(tiny)], seq_len=4096)
+    )
+    assert undersized["ok"] is False
+    assert undersized["code"] == "INSUFFICIENT_CORPUS"
+    assert undersized["blockCount"] == 0
+
+    healthy = brain.cmd_corpus_info(
+        argparse.Namespace(out=str(root), parent="v001", corpus=[str(FIXTURE_CORPUS)], seq_len=16)
+    )
+    assert healthy["ok"] is True
+    assert healthy["blockCount"] >= 1
+    assert healthy["documentCount"] >= 1
 
 
 # ------------------------------------------------------------------ accounting

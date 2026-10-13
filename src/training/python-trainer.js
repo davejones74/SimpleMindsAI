@@ -152,7 +152,27 @@ export function pythonTrainer({
     resolveBaseline: () => resolvePythonBaseline({ store, bin, run, signal }),
     resolveVersion: (v) => resolvePythonVersion(v, { store, bin, run, signal }),
 
-    async train({ datasetFile, runId, configuration = {} }) {
+    /**
+     * Cheap, read-only corpus preflight. Loads only the parent tokenizer and
+     * packs the corpus, so the lifecycle can refuse — or wait — before spending
+     * a TrainingRun. Returns the `corpus-info` payload: `{ ok, blockCount, … }`,
+     * or `{ ok:false, code:"INSUFFICIENT_CORPUS", ... }` when the corpus cannot
+     * form one block. Distinct from `train`, which would also load the model.
+     */
+    async preflight({ datasetFile, parentVersion = null } = {}) {
+      if (!datasetFile) {
+        throw new Error("pythonTrainer.preflight requires datasetFile (immutable corpus path)");
+      }
+      const corpusFile = path.isAbsolute(datasetFile) ? datasetFile : path.resolve(REPO_ROOT, datasetFile);
+      const parent =
+        parentVersion ?? (await resolvePythonBaseline({ store, bin, run, signal })).version;
+      return run(
+        ["corpus-info", "--parent", parent, "--corpus", corpusFile, "--seq-len", String(seqLen)],
+        { store, bin, timeoutMs, signal },
+      );
+    },
+
+    async train({ datasetFile, runId, configuration = {}, stageOnly = false }) {
       if (!datasetFile) {
         throw new Error("pythonTrainer.train requires datasetFile (immutable corpus path)");
       }
@@ -179,16 +199,32 @@ export function pythonTrainer({
         "--device", device,
       ];
       if (runId) args.push("--run-id", String(runId));
+      // Commit-on-promotion: build the checkpoint but leave it UNPUBLISHED
+      // (`vNNN.tmp`); the lifecycle publishes it only on a real promotion.
+      if (stageOnly) args.push("--stage-only");
 
       const t0 = Date.now();
       const out = await run(args, { store, bin, timeoutMs, signal });
-      if (!out.ok || out.published === false) {
-        throw new Error(`python training did not publish (${out.kind ?? "error"}): ${out.error ?? "unknown"}`);
+      if (!out.ok || (!stageOnly && out.published === false)) {
+        const err = new Error(
+          `python training did not publish (${out.kind ?? "error"}): ${out.error ?? "unknown"}`,
+        );
+        // Carry the Python failure kind across the process boundary so the
+        // supervisor can tell "too little material" (wait) from a real fault
+        // (fail the job).
+        err.code = out.code ?? (out.kind === "insufficient_corpus" ? "INSUFFICIENT_CORPUS" : undefined);
+        err.pythonKind = out.kind ?? null;
+        throw err;
       }
 
+      const staged = out.staged ?? (stageOnly && out.published === false);
+      const checkpointPath =
+        out.checkpointPath ?? path.join(root, staged ? `${out.version}.tmp` : out.version);
       return {
-        checkpointPath: out.checkpointPath ?? path.join(root, out.version),
+        checkpointPath,
         version: out.version,
+        staged,
+        published: out.published !== false,
         parentVersion: out.parentVersion ?? parentVersion,
         trainingRunId: out.trainingRunId ?? null,
         nodeRunId: out.nodeRunId ?? runId ?? null,
@@ -206,6 +242,41 @@ export function pythonTrainer({
         cfg: { lr: learningRate, steps, seqLen, microBatch, gradAccum, warmup, computeDtype: resolvedDtype },
         note: "python causal-LM training",
       };
+    },
+
+    /**
+     * Commit-on-promotion: promote a staged candidate into an immutable `vNNN`.
+     * Idempotent — publishing an already-committed version is a no-op — so a
+     * crash between staging and publication is recovered by simply retrying.
+     */
+    async publishCandidate(version) {
+      if (!version) throw new Error("pythonTrainer.publishCandidate requires a version");
+      const out = await run(["publish", "--version", version], { store, bin, timeoutMs, signal });
+      if (!out.ok) {
+        const err = new Error(`python publish of ${version} failed: ${out.error ?? "unknown"}`);
+        err.code = out.code;
+        throw err;
+      }
+      return out;
+    },
+
+    /**
+     * Commit-on-promotion: discard a staged candidate. The weights are dropped
+     * (they lost the promotion gate) while the small audit record is retained
+     * under `recordDir`. Idempotent — discarding an already-gone candidate is
+     * not an error.
+     */
+    async discardCandidate(version, { recordDir = null } = {}) {
+      if (!version) throw new Error("pythonTrainer.discardCandidate requires a version");
+      const args = ["discard", "--version", version];
+      if (recordDir) args.push("--keep-record", recordDir);
+      const out = await run(args, { store, bin, timeoutMs, signal });
+      if (!out.ok) {
+        const err = new Error(`python discard of ${version} failed: ${out.error ?? "unknown"}`);
+        err.code = out.code;
+        throw err;
+      }
+      return out;
     },
   };
 }

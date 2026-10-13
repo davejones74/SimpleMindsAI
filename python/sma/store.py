@@ -178,6 +178,28 @@ def list_versions(root: Path) -> list:
     )
 
 
+def staging_version_path(root: Path, version: str) -> Path:
+    """The private, not-yet-published directory for a candidate version.
+
+    A staged candidate is a full checkpoint directory that Node can evaluate but
+    that is NOT a version: it carries no `COMMITTED` marker, `list_versions`
+    skips it (the `.tmp` suffix is not a `vNNN` name), and it can be discarded
+    without a trace. It is promoted into `vNNN/` only on a real promotion.
+    """
+    return Path(root) / f"{version}{TMP_SUFFIX}"
+
+
+def is_staged(root: Path, version: str) -> bool:
+    return staging_version_path(root, version).is_dir()
+
+
+def _fsync_tree(tmp: Path) -> None:
+    for child in sorted(tmp.iterdir()):
+        if child.is_file():
+            fsync_file(child)
+    fsync_dir(tmp)
+
+
 @contextmanager
 def staging_dir(root: Path, version: str) -> Iterator[Path]:
     """Yield a private `.tmp` directory; publish it on clean exit.
@@ -201,12 +223,109 @@ def staging_dir(root: Path, version: str) -> Iterator[Path]:
         shutil.rmtree(tmp, ignore_errors=True)
         raise
     # publish: fsync contents, then swap the directory into place
-    for child in sorted(tmp.iterdir()):
-        if child.is_file():
-            fsync_file(child)
-    fsync_dir(tmp)
+    _fsync_tree(tmp)
     os.replace(tmp, final)
     fsync_dir(root)
+
+
+@contextmanager
+def stage_dir(root: Path, version: str) -> Iterator[Path]:
+    """Yield a private `.tmp` directory and LEAVE it in place on clean exit.
+
+    This is the commit-on-promotion half of `staging_dir`: the fully built
+    checkpoint is durable (`fsync`ed) but stays unpublished. The caller then
+    either `publish_staged` it into `vNNN/` or `discard_staged` it. A crash
+    mid-build removes the debris on the way out; a killed process is cleaned by
+    `sweep_stale_staging`.
+
+    Publication is deliberately a separate step: evaluation must be able to
+    read the candidate before it becomes a version, and a rejected candidate
+    must never appear in the published lineage.
+    """
+    root = Path(root)
+    root.mkdir(parents=True, exist_ok=True)
+    final = root / version
+    if final.exists():
+        raise FileExistsError(f"{final} already exists; versions are immutable")
+    tmp = root / f"{version}{TMP_SUFFIX}"
+    if tmp.exists():
+        shutil.rmtree(tmp)
+    tmp.mkdir(parents=True)
+    try:
+        yield tmp
+    except BaseException:
+        shutil.rmtree(tmp, ignore_errors=True)
+        raise
+    _fsync_tree(tmp)
+
+
+def publish_staged(root: Path, version: str, payload: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """Atomically promote a staged candidate into an immutable `vNNN/` version.
+
+    Idempotent by design, because the only safe crash-recovery strategy is to
+    retry the commit: if `vNNN` is already committed this is a no-op that reports
+    `alreadyCommitted`. The resume pickle (which describes a *run*, not a
+    version, and must not ship in the published record) is moved out of the
+    version directory to `_runs/` before the swap.
+    """
+    root = Path(root)
+    final = root / version
+    tmp = staging_version_path(root, version)
+
+    if is_committed(final):
+        return {"version": version, "published": True, "alreadyCommitted": True}
+    if not tmp.is_dir():
+        raise FileNotFoundError(f"no staged candidate at {tmp}; cannot publish {version}")
+    if final.exists():
+        raise FileExistsError(
+            f"{final} exists but is not committed; refusing to publish over it"
+        )
+
+    # Optimizer moments are ~8x the fp32 weights and are a run artifact, not part
+    # of the immutable version: move them beside the other resume states.
+    resume = tmp / f"{version}.train-state.pt"
+    if resume.is_file():
+        runs_dir = root / "_runs"
+        runs_dir.mkdir(parents=True, exist_ok=True)
+        os.replace(resume, runs_dir / f"{version}.train-state.pt")
+
+    _fsync_tree(tmp)
+    os.replace(tmp, final)
+    fsync_dir(root)
+    commit_marker(final, payload)
+    return {"version": version, "published": True, "alreadyCommitted": False}
+
+
+def discard_staged(
+    root: Path, version: str, record_dir: Optional[Path] = None
+) -> Dict[str, Any]:
+    """Delete a staged candidate, optionally keeping its small audit record.
+
+    The weights are useless once a run is rejected (they lost the promotion
+    gate), but the *provenance* is not: the manifest, the training state, the
+    parameter diff and the config are how a rejection stays explainable. Those
+    small files are copied to `record_dir` before the checkpoint is removed.
+    """
+    root = Path(root)
+    tmp = staging_version_path(root, version)
+    if not tmp.is_dir():
+        return {"version": version, "discarded": False, "recordPath": None}
+
+    record_path: Optional[str] = None
+    if record_dir is not None:
+        dest = Path(record_dir)
+        dest.mkdir(parents=True, exist_ok=True)
+        for name in RECORD_FILES:
+            src = tmp / name
+            if src.is_file():
+                shutil.copy2(src, dest / name)
+        # A small, explicit marker so a retained record is never mistaken for a
+        # published version directory.
+        write_json(dest / "DISCARDED.json", {"version": version, "discardedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())})
+        record_path = str(dest)
+
+    shutil.rmtree(tmp, ignore_errors=True)
+    return {"version": version, "discarded": True, "recordPath": record_path}
 
 
 def commit_marker(path: Path, payload: Optional[Dict[str, Any]] = None) -> None:

@@ -225,6 +225,37 @@ def test_version_numbering_never_reuses(tmp_root):
     assert store.next_version(tmp_root) == "v003"
 
 
+def test_train_allocates_a_new_version_not_the_parent(tmp_root):
+    """A train run must publish a NEW vNNN, never the (immutable) parent.
+
+    Regression: cmd_train once defaulted to `version = parent`, so training from
+    the active version tried to stage over that version's committed directory and
+    died with `FileExistsError: ... already exists; versions are immutable`.
+    Every Python-backed training cycle failed, continuous or not.
+    """
+    from types import SimpleNamespace
+
+    from sma import brain
+
+    with store.staging_dir(tmp_root, "v001"):
+        pass
+    store.commit_marker(tmp_root / "v001")
+
+    # No explicit --version: the parent must NOT be reused; a fresh vNNN is taken.
+    version = brain._next_train_version(SimpleNamespace(version=None), tmp_root, store)
+    assert version == "v002"
+    assert version != "v001"
+
+    # The parent really is unstaged-able, which is what made reusing it fatal.
+    with pytest.raises(FileExistsError):
+        with store.staging_dir(tmp_root, "v001"):
+            pass
+
+    # An explicit --version still wins (resume/continue callers).
+    explicit = brain._next_train_version(SimpleNamespace(version="v009"), tmp_root, store)
+    assert explicit == "v009"
+
+
 # =====================================================================
 # 4. no pretrained neural weights
 # =====================================================================

@@ -22,6 +22,10 @@ const state = {
   history: null,
   trends: null,
   control: null, // { jobs, eligibility, teacher, versions }
+  // Persisted Learning & Training form selections, so a re-render (from SSE,
+  // polling, or after Start/Stop) never silently resets the operator's choice
+  // back to the first option.
+  controlForm: {},
   jobDetail: null,
   // Shared model-version selector: pinned per workspace, independent of the
   // active pointer and of a running job's training parent.
@@ -571,10 +575,10 @@ function renderChat() {
           ${c.messages.length ? c.messages.map((m) => `
             <div class="msg ${esc(m.role)}">${esc(m.text)}<span class="meta">${esc(m.meta ?? "")}</span></div>`).join("") : `<div class="msg system">Say something to the current brain.</div>`}
         </div>
-        <div class="composer">
-          <input id="chatInput" placeholder="Message the brain…" ${id.available ? "" : "disabled"} />
-          <button id="chatSend" class="primary" ${id.available ? "" : "disabled"}>Send</button>
-        </div>
+      <div class="composer">
+        <textarea id="chatInput" rows="4" placeholder="Message the brain…  (Enter to send, Shift+Enter for a new line)" ${id.available ? "" : "disabled"}></textarea>
+        <button id="chatSend" class="primary" ${id.available ? "" : "disabled"}>Send</button>
+      </div>
       </div>
     </div>`;
   const send = async () => {
@@ -612,7 +616,9 @@ function renderChat() {
     document.getElementById("chatInput")?.focus();
   };
   document.getElementById("chatSend")?.addEventListener("click", send);
-  document.getElementById("chatInput")?.addEventListener("keydown", (e) => { if (e.key === "Enter") send(); });
+  document.getElementById("chatInput")?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
+  });
   document.getElementById("chatNewBtn")?.addEventListener("click", newConv);
 }
 
@@ -819,9 +825,9 @@ function renderHistory() {
     <div class="cols">
       <div class="panel">
         <div class="k">Training runs (Node registry)</div>
-        <table><tr><th>Run</th><th>Status</th><th>Records</th><th>Versions (parent→candidate)</th><th>Promotion</th><th>Score (base→trained)</th><th>Loss (base→trained)</th><th>Δ</th><th>Started</th></tr>
+        <table><tr><th>Run</th><th>Status</th><th>Records</th><th>Versions (parent→candidate)</th><th>Promotion</th><th>Score (base→trained)</th><th>Loss (base→trained)</th><th>Δ</th><th class="wrap">Reason</th><th>Started</th></tr>
           ${r.runs.slice().reverse().map((run) => `
-            ${(() => { const prom = run.promotionStatus ?? run.status; return `
+            ${(() => { const prom = run.promotionStatus ?? run.status; const reason = run.candidate?.note ?? run.note ?? null; return `
             <tr><td class="small">${esc(run.runId)}${run.candidate?.modelId ? `<div class="muted">${esc(run.candidate.modelId)}</div>` : ""}</td>
             <td>${badge(prom === "promoted" ? "REVIEWED" : prom === "rejected" ? "REJECTED" : "PENDING_REVIEW", run.status)}</td>
             <td>${fmt(run.recordCount)}</td>
@@ -830,10 +836,10 @@ function renderHistory() {
             <td class="small">${esc(run.promotionStatus ?? "—")}${run.activatedVersion ? `<div class="muted">active ${esc(run.activatedVersion)}</div>` : ""}</td>
             <td>${run.baselineScore == null && run.trainedScore == null ? "—" : `${fmt(run.baselineScore)} → ${fmt(run.trainedScore)}`}</td>
             <td>${run.baselineLoss == null && run.trainedLoss == null ? "—" : `${fmt(run.baselineLoss)} → ${fmt(run.trainedLoss)}`}
-              ${run.candidate?.avgTrainLoss != null ? `<div class="muted" title="mean training-tail loss (candidate meta)">train avg ${fmt(run.candidate.avgTrainLoss)}</div>` : ""}
-              ${run.candidate?.note ? `<div class="muted" title="${esc(run.candidate.note)}">promotion note ⓘ</div>` : ""}</td>
+              ${run.candidate?.avgTrainLoss != null ? `<div class="muted" title="mean training-tail loss (candidate meta)">train avg ${fmt(run.candidate.avgTrainLoss)}</div>` : ""}</td>
             <td>${run.lossDelta == null ? "—" : `${run.lossDelta > 0 ? "+" : ""}${run.lossDelta.toFixed(3)}`}</td>
-            <td class="small">${when(run.startedAt)}</td></tr>`; })()}`).join("") || `<tr><td colspan="9" class="muted">No runs yet. Run <code>npm run train</code>.</td></tr>`}
+            <td class="small wrap">${reason ? `<span title="${esc(reason)}">${esc(reason)}</span>` : "—"}</td>
+            <td class="small">${when(run.startedAt)}</td></tr>`; })()}`).join("") || `<tr><td colspan="10" class="muted">No runs yet. Run <code>npm run train</code>.</td></tr>`}
         </table>
       </div>
       <div class="panel">
@@ -1123,6 +1129,8 @@ function renderControl() {
         </div>
         <div class="toolbar">
           <button id="learnStart" class="primary" ${roAttr()}>Start learning</button>
+          <button id="learnPause" ${roAttr()} ${learning && (learning.status === "running" || learning.status === "waiting-for-eligible") ? "" : "disabled"}>Pause</button>
+          <button id="learnResume" ${roAttr()} ${learning && (learning.status === "paused" || learning.status === "pause-requested") ? "" : "disabled"}>Resume</button>
           <button id="learnStop" class="danger" ${roAttr()} ${learning ? "" : "disabled"}>Stop</button>
         </div>
       </div>
@@ -1145,6 +1153,8 @@ function renderControl() {
         </div>
         <div class="toolbar">
           <button id="trainStart" class="primary" ${roAttr()}>Start training</button>
+          <button id="trainPause" ${roAttr()} ${training && (training.status === "running" || training.status === "waiting-for-eligible") ? "" : "disabled"}>Pause</button>
+          <button id="trainResume" ${roAttr()} ${training && (training.status === "paused" || training.status === "pause-requested") ? "" : "disabled"}>Resume</button>
           <button id="trainStop" class="danger" ${roAttr()} ${training ? "" : "disabled"}>Stop</button>
         </div>
         <div class="small muted">The selected parent is validated fail-closed; an unknown/inconsistent version is refused, never swapped for the active pointer.</div>
@@ -1175,7 +1185,11 @@ function renderControl() {
             <td class="small wrap">${esc(j.phase ?? "—")}</td>
             <td class="small wrap">${progressText(j.progress)}</td>
             <td class="small">${when(j.createdAt)}</td>
-            <td>${j.terminal ? "" : `<button data-stop="${esc(j.jobId)}" class="danger" ${roAttr()}>Stop</button>`}</td>
+            <td>${j.terminal ? "" : [
+              (j.status === "running" || j.status === "waiting-for-eligible") ? `<button data-pause="${esc(j.jobId)}" ${roAttr()}>Pause</button>` : "",
+              (j.status === "paused" || j.status === "pause-requested") ? `<button data-resume="${esc(j.jobId)}" ${roAttr()}>Resume</button>` : "",
+              `<button data-stop="${esc(j.jobId)}" class="danger" ${roAttr()}>Stop</button>`,
+            ].filter(Boolean).join(" ")}</td>
           </tr>`).join("") || `<tr><td colspan="8" class="muted">No jobs yet.</td></tr>`}
       </table>
       ${c.jobs.some((j) => j.note || j.error || j.result) ? `<div class="small muted wrap" style="margin-top:8px">
@@ -1187,7 +1201,27 @@ function renderControl() {
   wireControl();
 }
 
+const CONTROL_FORM_FIELDS = ["learnMode", "learnTarget", "learnRaw", "trainMode", "trainParent", "trainMin", "freshSeed", "freshConfig"];
+
+/**
+ * Restore the operator's last Learning & Training selections onto the freshly
+ * rendered controls, then persist any further edits. Called once per render so
+ * SSE/poll refreshes cannot reset a dropdown to its first option.
+ */
+function applyControlForm() {
+  const f = state.controlForm ?? {};
+  for (const id of CONTROL_FORM_FIELDS) {
+    const el = document.getElementById(id);
+    if (!el) continue;
+    if (f[id] !== undefined && f[id] !== null) el.value = f[id];
+    const persist = () => { state.controlForm = { ...state.controlForm, [id]: el.value }; };
+    el.addEventListener("change", persist);
+    el.addEventListener("input", persist);
+  }
+}
+
 function wireControl() {
+  applyControlForm();
   document.getElementById("learnStart")?.addEventListener("click", async (e) => {
     if (isReadOnly()) return;
     e.target.disabled = true;
@@ -1204,6 +1238,20 @@ function wireControl() {
     if (isReadOnly()) return;
     e.target.disabled = true;
     try { await api("/learning/stop", { method: "POST", body: {} }); await loadControl(); }
+    catch (err) { alert(err.message); e.target.disabled = false; }
+  });
+  document.getElementById("learnPause")?.addEventListener("click", async (e) => {
+    const j = activeJob("learning");
+    if (isReadOnly() || !j) return;
+    e.target.disabled = true;
+    try { await api(`/jobs/${encodeURIComponent(j.jobId)}/pause`, { method: "POST", body: {} }); await loadControl(); }
+    catch (err) { alert(err.message); e.target.disabled = false; }
+  });
+  document.getElementById("learnResume")?.addEventListener("click", async (e) => {
+    const j = activeJob("learning");
+    if (isReadOnly() || !j) return;
+    e.target.disabled = true;
+    try { await api(`/jobs/${encodeURIComponent(j.jobId)}/resume`, { method: "POST", body: {} }); await loadControl(); }
     catch (err) { alert(err.message); e.target.disabled = false; }
   });
   document.getElementById("trainStart")?.addEventListener("click", async (e) => {
@@ -1224,6 +1272,20 @@ function wireControl() {
     try { await api("/training/stop", { method: "POST", body: {} }); await loadControl(); }
     catch (err) { alert(err.message); e.target.disabled = false; }
   });
+  document.getElementById("trainPause")?.addEventListener("click", async (e) => {
+    const j = activeJob("training");
+    if (isReadOnly() || !j) return;
+    e.target.disabled = true;
+    try { await api(`/jobs/${encodeURIComponent(j.jobId)}/pause`, { method: "POST", body: {} }); await loadControl(); }
+    catch (err) { alert(err.message); e.target.disabled = false; }
+  });
+  document.getElementById("trainResume")?.addEventListener("click", async (e) => {
+    const j = activeJob("training");
+    if (isReadOnly() || !j) return;
+    e.target.disabled = true;
+    try { await api(`/jobs/${encodeURIComponent(j.jobId)}/resume`, { method: "POST", body: {} }); await loadControl(); }
+    catch (err) { alert(err.message); e.target.disabled = false; }
+  });
   document.getElementById("freshStart")?.addEventListener("click", async (e) => {
     if (isReadOnly()) return;
     if (!confirm("Create a fresh, randomly-initialised brain version? It will NOT be activated.")) return;
@@ -1240,6 +1302,20 @@ function wireControl() {
     el.addEventListener("click", async () => {
       if (isReadOnly()) return;
       try { await api(`/jobs/${encodeURIComponent(el.dataset.stop)}/stop`, { method: "POST", body: {} }); await loadControl(); }
+      catch (err) { alert(err.message); }
+    });
+  }
+  for (const el of document.querySelectorAll("[data-pause]")) {
+    el.addEventListener("click", async () => {
+      if (isReadOnly()) return;
+      try { await api(`/jobs/${encodeURIComponent(el.dataset.pause)}/pause`, { method: "POST", body: {} }); await loadControl(); }
+      catch (err) { alert(err.message); }
+    });
+  }
+  for (const el of document.querySelectorAll("[data-resume]")) {
+    el.addEventListener("click", async () => {
+      if (isReadOnly()) return;
+      try { await api(`/jobs/${encodeURIComponent(el.dataset.resume)}/resume`, { method: "POST", body: {} }); await loadControl(); }
       catch (err) { alert(err.message); }
     });
   }

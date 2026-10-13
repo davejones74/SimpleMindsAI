@@ -328,6 +328,18 @@ def _validate_run_id(run_id: Optional[str]) -> Optional[str]:
     return node_run_id
 
 
+def _next_train_version(args: argparse.Namespace, root: Path, store_mod) -> str:
+    """Pick the version a train run publishes.
+
+    An explicit ``--version`` wins (resume/continue callers). Otherwise the next
+    free ``vNNN`` is allocated. The parent is NEVER reused: versions are
+    immutable and append-only, so staging over the parent's committed directory
+    would raise FileExistsError — the exact failure continuous cycles hit when
+    the parent version was reused as the output name.
+    """
+    return args.version or store_mod.next_version(root)
+
+
 def cmd_train(args: argparse.Namespace) -> Dict[str, Any]:
     """Phase 1 check 5: real optimization, published atomically or not at all."""
     from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -341,10 +353,11 @@ def cmd_train(args: argparse.Namespace) -> Dict[str, Any]:
         raise FileNotFoundError(
             f"parent {parent} is not committed ({parent_dir}); refusing to train from it"
         )
-    # When running without an explicit --version, reuse the parent version
-    # so that continuous training cycles keep updating the same checkpoint
-    # instead of generating a new vNNN number each run (v007, v008, …).
-    version = args.version or parent
+    # Versions are immutable and append-only: every run publishes a NEW vNNN.
+    # Reusing the parent version would make staging_dir collide with the parent's
+    # committed directory (FileExistsError). Continuous cycles therefore produce
+    # v007, v008, … rather than overwriting one checkpoint.
+    version = _next_train_version(args, root, store)
     device = _resolve_device(args.device)
     node_run_id = _validate_run_id(getattr(args, "run_id", None))
     t0 = time.perf_counter()
@@ -454,6 +467,20 @@ def cmd_train(args: argparse.Namespace) -> Dict[str, Any]:
             "error": str(exc),
             "kind": "numerical_failure",
         }
+    except data_mod.InsufficientCorpusError as exc:
+        # Too little reviewed material for the chosen --seq-len. This is an
+        # operator condition, not a training fault: nothing has been written, so
+        # a continuous job can wait for more material rather than fail a run.
+        _log(f"INSUFFICIENT CORPUS, nothing published: {exc}")
+        return {
+            "ok": False,
+            "verb": "train",
+            "published": False,
+            "parentVersion": parent,
+            "error": str(exc),
+            "kind": "insufficient_corpus",
+            "code": "INSUFFICIENT_CORPUS",
+        }
 
     after_params = train_mod.named_parameter_snapshots(model)
     after_buffers = train_mod.named_buffer_snapshots(model)
@@ -477,8 +504,8 @@ def cmd_train(args: argparse.Namespace) -> Dict[str, Any]:
         ).encode("utf-8")
     ).hexdigest()[:12]
 
-    # --- publish atomically; staging is discarded if anything below throws ---
-    with store.staging_dir(root, version) as tmp:
+    def _write_candidate(tmp: Path) -> None:
+        """Populate a candidate directory with every artifact except the marker."""
         model.save_pretrained(tmp, safe_serialization=True)
         tokenizer.save_pretrained(tmp)
         # The readable state stays in the version: it is provenance, and the README
@@ -515,28 +542,44 @@ def cmd_train(args: argparse.Namespace) -> Dict[str, Any]:
         manifest["tensorHashesAfterTraining"] = proof.tensor_hashes(model)
         store.write_json(tmp / "init-manifest.json", manifest)
 
-    store.commit_marker(
-        root / version,
-        {
-            "parentVersion": parent,
-            "stepsCompleted": train_state["stepsCompleted"],
-            "finalTrainLoss": result.finalTrainLoss,
-        },
-    )
-
-    # Optimizer moments live outside the version directory, deliberately. They are
-    # ~8x the size of the fp32 weights for a 62M model, they are a torch pickle
-    # rather than a reviewable record, and they describe a *run* that may continue,
-    # not a version that is immutable once committed. Putting them in the version
-    # would make every checkpoint 724 MiB instead of 230 MiB and would mean
-    # checking a binary blob into git to satisfy provenance that the JSON
-    # already carries.
-    runs_dir = root / "_runs"
-    runs_dir.mkdir(parents=True, exist_ok=True)
-    resume_blob = runs_dir / f"{version}.train-state.pt"
-    train_mod.save_train_state(resume_blob, train_state, optimizer)
-    _log(f"committed {version} (resume state -> {resume_blob.name})")
-
+    stage_only = bool(getattr(args, "stage_only", False))
+    if stage_only:
+        # Commit-on-promotion: build the checkpoint durably but leave it
+        # UNPUBLISHED. Node evaluates this directory, then either publishes it
+        # (a real promotion) or discards it (a rejection). Neither the published
+        # version list nor `active` ever sees a rejected candidate.
+        #
+        # The resume pickle rides along inside the staging dir (it describes the
+        # run, not the version) and is moved to `_runs/` at publish time, so it
+        # never becomes part of the immutable published record.
+        with store.stage_dir(root, version) as tmp:
+            _write_candidate(tmp)
+            train_mod.save_train_state(tmp / f"{version}.train-state.pt", train_state, optimizer)
+        _log(f"staged {version} (unpublished candidate; awaiting promotion)")
+    else:
+        # --- publish atomically; staging is discarded if anything below throws ---
+        with store.staging_dir(root, version) as tmp:
+            _write_candidate(tmp)
+        store.commit_marker(
+            root / version,
+            {
+                "parentVersion": parent,
+                "stepsCompleted": train_state["stepsCompleted"],
+                "finalTrainLoss": result.finalTrainLoss,
+            },
+        )
+        # Optimizer moments live outside the version directory, deliberately. They
+        # are ~8x the size of the fp32 weights for a 62M model, they are a torch
+        # pickle rather than a reviewable record, and they describe a *run* that
+        # may continue, not a version that is immutable once committed. Putting
+        # them in the version would make every checkpoint 724 MiB instead of
+        # 230 MiB and would mean checking a binary blob into git to satisfy
+        # provenance that the JSON already carries.
+        runs_dir = root / "_runs"
+        runs_dir.mkdir(parents=True, exist_ok=True)
+        resume_blob = runs_dir / f"{version}.train-state.pt"
+        train_mod.save_train_state(resume_blob, train_state, optimizer)
+        _log(f"committed {version} (resume state -> {resume_blob.name})")
 
     return {
         "ok": True,
@@ -545,7 +588,8 @@ def cmd_train(args: argparse.Namespace) -> Dict[str, Any]:
         "parentVersion": parent,
         "trainingRunId": run_id,
         "nodeRunId": node_run_id,
-        "published": True,
+        "published": not stage_only,
+        "staged": stage_only,
         "device": device,
         "checkpointDtype": str(next(model.parameters()).dtype).replace("torch.", ""),
         "initialTrainLoss": result.initialTrainLoss,
@@ -580,12 +624,65 @@ def cmd_train(args: argparse.Namespace) -> Dict[str, Any]:
     }
 
 
+def cmd_publish(args: argparse.Namespace) -> Dict[str, Any]:
+    """Commit-on-promotion: promote a staged candidate into an immutable version.
+
+    Idempotent. Publishing an already-committed version is a no-op, so a crash
+    between building the checkpoint and promoting it can be retried safely — the
+    recovery strategy is simply "publish again", never "guess what happened".
+    """
+    from . import store
+
+    root = Path(args.out)
+    version = args.version
+    payload: Dict[str, Any] = {}
+    staged = store.staging_version_path(root, version)
+    manifest_path = staged / "init-manifest.json"
+    if manifest_path.is_file():
+        manifest = store.read_json(manifest_path)
+        state = _safe_read_json(staged / "train-state.json")
+        payload = {
+            "parentVersion": manifest.get("parentVersion"),
+            "stepsCompleted": manifest.get("trainedSteps") or state.get("stepsCompleted"),
+        }
+    result = store.publish_staged(root, version, payload or None)
+    _log(f"publish {version}: committed={not result.get('alreadyCommitted')}")
+    return {"ok": True, "verb": "publish", **result}
+
+
+def cmd_discard(args: argparse.Namespace) -> Dict[str, Any]:
+    """Commit-on-promotion: discard a staged candidate.
+
+    A rejected candidate must never appear in the published lineage, but its
+    provenance must survive: `--keep-record <dir>` copies the manifest, training
+    state and diff out of the doomed checkpoint before the weights are removed.
+    Idempotent: discarding an already-gone candidate is not an error.
+    """
+    from . import store
+
+    root = Path(args.out)
+    record_dir = Path(args.keep_record) if getattr(args, "keep_record", None) else None
+    result = store.discard_staged(root, args.version, record_dir=record_dir)
+    _log(f"discard {args.version}: removed={result.get('discarded')}")
+    return {"ok": True, "verb": "discard", **result}
+
+
 def _safe_read_json(path: Path) -> Dict[str, Any]:
     from . import store
 
     if Path(path).is_file():
         return store.read_json(path)
     return {}
+
+
+def _load_dir_for_serving(version_dir: Path, device: str) -> tuple[Any, Any]:
+    """Load weights + tokenizer from an already-resolved directory."""
+    from transformers import AutoModelForCausalLM, AutoTokenizer
+
+    tokenizer = AutoTokenizer.from_pretrained(version_dir)
+    model = AutoModelForCausalLM.from_pretrained(version_dir, dtype="auto")
+    model = model.to(device)
+    return model, tokenizer
 
 
 def _load_version_for_serving(
@@ -598,14 +695,10 @@ def _load_version_for_serving(
     so a hash check sees the real bytes; callers upcast to fp32 themselves when
     they want numerically comparable math across versions.
     """
-    from transformers import AutoModelForCausalLM, AutoTokenizer
-
     from . import store
 
     version_dir = store.resolve_version_dir(root, version)
-    tokenizer = AutoTokenizer.from_pretrained(version_dir)
-    model = AutoModelForCausalLM.from_pretrained(version_dir, dtype="auto")
-    model = model.to(device)
+    model, tokenizer = _load_dir_for_serving(version_dir, device)
     return model, tokenizer, version_dir
 
 
@@ -733,7 +826,18 @@ def cmd_eval(args: argparse.Namespace) -> Dict[str, Any]:
 
     root = Path(args.out)
     device = _resolve_device(args.device)
-    model, tokenizer, version_dir = _load_version_for_serving(root, args.version, device)
+    if getattr(args, "staged", False):
+        # A staged candidate is a fully built checkpoint with no COMMITTED
+        # marker: evaluate it in place so the promotion decision precedes
+        # publication. A rejected candidate therefore never becomes a version.
+        version_dir = store.staging_version_path(root, args.version)
+        if not (version_dir / "init-manifest.json").is_file():
+            raise FileNotFoundError(
+                f"no staged candidate at {version_dir}; cannot evaluate {args.version}"
+            )
+        model, tokenizer = _load_dir_for_serving(version_dir, device)
+    else:
+        model, tokenizer, version_dir = _load_version_for_serving(root, args.version, device)
     model.eval()
 
     manifest = store.read_json(version_dir / "init-manifest.json")
@@ -1022,6 +1126,63 @@ def cmd_diff(args: argparse.Namespace) -> Dict[str, Any]:
     }
 
 
+# --------------------------------------------------------------- corpus-info
+
+
+def cmd_corpus_info(args: argparse.Namespace) -> Dict[str, Any]:
+    """Preflight: can this corpus form at least one block at `--seq-len`?
+
+    Loads only the parent's tokenizer (never the model) and packs the corpus, so
+    the training lifecycle can refuse — or, in continuous mode, wait for more
+    material — *before* it spends a TrainingRun. The same `pack` routine backs
+    training, so the answer cannot drift from what training would do.
+    """
+    from transformers import AutoTokenizer
+
+    from . import data as data_mod, store
+
+    root = Path(args.out)
+    parent = args.parent
+    parent_dir = store.version_path(root, parent)
+    if not store.is_committed(parent_dir):
+        raise FileNotFoundError(
+            f"parent {parent} is not committed ({parent_dir}); refusing to size a corpus against it"
+        )
+    tokenizer_file = parent_dir / "tokenizer.json"
+    if not tokenizer_file.is_file():
+        raise FileNotFoundError(f"parent has no tokenizer.json: {tokenizer_file}")
+
+    os.environ["HF_HUB_OFFLINE"] = "1"
+    os.environ["TRANSFORMERS_OFFLINE"] = "1"
+
+    tokenizer = AutoTokenizer.from_pretrained(parent_dir)
+    documents = data_mod.load_documents([Path(p) for p in args.corpus])
+    try:
+        _blocks, record = data_mod.pack(
+            tokenizer, documents, args.seq_len, tokenizer_file
+        )
+    except data_mod.InsufficientCorpusError as exc:
+        _log(f"INSUFFICIENT CORPUS: {exc}")
+        return {
+            "ok": False,
+            "verb": "corpus-info",
+            "code": "INSUFFICIENT_CORPUS",
+            "error": str(exc),
+            "parentVersion": parent,
+            "documentCount": len(documents),
+            "blockCount": 0,
+        }
+    return {
+        "ok": True,
+        "verb": "corpus-info",
+        "parentVersion": parent,
+        "documentCount": record.documentCount,
+        "blockCount": record.blockCount,
+        "tokensSeen": record.tokensSeen,
+        "datasetHash": record.datasetHash,
+    }
+
+
 # --------------------------------------------------------------------- main
 
 
@@ -1091,7 +1252,46 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="version whose train state to continue from; pair with a larger --steps",
     )
+    sp.add_argument(
+        "--stage-only",
+        dest="stage_only",
+        action="store_true",
+        help="build the candidate durably but DO NOT publish it; promote with `publish` "
+        "or remove with `discard` (commit-on-promotion)",
+    )
     sp.set_defaults(func=cmd_train)
+
+    sp = sub.add_parser(
+        "corpus-info",
+        help="preflight: can this corpus form one block at --seq-len?",
+    )
+    sp.add_argument("--parent", required=True, help="committed parent version whose tokenizer is used")
+    sp.add_argument("--corpus", required=True, nargs="+", help="fixture .txt or .jsonl")
+    sp.add_argument("--seq-len", type=int, default=128)
+    sp.add_argument("--out", default=str(store_root()))
+    sp.set_defaults(func=cmd_corpus_info)
+
+    sp = sub.add_parser(
+        "publish",
+        help="commit-on-promotion: promote a staged candidate into an immutable vNNN",
+    )
+    sp.add_argument("--version", required=True, help="staged candidate to publish, e.g. v005")
+    sp.add_argument("--out", default=str(store_root()))
+    sp.set_defaults(func=cmd_publish)
+
+    sp = sub.add_parser(
+        "discard",
+        help="commit-on-promotion: discard a staged candidate (optionally keeping its record)",
+    )
+    sp.add_argument("--version", required=True, help="staged candidate to discard, e.g. v005")
+    sp.add_argument(
+        "--keep-record",
+        dest="keep_record",
+        default=None,
+        help="copy the small provenance record here before removing the checkpoint",
+    )
+    sp.add_argument("--out", default=str(store_root()))
+    sp.set_defaults(func=cmd_discard)
 
     sp = sub.add_parser("eval", help="evaluate a committed version (check 8)")
     common(sp)
@@ -1106,6 +1306,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--verify-weights",
         action="store_true",
         help="re-hash loaded tensors against the manifest (check 6)",
+    )
+    sp.add_argument(
+        "--staged",
+        action="store_true",
+        help="evaluate a staged (unpublished) candidate directory instead of a committed version",
     )
     sp.set_defaults(func=cmd_eval)
 

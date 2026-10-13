@@ -700,6 +700,10 @@ function toRun(r, candidate = null) {
   const pythonVersion = runLink?.pythonVersion ?? meta.pythonVersion ?? r.baseModelVersion ?? null;
   const parentVersion = runLink?.parentVersion ?? meta.parentVersion ?? null;
   const promotionStatus = r.promotionStatus ?? candidate?.status ?? null;
+  // Most recent run-event note (e.g. "run rejected", "interrupted ..."). The
+  // richer promotion rationale lives on the candidate model-event (`candidate.note`);
+  // this is the fallback when no candidate model was ever registered.
+  const runNote = Array.isArray(r.events) && r.events.length ? (r.events.at(-1)?.note ?? null) : null;
   return {
     runId: r.runId,
     status: r.status,
@@ -720,6 +724,7 @@ function toRun(r, candidate = null) {
     lossDelta: baselineLoss != null && trainedLoss != null ? baselineLoss - trainedLoss : null,
     evaluationDelta: r.evaluationDelta,
     promotionStatus,
+    note: runNote,
     activatedVersion: r.activatedVersion ?? (candidate?.status === "promoted" ? meta.pythonVersion ?? null : null),
     tokensSeen: r.trainedEvaluation?.tokensSeen ?? runLink?.tokensSeen ?? meta.tokensSeen ?? null,
     datasetHash: runLink?.datasetHash ?? meta.datasetHash ?? null,

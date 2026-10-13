@@ -124,6 +124,9 @@ td.small.wrap { line-height: 1.45; }
 .msg .meta { display: block; font-size: 11px; color: var(--muted); margin-top: 4px; }
 .compose { display: flex; gap: 8px; margin-top: 10px; }
 .compose input { flex: 1; }
+.composer { display: flex; gap: 8px; margin-top: 10px; align-items: flex-end; }
+.composer textarea { flex: 1; min-height: 96px; max-height: 40vh; }
+.composer button { height: 38px; }
 
 .history-item { border-left: 3px solid var(--border); padding: 8px 12px; margin: 8px 0; background: var(--panel-2); border-radius: 0 8px 8px 0; }
 .history-item.ai { border-left-color: var(--accent); }

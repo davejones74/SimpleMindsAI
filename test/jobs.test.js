@@ -257,6 +257,113 @@ test("supervisor: continuous training waits for material, then stops cooperative
   await registry.close();
 });
 
+test("supervisor: continuous training can be paused and resumed at the boundary", async () => {
+  const store = await seededStore(0);
+  const registry = await RegistryStore.open(tmp());
+  const sup = new JobSupervisor({ store, registry, dir: tmp() });
+  await sup.init({ reconcile: false });
+
+  const job = await sup.startTraining({ mode: "continuous", minEligible: 1 });
+  for (let i = 0; i < 100 && sup.getJob(job.jobId).status !== JOB_STATUS.WAITING; i++) {
+    await new Promise((r) => setTimeout(r, 10));
+  }
+  assert.equal(sup.getJob(job.jobId).status, JOB_STATUS.WAITING);
+
+  await sup.pause(job.jobId);
+  // The pause must reach the safe boundary promptly (the gate resolves on request).
+  let paused = sup.getJob(job.jobId);
+  for (let i = 0; i < 100 && paused.status !== JOB_STATUS.PAUSED; i++) {
+    await new Promise((r) => setTimeout(r, 10));
+    paused = sup.getJob(job.jobId);
+  }
+  assert.equal(paused.status, JOB_STATUS.PAUSED);
+
+  await sup.resume(job.jobId);
+  let resumed = sup.getJob(job.jobId);
+  for (let i = 0; i < 100 && resumed.status === JOB_STATUS.PAUSED; i++) {
+    await new Promise((r) => setTimeout(r, 10));
+    resumed = sup.getJob(job.jobId);
+  }
+  assert.notEqual(resumed.status, JOB_STATUS.PAUSED);
+
+  await sup.stop(job.jobId);
+  const done = await waitTerminal(sup, job.jobId);
+  assert.equal(done.status, JOB_STATUS.STOPPED);
+
+  await sup.close();
+  await store.close();
+  await registry.close();
+});
+
+test("supervisor: one-shot training honors a pause requested during the run", async () => {
+  const store = await seededStore(3);
+  const registry = await RegistryStore.open(tmp());
+  let release;
+  const gate = new Promise((r) => { release = r; });
+  let trainStarted = false;
+  const trainer = {
+    kind: "python",
+    version: "py-1",
+    resolveBaseline: async () => ({ version: "v001", path: "x/v001" }),
+    resolveVersion: async (v) => ({ version: v, path: `x/${v}` }),
+    train: async ({ runId }) => {
+      trainStarted = true;
+      await gate;
+      return {
+        checkpointPath: "x/v002",
+        version: "v002",
+        parentVersion: "v001",
+        trainingRunId: "trid",
+        nodeRunId: runId,
+        datasetHash: "DH",
+        recordsProcessed: 3,
+        finalTrainLoss: 1.2,
+        note: "python",
+      };
+    },
+  };
+  const sup = new JobSupervisor({
+    store,
+    registry,
+    dir: tmp(),
+    trainerFactory: () => trainer,
+    trainingDeps: {
+      paths: { snapshots: tmp(), models: tmp(), plans: tmp(), evaluation: tmp() },
+      evalSeed: async () => EVAL_SEED,
+      evaluateLoss: async ({ version }) => ({ version, loss: version === "v001" ? 2.0 : 1.4, datasetHash: "EVAL", ok: true }),
+      setActive: async (version) => ({ version }),
+    },
+  });
+  await sup.init({ reconcile: false });
+
+  const job = await sup.startTraining({ mode: "one-shot" });
+  for (let i = 0; i < 200 && !trainStarted; i++) {
+    await new Promise((r) => setTimeout(r, 10));
+  }
+  assert.ok(trainStarted, "the trainer must be executing before we pause");
+
+  await sup.pause(job.jobId);
+  assert.equal(sup.getJob(job.jobId).status, JOB_STATUS.PAUSE_REQUESTED);
+
+  release(); // finish the single run; the job must hold at PAUSED, not complete
+  let paused = sup.getJob(job.jobId);
+  for (let i = 0; i < 200 && paused.status !== JOB_STATUS.PAUSED; i++) {
+    await new Promise((r) => setTimeout(r, 10));
+    paused = sup.getJob(job.jobId);
+  }
+  assert.equal(paused.status, JOB_STATUS.PAUSED);
+  assert.equal(paused.terminal, false);
+
+  await sup.resume(job.jobId);
+  const done = await waitTerminal(sup, job.jobId);
+  assert.equal(done.status, JOB_STATUS.COMPLETED);
+  assert.equal(done.result.decision, "promoted");
+
+  await sup.close();
+  await store.close();
+  await registry.close();
+});
+
 test("supervisor: one-shot training runs the lifecycle and reports promotion", async () => {
   const store = await seededStore(3);
   const registry = await RegistryStore.open(tmp());
@@ -299,6 +406,87 @@ test("supervisor: one-shot training runs the lifecycle and reports promotion", a
   assert.equal(done.result.promoted, true);
   assert.equal(activated, "v002");
   assert.equal(store.getStats().uniqueConsumed, 3);
+
+  await sup.close();
+  await store.close();
+  await registry.close();
+});
+
+test("supervisor: one-shot training refuses an undersized corpus before any run", async () => {
+  const store = await seededStore(1);
+  const registry = await RegistryStore.open(tmp());
+  const trainer = {
+    kind: "python",
+    version: "test",
+    resolveBaseline: async () => ({ version: "v001", path: "x/v001" }),
+    resolveVersion: async (v) => ({ version: v, path: `x/${v}` }),
+    preflight: async () => ({
+      ok: false,
+      code: "INSUFFICIENT_CORPUS",
+      error: "corpus has 3 tokens, fewer than one 128-token block; lower --seq-len or supply more text",
+    }),
+    train: async () => {
+      throw new Error("train must not be reached when the preflight refuses");
+    },
+  };
+  const sup = new JobSupervisor({
+    store,
+    registry,
+    dir: tmp(),
+    trainerFactory: () => trainer,
+    trainingDeps: { paths: { snapshots: tmp(), models: tmp(), plans: tmp(), evaluation: tmp() } },
+  });
+  await sup.init({ reconcile: false });
+
+  const job = await sup.startTraining({ mode: "one-shot", minEligible: 1 });
+  const done = await waitTerminal(sup, job.jobId);
+  assert.equal(done.status, JOB_STATUS.FAILED);
+  assert.match(done.error, /fewer than one 128-token block/);
+  assert.equal(registry.listRuns().length, 0, "a pre-flighted corpus must never become a failed run");
+
+  await sup.close();
+  await store.close();
+  await registry.close();
+});
+
+test("supervisor: continuous training waits for more corpus instead of crashing", async () => {
+  const store = await seededStore(1);
+  const registry = await RegistryStore.open(tmp());
+  const trainer = {
+    kind: "python",
+    version: "test",
+    resolveBaseline: async () => ({ version: "v001", path: "x/v001" }),
+    resolveVersion: async (v) => ({ version: v, path: `x/${v}` }),
+    preflight: async () => ({
+      ok: false,
+      code: "INSUFFICIENT_CORPUS",
+      error: "corpus has 3 tokens, fewer than one 128-token block; lower --seq-len or supply more text",
+    }),
+    train: async () => {
+      throw new Error("train must not be reached when the preflight refuses");
+    },
+  };
+  const sup = new JobSupervisor({
+    store,
+    registry,
+    dir: tmp(),
+    trainerFactory: () => trainer,
+    trainingDeps: { paths: { snapshots: tmp(), models: tmp(), plans: tmp(), evaluation: tmp() } },
+  });
+  await sup.init({ reconcile: false });
+
+  const job = await sup.startTraining({ mode: "continuous", minEligible: 1 });
+  for (let i = 0; i < 200 && sup.getJob(job.jobId).phase !== "waiting-for-corpus"; i++) {
+    await new Promise((r) => setTimeout(r, 10));
+  }
+  const waiting = sup.getJob(job.jobId);
+  assert.equal(waiting.status, JOB_STATUS.WAITING);
+  assert.equal(waiting.phase, "waiting-for-corpus");
+  assert.match(waiting.note, /fewer than one 128-token block/);
+  assert.equal(registry.listRuns().length, 0);
+
+  await sup.stop(job.jobId);
+  await waitTerminal(sup, job.jobId);
 
   await sup.close();
   await store.close();

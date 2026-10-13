@@ -54,22 +54,28 @@ export function isTerminal(status) {
  *
  * Transitions (from → to, one‑line legend):
  *   QUEUED      → RUNNING       (start)
+ *   QUEUED      → STOP_REQUESTED (stopped before it began)
  *   RUNNING     → COMPLETED     (normal finish)
  *   RUNNING     → FAILED        (error)
  *   RUNNING     → INTERRUPTED   (process restart, reconcile)
  *   RUNNING     → PAUSE_REQUESTED (operator requests pause)
  *   RUNNING     → CANCEL_REQUESTED (operator requests cancel)
+ *   RUNNING     → STOP_REQUESTED (operator requests stop)
  *   RUNNING     → STOPPED       (operator stops via API)
+ *   WAITING_FOR_ELIGIBLE → RUNNING (material arrived)
  *   PAUSE_REQUESTED → PAUSED     (job reached safe boundary)
+ *   PAUSE_REQUESTED → RUNNING    (pause cancelled before the boundary)
  *   PAUSED      → RUNNING       (operator resumes)
+ *   PAUSED      → STOP_REQUESTED (operator stops a paused job)
  *   All other from→to combinations are rejected.
  */
 const LEGAL_TRANSITIONS = Object.freeze({
   // FROM    TO
-  "queued":    new Set(["running"]),
-  "running":   new Set(["completed", "failed", "interrupted", "pause-requested", "cancel-requested", "stopped"]),
-  "paused":    new Set(["running"]),
-  "pause-requested": new Set(["paused", "stopped"]),
+  "queued":    new Set(["running", "stop-requested", "stopped", "failed"]),
+  "running":   new Set(["completed", "failed", "interrupted", "pause-requested", "cancel-requested", "stop-requested", "stopped"]),
+  "waiting-for-eligible": new Set(["running", "completed", "failed", "interrupted", "pause-requested", "stop-requested", "stopped"]),
+  "pause-requested": new Set(["paused", "running", "stop-requested", "stopped", "failed", "interrupted"]),
+  "paused":    new Set(["running", "stop-requested", "stopped", "failed", "interrupted"]),
   cancelled:   new Set([]), // terminal; no further transitions
   stopped:     new Set([]), // terminal
   completed:   new Set([]), // terminal
