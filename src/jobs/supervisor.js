@@ -82,6 +82,7 @@ export class JobSupervisor {
     runPython: runPythonFn = runPython,
     trainerFactory = null,
     trainingDeps = {},
+    learningDeps = {},
     clock = () => Date.now(),
   } = {}) {
     this.store = store;
@@ -98,6 +99,7 @@ export class JobSupervisor {
     this.runPython = runPythonFn;
     this.trainerFactory = trainerFactory ?? ((signal) => selectTrainer({ signal }));
     this.trainingDeps = trainingDeps;
+    this.learningDeps = learningDeps;
     this.clock = clock;
 
     this.jobStore = null;
@@ -359,13 +361,26 @@ export class JobSupervisor {
       scorer: this.scorer,
       crawl: this.crawl,
       maxRawDocs: params.maxRawDocs,
+      ...this.learningDeps,
     };
     let cycle = 0;
     let last = null;
     let outcome = "stopped";
+    let noProgressStreak = 0;
+    let prevTrainable = null;
+    const startedAt = this.clock();
     const continuous = job.mode === "continuous";
     for (;;) {
       if (this.#shouldStop(jobId)) break;
+      if (this.#runtimeExceeded(startedAt)) {
+        await this.#safeEvent(jobId, {
+          status: JOB_STATUS.RUNNING,
+          phase: "max-runtime",
+          note: `stopping: job runtime exceeded JOBS_MAX_RUNTIME_MS (${config.jobs.maxRuntimeMs} ms)`,
+        });
+        outcome = "max-runtime";
+        break;
+      }
       // Operator pause: stop starting new units of work and wait at this safe
       // boundary (also reached when a pause arrives during the inter-cycle gate).
       if (this.#shouldPause(jobId)) {
@@ -396,8 +411,19 @@ export class JobSupervisor {
         }
         throw err;
       }
+      // Progress = the corpus actually moved: a NEW ingested article or a rise
+      // in trainable count. Dedupes are NOT progress (the same material seen
+      // again), and a pass that filters everything out as junk acquires nothing.
+      // A continuous learning job that makes no progress for
+      // LEARNING_NO_PROGRESS_CYCLES cycles stops with outcome `no-progress`
+      // instead of polling forever.
+      const acquired = (last?.ingested ?? 0) > 0;
+      const trainableGrew = prevTrainable === null ? true : (last?.trainable ?? 0) > prevTrainable;
+      prevTrainable = last?.trainable ?? prevTrainable;
+      if (acquired || trainableGrew) noProgressStreak = 0;
+      else noProgressStreak++;
       try {
-        await this.#progress(jobId, { cycle, ...summarizeLearning(last) }, { force: true });
+        await this.#progress(jobId, { cycle, noProgressStreak, ...summarizeLearning(last) }, { force: true });
       } catch (_e) {
         // progress write failure is non-fatal; continue with the cycle
       }
@@ -439,6 +465,16 @@ export class JobSupervisor {
         outcome = "bounded-pass-complete";
         break;
       }
+      const noProgressCap = config.jobs.learning.noProgressCycles;
+      if (continuous && noProgressCap > 0 && noProgressStreak >= noProgressCap) {
+        await this.#safeEvent(jobId, {
+          status: JOB_STATUS.RUNNING,
+          phase: "no-progress",
+          note: `stopping: ${noProgressStreak} consecutive cycle(s) acquired nothing new (LEARNING_NO_PROGRESS_CYCLES=${noProgressCap})`,
+        });
+        outcome = "no-progress";
+        break;
+      }
       await this.#gate(jobId, continuous ? config.jobs.pollIntervalMs : 0);
     }
     return {
@@ -455,8 +491,18 @@ export class JobSupervisor {
     const minEligible = params.minEligible;
     let last = null;
     let runs = 0;
+    let consecutiveRejections = 0;
+    const startedAt = this.clock();
     for (;;) {
       if (this.#shouldStop(jobId)) break;
+      if (this.#runtimeExceeded(startedAt)) {
+        await this.#safeEvent(jobId, {
+          status: JOB_STATUS.RUNNING,
+          phase: "max-runtime",
+          note: `stopping: job runtime exceeded JOBS_MAX_RUNTIME_MS (${config.jobs.maxRuntimeMs} ms)`,
+        });
+        return { outcome: "max-runtime", runs, ...(last ?? {}) };
+      }
       // Operator pause: a single Python training run cannot be interrupted mid-step,
       // so we hold at the safe boundary BETWEEN runs (and while waiting for eligible
       // material). The worker stays alive and resumes the remainder on request.
@@ -514,7 +560,13 @@ export class JobSupervisor {
       }
       runs++;
       last = summarizeRun(out, this.registry);
-      await this.#progress(jobId, { runs, ...last }, { force: true });
+      // A promoted run proves forward progress; a rejected (or unevaluated) run
+      // does not. Count streaks so continuous training cannot silently retrain
+      // the same corpus forever (run-46..run-52 all staged v035 and were
+      // rejected with no visible failure).
+      if (last.promoted) consecutiveRejections = 0;
+      else consecutiveRejections++;
+      await this.#progress(jobId, { runs, consecutiveRejections, ...last }, { force: true });
       if (job.mode === "one-shot") {
         // Honor a pause that arrived while the single run was executing, so the
         // operator sees PAUSED (and can resume/stop) instead of an abrupt finish.
@@ -524,9 +576,26 @@ export class JobSupervisor {
         }
         break;
       }
+      const maxRejections = config.jobs.training.maxConsecutiveRejections;
+      if (maxRejections > 0 && consecutiveRejections >= maxRejections) {
+        await this.#safeEvent(jobId, {
+          status: JOB_STATUS.RUNNING,
+          phase: "repeated-rejection",
+          note: `stopping: ${consecutiveRejections} consecutive run(s) were not promoted (TRAIN_MAX_CONSECUTIVE_REJECTIONS=${maxRejections}); material left unconsumed for a resume after the corpus/eval changes`,
+        });
+        return { outcome: "repeated-rejection", runs, consecutiveRejections, ...(last ?? {}) };
+      }
+      if (this.#runtimeExceeded(startedAt)) {
+        await this.#safeEvent(jobId, {
+          status: JOB_STATUS.RUNNING,
+          phase: "max-runtime",
+          note: `stopping: job runtime exceeded JOBS_MAX_RUNTIME_MS (${config.jobs.maxRuntimeMs} ms)`,
+        });
+        return { outcome: "max-runtime", runs, consecutiveRejections, ...(last ?? {}) };
+      }
       await this.#gate(jobId, config.jobs.pollIntervalMs);
     }
-    return { outcome: this.#shouldStop(jobId) ? "stopped" : "completed", runs, ...(last ?? {}) };
+    return { outcome: this.#shouldStop(jobId) ? "stopped" : "completed", runs, consecutiveRejections, ...(last ?? {}) };
   }
 
   async #runFreshBrain(job, params, base) {
@@ -613,6 +682,22 @@ export class JobSupervisor {
 
   #event(jobId, payload) {
     return this.jobStore.jobEvent(jobId, payload);
+  }
+
+  /** Event write that must never abort the loop it is reporting on. */
+  async #safeEvent(jobId, payload) {
+    try {
+      await this.#event(jobId, payload);
+    } catch (_e) {
+      // Non-fatal: the outcome is still returned to the caller / logged.
+    }
+  }
+
+  /** True once a job has run longer than JOBS_MAX_RUNTIME_MS (0 = unbounded). */
+  #runtimeExceeded(startedAt) {
+    const max = config.jobs.maxRuntimeMs;
+    if (!(max > 0)) return false;
+    return this.clock() - startedAt >= max;
   }
 
   #progress(jobId, progress, { force = false } = {}) {

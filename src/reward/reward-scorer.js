@@ -74,6 +74,7 @@ export class ReviewScorer {
   async scoreOffline({ text, domain = "general" }) {
     const penalty = heuristicPenalty(text);
     let llm = null;
+    let criticError = null;
     try {
       const { text: out } = await this.ollama.chat({
         format: "json",
@@ -84,29 +85,53 @@ export class ReviewScorer {
       });
       const start = out.indexOf("{");
       const end = out.lastIndexOf("}");
-      if (start >= 0 && end > start) llm = JSON.parse(out.slice(start, end + 1));
+      if (start >= 0 && end > start) {
+        try {
+          llm = JSON.parse(out.slice(start, end + 1));
+        } catch (parseErr) {
+          criticError = `critic response was not valid JSON: ${parseErr.message.slice(0, 80)}`;
+        }
+      } else {
+        criticError = "critic response contained no JSON object";
+      }
     } catch (err) {
-      llm = { score: 5, rationale: `critic unavailable: ${err.message.slice(0, 80)}` };
+      criticError = `critic unavailable: ${err.message.slice(0, 80)}`;
     }
 
-    const raw = Math.max(0, Math.min(10, Number(llm?.score ?? 5)));
+    // Missing STAYS missing: an unparseable or absent critic score is NOT a
+    // neutral 5 (that silently lost every article as `uncertain`). It is
+    // recorded as missing and the article fails CLOSED to `uncertain` at score
+    // 0 — never a fabricated middling value.
+    const parsedScore = Number(llm?.score);
+    const criticScoreMissing = !Number.isFinite(parsedScore);
+    const raw = criticScoreMissing ? 0 : Math.max(0, Math.min(10, parsedScore));
     const final = Math.max(0, Math.min(10, raw * penalty));
     const guardrailResult = {
       passed: penalty > 0.1,
       heuristicPenalty: penalty,
       reason: penalty <= 0.1 ? "heuristic guardrail: degenerate repetition/length" : null,
     };
+    const rationaleParts = [];
+    if (llm?.rationale) rationaleParts.push(String(llm.rationale));
+    if (criticError) rationaleParts.push(`[${criticError}]`);
+    if (criticScoreMissing && !criticError) rationaleParts.push("[critic returned no finite score]");
+    rationaleParts.push(`[heuristicPenalty=${penalty.toFixed(2)}]`);
     return {
       score: final,
-      rawScore: raw,
+      rawScore: criticScoreMissing ? null : raw,
       penalty,
-      verdict: scoreToVerdict(final),
+      verdict: criticScoreMissing ? VERDICT.UNCERTAIN : scoreToVerdict(final),
       suggestedImportance: ["Normal", "Important", "Critical"].includes(llm?.suggestedImportance)
         ? llm.suggestedImportance
         : null,
-      rationale: `${llm?.rationale ?? ""} [heuristicPenalty=${penalty.toFixed(2)}]`.trim(),
+      rationale: rationaleParts.join(" ").trim(),
       guardrailResult,
       criticModel: this.ollama.model,
+      criticTemperature: this.ollama.defaultOptions?.temperature ?? null,
+      criticResponded: llm != null,
+      criticScoreMissing,
+      criticError,
+      criticPromptVersion: config.criticPromptVersion,
       criticVersion: this.criticVersion,
       rubricVersion: this.rubricVersion,
     };

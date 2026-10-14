@@ -209,14 +209,17 @@ export class RegistryStore {
     return rec;
   }
 
-  async completeRun(runId, { status, ...patch }) {
+  async completeRun(runId, { status, note = null, ...patch }) {
     this.#assertWritable();
     // Patch the static registration line's mutable-fields view but ALWAYS
     // record the terminal state as an event — the historical line is untouched.
+    // `note` carries the durable reason (e.g. the promotion-gate rejection
+    // rationale) so a rejected candidate is explainable after the fact instead
+    // of only showing "run rejected".
     const base = this.runs.get(runId);
     if (!base) throw new Error(`unknown run ${runId}`);
     this.runs.set(runId, { ...base, status, completedAt: new Date().toISOString(), ...patch });
-    await this.runEvent(runId, { status, note: `run ${status}` });
+    await this.runEvent(runId, { status, note: note ?? `run ${status}` });
     return this.getRun(runId);
   }
 

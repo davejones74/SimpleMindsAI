@@ -198,15 +198,66 @@ export function mergeChain(segments, maxPoints = 1000) {
   const byStep = new Map();
   let coverageFrom = null;
   let coverageTo = null;
+  let collisions = 0;
   for (const seg of segments) {
+    // A lineage chain is a SEQUENCE of trainings, each starting at step 0. The
+    // caller supplies a cumulative `stepOffset` per segment so two sessions do
+    // not silently overwrite each other on the step axis; the count of any
+    // residual same-step overlaps is reported instead of hidden.
+    const offset = Number.isFinite(seg.stepOffset) ? seg.stepOffset : 0;
     for (const p of seg.series) {
-      byStep.set(p.step, { step: p.step, loss: p.loss, version: seg.version });
-      coverageFrom = coverageFrom === null ? p.step : Math.min(coverageFrom, p.step);
-      coverageTo = coverageTo === null ? p.step : Math.max(coverageTo, p.step);
+      const step = p.step + offset;
+      if (byStep.has(step)) collisions += 1;
+      byStep.set(step, { step, loss: p.loss, version: seg.version });
+      coverageFrom = coverageFrom === null ? step : Math.min(coverageFrom, step);
+      coverageTo = coverageTo === null ? step : Math.max(coverageTo, step);
     }
   }
   const points = [...byStep.values()].sort((a, b) => a.step - b.step);
-  return { points: downsample(points, maxPoints), from: coverageFrom, to: coverageTo };
+  return { points: downsample(points, maxPoints), from: coverageFrom, to: coverageTo, collisions };
+}
+
+/**
+ * Independent y-scales for the two measurement bases on the loss chart.
+ *
+ * The chart previously forced training loss, in-training validation loss and the
+ * frozen-eval-set run markers onto ONE y-axis. Those are not the same
+ * measurement: the frozen eval set is a small, separate corpus and scores in a
+ * different band, while in-training validation shares the training corpus. With
+ * one shared axis the smaller-band curve is compressed into a few pixels and
+ * reads as a straight line even when it is moving.
+ *
+ * `left` spans validation + training (same corpus, comparable); `right` spans
+ * only the frozen-eval-set markers. Ranges are padded when degenerate. Returns a
+ * `hasLeft`/`hasRight` flag per axis so the renderer can hide an axis that has no
+ * data instead of drawing a fake one.
+ */
+export function computeChartScales({ validation = [], training = [], markers = [] } = {}) {
+  const valLosses = finitePoints(validation).map((p) => p.loss);
+  const trainLosses = finitePoints(training).map((p) => p.loss);
+  const leftLosses = [...valLosses, ...trainLosses];
+  // Markers carry a finite loss by construction here; missing stays missing.
+  const rightLosses = (markers ?? [])
+    .map((m) => (m && m.loss != null ? Number(m.loss) : NaN))
+    .filter((v) => Number.isFinite(v));
+  const span = (values) => {
+    if (!values.length) return { min: null, max: null, degenerate: false };
+    let min = Math.min(...values);
+    let max = Math.max(...values);
+    if (!(max > min)) {
+      const pad = Math.max(Math.abs(max) * 0.02, 1e-4);
+      min -= pad;
+      max += pad;
+      return { min, max, degenerate: true };
+    }
+    return { min, max, degenerate: false };
+  };
+  return {
+    left: { ...span(leftLosses), label: "in-run + held-out loss (same corpus)" },
+    right: { ...span(rightLosses), label: "frozen evaluation-set loss" },
+    hasLeft: leftLosses.length > 0,
+    hasRight: rightLosses.length > 0,
+  };
 }
 
 /**

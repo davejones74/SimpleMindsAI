@@ -309,6 +309,10 @@ export class ArticleStore {
     guardrailResult = null,
     suggestedImportance = null,
     reviewCycleId = null,
+    criticTemperature = null,
+    criticPromptVersion = null,
+    criticScoreMissing = false,
+    criticError = null,
   } = {}) {
     this.#assertWritable();
     const article = this.articles.get(articleId);
@@ -328,6 +332,10 @@ export class ArticleStore {
       guardrailResult,
       suggestedImportance: suggestedImportance ?? null,
       reviewCycleId,
+      criticTemperature,
+      criticPromptVersion,
+      criticScoreMissing: Boolean(criticScoreMissing),
+      criticError: criticError ?? null,
       applied: decision.apply,
       resultingStatus: decision.status,
       reason: decision.reason,

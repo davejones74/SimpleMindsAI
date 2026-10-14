@@ -1130,8 +1130,9 @@ function trendsBody(m) {
       <div class="panel">
         <div class="k">Loss over training steps ${m.datasetHash ? `<span class="small muted">(dataset ${esc(shortHash(m.datasetHash))})</span>` : ""}</div>
         ${lossSvg(m)}
+        ${m.chain?.collisions ? `<div class="small bad" style="margin-top:6px">⚠ ${m.chain.collisions} step(s) overlap between lineage segments and were overwritten on the shared axis; treat the step axis as approximate.</div>` : ""}
         <div class="small muted" style="margin-top:8px">
-          Validation is measured on the held-out tail of the SAME corpus (token-weighted mean cross-entropy over the full vocabulary); training loss is the in-run mean per step. They are only ever compared within one dataset hash. ${seg?.sampling !== "periodic" ? `This version recorded only the opening and closing validations — set <code>TRAIN_EVAL_EVERY</code> ≥ 1 to sample a full curve.` : ""}
+          Validation is measured on the held-out tail of the SAME corpus (token-weighted mean cross-entropy over the full vocabulary); training loss is the in-run mean per step. They share the left axis. Frozen-eval-set run markers use the right axis because that is a different corpus. ${seg?.sampling !== "periodic" ? `This version recorded only the opening and closing validations — set <code>TRAIN_EVAL_EVERY</code> ≥ 1 to sample a full curve.` : ""}
         </div>
       </div>` : ""}
 
@@ -1210,7 +1211,7 @@ function eventsTable(m) {
 }
 
 function lossSvg(m) {
-  const W = 760, H = 300, P = { l: 64, r: 20, t: 18, b: 40 };
+  const W = 760, H = 320, P = { l: 64, r: 64, t: 18, b: 40 };
   const valPts = (m.chain?.points ?? []).filter((p) => Number.isFinite(p.loss));
   const trainPts = (m.training ?? []).flatMap((s) => (s.points ?? []).filter((p) => Number.isFinite(p.loss)));
   // Every recorded run is plotted. One without a finite loss is still placed
@@ -1221,23 +1222,43 @@ function lossSvg(m) {
     .filter((e) => e.step !== null);
   const measured = events.filter((e) => e.loss != null && Number.isFinite(e.loss));
   const unmeasured = events.filter((e) => !(e.loss != null && Number.isFinite(e.loss)));
-  const losses = [...valPts, ...trainPts, ...measured].map((p) => p.loss).filter(Number.isFinite);
-  if (losses.length < 2) return `<div class="empty">No finite loss series recorded for this version. Train with <code>config.trainEvalEvery ≥ 1</code> to record a curve.</div>`;
+  if (![...valPts, ...trainPts, ...measured].some((p) => Number.isFinite(p.loss))) {
+    return `<div class="empty">No finite loss series recorded for this version. Train with <code>config.trainEvalEvery ≥ 1</code> to record a curve.</div>`;
+  }
   const steps = [...valPts, ...trainPts, ...events].map((p) => p.step).filter((s) => Number.isInteger(s));
   if (!steps.length) return `<div class="empty">No step axis recorded.</div>`;
-  let min = Math.min(...losses), max = Math.max(...losses);
-  const range = max - min;
-  if (!(range > 0)) { const pad = Math.max(Math.abs(max) * 0.02, 1e-4); min -= pad; max += pad; }
   const xMin = Math.min(...steps), xMax = Math.max(...steps);
   const xSpan = xMax - xMin || 1;
   const sx = (s) => P.l + ((s - xMin) / xSpan) * (W - P.l - P.r);
-  const sy = (v) => P.t + ((max - v) / (max - min || 1)) * (H - P.t - P.b);
-  const path = (pts) => pts.map((p, i) => `${i ? "L" : "M"}${sx(p.step).toFixed(1)},${sy(p.loss).toFixed(1)}`).join(" ");
+
+  // Two independent y-scales. LEFT: in-run training loss and held-out validation
+  // loss (same corpus, comparable). RIGHT: frozen evaluation-set run markers (a
+  // DIFFERENT, smaller corpus that scores in its own band). Forcing all three
+  // onto one axis compressed the validation band into a near-flat line; separate
+  // axes let each measurement use the full plot height. Falls back to local
+  // ranges when the server did not supply `scales` (old payloads).
+  const localSpan = (vals) => {
+    const xs = vals.filter(Number.isFinite);
+    if (!xs.length) return null;
+    let min = Math.min(...xs), max = Math.max(...xs);
+    if (!(max > min)) { const pad = Math.max(Math.abs(max) * 0.02, 1e-4); min -= pad; max += pad; }
+    return { min, max };
+  };
+  const left = (m.scales?.left && m.scales.left.min !== null) ? m.scales.left : localSpan([...valPts, ...trainPts].map((p) => p.loss));
+  const right = (m.scales?.right && m.scales.right.min !== null) ? m.scales.right : localSpan(measured.map((p) => p.loss));
+  const makeScale = (band) => {
+    if (!band) return null;
+    const { min, max } = band;
+    return (v) => P.t + ((max - v) / (max - min || 1)) * (H - P.t - P.b);
+  };
+  const syLeft = makeScale(left);
+  const syRight = makeScale(right);
+  const path = (pts, sy) => pts.map((p, i) => `${i ? "L" : "M"}${sx(p.step).toFixed(1)},${sy(p.loss).toFixed(1)}`).join(" ");
   const diamond = (x, y) => `${x},${(y - 5).toFixed(1)} ${(x + 5).toFixed(1)},${y.toFixed(1)} ${x},${(y + 5).toFixed(1)} ${(x - 5).toFixed(1)},${y.toFixed(1)}`;
   const tooltip = (e) => {
     const parts = [`run ${esc(e.runId)}`, `${RUN_EVENT_LABEL[e.outcome] ?? e.outcome}`];
     parts.push(e.version ? esc(e.version) : "no version");
-    parts.push(e.loss == null ? "loss not recorded" : `loss ${fmt(e.loss)}`);
+    parts.push(e.loss == null ? "loss not recorded" : `frozen-set loss ${fmt(e.loss)}`);
     if (e.evaluationDelta != null) parts.push(`improvement ${fmt(e.evaluationDelta)}`);
     if (e.tokensSeen != null) parts.push(`${fmt(e.tokensSeen)} tokens`);
     if (e.activatedVersion) parts.push(`active ${esc(e.activatedVersion)}`);
@@ -1245,35 +1266,44 @@ function lossSvg(m) {
     if (!e.inLineage) parts.push(`outside this dataset lineage (${esc(shortHash(e.datasetHash) ?? "unkeyed")})`);
     return parts.join(" · ");
   };
-  const yTicks = [0, 0.25, 0.5, 0.75, 1].map((f) => max - f * (max - min));
-  const xTicks = xMax === xMin ? [xMin] : [0, 0.25, 0.5, 0.75, 1].map((f) => xMin + f * (xSpan));
+  const xTicks = xMax === xMin ? [xMin] : [0, 0.25, 0.5, 0.75, 1].map((f) => xMin + f * xSpan);
+  const fracs = [0, 0.25, 0.5, 0.75, 1];
+  const leftTicks = left ? fracs.map((f) => left.max - f * (left.max - left.min)) : [];
+  const rightTicks = right ? fracs.map((f) => right.max - f * (right.max - right.min)) : [];
+  const yTop = P.t, yBottom = H - P.b;
   // Unmeasured events sit on the TOP EDGE of the plot band, above every data
-  // point and never on the loss curve: the position states "this run happened",
+  // point and never on either curve: the position states "this run happened",
   // and only the tooltip explains that it has no loss.
   const unmeasuredY = P.t + 4;
   const legend = (x, y, fill, label) =>
     `<polygon points="${diamond(x, y)}" fill="${fill}"/><text x="${x + 9}" y="${(y + 3.5).toFixed(1)}" font-size="10" fill="var(--muted)">${label}</text>`;
   return `
-    <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Training vs validation loss over training steps, with every recorded run" style="width:100%;height:auto">
-      ${yTicks.map((v) => `<line x1="${P.l}" y1="${sy(v).toFixed(1)}" x2="${W - P.r}" y2="${sy(v).toFixed(1)}" stroke="var(--border)" stroke-dasharray="2 4"/><text x="${P.l - 8}" y="${(sy(v) + 3.5).toFixed(1)}" text-anchor="end" font-size="10" fill="var(--muted)">${v.toFixed(2)}</text>`).join("")}
+    <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="In-run/held-out loss (left axis) and frozen evaluation-set loss (right axis) over training steps" style="width:100%;height:auto">
+      ${leftTicks.map((v) => `<line x1="${P.l}" y1="${syLeft(v).toFixed(1)}" x2="${W - P.r}" y2="${syLeft(v).toFixed(1)}" stroke="var(--border)" stroke-dasharray="2 4"/><text x="${P.l - 8}" y="${(syLeft(v) + 3.5).toFixed(1)}" text-anchor="end" font-size="10" fill="var(--muted)">${v.toFixed(2)}</text>`).join("")}
+      ${right && syRight ? rightTicks.map((v) => `<text x="${W - P.r + 8}" y="${(syRight(v) + 3.5).toFixed(1)}" text-anchor="start" font-size="10" fill="var(--muted)">${v.toFixed(2)}</text>`).join("") : ""}
       ${xTicks.map((s) => `<text x="${sx(s).toFixed(1)}" y="${H - 10}" text-anchor="middle" font-size="10" fill="var(--muted)">${Math.round(s)}</text>`).join("")}
       <text x="${P.l}" y="${H - 26}" font-size="10" fill="var(--muted)">step</text>
-      ${trainPts.length ? `<path d="${path(trainPts)}" fill="none" stroke="var(--accent-2)" stroke-width="1.2" stroke-dasharray="4 3"/>` : ""}
-      ${trainPts.map((p) => `<circle cx="${sx(p.step).toFixed(1)}" cy="${sy(p.loss).toFixed(1)}" r="1.4" fill="var(--accent-2)"><title>training step ${p.step}: loss ${fmt(p.loss)}</title></circle>`).join("")}
-      ${valPts.length ? `<path d="${path(valPts)}" fill="none" stroke="var(--accent)" stroke-width="2"/>` : ""}
-      ${valPts.map((p) => `<circle cx="${sx(p.step).toFixed(1)}" cy="${sy(p.loss).toFixed(1)}" r="2" fill="var(--accent)"><title>validation step ${p.step}: loss ${fmt(p.loss)}${p.version ? ` · ${esc(p.version)}` : ""}</title></circle>`).join("")}
+      <text x="${P.l}" y="12" font-size="10" fill="var(--muted)">◀ in-run + held-out loss</text>
+      ${right && syRight ? `<text x="${W - P.r}" y="12" text-anchor="end" font-size="10" fill="var(--muted)">frozen eval-set loss ▶</text>` : ""}
+      ${trainPts.length && syLeft ? `<path d="${path(trainPts, syLeft)}" fill="none" stroke="var(--accent-2)" stroke-width="1.2" stroke-dasharray="4 3"/>` : ""}
+      ${trainPts.map((p) => `<circle cx="${sx(p.step).toFixed(1)}" cy="${syLeft(p.loss).toFixed(1)}" r="1.4" fill="var(--accent-2)"><title>training step ${p.step}: loss ${fmt(p.loss)}</title></circle>`).join("")}
+      ${valPts.length && syLeft ? `<path d="${path(valPts, syLeft)}" fill="none" stroke="var(--accent)" stroke-width="2"/>` : ""}
+      ${valPts.map((p) => `<circle cx="${sx(p.step).toFixed(1)}" cy="${syLeft(p.loss).toFixed(1)}" r="2" fill="var(--accent)"><title>validation step ${p.step}: loss ${fmt(p.loss)}${p.version ? ` · ${esc(p.version)}` : ""}</title></circle>`).join("")}
       ${unmeasured.map((e) => `<polygon points="${diamond(sx(e.step), unmeasuredY)}" fill="var(--panel)" stroke="${RUN_EVENT_FILL[e.outcome] ?? "var(--muted)"}" stroke-width="1.6" stroke-dasharray="2 2"><title>${tooltip(e)}</title></polygon>`).join("")}
-      ${measured.map((e) => `<polygon points="${diamond(sx(e.step), sy(e.loss))}" fill="${RUN_EVENT_FILL[e.outcome] ?? "var(--muted)"}"><title>${tooltip(e)}</title></polygon>`).join("")}
-      <rect x="${W - 306}" y="0" width="306" height="78" fill="var(--panel)" opacity="0.92"/>
-      <line x1="${W - 296}" y1="12" x2="${W - 280}" y2="12" stroke="var(--accent)" stroke-width="2"/><text x="${W - 272}" y="16" font-size="10" fill="var(--muted)">validation (held-out)</text>
-      <line x1="${W - 296}" y1="28" x2="${W - 280}" y2="28" stroke="var(--accent-2)" stroke-width="1.2" stroke-dasharray="4 3"/><text x="${W - 272}" y="32" font-size="10" fill="var(--muted)">training</text>
-      ${legend(W - 296, 50, "var(--good)", "promoted")}
-      ${legend(W - 152, 50, "var(--bad)", "rejected / failed")}
-      ${legend(W - 296, 66, "var(--warn)", "not evaluated")}
-      ${legend(W - 152, 66, "var(--accent)", "in progress")}
+      ${measured.map((e) => `<polygon points="${diamond(sx(e.step), syRight(e.loss))}" fill="${RUN_EVENT_FILL[e.outcome] ?? "var(--muted)"}"><title>${tooltip(e)}</title></polygon>`).join("")}
+      <rect x="${W - 306}" y="0" width="306" height="80" fill="var(--panel)" opacity="0.92"/>
+      <line x1="${W - 296}" y1="12" x2="${W - 280}" y2="12" stroke="var(--accent)" stroke-width="2"/><text x="${W - 272}" y="16" font-size="10" fill="var(--muted)">validation (left axis)</text>
+      <line x1="${W - 296}" y1="28" x2="${W - 280}" y2="28" stroke="var(--accent-2)" stroke-width="1.2" stroke-dasharray="4 3"/><text x="${W - 272}" y="32" font-size="10" fill="var(--muted)">training (left axis)</text>
+      <text x="${W - 296}" y="46" font-size="10" fill="var(--muted)">◆ runs = frozen eval-set (right axis)</text>
+      ${legend(W - 296, 64, "var(--good)", "promoted")}
+      ${legend(W - 152, 64, "var(--bad)", "rejected / failed")}
+      ${legend(W - 296, 78, "var(--warn)", "not evaluated")}
+      ${legend(W - 152, 78, "var(--accent)", "in progress")}
+      <line x1="${P.l}" y1="${yTop}" x2="${P.l}" y2="${yBottom}" stroke="var(--border)"/>
+      ${right ? `<line x1="${W - P.r}" y1="${yTop}" x2="${W - P.r}" y2="${yBottom}" stroke="var(--border)"/>` : ""}
     </svg>
     <div class="small muted" style="margin-top:8px">
-      ◆ = a recorded run (event), not a published version — colour is the outcome. A hollow ◆ has no recorded loss; it is placed at its own final step, or at the lineage's final step when that is all the ledger recorded, and it sits on the top edge so it is never read as a loss value. Runs outside this dataset lineage are labelled in the tooltip. Dataset ${esc(shortHash(m.datasetHash) ?? "unkeyed")}.
+      Two axes, because there are two different measurements. <strong>Left</strong>: in-run training loss and held-out validation loss share the SAME corpus and tokenizer, so they share an axis. <strong>Right</strong>: each ◆ is a recorded run's frozen evaluation-set loss — a small, separate corpus that scores in its own band, so plotting it on the left would compress the curve. A hollow ◆ has no recorded loss and sits on the top edge (a position, not a value). Dataset ${esc(shortHash(m.datasetHash) ?? "unkeyed")}.
     </div>`;
 }
 

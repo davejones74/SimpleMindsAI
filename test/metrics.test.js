@@ -12,6 +12,7 @@ import {
   RUN_OUTCOME,
   resolveRunOutcome,
   deriveRunEvents,
+  computeChartScales,
 } from "../src/admin/metrics.js";
 
 const DEFAULTS = { minPoints: 3, improveDrop: 0.01, worsenRise: 0.05, overfitValRise: 0.02 };
@@ -347,4 +348,77 @@ test("deriveRunEvents: empty or malformed input is empty, not a crash", () => {
   assert.deepEqual(deriveRunEvents([], []), []);
   assert.deepEqual(deriveRunEvents(null), []);
   assert.deepEqual(deriveRunEvents([null, {}, { status: "running" }], null), []);
+});
+
+// ------------------------------------------------------- mergeChain stepOffset
+
+test("mergeChain: a per-segment stepOffset keeps two sessions on separate step ranges", () => {
+  const chain = mergeChain([
+    { version: "v001", stepOffset: 0, series: [{ step: 0, loss: 5 }, { step: 10, loss: 4 }] },
+    { version: "v002", stepOffset: 20, series: [{ step: 0, loss: 3.5 }, { step: 10, loss: 3 }] },
+  ]);
+  assert.deepEqual(chain.points.map((p) => p.step), [0, 10, 20, 30]);
+  assert.equal(chain.collisions, 0, "a correct offset produces no overlap");
+  assert.equal(chain.to, 30);
+  assert.equal(chain.points[3].version, "v002");
+});
+
+test("mergeChain: an offset that fails to separate segments is reported as a collision, not hidden", () => {
+  // Two sessions both starting at 0 with no offset: the shared step is a real
+  // data-integrity problem and must be counted, not silently overwritten.
+  const chain = mergeChain([
+    { version: "v001", series: [{ step: 0, loss: 5 }, { step: 1, loss: 4.5 }] },
+    { version: "v002", series: [{ step: 0, loss: 3 }, { step: 1, loss: 2.5 }] },
+  ]);
+  assert.equal(chain.collisions, 2);
+  assert.equal(chain.points.length, 2);
+  assert.equal(chain.points[0].version, "v002", "later segment still wins on a genuine tie");
+});
+
+test("mergeChain: absent stepOffset preserves the historical (offset-zero) behaviour", () => {
+  const chain = mergeChain([{ version: "v001", series: [{ step: 0, loss: 5 }, { step: 1, loss: 4 }] }]);
+  assert.deepEqual(chain.points.map((p) => p.step), [0, 1]);
+  assert.equal(chain.collisions, 0);
+});
+
+// ----------------------------------------------------- computeChartScales
+
+test("computeChartScales: left axis spans validation + training, right spans only frozen markers", () => {
+  const scales = computeChartScales({
+    validation: [{ step: 0, loss: 3.0 }, { step: 10, loss: 3.4 }],
+    training: [{ step: 0, loss: 0.28 }, { step: 10, loss: 2.33 }],
+    markers: [{ step: 8, loss: 4.7 }, { step: 11, loss: 10.6 }],
+  });
+  assert.equal(scales.hasLeft, true);
+  assert.equal(scales.hasRight, true);
+  assert.equal(scales.left.min, 0.28);
+  assert.equal(scales.left.max, 3.4, "the frozen-eval markers must NOT inflate the left axis");
+  assert.equal(scales.right.min, 4.7);
+  assert.equal(scales.right.max, 10.6);
+});
+
+test("computeChartScales: degenerate left range is padded so the curve is visible", () => {
+  const scales = computeChartScales({ validation: [{ step: 0, loss: 2.0 }, { step: 1, loss: 2.0 }] });
+  assert.equal(scales.left.degenerate, true);
+  assert.ok(scales.left.max > scales.left.min, "a flat series still needs a non-zero span");
+});
+
+test("computeChartScales: an axis with no data reports hasLeft/hasRight false and null range", () => {
+  const scales = computeChartScales({ training: [{ step: 0, loss: 1 }] });
+  assert.equal(scales.hasLeft, true);
+  assert.equal(scales.hasRight, false);
+  assert.equal(scales.right.min, null);
+  assert.equal(scales.right.max, null);
+});
+
+test("computeChartScales: non-finite and missing marker losses are ignored, and empty input is safe", () => {
+  const scales = computeChartScales({ markers: [{ step: 1, loss: null }, { step: 2, loss: NaN }, { step: 3, loss: 5 }] });
+  assert.equal(scales.hasRight, true);
+  // One finite marker is a degenerate range: it is padded, never left as a
+  // zero-height span (which would divide by zero when mapping to pixels).
+  assert.equal(scales.right.degenerate, true);
+  assert.ok(scales.right.min < 5 && scales.right.max > 5);
+  const empty = computeChartScales();
+  assert.equal(empty.hasLeft, false);
+  assert.equal(empty.hasRight, false);
 });

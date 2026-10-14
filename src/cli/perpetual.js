@@ -72,6 +72,10 @@ async function reviewPending(store, scorer) {
       rubricVersion: r.rubricVersion,
       guardrailResult: r.guardrailResult,
       suggestedImportance: r.suggestedImportance,
+      criticTemperature: r.criticTemperature,
+      criticPromptVersion: r.criticPromptVersion,
+      criticScoreMissing: r.criticScoreMissing,
+      criticError: r.criticError,
     });
     reviewed++;
   }

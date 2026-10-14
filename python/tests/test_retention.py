@@ -339,3 +339,63 @@ def test_verify_mirror_flags_a_mirror_only_directory_with_no_tombstone(store_roo
     result = store.verify_mirror(store_root, mirror_root)
     assert result["ok"] is False
     assert any(d["version"] == "v001" and "no store version and no prune tombstone" in d["reason"] for d in result["drifted"])
+
+# ------------------------------------------------------------ prune-runs
+
+
+def _write_resume_state(root: Path, version: str, size: int = 1024) -> Path:
+    runs = root / store.RUNS_DIR_NAME
+    runs.mkdir(parents=True, exist_ok=True)
+    p = runs / f"{version}.train-state.pt"
+    p.write_bytes(b"x" * size)
+    return p
+
+
+def test_prune_runs_dry_run_deletes_nothing_and_reports_bytes(store_root):
+    for i in range(1, 5):
+        make_version(store_root, f"v{i:03d}")
+        _write_resume_state(store_root, f"v{i:03d}", 1000)
+    plan = store.prune_runs(store_root, keep=1, active="v004")
+    assert plan["dryRun"] is True
+    assert plan["executed"] is False
+    # v004 (active + most recent keep) stays; v001, v002, v003 are proposed.
+    assert plan["pruneCount"] == 3
+    assert plan["freedBytes"] == 3000
+    assert len(list((store_root / store.RUNS_DIR_NAME).glob("*.train-state.pt"))) == 4
+
+
+def test_prune_runs_confirm_deletes_only_stale_pickles(store_root):
+    for i in range(1, 5):
+        make_version(store_root, f"v{i:03d}")
+        _write_resume_state(store_root, f"v{i:03d}", 1000)
+    # Published version directories must be untouched by a runs prune.
+    version_dirs_before = sorted(p.name for p in store_root.iterdir() if p.is_dir())
+    plan = store.prune_runs(store_root, keep=1, active="v004", confirm=True)
+    assert plan["executed"] is True
+    assert plan["removedCount"] == 3
+    assert plan["freedBytes"] == 3000
+    remaining = sorted(p.name for p in (store_root / store.RUNS_DIR_NAME).glob("*.train-state.pt"))
+    assert remaining == ["v004.train-state.pt"]
+    assert sorted(p.name for p in store_root.iterdir() if p.is_dir()) == version_dirs_before
+
+
+def test_prune_runs_removes_orphan_pickles(store_root):
+    make_version(store_root, "v001")
+    _write_resume_state(store_root, "v001", 1000)
+    _write_resume_state(store_root, "v099", 1000)  # no committed version
+    plan = store.prune_runs(store_root, keep=5, active="v001", confirm=True)
+    remaining = [p.name for p in (store_root / store.RUNS_DIR_NAME).glob("*.train-state.pt")]
+    assert remaining == ["v001.train-state.pt"]
+    assert any(r["version"] == "v099" for r in plan["removed"])
+
+
+def test_prune_runs_writes_a_durable_log(store_root):
+    make_version(store_root, "v001")
+    make_version(store_root, "v002")
+    _write_resume_state(store_root, "v001", 1000)
+    store.prune_runs(store_root, keep=1, active="v002", confirm=True)
+    log = store.runs_prune_log_path(store_root)
+    assert log.is_file()
+    records = [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines() if line.strip()]
+    assert records and records[0]["schema"] == "sma/pruned-runs@1"
+    assert records[0]["removedCount"] == 1

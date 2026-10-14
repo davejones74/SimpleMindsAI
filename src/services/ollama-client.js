@@ -177,13 +177,31 @@ export class OllamaClient {
   #fixtureReply(messages) {
     const user = [...messages].reverse().find((m) => m.role === "user");
     const raw = String(user?.content ?? "");
-    const isCurator =
-      messages.some((m) => m.role === "system" && /curation pipeline/i.test(m.content ?? "")) ||
-      messages.some((m) => m.role === "system" && /reward model/i.test(m.content ?? ""));
+    const systemText = messages
+      .filter((m) => m.role === "system")
+      .map((m) => String(m.content ?? ""))
+      .join("\n");
 
-    // Curator fixture: echo one sanitized prompt/completion pair per raw block.
-    if (isCurator && /reward model/i.test(messages.find((m) => m.role === "system")?.content ?? "")) {
-      return JSON.stringify({ score: 6.5, rationale: "fixture critic: plausible, low repetition" });
+    // The critic is identified by markers that are ACTUALLY in the shipped
+    // CRITIC_PROMPT ("harsh but fair teacher" / ARTICLE / suggestedImportance),
+    // not by a phrase the prompt never contained ("reward model" — the old
+    // matcher). Detecting the wrong persona made the fixture return a generic
+    // echo with no `score`, which silently became a neutral 5 and lost every
+    // article to `uncertain`.
+    const isCritic =
+      /harsh but fair teacher/i.test(systemText) ||
+      /suggestedImportance/i.test(systemText) ||
+      /reviewing a single ARTICLE/i.test(systemText);
+    const isCurator = /curation pipeline/i.test(systemText);
+
+    // Critic fixture: return the EXACT strict-JSON shape the critic prompt asks
+    // for, so `score` is always present and parseable.
+    if (isCritic) {
+      return JSON.stringify({
+        score: 6.5,
+        rationale: "fixture critic: plausible, low repetition",
+        suggestedImportance: "Normal",
+      });
     }
     if (isCurator) {
       const first = raw.split("\n").find((l) => l.trim() && !l.trim().startsWith("||"));

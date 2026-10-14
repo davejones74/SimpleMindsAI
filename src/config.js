@@ -142,6 +142,13 @@ export const config = {
   // Set via CRITIC_MODEL env var; records its value in review provenance.
   criticModel: env("CRITIC_MODEL", null),
 
+  // Critic prompt version — a provenance stamp for the CRITIC_PROMPT text in
+  // `src/reward/reward-scorer.js`. The critic's temperature, model and rubric
+  // version are recorded with every review; the prompt itself has no content
+  // hash, so this operator-managed string is the durable link between a review
+  // and the wording that produced it. Bump it when the prompt changes.
+  criticPromptVersion: env("CRITIC_PROMPT_VERSION", "critic-prompt-v1"),
+
   // When critModel is explicitly null, the effective model used by the
   // critic is OLLAMA_MODEL. When set, it overrides the model for critic
   // scoring only; the teacher (curator/planner) still uses OLLAMA_MODEL.
@@ -197,6 +204,15 @@ export const config = {
 
   // ---- Evaluation ----
   evalDatasetId: env("EVAL_DATASET_ID", "eval-001"),
+  // Advisory floor on the number of held-out documents a frozen evaluation set
+  // must contain. 0 (the default) does NOT enforce it: the eval set is loaded
+  // and its size is recorded, and any shortfall is surfaced as a `warnings`
+  // entry on every evaluation record and in the Observatory, but promotion is
+  // not blocked. Set > 0 to make a too-small set fail closed. The system ships a
+  // 5-document seed set, so a non-zero default would block promotions until an
+  // operator supplies a larger held-out set — a deliberate follow-up, not a
+  // hidden default.
+  evalMinDocuments: num("EVAL_MIN_DOCUMENTS", 0),
   promoteMinDelta: num("PROMOTE_MIN_DELTA", 0), // legacy token-F1 delta (supplementary only)
   promoteMinScore: num("PROMOTE_MIN_SCORE", 0), // legacy token-F1 floor (supplementary only)
 
@@ -296,17 +312,31 @@ export const config = {
     pollIntervalMs: num("JOBS_POLL_INTERVAL_MS", 60_000),
     // Cooperative-cancel window before the child process tree is force-killed.
     stopGraceMs: num("JOB_STOP_GRACE_MS", 15_000),
+    // Runtime safety bound for ANY managed job (ms; 0 = unbounded). A continuous
+    // job that reaches it stops with outcome `max-runtime` instead of running
+    // forever, so an operator can see the bound was the reason and restart.
+    maxRuntimeMs: num("JOBS_MAX_RUNTIME_MS", 0),
     learning: {
       // Bounded learning stops once this many *trainable* articles exist, or
       // when the configured sources are exhausted (reported honestly either way).
       targetArticles: num("LEARNING_TARGET_ARTICLES", 100),
       // Safety cap on raw documents processed per bounded run (0 = no cap).
       maxRawDocs: num("LEARNING_MAX_RAW_DOCS", 0),
+      // Continuous learning: after this many consecutive cycles that acquire
+      // nothing new (ingested=deduped=0 and trainable unchanged), stop with
+      // outcome `no-progress` instead of polling forever. 0 disables the guard.
+      noProgressCycles: num("LEARNING_NO_PROGRESS_CYCLES", 5),
     },
     training: {
       // A one-shot run refuses to start below this many eligible articles
       // (reviewed + unconsumed); continuous runs wait for them instead.
       minEligible: num("TRAIN_MIN_ELIGIBLE", 1),
+      // Continuous training circuit breaker: after this many consecutive runs
+      // that are NOT promoted (rejected or not_evaluated), stop with outcome
+      // `repeated-rejection` instead of retraining forever on the same corpus.
+      // 0 disables the guard. The material stays unconsumed, so a resume after
+      // real change retrains from where it left off.
+      maxConsecutiveRejections: num("TRAIN_MAX_CONSECUTIVE_REJECTIONS", 5),
     },
   },
 };

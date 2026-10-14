@@ -1,6 +1,41 @@
 import path from "node:path";
+import { createHash } from "node:crypto";
 import { runPython, REPO_ROOT } from "../brain/python-cli.js";
 import { config } from "../config.js";
+
+/**
+ * The metric identity of one loss measurement. Two losses are only comparable
+ * when EVERY field that can change the number is identical: the frozen set
+ * (dataset + tokenizer hash), the packing strategy, the sequence length, the
+ * eval micro-batch, the metric itself and the compute dtype used to score it.
+ *
+ * `decidePromotionByLoss` previously compared `datasetHash` alone, so a
+ * candidate evaluated at a different seq-len, micro-batch or tokenizer could be
+ * promoted on a number that was not measured the same way as its parent. The
+ * signature closes that gap; a missing signature (legacy/no evidence) falls back
+ * to the dataset-hash-only comparison so historical behaviour is preserved.
+ */
+export function metricSignature(evaluationSet, {
+  seqLen = null,
+  microBatch = null,
+  metric = "causal-cross-entropy",
+  strategy = null,
+  computeDtype = "float32",
+} = {}) {
+  if (!evaluationSet) return null;
+  const datasetHash = evaluationSet.datasetHash ?? null;
+  if (!datasetHash) return null;
+  const parts = {
+    metric,
+    strategy: strategy ?? evaluationSet.strategy ?? null,
+    datasetHash,
+    tokenizerHash: evaluationSet.tokenizerHash ?? null,
+    sequenceLength: seqLen ?? evaluationSet.sequenceLength ?? null,
+    microBatch: microBatch ?? null,
+    computeDtype,
+  };
+  return createHash("sha256").update(JSON.stringify(parts)).digest("hex").slice(0, 16);
+}
 
 /**
  * The authoritative promotion signal: causal-LM cross-entropy loss from the
@@ -59,12 +94,14 @@ export async function evaluateVersionLoss({
     const out = await runPython(args, { store, bin, timeoutMs });
     const loss = out.evalLoss;
     const ok = Number.isFinite(loss);
+    const evaluationSet = out.evaluationSet ?? null;
     return {
       version,
       staged,
       loss: ok ? loss : null,
-      datasetHash: out.evaluationSet?.datasetHash ?? null,
-      evaluationSet: out.evaluationSet ?? null,
+      datasetHash: evaluationSet?.datasetHash ?? null,
+      evaluationSet,
+      metricSignature: metricSignature(evaluationSet, { seqLen, microBatch }),
       lossSignature: out.lossSignature ?? null,
       trainedSteps: out.trainedSteps ?? null,
       ok,
@@ -81,22 +118,24 @@ export async function evaluateVersionLoss({
  * Lower causal-LM loss is better: improvement = parentLoss - candidateLoss, and
  * the candidate is promoted only when it clears the configured criterion.
  *
- * @returns {{decision, reason, parentLoss, candidateLoss, improvement, datasetHash, comparable, evaluated}}
+ * @returns {{decision, reason, parentLoss, candidateLoss, improvement, datasetHash, metricSignature, comparable, evaluated}}
  */
 export function decidePromotionByLoss(parent, candidate, {
   minImprovement = config.promoteMinLossDelta,
   maxLoss = config.promoteMaxLoss,
   requireFinite = config.promoteRequireFinite,
   requireSameEvalSet = true,
+  requireSameMetric = true,
 } = {}) {
   const base = {
     parentLoss: parent?.loss ?? null,
     candidateLoss: candidate?.loss ?? null,
     improvement: null,
     datasetHash: null,
+    metricSignature: null,
     comparable: false,
     evaluated: false,
-    criterion: { minImprovement, maxLoss, requireFinite, requireSameEvalSet },
+    criterion: { minImprovement, maxLoss, requireFinite, requireSameEvalSet, requireSameMetric },
   };
 
   if (!parent?.ok || !candidate?.ok) {
@@ -105,10 +144,32 @@ export function decidePromotionByLoss(parent, candidate, {
   if (requireFinite && (!Number.isFinite(parent.loss) || !Number.isFinite(candidate.loss))) {
     return { ...base, decision: "not_evaluated", reason: "non-finite loss" };
   }
-  const comparable = parent.datasetHash != null && parent.datasetHash === candidate.datasetHash;
+  const sameHash = parent.datasetHash != null && parent.datasetHash === candidate.datasetHash;
+  // A signature is only enforceable when BOTH sides carry one. When neither does
+  // (legacy records), fall back to the dataset-hash comparison so historical
+  // behaviour is unchanged; when both do, they MUST match.
+  const parentSig = parent.metricSignature ?? null;
+  const candidateSig = candidate.metricSignature ?? null;
+  const signaturesPresent = parentSig != null && candidateSig != null;
+  const sameMetric = !signaturesPresent || parentSig === candidateSig;
+  const comparable = sameHash && (!requireSameMetric || sameMetric);
   const improvement = parent.loss - candidate.loss;
-  const withEval = { ...base, improvement, datasetHash: parent.datasetHash, comparable, evaluated: true };
+  const withEval = {
+    ...base,
+    improvement,
+    datasetHash: parent.datasetHash,
+    metricSignature: parentSig,
+    comparable,
+    evaluated: true,
+  };
 
+  if (requireSameMetric && sameHash && !sameMetric) {
+    return {
+      ...withEval,
+      decision: "not_evaluated",
+      reason: `parent and candidate metric signatures differ (${parentSig} != ${candidateSig}): the losses were not measured comparably`,
+    };
+  }
   if (requireSameEvalSet && !comparable) {
     return { ...withEval, decision: "not_evaluated", reason: "parent and candidate were not scored on the same frozen evaluation set" };
   }

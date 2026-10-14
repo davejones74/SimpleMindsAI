@@ -28,7 +28,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict
 
-from .store import PRUNE_DEFAULT_KEEP, store_root
+from .store import PRUNE_DEFAULT_KEEP, RUNS_PRUNE_DEFAULT_KEEP, store_root
 
 # The store root is resolved at *parse* time from SMA_STORE rather than at
 # import time, so a caller or a test can change the environment and be
@@ -690,6 +690,39 @@ def cmd_prune(args: argparse.Namespace) -> Dict[str, Any]:
             f"freed {result.get('freedBytes', 0) / 1e9:.2f} GB"
         )
     return {"ok": not result.get("refused"), "verb": "prune", **result}
+
+
+def cmd_prune_runs(args: argparse.Namespace) -> Dict[str, Any]:
+    """Retention for `_runs/` resume-state pickles.
+
+    DRY RUN by default. This deletes ONLY the `<version>.train-state.pt`
+    optimizer-moment blobs that are no longer needed to resume — never a
+    published version, weight, or record file. The most recent `--keep`
+    published versions, the active version, and anything `--protect`ed stay
+    resumable.
+    """
+    from . import store
+
+    root = Path(args.out)
+    active = store.active_version(root)
+    result = store.prune_runs(
+        root,
+        keep=args.keep,
+        active=active,
+        protect=args.protect or [],
+        confirm=getattr(args, "confirm", False),
+    )
+    if not result.get("executed"):
+        _log(
+            f"prune-runs dry run: {result.get('pruneCount')} resume-state file(s) "
+            f"would be removed, {result.get('freedBytes', 0) / 1e9:.2f} GB; {result.get('reason')}"
+        )
+    else:
+        _log(
+            f"prune-runs executed: removed {result.get('removedCount')} file(s), "
+            f"freed {result.get('freedBytes', 0) / 1e9:.2f} GB"
+        )
+    return {"ok": True, "verb": "prune-runs", **result}
 
 
 def cmd_prune_log(args: argparse.Namespace) -> Dict[str, Any]:
@@ -1432,6 +1465,31 @@ def build_parser() -> argparse.ArgumentParser:
         help="permit discarding resumable training state that pruning would otherwise remove",
     )
     pr.set_defaults(func=cmd_prune)
+
+    prr = sub.add_parser(
+        "prune-runs",
+        help="retention for _runs/ resume-state pickles (DRY RUN by default)",
+    )
+    common(prr)
+    prr.add_argument(
+        "--keep",
+        type=int,
+        default=RUNS_PRUNE_DEFAULT_KEEP,
+        help=f"how many of the most recent published versions keep their resume state "
+        f"(default {RUNS_PRUNE_DEFAULT_KEEP}); the active version is always kept",
+    )
+    prr.add_argument(
+        "--protect",
+        action="append",
+        default=[],
+        help="keep this version's resume state regardless of the window; repeatable",
+    )
+    prr.add_argument(
+        "--confirm",
+        action="store_true",
+        help="ACTUALLY DELETE the stale resume-state pickles. Without this flag it is a dry run.",
+    )
+    prr.set_defaults(func=cmd_prune_runs)
 
     pl = sub.add_parser("prune-log", help="the durable record of pruning decisions and outcomes")
     common(pl)

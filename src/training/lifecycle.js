@@ -1,5 +1,5 @@
 import path from "node:path";
-import { mkdir, writeFile, readFile } from "node:fs/promises";
+import { mkdir, writeFile, readFile, readdir } from "node:fs/promises";
 import { readFileSync } from "node:fs";
 import { config } from "../config.js";
 import { createHash } from "node:crypto";
@@ -102,6 +102,26 @@ export async function executeFullRun({
   // (see RegistryStore.acquireRunLock) without blanket-failing unrelated runs.
   if (!(await registry.acquireRunLock(config.runLockStaleMs))) {
     throw new Error("another training run is already in progress (RUN.lock held)");
+  }
+
+  // Finish any promotion a previous process left uncommitted BEFORE starting new
+  // work, so a crash at the publish/activate/consume boundary is transparently
+  // healed and never leaves an unpublished-but-decided candidate behind. Every
+  // step is idempotent; a failure here is logged, never fatal.
+  try {
+    // Pass the run's own consumption function so an injected `markConsumed`
+    // (tests, alternate stores) is honoured during recovery too.
+    await recoverPendingPromotions({
+      registry,
+      store,
+      trainer: t,
+      options: { ...options, markConsumed: commitConsumption },
+      logger,
+      setActive,
+      worker,
+    });
+  } catch (err) {
+    logger?.error && logger.error(`[lifecycle] pending-promotion recovery skipped: ${err.message}`);
   }
 
   let runId = null;
@@ -218,6 +238,12 @@ export async function executeFullRun({
       status: "created",
       snapshotArticleIds: snapshot.rows.map((r) => r.articleId),
       evaluationSetHash: computeFileHash(evalSet.file),
+      // Written as soon as the candidate version exists; the durable link that
+      // lets a restarted process re-drive a promotion whose in-process
+      // `trainingResult` is gone. Without it, recovery could not name the version.
+      resultVersion: null,
+      resultParentVersion: pythonBaseline?.version ?? null,
+      resultModelId: null,
       baselineLoss: null,
       candidateLoss: null,
       decision: null,
@@ -227,9 +253,7 @@ export async function executeFullRun({
       error: null,
     };
     await persistManifest(manifestPath, manifest);
-    await updateManifest(manifestPath, manifest, {
-      status: "running",
-    });
+    manifest = await updateManifest(manifestPath, manifest, { status: "running" });
 
     // ---- BASELINE evaluation (before training) ----
     baselineResult = pythonMode
@@ -246,6 +270,16 @@ export async function executeFullRun({
           evalSet,
           statusLog: () => registry.runEvent(runId, { status: "running", note: "baseline evaluation complete" }),
         });
+    if (pythonMode) {
+      await recordPythonEvaluation(registry, {
+        runId,
+        kind: "baseline",
+        version: pythonBaseline.version,
+        modelId: baselineModel.modelId,
+        result: baselineResult,
+        evalSet,
+      });
+    }
 
     // ---- train (never touches the live buffer; reads the snapshot file) ----
     // With a staging-capable trainer the candidate is built as an UNPUBLISHED
@@ -265,6 +299,18 @@ export async function executeFullRun({
       },
     });
 
+    // Persist the candidate version the MOMENT it exists. Everything after this
+    // (evaluation, decision, publish, activate, consumption) is recoverable from
+    // the manifest alone on a restart, because the crash-recovery path can now
+    // name the version without the in-process `trainingResult`.
+    if (pythonMode) {
+      manifest = await updateManifest(manifestPath, manifest, {
+        status: "trained",
+        resultVersion: trainingResult.version ?? null,
+        resultParentVersion: trainingResult.parentVersion ?? pythonBaseline?.version ?? null,
+      });
+    }
+
     // ---- candidate model registered ----
     const candidate = await registry.registerModel({
       kind: trainer?.kind ?? config.trainerKind,
@@ -283,6 +329,7 @@ export async function executeFullRun({
           }
         : { avgLoss: trainingResult.avgLoss, importanceMix: trainingResult.importanceMix },
     });
+    if (pythonMode) manifest = await updateManifest(manifestPath, manifest, { resultModelId: candidate.modelId });
 
     // ---- AFTER evaluation (candidate) ----
     await registry.runEvent(runId, { status: "evaluating", note: "candidate evaluation running" });
@@ -301,6 +348,16 @@ export async function executeFullRun({
           evalSet,
           statusLog: () => registry.runEvent(runId, { status: "evaluating", note: "candidate evaluation complete" }),
         });
+    if (pythonMode) {
+      await recordPythonEvaluation(registry, {
+        runId,
+        kind: "candidate",
+        version: trainingResult.version,
+        modelId: candidate.modelId,
+        result: candidateResult,
+        evalSet,
+      });
+    }
 
     // ---- deterministic promote/reject ----
     decision = pythonMode ? decidePromotionByLoss(baselineResult, candidateResult, {}) : decidePromotion(baselineResult, candidateResult, config);
@@ -314,7 +371,7 @@ export async function executeFullRun({
 
     if (pythonMode) {
       // Record the evaluation-set hash for provenance and the promotion gate.
-      await updateManifest(manifestPath, manifest, {
+      manifest = await updateManifest(manifestPath, manifest, {
         evaluationSetHash: computeFileHash(evalSet.file),
         baselineLoss: baselineResult.loss,
         candidateLoss: candidateResult.loss,
@@ -333,7 +390,7 @@ export async function executeFullRun({
     // is recoverable by retrying the next one without double-consuming.
     if (decision.decision === "not_evaluated") {
       if (stagedCandidate) await discardRejected(t, trainingResult.version, runId, options, logger);
-      await updateManifest(manifestPath, manifest, {
+      manifest = await updateManifest(manifestPath, manifest, {
         consumed: false,
         published: false,
         status: "failed",
@@ -341,7 +398,7 @@ export async function executeFullRun({
       });
     } else if (decision.decision === "rejected") {
       if (stagedCandidate) await discardRejected(t, trainingResult.version, runId, options, logger);
-      await updateManifest(manifestPath, manifest, {
+      manifest = await updateManifest(manifestPath, manifest, {
         consumed: false,
         published: false,
         activated: false,
@@ -351,9 +408,7 @@ export async function executeFullRun({
         snapshot.manifest.articleIds ?? snapshot.rows.map((r) => r.articleId),
         runId
       );
-      manifest.consumed = true;
-      manifest.activated = false;
-      await updateManifest(manifestPath, manifest, { consumed: true });
+      manifest = await updateManifest(manifestPath, manifest, { consumed: true, activated: false });
     } else {
       // decision.decision === "promoted": 1) publication, 2) active pointer,
       // 3) manifest completion, 4) consumption commit.
@@ -371,7 +426,7 @@ export async function executeFullRun({
         });
         if (worker) await worker.reload();
       }
-      await updateManifest(manifestPath, manifest, {
+      manifest = await updateManifest(manifestPath, manifest, {
         consumed: false,
         published,
         activated: true,
@@ -381,9 +436,7 @@ export async function executeFullRun({
         snapshot.manifest.articleIds ?? snapshot.rows.map((r) => r.articleId),
         runId
       );
-      manifest.consumed = true;
-      manifest.activated = true;
-      await updateManifest(manifestPath, manifest, { consumed: true });
+      manifest = await updateManifest(manifestPath, manifest, { consumed: true, activated: true });
     }
 
     // ---- persist the decision on the model, then close the run ----
@@ -399,6 +452,7 @@ export async function executeFullRun({
     await registry.completeRun(runId, {
       status: decision.decision === "promoted" ? "promoted" : "rejected",
       promotionStatus: decision.decision,
+      note: decision.reason ?? (decision.decision === "promoted" ? "promotion gate passed" : "promotion gate rejected candidate"),
       resultModelId: candidate.modelId,
       examplesProcessed: trainingResult.recordsProcessed ?? snapshot.manifest.recordCount,
       examplesSkipped: Math.max(0, rows.length - snapshot.manifest.recordCount),
@@ -467,6 +521,9 @@ export async function executeFullRun({
             setActive,
             worker,
           });
+          // `completePromotion` commits consumption but does not close the run;
+          // record the terminal event here so the run is not left dangling.
+          await registry.runEvent(runId, { status: "promoted", note: "promotion completed during crash recovery" });
         } else if (
           savedManifest &&
           savedManifest.decision === "rejected" &&
@@ -480,6 +537,18 @@ export async function executeFullRun({
           }
           consumption = await commitConsumption(savedManifest.snapshotArticleIds ?? [], runId);
           await updateManifest(manifestPath, savedManifest, { consumed: true });
+          await registry.runEvent(runId, { status: "rejected", note: "rejection committed during crash recovery" });
+        } else if (
+          savedManifest &&
+          (savedManifest.decision === "promoted" || savedManifest.decision === "rejected") &&
+          savedManifest.consumed === true
+        ) {
+          // The commit already completed; only a later bookkeeping step (model
+          // event / run close) threw. Terminal state stands — do not fail it.
+          await registry.runEvent(runId, {
+            status: savedManifest.decision,
+            note: "already consumed before the error; terminal state retained",
+          });
         } else if (savedManifest && savedManifest.status === "failed") {
           // Already terminal; nothing to re-drive.
         } else {
@@ -494,7 +563,11 @@ export async function executeFullRun({
     }
     if (runId) {
       try {
-        await registry.runEvent(runId, { status: "failed", note: `training run failed: ${err.message}` });
+        const after = await readManifest(manifestPath);
+        // Never overwrite a terminal decision the recovery path just committed.
+        if (!after || !(after.consumed === true && (after.decision === "promoted" || after.decision === "rejected"))) {
+          await registry.runEvent(runId, { status: "failed", note: `training run failed: ${err.message}` });
+        }
       } catch (eventErr) {
         logger.error && logger.error(`[lifecycle] could not record failure for ${runId}: ${eventErr.message}`);
       }
@@ -590,11 +663,17 @@ async function completePromotion({
     });
     return null;
   }
-  if (producedStage(trainerResult, true) && typeof trainer.publishCandidate === "function") {
-    await trainer.publishCandidate(version, {
-      store: config.pythonStore ?? undefined,
-      bin: config.pythonBin ?? undefined,
-    });
+  // Publish unless the manifest already records it as published. On a restart
+  // there is no `trainerResult`, so the manifest's own `published` flag is the
+  // signal that the `.tmp` candidate still needs committing. Publishing an
+  // already-committed version is a no-op Python-side.
+  if (savedManifest.published !== true || producedStage(trainerResult, true)) {
+    if (typeof trainer?.publishCandidate === "function") {
+      await trainer.publishCandidate(version, {
+        store: config.pythonStore ?? undefined,
+        bin: config.pythonBin ?? undefined,
+      });
+    }
   }
   await setActive(version, {
     store: config.pythonStore ?? undefined,
@@ -602,15 +681,131 @@ async function completePromotion({
     models: options.paths?.models ?? config.paths.models,
   });
   if (worker) await worker.reload();
-  await updateManifest(manifestPath, savedManifest, {
+  // Accumulate: each write must carry forward everything already recorded, or a
+  // later write would drop an earlier field (the whole file is rewritten).
+  let next = await updateManifest(manifestPath, savedManifest, {
+    resultVersion: version,
     published: true,
     activated: true,
     status: "promoted",
     consumed: false,
   });
-  const consumption = await commitConsumption(savedManifest.snapshotArticleIds ?? [], runId);
-  await updateManifest(manifestPath, savedManifest, { consumed: true });
+  const consumption = await commitConsumption(next.snapshotArticleIds ?? savedManifest.snapshotArticleIds ?? [], runId);
+  next = await updateManifest(manifestPath, next, { consumed: true });
   return consumption;
+}
+
+/**
+ * Commit a durable evaluation record for a Python-path baseline or candidate.
+ *
+ * The smoke tests and the promotion gate read these records; previously the
+ * Python path produced NO evaluation records at all (`evaluations.ndjson` stayed
+ * empty), so a promotion could not be reconstructed from the ledger. Best-effort:
+ * a record-writing failure must never fail an otherwise valid run — the run's
+ * own manifest and model event remain the authoritative evidence.
+ */
+async function recordPythonEvaluation(registry, { runId, kind, version, modelId = null, result, evalSet }) {
+  if (!registry || typeof registry.recordEvaluation !== "function") return null;
+  const evaluationSet = result?.evaluationSet ?? null;
+  try {
+    return await registry.recordEvaluation({
+      evalRunId: `${runId}:${kind}`,
+      runId,
+      kind,
+      version: version ?? null,
+      modelId,
+      at: new Date().toISOString(),
+      loss: Number.isFinite(result?.loss) ? result.loss : null,
+      ok: result?.ok === true,
+      error: result?.ok === true ? null : (result?.error ?? null),
+      datasetHash: result?.datasetHash ?? evaluationSet?.datasetHash ?? null,
+      metricSignature: result?.metricSignature ?? null,
+      metric: {
+        name: "causal-cross-entropy",
+        strategy: evaluationSet?.strategy ?? null,
+        sequenceLength: evaluationSet?.sequenceLength ?? config.promoteEvalSeqLen,
+        microBatch: config.promoteEvalMicroBatch,
+        computeDtype: "float32",
+      },
+      tokenizerHash: evaluationSet?.tokenizerHash ?? null,
+      documentCount: evaluationSet?.documentCount ?? null,
+      blockCount: evaluationSet?.blockCount ?? null,
+      tokensSeen: evaluationSet?.tokensSeen ?? null,
+      evaluationSetId: evalSet?.datasetId ?? null,
+      evaluationSetVersion: evalSet?.datasetVersion ?? null,
+      evaluationSetHash: evalSet?.contentHash ?? null,
+    });
+  } catch (err) {
+    // records are provenance, not the gate
+    return { error: err.message };
+  }
+}
+
+/**
+ * Complete any promotion/rejection that a crashed process left uncommitted.
+ *
+ * `executeFullRun`'s own catch re-drives the current run in-process, but a hard
+ * process death leaves nobody to finish it: the version may already be published
+ * and active while its consumption was never committed and its manifest never
+ * closed. This scans the snapshot directory for run manifests stuck at
+ * `decision` set / `consumed:false` and re-drives the idempotent tail
+ * (publish → activate → consume). Every step is a no-op when already done, so it
+ * is safe to run on every start.
+ */
+export async function recoverPendingPromotions({ registry, store, trainer = null, options = {}, logger = console, setActive = setActiveVersion, worker = null } = {}) {
+  if (!registry) return [];
+  const dir = options.paths?.snapshots ?? config.paths.snapshots;
+  let files = [];
+  try {
+    files = (await readdir(dir)).filter((f) => f.endsWith("-manifest.json"));
+  } catch {
+    return [];
+  }
+  const commitConsumption =
+    options.markConsumed ?? ((ids, runId) => store.markConsumed(ids, { runId }));
+  const recovered = [];
+  for (const file of files) {
+    const manifestPath = path.join(dir, file);
+    const m = await readManifest(manifestPath);
+    if (!m || m.consumed === true) continue;
+    if (m.decision !== "promoted" && m.decision !== "rejected") continue;
+    try {
+      if (m.decision === "promoted") {
+        await completePromotion({
+          runId: m.runId,
+          savedManifest: m,
+          manifestPath,
+          trainer,
+          trainerResult: null,
+          options,
+          commitConsumption,
+          setActive,
+          worker,
+        });
+        // `completePromotion` fails closed (status:failed, no consumption) when it
+        // cannot name the candidate version. Do NOT report such a run as
+        // recovered/consumed — read the manifest back and require the commit.
+        const after = await readManifest(manifestPath);
+        if (!after || after.consumed !== true) {
+          logger?.error && logger.error(`[lifecycle] recovery of ${m.runId} did not commit consumption; left for inspection`);
+          continue;
+        }
+      } else {
+        await commitConsumption(m.snapshotArticleIds ?? [], m.runId);
+        await updateManifest(manifestPath, m, { consumed: true });
+      }
+      try {
+        await registry.runEvent(m.runId, {
+          status: m.decision,
+          note: "promotion completed on restart (pending manifest recovered)",
+        });
+      } catch { /* run may already be terminal */ }
+      recovered.push({ runId: m.runId, decision: m.decision });
+    } catch (err) {
+      logger?.error && logger.error(`[lifecycle] recovery of ${m.runId} failed: ${err.message}`);
+    }
+  }
+  return recovered;
 }
 
 function fmt(x) {

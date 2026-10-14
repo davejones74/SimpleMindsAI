@@ -11,6 +11,7 @@ import {
   bestCheckpoint,
   bestCheckpointForHash,
   classifyTrend,
+  computeChartScales,
   deriveRunEvents,
   deriveSeries,
   downsample,
@@ -351,18 +352,31 @@ export function attachAdmin({ app, store, registry, governance, chat, conversati
     const lineage = py.versions.filter(
       (v) => v.committed && v.trainState?.datasetHash === chainHash,
     );
-    const segments = lineage.map((v) => ({
-      version: v.version,
-      committedAt: v.committedAt ?? null,
-      ...deriveSeries(readPythonTrainState(v.version, w.pythonStorePath) ?? null),
-    }));
+    // Each lineage member trained from step 0. Without an offset, a later
+    // segment silently overwrites an earlier one on the shared step axis. Give
+    // each segment a cumulative step offset so the chain is a readable SEQUENCE
+    // of trainings, and report any residual same-step overlap honestly.
+    let runningOffset = 0;
+    const segments = lineage.map((v) => {
+      const series = deriveSeries(readPythonTrainState(v.version, w.pythonStorePath) ?? null);
+      const seg = {
+        version: v.version,
+        committedAt: v.committedAt ?? null,
+        stepOffset: runningOffset,
+        ...series,
+      };
+      const span = Number.isInteger(series.stepsCompleted) && series.stepsCompleted > 0 ? series.stepsCompleted : 0;
+      runningOffset += Math.max(1, span);
+      return seg;
+    });
+    const versionOffset = new Map(segments.map((s) => [s.version, s.stepOffset]));
 
     const validationChain = mergeChain(
-      segments.map((s) => ({ version: s.version, series: s.validationSeries })),
+      segments.map((s) => ({ version: s.version, series: s.validationSeries, stepOffset: s.stepOffset })),
       maxPoints,
     );
     const trainingChain = mergeChain(
-      segments.map((s) => ({ version: s.version, series: s.trainingSeries })),
+      segments.map((s) => ({ version: s.version, series: s.trainingSeries, stepOffset: s.stepOffset })),
       maxPoints,
     );
 
@@ -382,7 +396,10 @@ export function attachAdmin({ app, store, registry, governance, chat, conversati
     // in the tooltip so the position is never read as a measurement.
     const stepsByVersion = new Map(lineage.map((v) => [v.version, v]));
     // Fallback end of the lineage: the last step any version actually recorded,
-    // used only for events that have no step of their own.
+    // used only for events that have no step of their own. The chain's own `to`
+    // is preferred, but a lineage whose series are all empty (no validation
+    // history, endpoint-only runs) must still have an integer fallback so an
+    // unmeasured run stays plottable rather than dropping out of `markers`.
     const lineageStepsEnd = lineage.reduce((acc, v) => {
       const s = v.trainState?.stepsCompleted;
       return Number.isInteger(s) && s > 0 ? Math.max(acc, s - 1) : acc;
@@ -390,17 +407,19 @@ export function attachAdmin({ app, store, registry, governance, chat, conversati
     const lineageEnd = validationChain.to ?? trainingChain.to ?? lineageStepsEnd ?? null;
     for (const e of events) {
       const seg = e.version ? stepsByVersion.get(e.version) : null;
+      const offset = e.version ? versionOffset.get(e.version) ?? 0 : 0;
       const own = Number.isInteger(seg?.trainState?.stepsCompleted) && seg.trainState.stepsCompleted > 0
         ? seg.trainState.stepsCompleted - 1
         : null;
-      e.step = own !== null ? own : lineageEnd;
+      e.step = own !== null ? offset + own : lineageEnd;
       e.stepBasis = own !== null ? "run-final-step" : "lineage-end";
       e.inLineage = Boolean(e.version && stepsByVersion.has(e.version));
     }
 
     // `markers` is the frozen-eval-set subset (a finite loss, plottable on the
-    // loss axis). Kept for callers that only want measurable evidence; the graph
-    // draws from `events` so unmeasured runs stay visible.
+    // SEPARATE right-hand loss axis, because it is a different measurement from
+    // the in-run/held-out curve). The graph draws from `events` so unmeasured
+    // runs stay visible.
     const markers = events
       .filter((e) => Number.isFinite(e.loss) && Number.isInteger(e.step))
       .map((e) => ({
@@ -418,8 +437,17 @@ export function attachAdmin({ app, store, registry, governance, chat, conversati
 
     const training = segments.map((s) => ({
       version: s.version,
+      stepOffset: s.stepOffset,
       points: downsample(s.trainingSeries, maxPoints),
     }));
+
+    // Two independent y-scales: the in-run/held-out curve and the frozen-eval-set
+    // markers are different measurements and must never share an axis.
+    const scales = computeChartScales({
+      validation: validationChain.points,
+      training: trainingChain.points,
+      markers,
+    });
 
     ok(res, {
       workspace: identity(w, py),
@@ -445,7 +473,9 @@ export function attachAdmin({ app, store, registry, governance, chat, conversati
         points: validationChain.points,
         fromStep: validationChain.from,
         toStep: validationChain.to,
+        collisions: validationChain.collisions,
       },
+      scales,
       training,
       markers,
       events,

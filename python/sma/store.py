@@ -440,8 +440,14 @@ def discard_staged(
 
 
 PRUNE_DEFAULT_KEEP = 5
+# Resume-state pickles (~0.5 GB each) accumulate one per committed version and
+# are the dominant disk consumer after publishing. `prune-runs` is a SEPARATE,
+# narrower operation than `prune`: it never deletes a published version, only
+# the optimizer-moment pickles, and keeps the most recent versions resumable.
+RUNS_PRUNE_DEFAULT_KEEP = 2
 PRUNED_DIR_NAME = "_pruned"
 PRUNE_LOG_NAME = "_prune-log.ndjson"
+RUNS_PRUNE_LOG_NAME = "_prune-runs-log.ndjson"
 RUNS_DIR_NAME = "_runs"
 
 
@@ -750,6 +756,134 @@ def prune_versions(
     # Durable, append-only: the pruning decision and its outcome are part of the
     # audit trail, not a console line that scrolls away.
     log = prune_log_path(root)
+    log.parent.mkdir(parents=True, exist_ok=True)
+    with open(log, "a", encoding="utf-8") as fh:
+        fh.write(json.dumps(outcome, sort_keys=True, default=str) + "\n")
+        fh.flush()
+        os.fsync(fh.fileno())
+
+    plan["executed"] = True
+    plan["dryRun"] = False
+    plan["removed"] = removed
+    plan["removedCount"] = len(removed)
+    plan["freedBytes"] = sum(r["bytes"] for r in removed)
+    return plan
+
+
+def runs_prune_log_path(root: Path) -> Path:
+    return Path(root) / RUNS_PRUNE_LOG_NAME
+
+
+def plan_prune_runs(
+    root: Path,
+    keep: int = RUNS_PRUNE_DEFAULT_KEEP,
+    *,
+    active: Optional[str] = None,
+    protect: Sequence[str] = (),
+) -> Dict[str, Any]:
+    """Compute a resume-state pruning plan WITHOUT touching anything.
+
+    The `_runs/` directory holds one `<version>.train-state.pt` pickle per
+    version — the optimizer moments that make a paused training resumable. After
+    a version is committed and a newer one exists, that pickle is dead weight
+    (hundreds of MB each). This plan keeps the `keep` most recent committed
+    versions (plus the active version and operator-protected ones) resumable and
+    proposes the rest for deletion. Only `*.train-state.pt` files are ever in
+    scope; published version directories are never touched.
+    """
+    root = Path(root)
+    if keep < 0:
+        raise ValueError(f"keep must be >= 0, got {keep}")
+
+    committed = [v for v in list_versions(root) if is_committed(root / v)]
+    retained = committed[-keep:] if keep > 0 else []
+    retained_set = set(retained)
+    if active:
+        retained_set.add(active)
+    for version in protect or ():
+        retained_set.add(version)
+
+    runs_dir = root / RUNS_DIR_NAME
+    candidates: list[Dict[str, Any]] = []
+    if runs_dir.is_dir():
+        for path in sorted(runs_dir.glob("*.train-state.pt")):
+            version = path.name[: -len(".train-state.pt")]
+            try:
+                size = path.stat().st_size
+            except OSError:
+                size = 0
+            if version in retained_set:
+                continue
+            if version in committed:
+                reason = "resume state for a version outside the retained window"
+            else:
+                reason = "orphan resume state (no committed version in this store)"
+            candidates.append({
+                "version": version,
+                "file": str(path),
+                "name": path.name,
+                "bytes": size,
+                "reason": reason,
+            })
+
+    return {
+        "store": str(root),
+        "keep": keep,
+        "activeVersion": active,
+        "published": committed,
+        "retained": retained,
+        "protected": sorted(p for p in retained_set if p not in committed),
+        "prune": candidates,
+        "pruneCount": len(candidates),
+        "freedBytes": sum(c["bytes"] for c in candidates),
+    }
+
+
+def prune_runs(
+    root: Path,
+    keep: int = RUNS_PRUNE_DEFAULT_KEEP,
+    *,
+    active: Optional[str] = None,
+    protect: Sequence[str] = (),
+    confirm: bool = False,
+) -> Dict[str, Any]:
+    """Delete stale resume-state pickles. DRY RUN unless `confirm` is True.
+
+    Never deletes a published version or any record/weight file — only the
+    `_runs/*.train-state.pt` optimizer-moment blobs that are no longer needed to
+    resume. Re-running is safe: the plan is recomputed from live state.
+    """
+    root = Path(root)
+    plan = plan_prune_runs(root, keep, active=active, protect=protect)
+
+    if not confirm:
+        plan["executed"] = False
+        plan["dryRun"] = True
+        plan["reason"] = "dry run: pass --confirm to delete; nothing was removed"
+        return plan
+
+    removed: list[Dict[str, Any]] = []
+    for entry in plan["prune"]:
+        path = Path(entry["file"])
+        if not path.is_file():
+            continue
+        try:
+            size = path.stat().st_size
+        except OSError:
+            size = entry["bytes"]
+        path.unlink(missing_ok=True)
+        removed.append({**entry, "bytes": size})
+
+    outcome = {
+        "schema": "sma/pruned-runs@1",
+        "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "keep": keep,
+        "activeVersion": active,
+        "removed": removed,
+        "removedCount": len(removed),
+        "freedBytes": sum(r["bytes"] for r in removed),
+    }
+    log = runs_prune_log_path(root)
     log.parent.mkdir(parents=True, exist_ok=True)
     with open(log, "a", encoding="utf-8") as fh:
         fh.write(json.dumps(outcome, sort_keys=True, default=str) + "\n")

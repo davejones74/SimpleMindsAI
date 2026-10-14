@@ -84,6 +84,10 @@ export async function runLearningCycle(ctx) {
       rubricVersion: r.rubricVersion,
       guardrailResult: r.guardrailResult,
       suggestedImportance: r.suggestedImportance,
+      criticTemperature: r.criticTemperature,
+      criticPromptVersion: r.criticPromptVersion,
+      criticScoreMissing: r.criticScoreMissing,
+      criticError: r.criticError,
     });
     reviewed++;
     onProgress({ phase: "review", reviewed });
