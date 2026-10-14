@@ -131,7 +131,7 @@ class StudentWorker:
         if op == "load":
             return self.load(request.get("version"), verify=bool(request.get("verify")))
         if op == "reload":
-            return self.load(None)
+            return self.load(None, verify=bool(request.get("verify")))
         if op == "version":
             if self.model is None:
                 return {"version": None, "loaded": False}

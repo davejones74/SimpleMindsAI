@@ -45,7 +45,7 @@ export class Brain {
 
   /** Load whichever committed version the active pointer names. */
   async loadActive() {
-    const out = await this.worker.load();
+    const out = await this.worker.load(null, { verify: true });
     this.version = out.version;
     this.artifactName = out.artifactName ?? null;
     return out;
@@ -53,7 +53,7 @@ export class Brain {
 
   /** Safe switch: re-read the active pointer and swap the resident model. */
   async reload() {
-    const out = await this.worker.reload();
+    const out = await this.worker.reload({ verify: true });
     this.version = out.version;
     this.artifactName = out.artifactName ?? null;
     return out;

@@ -13,6 +13,8 @@ import { changeFeed } from "./admin/change-feed.js";
 import { createChatService } from "./chat/chat-service.js";
 import { ConversationStore } from "./chat/conversation-store.js";
 import { JobSupervisor } from "./jobs/supervisor.js";
+import { Frontier } from "./frontier.js";
+import { DiscoveryService } from "./discovery/discovery-service.js";
 import { resolvers } from "./graphql/resolvers.js";
 
 /**
@@ -59,6 +61,13 @@ app.post("/api/ingest", async (req, res) => {
   }
 });
 
+// Acquisition discovery: a persistent URL frontier seeded from CRAWL_URLS,
+// expanded by policy-approved links. The learning job follows it instead of a
+// static URL list, so cycles keep finding new material. Only wired in real mode;
+// fixture mode keeps the deterministic built-in documents.
+const frontier = new Frontier({ dir: config.paths.frontier });
+const discovery = config.crawlMode === "real" ? new DiscoveryService({ frontier }) : null;
+
 const supervisor = new JobSupervisor({
   store,
   registry,
@@ -66,6 +75,7 @@ const supervisor = new JobSupervisor({
   changeFeed,
   pythonStorePath: config.pythonStore ?? null,
   pythonBin: config.pythonBin ?? undefined,
+  discovery,
 });
 await supervisor.init({ reconcile: true });
 

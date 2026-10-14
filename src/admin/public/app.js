@@ -628,7 +628,7 @@ function renderChat() {
   const vScope = versionScope();
   const curVer = c.currentConvVersion || null;
   const curId = c.currentConversationId || null;
-  const convInfo = curId ? `${curId.slice(0, 8)} · pinned v${curVer ?? "?"}` : "no conversation selected";
+  const convInfo = curId ? `${curId.slice(0, 8)} · pinned ${curVer ?? "?"}` : "no conversation selected";
   main.innerHTML = `
     <h2 class="section-title">Live Chat <span class="sm">${vScope}</span></h2>
     <div class="panel">
@@ -669,7 +669,7 @@ function renderChat() {
       else if (c.currentConvVersion) body.version = c.currentConvVersion;
       const r = await api("/chat", { method: "POST", body });
       const meta = [];
-      if (r.version) meta.push(`v${r.version}`);
+      if (r.version) meta.push(r.version);
       if (r.integrity) meta.push(r.integrity);
       meta.push(new Date().toLocaleTimeString());
       c.messages.push({ role: "brain", text: r.reply, meta: meta.join(" · ") });

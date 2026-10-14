@@ -213,8 +213,10 @@ export class StudentWorker extends EventEmitter {
   }
 
   /** Re-read the active pointer and swap the resident model (safe switch). */
-  async reload() {
-    const out = await this._send("reload", {}, { timeoutMs: Math.max(this.requestTimeoutMs, 60_000) });
+  async reload({ verify = false } = {}) {
+    const payload = {};
+    if (verify) payload.verify = true;
+    const out = await this._send("reload", payload, { timeoutMs: Math.max(this.requestTimeoutMs, 60_000) });
     this.version = out.version;
     return out;
   }

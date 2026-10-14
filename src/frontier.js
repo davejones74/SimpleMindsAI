@@ -1,4 +1,4 @@
-import { mkdir, writeFile, readFile } from "node:fs/promises";
+import { mkdir, writeFile, readFile, rename } from "node:fs/promises";
 import path from "node:path";
 import { contentHashFor } from "./harness/fetcher.js";
 
@@ -93,28 +93,25 @@ export class Frontier {
     this.initialized = true;
   }
 
-  // Idempotent enqueue: returns the canonical key; if URL already visited with completion,
-  // does not re-enqueue. If URL failed with exhausted retries, may re-enqueue once.
-  async enqueue(url, { depth = 0, parent = null, seed = null, force = false } = {}) {
+  // Idempotent enqueue: returns the canonical key; if URL already tracked,
+  // does not re-enqueue. If URL failed with exhausted retries, may re-enqueue
+  // only when `force` is set.
+  async enqueue(url, { depth = 0, parent = null, seed = null, force = false, maxRetries = 2 } = {}) {
     if (!this.initialized) await this.init();
     const canonical = canonicalURL(url);
     if (!canonical) return null;
 
     const existing = this.state.get(canonical);
     if (existing) {
-      // Idempotency: if already visited (completed), do not re-enqueue
-      if (existing.state === URL_STATE.VISITED && existing.completedAt) {
-        return null; // already completed, skip
-      }
-      // If failed with retries exhausted and not forced, keep as-is
-      if (
-        existing.state === URL_STATE.FAILED &&
-        (existing.retries ?? 0) >= (opts?.maxRetries ?? 2) &&
-        !force
-      ) {
+      // Idempotency: already visited (completed) => never re-enqueue.
+      if (existing.state === URL_STATE.VISITED && existing.completedAt) return null;
+      // Failed with retries exhausted => terminal unless explicitly forced.
+      if (existing.state === URL_STATE.FAILED && (existing.retries ?? 0) >= maxRetries && !force) {
         return null;
       }
-      // If in-progress or deferred, may update/overwrite
+      // Already pending or awaiting a retry => nothing to do.
+      if (existing.state === URL_STATE.QUEUED || existing.state === URL_STATE.IN_PROGRESS) return null;
+      if (existing.state === URL_STATE.DEFERRED && !force) return null;
     }
 
     const record = makeFrontierRecord(url, URL_STATE.QUEUED, depth, parent, seed);
@@ -165,7 +162,7 @@ export class Frontier {
   }
 
   // Mark URL as failed with reason
-  async markFailed(canonical, { reason = null, error = null, incrementRetries = true } = {}) {
+  async markFailed(canonical, { reason = null, error = null, incrementRetries = true, maxRetries = 2 } = {}) {
     const record = this.state.get(canonical);
     if (!record) return false;
     record.state = URL_STATE.FAILED;
@@ -174,7 +171,7 @@ export class Frontier {
     if (incrementRetries) {
       record.retries = (record.retries ?? 0) + 1;
       // If retries exhausted, automatically defer
-      if ((record.retries ?? 0) >= (opts?.maxRetries ?? 2)) {
+      if (record.retries >= maxRetries) {
         record.state = URL_STATE.DEFERRED;
       }
     }
@@ -186,6 +183,7 @@ export class Frontier {
   async recoverStaleClaims({ claimTimeoutMs = 30000 } = {}) {
     if (!this.initialized) await this.init();
     const now = Date.now();
+    let changed = false;
     for (const [, record] of this.state.entries()) {
       if (record.state === URL_STATE.IN_PROGRESS && record.claimedAt) {
         const claimedAt = new Date(record.claimedAt).getTime();
@@ -193,10 +191,11 @@ export class Frontier {
           record.state = URL_STATE.DEFERRED;
           record.lastError = "stale_claim_recovered";
           record.lastErrorAt = new Date().toISOString();
+          changed = true;
         }
       }
     }
-    if (arguments.length > 0) await this.persist(); // persist only if changes
+    if (changed) await this.persist();
   }
 
   // Persist frontier to NDJSON (atomic write via temp + rename pattern)
@@ -238,19 +237,24 @@ export class Frontier {
       deferred: 0,
       failed: 0,
     };
+    const retryDist = { 0: 0, 1: 0, 2: 0, 3: 0 };
     for (const record of this.state.values()) {
-      counts[record.state] = (counts[record.state] ?? 0) + 1;
+      switch (record.state) {
+        case URL_STATE.QUEUED: counts.queued++; break;
+        case URL_STATE.IN_PROGRESS: counts.inProgress++; break;
+        case URL_STATE.VISITED: counts.visited++; break;
+        case URL_STATE.DEFERRED: counts.deferred++; break;
+        case URL_STATE.FAILED: counts.failed++; break;
+        default: break;
+      }
+      const r = record.retries ?? 0;
+      if (r in retryDist) retryDist[r]++;
     }
     return {
       ...counts,
       total: this.state.size,
       // Distribution of retry counts for failed/deferred
-      retryDist: {
-        0: 0,
-        1: 0,
-        2: 0,
-        3: 0,
-      },
+      retryDist,
     };
   }
 }

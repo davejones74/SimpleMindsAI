@@ -33,13 +33,15 @@ class FakeWorker {
     return this._available;
   }
   async start() {}
-  async load() {
+  async load(version, opts = {}) {
+    this.loadOpts = opts;
     const v = readActiveVersion(this.store);
     if (v) this.version = v;
     return { version: this.version, artifactName: `art-${this.version}` };
   }
-  async reload() {
+  async reload(opts = {}) {
     this.reloadCount += 1;
+    this.reloadOpts = opts;
     const v = readActiveVersion(this.store);
     if (v) this.version = v;
     return { version: this.version, artifactName: `art-${this.version}` };
@@ -95,6 +97,22 @@ test("a moved active pointer is picked up on the next turn without a restart", a
   // unchanged pointer -> no extra reload on the following turn
   await brain.respond("hi");
   assert.equal(worker.reloadCount, 1);
+});
+
+test("the resident version is loaded and re-verified, never served with a skipped integrity check", async () => {
+  const store = tmpStore("v001");
+  const worker = new FakeWorker({ store });
+  const brain = new Brain({ worker });
+  await brain.start();
+  assert.equal(worker.loadOpts?.verify, true, "startup load must request integrity verification");
+
+  writeFileSync(
+    path.join(store, "active.json"),
+    JSON.stringify({ version: "v005", artifactName: "art-v005" }),
+    "utf8",
+  );
+  await brain.respond("hi");
+  assert.equal(worker.reloadOpts?.verify, true, "a pointer move must request integrity verification");
 });
 
 test("an unreadable pointer leaves the resident brain untouched", async () => {

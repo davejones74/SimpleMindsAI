@@ -3,6 +3,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { Frontier } from "../frontier.js";
 import { config } from "../config.js";
+import { createDiscoveryPolicy } from "../discovery/discovery-policy.js";
 import { fetchDocument, parseRobots, robotsAllows, assertUrlAllowed, contentHashFor } from "./fetcher.js";
 
 /**
@@ -105,37 +106,62 @@ function canonicalURLSafe(urlString) {
 }
 
 /**
- * Extract all absolute URLs from HTML <a href="..."> attributes.
- * Only keeps hrefs that are absolute (or protocol-relative //example.com)
- * and have a supported scheme (http/https).
+ * Extract all hrefs from HTML <a> tags as ABSOLUTE http(s) URLs.
+ * Relative and protocol-relative hrefs are resolved against `baseUrl` (the
+ * final URL after redirects). Fragments are dropped. Non-web schemes and
+ * same-page anchors are ignored.
  */
-function extractLinksFromHTML(html) {
+export function extractLinksFromHTML(html, baseUrl = null) {
   const urls = new Set();
-  const regex = /<a\s+(?:[^>]*?\bhref=|[^>]*\bhref\s*)(["'])((?:[^"']|\\.)*?)\1/gi;
+  const regex = /<a\s+[^>]*?\bhref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/gi;
   let match;
   while ((match = regex.exec(html)) !== null) {
-    const rawHref = match[2];
-    let href = rawHref;
-    // Strip surrounding quotes if present
-    if ((href.startsWith('"') && href.endsWith('"')) || (href.startsWith("'") && href.endsWith("'"))) {
-      href = href.slice(1, -1);
-    }
-    // Remove trailing whitespace
-    href = href.trim();
-    // Skip empty or javascript:
-    if (!href || href.startsWith("javascript:")) continue;
-    // Make absolute: if protocol-relative (//host) or relative, we need the base
-    // We'll only keep URLs that already have a scheme, since we don't have a base URL here
+    const raw = (match[1] ?? match[2] ?? match[3] ?? "").trim().replace(/&amp;/gi, "&");
+    if (!raw || /^(javascript:|mailto:|tel:|data:|#)/i.test(raw)) continue;
+    let resolved;
     try {
-      const u = new URL(href);
-      if (u.protocol === "http:" || u.protocol === "https:") {
-        urls.add(u.href);
-      }
+      resolved = baseUrl ? new URL(raw, baseUrl) : new URL(raw);
     } catch {
-      // not a valid URL; skip
+      continue;
     }
+    if (resolved.protocol !== "http:" && resolved.protocol !== "https:") continue;
+    resolved.hash = "";
+    urls.add(resolved.href);
   }
   return urls;
+}
+
+/** Hostname of a URL, or null. */
+function hostOfUrl(urlString) {
+  try {
+    return new URL(urlString).hostname;
+  } catch {
+    return null;
+  }
+}
+
+/** Normalise a fetched document into the raw-doc shape the ledger expects. */
+function normalizeRawDoc(doc, record = {}) {
+  return {
+    text: doc.text,
+    domain: "general",
+    source: hostOfUrl(doc.url) ?? "harvest",
+    url: doc.url,
+    title: doc.title ?? null,
+    status: doc.status ?? null,
+    contentType: doc.contentType ?? null,
+    bytes: doc.bytes ?? null,
+    fetchedAt: doc.fetchedAt ?? new Date().toISOString(),
+    contentHash: doc.contentHash ?? null,
+    crawlMode: "real",
+    capability: CAPABILITY.real,
+    discovery: {
+      seed: record.seed ?? null,
+      parent: record.parent ?? null,
+      depth: record.depth ?? 0,
+      provenance: record.discoveryProvenance ?? null,
+    },
+  };
 }
 
 /**
@@ -155,7 +181,10 @@ export async function runCrawlCycle(ctx = {}) {
     maxPages = config.crawlPagesPerCycle,
     totalBudget = config.crawlTotalBudget,
     respectRobots = config.crawlRespectRobots,
+    allowPrivate = config.crawlAllowPrivate,
     userAgent = config.crawlUserAgent,
+    policy = null,
+    maxLinksPerPage = config.crawlMaxLinksPerPage,
   } = ctx;
 
   if (!frontier.initialized) await frontier.init();
@@ -169,20 +198,22 @@ export async function runCrawlCycle(ctx = {}) {
     robotsDisallowed: 0,
     domainFiltered: 0,
     errors: 0,
+    documents: [],
+    failures: [],
+    discovered: [],
   };
 
-  // Helper: check domain allow-list
-  function allowedDomain(urlString) {
-    if (config.crawlAllowedDomains.length === 0) {
-      // Empty allowlist → default to seed hosts only
-      // Seed hosts are tracked in frontier records; if no seeds yet, allow all
-      return true;
-    }
+  // Domain decision: an explicit discovery policy when supplied, else the legacy
+  // allowlist behaviour (empty allow-list => no host restriction).
+  function decideUrl(urlString) {
+    if (policy?.decide) return policy.decide(urlString);
+    if (config.crawlAllowedDomains.length === 0) return { allowed: true, reason: "no-policy", trust: null };
     try {
       const u = new URL(urlString);
-      return config.crawlAllowedDomains.some((d) => u.hostname === d || u.hostname.endsWith("." + d));
+      const ok = config.crawlAllowedDomains.some((d) => u.hostname === d || u.hostname.endsWith("." + d));
+      return { allowed: ok, reason: ok ? "allowlisted" : "domain-filter", trust: null };
     } catch {
-      return false;
+      return { allowed: false, reason: "bad-url", trust: null };
     }
   }
 
@@ -190,7 +221,7 @@ export async function runCrawlCycle(ctx = {}) {
   async function tryFetch(urlString) {
     try {
       // Revalidate URL at fetch time
-      await assertUrlAllowed(urlString, { allowPrivate: config.crawlAllowPrivate });
+      await assertUrlAllowed(urlString, { allowPrivate });
       if (respectRobots) {
         const groups = await loadRobots(urlString, { timeoutMs: 5000, allowPrivate, userAgent });
         const { pathname, search } = new URL(urlString);
@@ -202,7 +233,7 @@ export async function runCrawlCycle(ctx = {}) {
         timeoutMs: config.crawlTimeoutMs,
         maxBytes: config.crawlMaxBytes,
         maxRedirects: config.crawlMaxRedirects,
-        allowPrivate: config.crawlAllowPrivate,
+        allowPrivate,
         userAgent,
       });
       return { ok: true, doc };
@@ -231,8 +262,9 @@ export async function runCrawlCycle(ctx = {}) {
   }
 
   // Domain check
-  if (!allowedDomain(record.url)) {
-    await frontier.markFailed(canonical, { reason: "disallowed_domain" });
+  const claimDecision = decideUrl(record.url);
+  if (!claimDecision.allowed) {
+    await frontier.markFailed(canonical, { reason: claimDecision.reason ?? "disallowed_domain" });
     summary.domainFiltered = 1;
     return summary;
   }
@@ -245,56 +277,44 @@ export async function runCrawlCycle(ctx = {}) {
     const doc = fetchResult.doc;
     // Mark visited
     await frontier.markVisited(canonical, { contentHash: doc?.contentHash });
+    summary.documents.push(normalizeRawDoc(doc, record));
 
-    // Extract links from HTML
-    if (doc?.text) {
-      const discoveredUrls = extractLinksFromHTML(doc.text);
+    // Extract links from the RAW HTML (the plain-text `doc.text` has no tags).
+    // Resolve relative hrefs against the FINAL URL after redirects.
+    const source = doc?.html ?? doc?.text ?? "";
+    if (source) {
+      const discoveredUrls = extractLinksFromHTML(source, doc.url);
       summary.linksDiscovered = discoveredUrls.size;
+      const linkDepth = urlDepth + 1;
 
-      // Enqueue eligible discoveries
+      let enqueuedThisPage = 0;
       for (const linkUrl of discoveredUrls) {
-        // Depth check
-        const linkDepth = urlDepth + 1;
-        if (linkDepth > maxDepth) continue;
-
-        // Domain check
-        if (!allowedDomain(linkUrl)) {
+        if (linkDepth > maxDepth) break;
+        if (enqueuedThisPage >= maxLinksPerPage) break;
+        const linkDecision = decideUrl(linkUrl);
+        if (!linkDecision.allowed) {
           summary.domainFiltered++;
+          summary.discovered.push({ url: linkUrl, accepted: false, reason: linkDecision.reason });
           continue;
         }
-
-        // Budget check
-        if (totalBudget > 0) {
-          // Count distinct URLs claimed (including this one's cycle)
-          // Simple: if we've already enqueued enough in this cycle, stop
-          // We'll check enqueue count against maxPages
-        }
-
-        // Enqueue into frontier
         const enqueued = await frontier.enqueue(linkUrl, {
           depth: linkDepth,
           parent: record.url,
           seed: record.seed,
-          discoveryProvenance: { type: "link_extraction", parentUrl: record.url, depth: urlDepth },
+          discoveryProvenance: { type: "link_extraction", parentUrl: record.url, depth: urlDepth, trust: linkDecision.trust },
         });
         if (enqueued) {
+          enqueuedThisPage++;
           summary.urlsEnqueued++;
+          summary.discovered.push({ url: linkUrl, accepted: true, reason: linkDecision.reason });
         }
       }
     }
-
-    // Emit progress via... would changeFeed in real usage; here we just summary
-    // In production: changeFeed.emit("job.progress", { ... });
   } else {
     // Fetch failed
     await frontier.markFailed(canonical, { reason: fetchResult.reason ?? "fetch-failed", error: fetchResult.error });
     summary.errors++;
-  }
-
-  // Budget accounting: decrement against total budget for distinct URLs claimed
-  // (successful fetches, failures, robots-disallowed all count as distinct URLs)
-  if (totalBudget > 0) {
-    // We'll just track; the caller can check summary against budget
+    summary.failures.push({ url: record.url, ok: false, reason: fetchResult.reason ?? "fetch-failed" });
   }
 
   return summary;
@@ -310,6 +330,13 @@ export async function runCrawlCycle(ctx = {}) {
 export async function runCrawlBatches({
   frontier,
   maxCycles = 0,
+  maxPages = config.crawlPagesPerCycle,
+  maxDepth = config.crawlMaxDepth,
+  respectRobots = config.crawlRespectRobots,
+  allowPrivate = config.crawlAllowPrivate,
+  userAgent = config.crawlUserAgent,
+  policy = null,
+  maxLinksPerPage = config.crawlMaxLinksPerPage,
   onCycle = async (ctx) => ({ pagesFetched: 0, linksDiscovered: 0, urlsEnqueued: 0 }),
 } = {}) {
   if (!frontier.initialized) await frontier.init();
@@ -319,6 +346,9 @@ export async function runCrawlBatches({
   let totalUrlsEnqueued = 0;
   let cycles = 0;
   let budgetRemaining = config.crawlTotalBudget;
+  const documents = [];
+  const failures = [];
+  const discovered = [];
 
   for (let cycle = 1; ; cycle++) {
     if (maxCycles > 0 && cycle > maxCycles) break;
@@ -331,13 +361,23 @@ export async function runCrawlBatches({
     const cycleCtx = {
       frontier,
       maxPages,
+      maxDepth,
+      respectRobots,
+      allowPrivate,
+      userAgent,
+      policy,
+      maxLinksPerPage,
       totalBudget: config.crawlTotalBudget - totalPagesFetched,
     };
     const cycleResult = await runCrawlCycle(cycleCtx);
+    cycles++;
 
     totalPagesFetched += cycleResult.pagesFetched;
     totalLinksDiscovered += cycleResult.linksDiscovered;
     totalUrlsEnqueued += cycleResult.urlsEnqueued;
+    if (cycleResult.documents?.length) documents.push(...cycleResult.documents);
+    if (cycleResult.failures?.length) failures.push(...cycleResult.failures);
+    if (cycleResult.discovered?.length) discovered.push(...cycleResult.discovered);
 
     if (onCycle) await onCycle({ ...cycleResult, budgetRemaining: config.crawlTotalBudget - totalPagesFetched });
 
@@ -360,6 +400,9 @@ export async function runCrawlBatches({
     totalPagesFetched,
     totalLinksDiscovered,
     totalUrlsEnqueued,
+    documents,
+    failures,
+    discovered,
     budgetRemaining: config.crawlTotalBudget - totalPagesFetched,
   };
 }
@@ -368,9 +411,9 @@ export async function runCrawlBatches({
  * Seed the frontier from CRAWL_URLS config on application start.
  * Idempotent: re-running does not reset completed URLs.
  */
-export async function seedFrontierFromConfig(frontier) {
+export async function seedFrontierFromConfig(frontier, seeds = config.crawlUrls ?? []) {
   if (!frontier.initialized) await frontier.init();
-  const urls = config.crawlUrls ?? [];
+  const urls = (seeds ?? []).filter(Boolean);
   if (!urls.length) return;
   // Enqueue each seed; frontier's enqueue is idempotent
   for (const url of urls) {
@@ -378,17 +421,20 @@ export async function seedFrontierFromConfig(frontier) {
   }
 }
 
-// Legacy export for harvest (real mode without frontier still works)
+// Direct-fetch entry point. Defaults come from config so the configured
+// crawl mode (CRAWL_MODE / CRAWL_URLS) is the mode actually used — a hard-coded
+// `"fixture"` default here silently disconnected production learning from the
+// live sources (every cycle ran fixtures while config reported `real`).
 export async function collectDocuments({
-  mode = "fixture",
-  urls = [],
+  mode = config.crawlMode,
+  urls = config.crawlUrls,
   fetchImpl = globalThis.fetch,
-  timeoutMs = 15000,
-  maxBytes = 2_000_000,
-  maxRedirects = 5,
-  allowPrivate = false,
-  respectRobots = true,
-  userAgent = "SimpleMindsAI/0.2",
+  timeoutMs = config.crawlTimeoutMs,
+  maxBytes = config.crawlMaxBytes,
+  maxRedirects = config.crawlMaxRedirects,
+  allowPrivate = config.crawlAllowPrivate,
+  respectRobots = config.crawlRespectRobots,
+  userAgent = config.crawlUserAgent,
 } = {}) {
   const decided = classifyCrawlMode({ mode, urls });
   if (decided.mode === "fixture") {
@@ -468,34 +514,36 @@ export async function harvest({
   // If frontier is provided and we're in real mode, use frontier-managed cycle(s)
   if (frontier && mode === "real") {
     // Seed frontier from CRAWL_URLS if not already seeded
-    await seedFrontierFromConfig(frontier);
-
-    // Run bounded cycles
-    const result = await runCrawlBatches({
-      frontier,
-      maxCycles: 0, // unlimited unless CRAWL_TOTAL_BUDGET set
-      onCycle: (cycleResult) => {
-        // Could emit progress here; for now just aggregate
-      },
+    await seedFrontierFromConfig(frontier, urls);
+    const policy = createDiscoveryPolicy({
+      seedUrls: urls,
+      allowedDomains: config.crawlAllowedDomains,
+      deniedDomains: config.crawlDeniedDomains,
+      mode: config.crawlDiscoveryPolicy,
     });
 
-    // After cycles, collect whatever documents are available from the frontier's visited URLs
-    // For backward compatibility, also allow direct fetch of provided URLs
-    if (urls.length) {
-      const directResult = await collectDocuments({ mode: "real", urls, allowPrivate, respectRobots, userAgent });
-      return directResult;
-    }
+    // Run bounded cycles (unlimited unless CRAWL_TOTAL_BUDGET / depth caps bound it)
+    const result = await runCrawlBatches({ frontier, maxCycles: 0, policy, allowPrivate, respectRobots, userAgent });
 
-    // Return summary of frontier-managed cycle(s)
+    // Persist what was ACTUALLY fetched (previously this branch returned
+    // `documents: []`, so the frontier crawler silently produced nothing).
+    await mkdir(dir, { recursive: true });
+    const filePath = path.join(dir, "corpus.jsonl");
+    await writeJsonLines(filePath, result.documents);
+    const failuresPath = path.join(dir, "failures.jsonl");
+    await writeJsonLines(failuresPath, result.failures);
+
     return {
       mode: "real",
       capability: CAPABILITY.real,
-      ...result,
-      // Include any documents we can list from frontier state
-      documents: [], // frontier manages state; documents written via curator pipeline
+      documents: result.documents,
+      failures: result.failures,
+      discovered: result.discovered,
       cycles: result.cycles,
       totalPagesFetched: result.totalPagesFetched,
       totalUrlsEnqueued: result.totalUrlsEnqueued,
+      file: filePath,
+      failuresFile: failuresPath,
     };
   }
 

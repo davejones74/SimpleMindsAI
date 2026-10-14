@@ -397,18 +397,21 @@ export async function executeFullRun({
         error: decision.reason ?? "not_evaluated",
       });
     } else if (decision.decision === "rejected") {
+      // Rejection must NOT consume articles. Instead, defer them with a retry
+      // count so they remain eligible for future selection alongside new material.
+      // The active model must never be altered by a rejected run.
       if (stagedCandidate) await discardRejected(t, trainingResult.version, runId, options, logger);
       manifest = await updateManifest(manifestPath, manifest, {
         consumed: false,
         published: false,
         activated: false,
         status: "rejected",
+        // Durable deferral provenance — survived process crash/restart because
+        // it is written to the manifest, which is the persistent recovery anchor.
+        deferralReason: decision.reason ?? "rejected by loss threshold",
+        deferralRunId: runId,
+        deferralRetries: 1,
       });
-      consumption = await commitConsumption(
-        snapshot.manifest.articleIds ?? snapshot.rows.map((r) => r.articleId),
-        runId
-      );
-      manifest = await updateManifest(manifestPath, manifest, { consumed: true, activated: false });
     } else {
       // decision.decision === "promoted": 1) publication, 2) active pointer,
       // 3) manifest completion, 4) consumption commit.

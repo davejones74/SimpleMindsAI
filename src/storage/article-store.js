@@ -38,6 +38,10 @@ const COLLECTIONS = {
   reviews: "reviews.ndjson",
   events: "article-events.ndjson",
   consumption: "consumption.ndjson",
+  // Durable provenance ledger for FETCHED sources, keyed by the fetched
+  // content hash. Lets the acquisition path skip re-curating an unchanged
+  // source, and records which article(s) each raw source produced.
+  rawSources: "raw-sources.ndjson",
 };
 
 /** Old pair-based files. Detected read-only, never loaded as a source of truth. */
@@ -72,6 +76,7 @@ export class ArticleStore {
     this.reviews = new Map(); // articleId -> [review]
     this.events = []; // audit trail
     this.consumption = []; // durable appearances
+    this.rawSources = new Map(); // fetchedContentHash -> { sourceUrl, firstSeenAt, curatedAt, articleIds:[] }
 
     this.#streams = {};
     if (!readOnly) {
@@ -126,6 +131,14 @@ export class ArticleStore {
         a.consumedRef = rec.runId;
       }
     }
+    for (const rec of await lines(COLLECTIONS.rawSources)) {
+      this.rawSources.set(rec.fetchedContentHash, {
+        sourceUrl: rec.sourceUrl,
+        firstSeenAt: rec.firstSeenAt,
+        curatedAt: rec.curatedAt,
+        articleIds: rec.articleIds ?? [],
+      });
+    }
   }
 
   #awaitWrite(ws, chunk) {
@@ -165,6 +178,34 @@ export class ArticleStore {
     this.#applyEvent(full);
     await this.#persist("events", full);
     return full;
+  }
+
+  /** Is there already a curated article with this fetchedContentHash? */
+  hasRawSource(fetchedContentHash) {
+    if (!fetchedContentHash) return false;
+    return this.rawSources.has(fetchedContentHash);
+  }
+
+  /** Record that fetchedContentHash was curated, noting its source and which articleIds it produced. */
+  recordRawSource({ fetchedContentHash, sourceUrl, articleIds = [] }) {
+    if (!fetchedContentHash) return;
+    const now = new Date().toISOString();
+    const entry = {
+      fetchedContentHash,
+      sourceUrl,
+      firstSeenAt: now,
+      curatedAt: now,
+      articleIds: articleIds ?? [],
+    };
+    // Append to the durable ledger
+    this.#persist("rawSources", entry);
+    // In-memory cache
+    this.rawSources.set(fetchedContentHash, {
+      sourceUrl,
+      firstSeenAt: now,
+      curatedAt: now,
+      articleIds: articleIds ?? [],
+    });
   }
 
   // ------------------------------------------------------------- ingest
@@ -480,6 +521,10 @@ export class ArticleStore {
       uniqueConsumed,
       totalAppearances: this.consumption.length,
       duplicationIndex: total ? 1 - this.byHash.size / total : 0,
+      distinctSourceUrls: (() => {
+        const urls = [...this.articles.values()].map((a) => a.sourceUrl).filter((u) => u && u.trim().length > 0);
+        return new Set(urls).size;
+      })(),
     };
   }
 
@@ -529,6 +574,17 @@ export class ArticleStore {
       ws.once("error", resolve);
       ws.end();
     });
+  }
+
+  /** Wipe transient collections. The durable consumption ledger survives. */
+  async purgeBuffer() {
+    this.#assertWritable();
+    for (const name of ["articles", "reviews", "events"]) await this.#reopen(name);
+    this.articles.clear();
+    this.articleOrder.length = 0;
+    this.byHash.clear();
+    this.reviews.clear();
+    this.events.length = 0;
   }
 
   /** Wipe transient collections. The durable consumption ledger survives. */

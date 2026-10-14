@@ -79,6 +79,7 @@ export class JobSupervisor {
     ollama = null,
     scorer = null,
     crawl = null,
+    discovery = null,
     runPython: runPythonFn = runPython,
     trainerFactory = null,
     trainingDeps = {},
@@ -96,6 +97,7 @@ export class JobSupervisor {
     this.ollama = ollama ?? new OllamaClient();
     this.scorer = scorer ?? new ReviewScorer({ ollama: this.ollama });
     this.crawl = crawl;
+    this.discovery = discovery;
     this.runPython = runPythonFn;
     this.trainerFactory = trainerFactory ?? ((signal) => selectTrainer({ signal }));
     this.trainingDeps = trainingDeps;
@@ -134,11 +136,37 @@ export class JobSupervisor {
     return {
       trainerKind: config.trainerKind,
       teacher: { model: config.ollamaModel, endpoint: config.ollamaEndpoint, fixture: config.ollamaFixture },
-      crawl: { mode: config.crawlMode, urls: config.crawlUrls.length },
+      crawl: this.effectiveCrawl(),
       pythonStore: this.pythonStorePath ?? null,
       pollIntervalMs: config.jobs.pollIntervalMs,
       stopGraceMs: config.jobs.stopGraceMs,
     };
+  }
+
+  /**
+   * The crawl context the learning job will ACTUALLY use. Resolved config must
+   * match reality: reporting `mode: real` while the job runs fixtures was the
+   * exact disconnected-wiring defect this accessor exists to prevent.
+   */
+  effectiveCrawl() {
+    if (this.discovery?.descriptor) {
+      const d = this.discovery.descriptor();
+      return {
+        mode: d.mode ?? config.crawlMode,
+        urls: Array.isArray(d.urls) ? d.urls.length : config.crawlUrls.length,
+        policy: d.policy ?? null,
+        source: "discovery",
+      };
+    }
+    const c = this.crawl;
+    if (c && typeof c === "object") {
+      return {
+        mode: c.mode ?? config.crawlMode,
+        urls: Array.isArray(c.urls) ? c.urls.length : config.crawlUrls.length,
+        source: "discovery",
+      };
+    }
+    return { mode: config.crawlMode, urls: config.crawlUrls.length, source: "config" };
   }
 
   // ------------------------------------------------------------ write side
@@ -360,6 +388,9 @@ export class JobSupervisor {
       ollama: this.ollama,
       scorer: this.scorer,
       crawl: this.crawl,
+      // When a discovery service is wired, acquisition follows the persistent
+      // frontier (seeds + policy-approved links) instead of a static URL list.
+      collectDocuments: this.discovery ? (c) => this.discovery.collect(c) : undefined,
       maxRawDocs: params.maxRawDocs,
       ...this.learningDeps,
     };

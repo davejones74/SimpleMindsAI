@@ -27,18 +27,25 @@ test("loads a committed version and answers a framed generate request", { skip }
   const pong = await worker.ping();
   assert.equal(pong.pong, true);
 
-  const loaded = await worker.load("v001");
+  const loaded = await worker.load("v001", { verify: true });
   assert.equal(loaded.version, "v001");
   assert.equal(loaded.parameters, 61_839_744);
+  assert.equal(loaded.integrity, "verified");
+
+  // reload follows the active pointer; with verify:true it re-verifies (or
+  // reports the session cache) rather than reporting "skipped".
+  const reloaded = await worker.reload({ verify: true });
+  assert.ok(["verified", "cached"].includes(reloaded.integrity), `expected a verified reload, got ${reloaded.integrity}`);
 
   const gen = await worker.generate("Hello", { maxNewTokens: 4, seed: 0 });
-  assert.equal(gen.version, "v001");
+  assert.equal(gen.version, reloaded.version);
+  assert.equal(gen.integrity, reloaded.integrity);
   assert.equal(typeof gen.text, "string");
   assert.equal(gen.generatedTokens, 4);
 
   const current = await worker.currentVersion();
   assert.equal(current.loaded, true);
-  assert.equal(current.version, "v001");
+  assert.equal(current.version, reloaded.version);
 });
 
 test("a malformed op is an error response, not a crash", { skip }, async (t) => {

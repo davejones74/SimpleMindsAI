@@ -121,6 +121,7 @@ export const config = {
     governance: env("GOVERNANCE_DIR", env("REGISTRY_DIR", "data/registry")),
     raw: env("RAW_DIR", "data/raw"),
     chat: env("CHAT_DIR", "data/chat"), // durable conversation log (NDJSON)
+    frontier: env("FRONTIER_DIR", "data/frontier"), // persistent URL frontier (discovery state)
   },
 
   // ---- Server bind (admin portal is mounted on the existing server) ----
@@ -204,15 +205,16 @@ export const config = {
 
   // ---- Evaluation ----
   evalDatasetId: env("EVAL_DATASET_ID", "eval-001"),
-  // Advisory floor on the number of held-out documents a frozen evaluation set
-  // must contain. 0 (the default) does NOT enforce it: the eval set is loaded
-  // and its size is recorded, and any shortfall is surfaced as a `warnings`
-  // entry on every evaluation record and in the Observatory, but promotion is
-  // not blocked. Set > 0 to make a too-small set fail closed. The system ships a
-  // 5-document seed set, so a non-zero default would block promotions until an
-  // operator supplies a larger held-out set — a deliberate follow-up, not a
-  // hidden default.
-  evalMinDocuments: num("EVAL_MIN_DOCUMENTS", 0),
+// Advisory floor on the number of held-out documents a frozen evaluation set
+// must contain. 0 (the default) does NOT enforce it: the eval set is loaded
+// and its size is recorded, and any shortfall is surfaced as a `warnings`
+// entry on every evaluation record and in the Observatory, but promotion is
+// not blocked. Set > 0 to make a too-small set fail closed. The system ships a
+// 5-document seed set (eval-001), and a broader 19-document set (eval-002)
+// covering science, history, technology and humanities is provided operator‑side.
+// Set to 19 to validate against the expanded set; if the loaded set has fewer
+// the Observatory will record a warning but promotion still proceeds.
+evalMinDocuments: num("EVAL_MIN_DOCUMENTS", 19),
   promoteMinDelta: num("PROMOTE_MIN_DELTA", 0), // legacy token-F1 delta (supplementary only)
   promoteMinScore: num("PROMOTE_MIN_SCORE", 0), // legacy token-F1 floor (supplementary only)
 
@@ -296,6 +298,21 @@ export const config = {
   // Retry limit per URL before deferral
   crawlRetryLimit: num("CRAWL_RETRY_LIMIT", "2"),
 
+  // ---- Discovery policy (bounded, configurable link-following) ----
+  // CRAWL_URLS are BOOTSTRAP seeds, not a permanent boundary: the app may follow
+  // useful references and explore adjacent sources. Expansion is explicit and
+  // policy-checked — it is never indiscriminate.
+  //   seeds-only : only hosts of CRAWL_URLS may be fetched (most conservative)
+  //   allowlist  : seed hosts + CRAWL_ALLOWED_DOMAINS may be fetched
+  //   open       : any host except CRAWL_DENIED_DOMAINS may be fetched
+  // Safety checks (scheme, private-address SSRF guard, robots, byte/redirect
+  // limits, budgets, cooldown, per-host concurrency) apply in every mode.
+  crawlDiscoveryPolicy: env("CRAWL_DISCOVERY_POLICY", "seeds-only"),
+  // Always-prohibited destinations (comma-separated suffixes), any mode.
+  crawlDeniedDomains: env("CRAWL_DENIED_DOMAINS", "").split(",").map((s) => s.trim()).filter(Boolean),
+  // Cap links enqueued from a single fetched page (prevents link-farm blowups).
+  crawlMaxLinksPerPage: num("CRAWL_MAX_LINKS_PER_PAGE", "50"),
+
   // ---- Observatory workspaces (allow-listed; `development` is implicit) ----
   // Extra, inspection-only stores the portal may display (e.g. a completed
   // trial). The live development store is always present and is the default.
@@ -338,6 +355,11 @@ export const config = {
       // genuinely new material. Rejected runs consume their batch, so new cycles
       // never retrain the same corpus. 0 disables the surface/warn guard.
       maxConsecutiveRejections: num("TRAIN_MAX_CONSECUTIVE_REJECTIONS", 5),
+      // Maximum number of deferral retries for a rejected batch before articles
+      // are transitioned to the explicit `retired` state. Default 2: after two
+      // unsuccessful attempts the batch is retired and excluded from future
+      // selection, preserving fresh material for subsequent cycles.
+      maxRejectedRetries: num("TRAIN_MAX_REJECTED_RETRIES", 2),
     },
   },
 };

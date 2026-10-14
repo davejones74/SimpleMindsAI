@@ -223,6 +223,9 @@ export async function fetchDocument(url, {
         bytes: buf.length,
         title,
         text,
+        // Raw HTML is retained ONLY so link discovery can extract anchors; callers
+        // that just need text ignore it. It is null for non-HTML responses.
+        html: isHtml ? raw : null,
         contentHash: contentHashFor(text),
         redirects,
         fetchedAt: new Date().toISOString(),
