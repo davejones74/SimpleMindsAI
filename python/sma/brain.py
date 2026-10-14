@@ -349,9 +349,9 @@ def cmd_train(args: argparse.Namespace) -> Dict[str, Any]:
     # The allocation is claimed DURABLY before anything is built, so a crash at
     # any later point still leaves the number taken: the next run cannot collide
     # with it, and the published lineage keeps the gap that records the attempt.
+    node_run_id = _validate_run_id(getattr(args, "run_id", None))
     version = args.version or store.allocate_version(root, run_id=node_run_id)
     device = _resolve_device(args.device)
-    node_run_id = _validate_run_id(getattr(args, "run_id", None))
     t0 = time.perf_counter()
     _log(
         f"train {version} from {parent} on {device} for {args.steps} step(s)"

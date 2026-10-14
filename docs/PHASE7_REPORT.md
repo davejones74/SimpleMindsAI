@@ -131,6 +131,18 @@ score `0` with `criticScoreMissing` and `criticError` recorded. Reviews now
 persist `criticTemperature`, `criticPromptVersion`, `criticScoreMissing` and
 `criticError`.
 
+### F7 — `cmd_train` referenced the run id before assigning it
+
+`python/sma/brain.py` allocated the version with
+`store.allocate_version(root, run_id=node_run_id)` **before** the line that
+defined `node_run_id`. On the normal Node-orchestrated path no `--version` is
+supplied, so the right-hand side was evaluated and raised
+`UnboundLocalError: cannot access local variable 'node_run_id'` before a single
+weight was built — every one-shot and continuous Python-backed training run
+failed this way (observed as `job-28 failed training · continuous`). Fixed by
+validating the run id first, then passing it to the allocator. Regression test:
+`python/tests/test_init_and_proof.py::test_cmd_train_validates_run_id_before_allocating`.
+
 ## Test evidence
 
 Both suites were run on the development machine. The commands are exact; the
@@ -139,7 +151,7 @@ counts are the observed reporter output.
 | Suite | Command | Result |
 |---|---|---|
 | Node data plane | `$env:SMA_SKIP_ENV_FILE="1"; $env:SMA_ENV_FILE="$env:TEMP\sma-test.env"; node --test` | **221 tests, 221 pass, 0 fail, 0 skipped** |
-| Python compute plane | `python -m pytest -q` (from `python/`, in the venv) | **exit 0**, 193 tests (72 + 72 + 49) |
+| Python compute plane | `python -m pytest -q` (from `python/`, in the venv) | **exit 0**, 194 tests (72 + 72 + 50) |
 
 New Node coverage added in Phase 7 (+28 tests over the 193 baseline):
 
@@ -164,7 +176,7 @@ payload complete and hashed, deterministic, datasetHash changes on mutation) and
 semantics).
 
 The Python `-q` reporter suppresses the trailing "N passed" summary line in this
-environment; the run is reported as **exit 0 with 193 dots**. This is the
+environment; the run is reported as **exit 0 with 194 dots**. This is the
 reporter's behaviour, not a skipped or errored run.
 
 ## Critic-temperature experiment
@@ -249,7 +261,7 @@ Stated plainly so it is not mistaken for evidence:
 
 ## Recommendation
 
-Phase 7 is **green on the development machine**: 221/221 Node tests and 193
+Phase 7 is **green on the development machine**: 221/221 Node tests and 194
 Python tests pass; crash-recovery, the promotion gate, chart honesty and the
 critic all met their acceptance criteria; the active store was never mutated.
 

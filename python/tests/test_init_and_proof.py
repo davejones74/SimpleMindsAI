@@ -257,6 +257,46 @@ def test_train_allocates_a_new_version_not_the_parent(tmp_root):
     assert explicit.version == "v009"
 
 
+def test_cmd_train_validates_run_id_before_allocating(tmp_root, monkeypatch):
+    """Regression: cmd_train used `node_run_id` before assigning it.
+
+    The default (Node-orchestrated) path passes no `--version`, so cmd_train
+    evaluates `store.allocate_version(root, run_id=node_run_id)`. Because
+    `node_run_id` was only assigned on the NEXT line, every run that did not
+    supply an explicit `--version` died with
+    `UnboundLocalError: cannot access local variable 'node_run_id'` before a
+    single weight was built. Continuous and one-shot Python-backed training
+    both failed this way. The run id must be validated first, then passed on.
+    """
+    from types import SimpleNamespace
+
+    from sma import brain
+
+    with store.staging_dir(tmp_root, "v001"):
+        pass
+    store.commit_marker(tmp_root / "v001")
+
+    seen = {}
+
+    class _Stop(Exception):
+        pass
+
+    def fake_allocate(root, *, run_id=None):
+        seen["run_id"] = run_id
+        raise _Stop()  # stop before any model is loaded
+
+    monkeypatch.setattr(store, "allocate_version", fake_allocate)
+
+    args = SimpleNamespace(
+        out=str(tmp_root), parent="v001", version=None, run_id="run-28"
+    )
+    with pytest.raises(_Stop):
+        brain.cmd_train(args)
+
+    assert seen["run_id"] == "run-28"
+
+
+
 # =====================================================================
 # 4. no pretrained neural weights
 # =====================================================================

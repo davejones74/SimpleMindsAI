@@ -51,7 +51,7 @@ python/                        compute plane
   sma/preflight.py             read-only Phase 2 memory/portability budget
   sma/portability.py           platform/backend detection and the bf16 probe
   sma/fixtures/tiny_en.txt     deterministic corpus (original prose — no licensing question)
-  tests/                       193 pytest tests (proof/init, training/check-7, publication/store,
+  tests/                       194 pytest tests (proof/init, training/check-7, publication/store,
                                phase-1 checks 6/8/9/10/11, student worker, phase-2 preflight,
                                frozen-eval provenance record)
 
@@ -159,7 +159,7 @@ python -m venv .venv
 pip install -r requirements-cuda.txt      # NVIDIA
 # pip install -r requirements-rocm.txt    # AMD ROCm
 
-python -m pytest                                  # 193 tests
+python -m pytest                                  # 194 tests
 python -m sma.brain init   --config small --out $SMA_STORE
 python -m sma.brain status --out $SMA_STORE
 
@@ -230,7 +230,7 @@ line on stdin, one response per line on stdout, echoing `id`); see
 | Suite | Command | Count |
 |---|---|---|
 | Node data plane | `npm test` (from repo root) | 221 `node:test` tests — all pass |
-| Python compute plane | `python -m pytest` (from `python/`) | 193 pytest tests — all pass |
+| Python compute plane | `python -m pytest` (from `python/`) | 194 pytest tests — all pass |
 
 Both suites were run on the verified development machine; see README "Testing"
 for the exact counts. The Python suite includes proof/init, check-7 training,

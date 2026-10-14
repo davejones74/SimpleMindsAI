@@ -33,7 +33,7 @@ Verified on the development machine (Windows, RTX 4090 24,564 MiB, CUDA capabili
 | | |
 |---|---|
 | Node data plane | 221 `node:test` tests — all pass (see [Testing](#testing)) |
-| Python compute plane | 193/193 pytest tests pass |
+| Python compute plane | 194/194 pytest tests pass |
 | Checkpoint `v001` | committed, 62M params, provenance recorded |
 | Checkpoint `v002` | committed, 60 real steps, 74/74 params moved, 2 buffers unchanged |
 
@@ -161,10 +161,11 @@ promote`, `npm run reject`, `npm run perpetual` (see
 [Development](docs/DEVELOPMENT.md)).
 
 **Fixture caveat.** `OLLAMA_FIXTURE=true` stubs the curator and most Ollama round
-trips, but the critic fixture currently scores `uncertain` (5/10) for every
-article, so fixture-mode `npm run perpetual` cannot reach the training stage on
-its own: review still needs a real Ollama critic or a human decision. Recorded as
-known defect 7 in the [Roadmap](docs/ROADMAP.md#known-defects).
+trips. The critic fixture now detects the critic prompt and returns a real scored
+reply (raw `6.5`, verdict `approve`), so fixture-mode `npm run perpetual` reaches
+the training stage; use a real Ollama critic or a human decision for a real
+review. (An earlier defect scored every fixture article `uncertain` at a
+fabricated `5/10`; see [Phase 7 report](docs/PHASE7_REPORT.md#defects-found-and-fixed).)
 
 `npm run chat` does not fall back to a teacher: it starts the Python student worker, loads the
 `COMMITTED` version named by `$SMA_STORE/active.json`, and returns `503` if no version is active
@@ -238,7 +239,7 @@ python -m venv .venv
 pip install -r requirements-cuda.txt      # NVIDIA (RTX 4090 dev box)
 # pip install -r requirements-rocm.txt    # AMD ROCm (Ryzen AI HX 370 / 890M, gfx1150)
 
-python -m pytest                                  # 193 tests
+python -m pytest                                  # 194 tests
 python -m sma.brain init   --config small --out $SMA_STORE
 python -m sma.brain status --out $SMA_STORE
 
@@ -323,11 +324,11 @@ The full index is at [docs/README.md](docs/README.md).
 
 ```bash
 npm test                    # Node data plane: 221 node:test tests (repo root)
-cd python; python -m pytest # Python compute plane: 193 pytest tests
+cd python; python -m pytest # Python compute plane: 194 pytest tests
 ```
 
 Measured on the verified development machine (Windows, RTX 4090): Python
-**193/193 pass**; Node **221/221 pass**. The trends classifier
+**194/194 pass**; Node **221/221 pass**. The trends classifier
 `finitePoints` (`src/admin/metrics.js`) drops non-finite and empty `loss`
 samples rather than coercing them with `Number(...)` (an earlier version
 turned `loss: null` into `0` and kept the sample; `test/metrics.test.js`
