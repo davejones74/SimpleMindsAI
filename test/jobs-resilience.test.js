@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { ArticleStore } from "../src/storage/article-store.js";
@@ -9,10 +9,12 @@ import { JobSupervisor } from "../src/jobs/supervisor.js";
 import { config } from "../src/config.js";
 
 /**
- * Continuous jobs must stop themselves when they stop being productive instead
- * of silently retraining the same corpus forever (the run-46..run-52 failure:
- * seven rejected runs staging the same version, no visible error). These tests
- * drive the ACTUAL worker lifecycle, not just the config flags.
+ * Continuous jobs must surface a stall — a rejection streak, or a learning pass
+ * that acquires nothing — instead of silently churning (the run-46..run-52
+ * failure: seven rejected runs staging the same version, no visible error).
+ * Training is perpetual, so a rejection streak is a visible signal and a backoff,
+ * never a terminal stop; these tests drive the ACTUAL worker lifecycle, not just
+ * the config flags.
  */
 
 const tmp = () => path.join(mkdtempSync(path.join(tmpdir(), "sma-resilience-")));
@@ -51,6 +53,14 @@ async function waitTerminal(sup, jobId, timeoutMs = 15000) {
   }
 }
 
+async function waitFor(predicate, timeoutMs = 5000, stepMs = 5) {
+  const start = Date.now();
+  while (!predicate()) {
+    if (Date.now() - start > timeoutMs) throw new Error("condition not met before timeout");
+    await new Promise((r) => setTimeout(r, stepMs));
+  }
+}
+
 function rejectingTrainerFactory() {
   let n = 1; // first candidate is v002, distinct from the v001 baseline
   return () => ({
@@ -82,7 +92,7 @@ const rejectingEval = async ({ version }) => ({
   ok: true,
 });
 
-test("continuous training stops after repeated rejections instead of retraining forever", async () => {
+test("continuous training keeps running through a rejection streak instead of stopping", async () => {
   const prevMax = config.jobs.training.maxConsecutiveRejections;
   const prevPoll = config.jobs.pollIntervalMs;
   config.jobs.training.maxConsecutiveRejections = 3;
@@ -90,12 +100,20 @@ test("continuous training stops after repeated rejections instead of retraining 
   try {
     const store = reusableStore(await seededStore(3), 3);
     const registry = await RegistryStore.open(tmp());
+    const jobDir = tmp();
     let activateCalls = 0;
+    let trainCalls = 0;
+    const factory = rejectingTrainerFactory();
     const sup = new JobSupervisor({
       store,
       registry,
-      dir: tmp(),
-      trainerFactory: rejectingTrainerFactory(),
+      dir: jobDir,
+      trainerFactory: () => {
+        const t = factory();
+        const inner = t.train;
+        t.train = async (args) => { trainCalls += 1; return inner(args); };
+        return t;
+      },
       trainingDeps: {
         paths: { snapshots: tmp(), models: tmp(), plans: tmp(), evaluation: tmp() },
         evalSeed: async () => EVAL_SEED,
@@ -105,17 +123,31 @@ test("continuous training stops after repeated rejections instead of retraining 
     });
     await sup.init({ reconcile: false });
 
+    const cap = config.jobs.training.maxConsecutiveRejections;
     const job = await sup.startTraining({ mode: "continuous", minEligible: 1 });
+    // Keep training well past the rejection cap: the old behaviour stopped at `cap`.
+    await waitFor(() => trainCalls > cap + 2, 10000);
+    const mid = sup.getJob(job.jobId);
+    assert.equal(mid.terminal, false, "continuous training must not terminate on a rejection streak");
+    assert.ok(trainCalls > cap, "it must keep training past the configured rejection cap");
+
+    await sup.stop(job.jobId);
     const done = await waitTerminal(sup, job.jobId);
-    assert.equal(done.result.outcome, "repeated-rejection");
-    assert.equal(done.result.runs, 3, "must stop at the configured rejection cap, not loop");
-    assert.equal(done.result.consecutiveRejections, 3);
-    assert.equal(done.result.promoted, false);
+    assert.equal(done.result.outcome, "stopped");
     assert.equal(activateCalls, 0, "a rejected candidate must never become active");
 
     await sup.close();
     await registry.close();
     await store.close();
+
+    const events = readFileSync(path.join(jobDir, "job-events.ndjson"), "utf8")
+      .split(/\r?\n/)
+      .filter(Boolean)
+      .map((l) => JSON.parse(l));
+    assert.ok(
+      events.some((e) => e.phase === "repeated-rejection"),
+      "the rejection streak must still be surfaced as a visible phase",
+    );
   } finally {
     config.jobs.training.maxConsecutiveRejections = prevMax;
     config.jobs.pollIntervalMs = prevPoll;

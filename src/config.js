@@ -331,11 +331,12 @@ export const config = {
       // A one-shot run refuses to start below this many eligible articles
       // (reviewed + unconsumed); continuous runs wait for them instead.
       minEligible: num("TRAIN_MIN_ELIGIBLE", 1),
-      // Continuous training circuit breaker: after this many consecutive runs
-      // that are NOT promoted (rejected or not_evaluated), stop with outcome
-      // `repeated-rejection` instead of retraining forever on the same corpus.
-      // 0 disables the guard. The material stays unconsumed, so a resume after
-      // real change retrains from where it left off.
+      // Continuous training is perpetual, so a rejection streak is a visible
+      // signal, never a terminal stop: after this many consecutive runs that are
+      // NOT promoted (rejected or not_evaluated), the supervisor logs the
+      // `repeated-rejection` phase and resets the counter, then keeps waiting for
+      // genuinely new material. Rejected runs consume their batch, so new cycles
+      // never retrain the same corpus. 0 disables the surface/warn guard.
       maxConsecutiveRejections: num("TRAIN_MAX_CONSECUTIVE_REJECTIONS", 5),
     },
   },

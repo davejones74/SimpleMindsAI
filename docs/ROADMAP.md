@@ -286,9 +286,11 @@ Real, unfixed, and listed so they are not mistaken for intended behavior.
 8. **Repeated rejection / no-progress loops had no visible failure.** A run that
    kept staging the same candidate version with no improvement, or a learning job
    that made no progress, previously churned indefinitely. The job supervisor now
-   fails closed: training raises `repeated-rejection` after
-   `TRAIN_MAX_CONSECUTIVE_REJECTIONS`, learning raises `no-progress` after
-   `LEARNING_NO_PROGRESS_CYCLES`, and both honour an optional
+   surfaces both stalls: training logs the `repeated-rejection` phase after
+   `TRAIN_MAX_CONSECUTIVE_REJECTIONS` and then keeps waiting for new material
+   (continuous training is perpetual and never stops on rejections; rejected runs
+   consume their batch, so new cycles only see new material), learning raises
+   `no-progress` after `LEARNING_NO_PROGRESS_CYCLES`, and both honour an optional
    `JOBS_MAX_RUNTIME_MS` wall-clock bound (`max-runtime`). Progress is counted
    only from genuinely acquired (`ingested`) material, not deduped events.
    Regression coverage in `test/jobs-resilience.test.js`.

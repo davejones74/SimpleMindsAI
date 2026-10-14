@@ -280,7 +280,7 @@ most relevant to deployment:
 | `EVAL_MIN_DOCUMENTS` | `0` | Advisory floor on frozen-eval-set size. Non-enforcing by default. |
 | `JOBS_MAX_RUNTIME_MS` | `0` | Wall-clock bound for a job; `0` is unbounded. A job past it ends `max-runtime`. |
 | `LEARNING_NO_PROGRESS_CYCLES` | `5` | Consecutive no-progress learning cycles before the job ends `no-progress`. |
-| `TRAIN_MAX_CONSECUTIVE_REJECTIONS` | `5` | Consecutive rejected training candidates before the job ends `repeated-rejection`. |
+| `TRAIN_MAX_CONSECUTIVE_REJECTIONS` | `5` | Consecutive rejected training candidates before the supervisor logs the `repeated-rejection` phase and keeps waiting for new material (continuous training never stops on rejections). `0` disables the guard. |
 
 The full, authoritative list lives in `.env.example` and `src/config.js`. The
 Python backend is pinned separately in `python/requirements-cuda.txt` or

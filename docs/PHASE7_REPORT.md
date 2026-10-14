@@ -107,10 +107,12 @@ frozen-set provenance is persisted and hashed (`python/sma/store.py`,
 ### F4 — silent churn on repeated rejection / no progress
 
 Runs `run-46`…`run-52` all staged `v035` and were rejected with no backoff and no
-visible failure. The job supervisor now fails closed: training raises
-`repeated-rejection` after `TRAIN_MAX_CONSECUTIVE_REJECTIONS`, learning raises
-`no-progress` after `LEARNING_NO_PROGRESS_CYCLES`, and both honour an optional
-`JOBS_MAX_RUNTIME_MS` (`max-runtime`). Only genuinely acquired (`ingested`)
+visible failure. The job supervisor now surfaces both stalls: training logs the
+`repeated-rejection` phase after `TRAIN_MAX_CONSECUTIVE_REJECTIONS` (then resets the
+counter and keeps waiting — continuous training is perpetual and never stops on
+rejections; rejected runs consume their batch, so new cycles only see new material),
+learning raises `no-progress` after `LEARNING_NO_PROGRESS_CYCLES`, and both honour an
+optional `JOBS_MAX_RUNTIME_MS` (`max-runtime`). Only genuinely acquired (`ingested`)
 material counts as progress; deduped events do not.
 
 ### F5 — the run-lock is not the recovery mechanism
@@ -161,8 +163,9 @@ New Node coverage added in Phase 7 (+28 tests over the 193 baseline):
 - `test/critic.test.js` — fixture critic real score and verdict; review
   provenance; non-JSON and throwing critic fail closed; a JSON reply without a
   numeric score stays missing.
-- `test/jobs-resilience.test.js` — `repeated-rejection`, `max-runtime`, and
-  `no-progress` driven through the real supervisor loop.
+- `test/jobs-resilience.test.js` — continuous training surfaces the
+  `repeated-rejection` phase but keeps running; `max-runtime`; and `no-progress`
+  driven through the real supervisor loop.
 - `test/lifecycle-crash.test.js` — promoted-unconsumed recovery; crash after
   publish; rejected never publishes/activates but consumes; consumed manifests
   are terminal; F2 promoted-without-version fails closed; an in-process crash
