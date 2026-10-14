@@ -198,7 +198,7 @@ export class Frontier {
     if (changed) await this.persist();
   }
 
-  // Persist frontier to NDJSON (atomic write via temp + rename pattern)
+  // Persist frontier to NDJSON (atomic write via temp + rename, Windows-compatible)
   async persist() {
     if (!this.initialized) await this.init();
     const file = path.join(this.dir, FRONTIER_FILE);
@@ -221,11 +221,37 @@ export class Frontier {
       };
       lines.push(JSON.stringify(clean));
     }
-    // Write atomically: temp file then rename
+    // Write atomically: temp file then rename (Windows-compatible)
     const tmpFile = file + ".tmp";
     await mkdir(this.dir, { recursive: true });
     await writeFile(tmpFile, lines.join("\n") + (lines.length ? "\n" : ""), "utf8");
-    await rename(tmpFile, file);
+    // Windows rename fails with EPERM if destination exists and is locked.
+    // Use a retry loop with fallback: try rename, then copy+unlink on EPERM/ENOENT.
+    const maxAttempts = 3;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        await rename(tmpFile, file);
+        return;
+      } catch (err) {
+        if (attempt === maxAttempts) throw err;
+        // On Windows, EPERM/ENOENT can occur if destination is locked.
+        // Fall back to copy + unlink (still atomic from reader perspective).
+        if (err.code === "EPERM" || err.code === "ENOENT") {
+          try {
+            await copyFile(tmpFile, file);
+            await unlink(tmpFile);
+            return;
+          } catch (copyErr) {
+            if (attempt === maxAttempts) throw copyErr;
+            // Wait briefly before retry
+            await new Promise((r) => setTimeout(r, 50 * attempt));
+          }
+        } else {
+          if (attempt === maxAttempts) throw err;
+          await new Promise((r) => setTimeout(r, 50 * attempt));
+        }
+      }
+    }
   }
 
   // State summary for diagnostics

@@ -47,7 +47,7 @@ async function readLines(file) {
  * `seed` returns rows [{articleId?, text?, prompt?, completion?, domain}]; it is
  * consulted only when the file is absent — afterwards the file is authoritative.
  */
-export async function loadEvaluationSet({ dir = config.paths.evaluation, datasetId = config.evalDatasetId, seed = null } = {}) {
+export async function loadEvaluationSet({ dir = config.paths.evaluation, datasetId = config.evalDatasetId, seed = null, minDocuments = config.evalMinDocuments } = {}) {
   await mkdir(dir, { recursive: true });
   const file = path.join(dir, `${datasetId}.jsonl`);
   let items = await readLines(file);
@@ -66,7 +66,23 @@ export async function loadEvaluationSet({ dir = config.paths.evaluation, dataset
   const content = items.map((r) => evalText(r)).join("\n");
   const datasetVersion = createHash("sha256").update(content, "utf8").digest("hex").slice(0, 12);
   const hashes = new Set(items.map((r) => contentHash(evalText(r))));
-  return { datasetId, datasetVersion, file, items, hashes, size: items.length, evalText };
+  // Advisory ONLY. `EVAL_MIN_DOCUMENTS` records that a frozen set is smaller
+  // than the operator expects; it never blocks loading, evaluation or
+  // promotion (the loss gate is the only promotion gate). 0 disables it.
+  const configured = Number(minDocuments);
+  const floor = Number.isFinite(configured) && configured > 0 ? configured : 0;
+  const warnings = [];
+  if (floor > 0 && items.length < floor) {
+    warnings.push({
+      code: "eval-set-undersized",
+      severity: "advisory",
+      datasetId,
+      size: items.length,
+      minDocuments: floor,
+      message: `frozen evaluation set '${datasetId}' holds ${items.length} document(s), below the advisory minimum of ${floor}; evaluation and promotion are unaffected`,
+    });
+  }
+  return { datasetId, datasetVersion, file, items, hashes, size: items.length, evalText, minDocuments: floor, warnings };
 }
 
 /** Guard that keeps the evaluation set OUT of anything else. */

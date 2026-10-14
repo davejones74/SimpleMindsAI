@@ -53,6 +53,9 @@ export function collectRowsFromArticles(store, { limit = config.snapshotLimit } 
   while (rows.length < limit && guard++ < 200) {
     const { items, nextCursor } = store.articlesPage({ after: cursor, limit: 200, status: "REVIEWED", consumed: false });
     for (const a of items) {
+      // Trainable: reviewed, not consumed, not retired. A deferred article is
+      // still REVIEWED and unconsumed, so it remains eligible here and is
+      // picked up again by a later run; a RETIRED one never reaches this page.
       if (!isTrainable(a)) continue;
       rows.push(rowForArticle(a));
       if (rows.length >= limit) break;

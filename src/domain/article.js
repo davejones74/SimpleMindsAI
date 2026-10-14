@@ -33,8 +33,9 @@ export const STATUS = Object.freeze({
   PENDING_REVIEW: "PENDING_REVIEW",
   REVIEWED: "REVIEWED",
   REJECTED: "REJECTED",
+  RETIRED: "RETIRED",
 });
-export const STATUSES = Object.freeze([STATUS.INGESTED, STATUS.PENDING_REVIEW, STATUS.REVIEWED, STATUS.REJECTED]);
+export const STATUSES = Object.freeze([STATUS.INGESTED, STATUS.PENDING_REVIEW, STATUS.REVIEWED, STATUS.REJECTED, STATUS.RETIRED]);
 
 export const VERDICT = Object.freeze({
   APPROVE: "approve",
@@ -72,7 +73,7 @@ export function isAuthority(v) {
  * rejected, ingested, and already-consumed articles are all excluded.
  */
 export function isTrainable(article) {
-  return Boolean(article) && article.status === STATUS.REVIEWED && !article.consumedAt;
+  return Boolean(article) && article.status === STATUS.REVIEWED && !article.consumedAt && article.status !== STATUS.RETIRED;
 }
 
 /** Normalise an importance value, defaulting to Normal (never throws on read). */

@@ -167,7 +167,7 @@ export function createWorkspaceRegistry({
         const s = await ArticleStore.open(w.paths.articles, { readOnly: true });
         const r = await RegistryStore.open(w.paths.registry, { readOnly: true });
         const g = await GovernanceStore.open(w.paths.governance ?? w.paths.registry, { readOnly: true });
-        w.services = { store: s, registry: r, governance: g, chat: INSPECTION_CHAT, conversations: null, conversations: null };
+        w.services = { store: s, registry: r, governance: g, chat: INSPECTION_CHAT, conversations: null };
         Object.assign(w, buildServices(g));
       })();
     }

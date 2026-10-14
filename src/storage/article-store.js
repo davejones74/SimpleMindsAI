@@ -169,6 +169,16 @@ export class ArticleStore {
     } else if (rec.type === "review-requested") {
       a.reviewRequested = true;
       a.status = STATUS.PENDING_REVIEW;
+    } else if (rec.type === "deferral") {
+      // Replayed from the log, so a restart reconstructs the same retry
+      // counters: the event carries the resulting count, never a delta.
+      a.deferralRetries = Number.isFinite(rec.retries) ? rec.retries : (a.deferralRetries ?? 0) + 1;
+      a.deferredRunId = rec.retired ? null : rec.runId ?? null;
+      a.deferredReason = rec.reason ?? null;
+    } else if (rec.type === "deferral-cleared") {
+      a.deferralRetries = 0;
+      a.deferredRunId = null;
+      a.deferredReason = null;
     }
   }
 
@@ -276,6 +286,13 @@ export class ArticleStore {
       updatedAt: now,
       consumedAt: null,
       consumedRef: null,
+      // Deferral state — set by the training lifecycle when a run rejects
+      // the batch.  cleared when the article is successfully consumed by a
+      // promoted model.  persisted in the article record so it survives
+      // process crash / restart.
+      deferredRunId: null,
+      deferredReason: null,
+      deferralRetries: 0,
     };
     this.articles.set(articleId, rec);
     this.articleOrder.push(articleId);
@@ -490,6 +507,96 @@ export class ArticleStore {
     return { consumed, skipped };
   }
 
+  // ----------------------------------------------------- deferral / retire
+  /**
+   * Durable deferral of a batch a training run rejected.
+   *
+   * A rejected run must NOT consume its articles — they stay eligible so a
+   * later run can retry them alongside new material. Each deferral is an
+   * appended event carrying the RESULTING retry count, so replaying the log
+   * after a restart reconstructs exactly the same counters (no in-memory-only
+   * state). Once the count reaches `maxRetries` the article is moved to the
+   * explicit `RETIRED` status and is never selected again.
+   *
+   * Idempotent per run: re-driving the same rejected run (crash recovery)
+   * finds `deferredRunId === runId` and does nothing, so a retry can never
+   * inflate the counter or retire an article early.
+   */
+  async deferArticles(articleIds = [], { runId = null, reason = null, maxRetries = 2 } = {}) {
+    this.#assertWritable();
+    const limit = Number.isFinite(Number(maxRetries)) ? Number(maxRetries) : 0;
+    const deferred = [];
+    const retired = [];
+    const skipped = [];
+    for (const articleId of articleIds ?? []) {
+      const article = this.articles.get(articleId);
+      if (!article) {
+        skipped.push({ articleId, reason: "unknown-article" });
+        continue;
+      }
+      if (article.status === STATUS.RETIRED) {
+        skipped.push({ articleId, reason: "already-retired" });
+        continue;
+      }
+      if (runId && article.deferredRunId === runId) {
+        skipped.push({ articleId, reason: "already-deferred-by-run" });
+        continue;
+      }
+      const retries = (article.deferralRetries ?? 0) + 1;
+      const retire = limit > 0 && retries >= limit;
+      await this.#event({
+        type: "deferral",
+        articleId,
+        runId: runId ?? null,
+        retries,
+        retired: retire,
+        reason: retire ? "max-retries-exceeded" : reason ?? "rejected by training run",
+        actor: AUTHORITY.AUTOMATION,
+      });
+      if (retire) {
+        await this.#event({
+          type: "status",
+          articleId,
+          from: article.status,
+          to: STATUS.RETIRED,
+          actor: AUTHORITY.AUTOMATION,
+          reason: "max-retries-exceeded",
+        });
+        retired.push(articleId);
+      } else {
+        deferred.push(articleId);
+      }
+      article.updatedAt = new Date().toISOString();
+    }
+    return { deferred, retired, skipped };
+  }
+
+  /**
+   * Clear deferral state for articles a promoted run consumed. Appended (not
+   * mutated) so the clearing survives a restart; a no-op for articles that
+   * carry no deferral state, which keeps a re-driven promotion idempotent.
+   */
+  async clearDeferral(articleIds = [], { runId = null } = {}) {
+    this.#assertWritable();
+    const cleared = [];
+    for (const articleId of articleIds ?? []) {
+      const article = this.articles.get(articleId);
+      if (!article) continue;
+      const hasState = Boolean(article.deferredRunId) || Boolean(article.deferredReason) || (article.deferralRetries ?? 0) > 0;
+      if (!hasState) continue;
+      await this.#event({
+        type: "deferral-cleared",
+        articleId,
+        runId: runId ?? null,
+        reason: "consumed by a promoted run",
+        actor: AUTHORITY.AUTOMATION,
+      });
+      article.updatedAt = new Date().toISOString();
+      cleared.push(articleId);
+    }
+    return { cleared };
+  }
+
   // --------------------------------------------------------------- stats
   getStats() {
     const byStatus = Object.fromEntries(Object.values(STATUS).map((s) => [s, 0]));
@@ -515,6 +622,9 @@ export class ArticleStore {
       reviewed: byStatus[STATUS.REVIEWED] ?? 0,
       rejected: byStatus[STATUS.REJECTED] ?? 0,
       ingested: byStatus[STATUS.INGESTED] ?? 0,
+      // Retired material stays visible as its own historical category; it is
+      // excluded from `trainable` by the single trainability predicate.
+      retired: byStatus[STATUS.RETIRED] ?? 0,
       trainable,
       reviewCount: scores.length,
       avgReviewScore: scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : null,

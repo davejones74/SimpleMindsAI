@@ -130,11 +130,10 @@ export const config = {
 
   graphqlUrl: env("GRAPHQL_URL", "http://localhost:4000/graphql"),
   ollamaEndpoint: env("OLLAMA_ENDPOINT", "http://localhost:11434"),
-  // NOTE: on consumer rigs `:latest` is a 4-7GB distill, not the 671B MoE.
-  ollamaModel: env("OLLAMA_MODEL", "deepseek-r1:latest"),
   ollamaFixture: bool("OLLAMA_FIXTURE", false),
   // Teacher model identifier — used by OllamaClient for ALL chat/completions
   // (curator, critic, planner). Set via OLLAMA_MODEL env var.
+  // NOTE: on consumer rigs `:latest` is a 4-7GB distill, not the 671B MoE.
   ollamaModel: env("OLLAMA_MODEL", "deepseek-r1:latest"),
 
   // Critic model identifier — when set, overrides the teacher model
@@ -169,7 +168,6 @@ export const config = {
   curriculumVersion: env("CURRICULUM_VERSION", "curriculum-v1"),
   trainerVersion: env("TRAINER_VERSION", "stub-v1"),
   evaluatorVersion: env("EVALUATOR_VERSION", "eval-v1"),
-  trainerKind: env("TRAINER_KIND", "python"), // python (default) | stub (explicit)
   pythonTrainerVersion: env("PYTHON_TRAINER_VERSION", "python-v1"),
 
   // ---- Reward (teacher review signal; NEVER part of the training loss) ----
@@ -205,16 +203,14 @@ export const config = {
 
   // ---- Evaluation ----
   evalDatasetId: env("EVAL_DATASET_ID", "eval-001"),
-// Advisory floor on the number of held-out documents a frozen evaluation set
-// must contain. 0 (the default) does NOT enforce it: the eval set is loaded
-// and its size is recorded, and any shortfall is surfaced as a `warnings`
-// entry on every evaluation record and in the Observatory, but promotion is
-// not blocked. Set > 0 to make a too-small set fail closed. The system ships a
-// 5-document seed set (eval-001), and a broader 19-document set (eval-002)
-// covering science, history, technology and humanities is provided operator‑side.
-// Set to 19 to validate against the expanded set; if the loaded set has fewer
-// the Observatory will record a warning but promotion still proceeds.
-evalMinDocuments: num("EVAL_MIN_DOCUMENTS", 19),
+  // Advisory floor on the number of held-out documents a frozen evaluation set
+  // must contain. 0 (the default) does NOT enforce it: the eval set is loaded
+  // and its size is recorded, and any shortfall is surfaced as a `warnings`
+  // entry on the run record and in the Observatory, but promotion is never
+  // blocked — the causal-LM loss gate remains the only promotion gate. Set > 0
+  // to make a too-small set warn loudly. The system ships a 5-document seed set
+  // (eval-001); a broader 19-document set (eval-002) is provided operator-side.
+  evalMinDocuments: num("EVAL_MIN_DOCUMENTS", 0),
   promoteMinDelta: num("PROMOTE_MIN_DELTA", 0), // legacy token-F1 delta (supplementary only)
   promoteMinScore: num("PROMOTE_MIN_SCORE", 0), // legacy token-F1 floor (supplementary only)
 

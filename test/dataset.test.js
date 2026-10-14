@@ -113,3 +113,30 @@ test("evaluation leak guard: content-hash excludes eval rows from a snapshot", a
   assert.equal(pairHash("prompt one", "completion one").length, 32);
   assert.equal(evalText({ prompt: "a", completion: "b" }), "a\n\nb");
 });
+
+test("evaluation set: the minimum-documents floor is advisory and off by default", async () => {
+  const seed = () => [{ text: "ONE EVAL DOCUMENT", domain: "general" }];
+
+  // Default (0): the set loads, its size is recorded, nothing is warned about.
+  const quiet = await loadEvaluationSet({ dir: tmpDir(), seed });
+  assert.equal(quiet.size, 1);
+  assert.equal(quiet.minDocuments, 0);
+  assert.deepEqual(quiet.warnings, []);
+
+  // Configured floor: the shortfall is surfaced, and the set is STILL loaded
+  // and usable — the floor never fails closed.
+  const warned = await loadEvaluationSet({ dir: tmpDir(), seed, minDocuments: 3 });
+  assert.equal(warned.size, 1);
+  assert.equal(warned.items.length, 1);
+  assert.equal(warned.hashes.size, 1);
+  assert.equal(warned.warnings.length, 1);
+  assert.equal(warned.warnings[0].code, "eval-set-undersized");
+  assert.equal(warned.warnings[0].severity, "advisory");
+  assert.equal(warned.warnings[0].size, 1);
+  assert.equal(warned.warnings[0].minDocuments, 3);
+  assert.match(warned.warnings[0].message, /below the advisory minimum/);
+
+  // A set that meets the floor warns about nothing.
+  const ok = await loadEvaluationSet({ dir: tmpDir(), seed, minDocuments: 1 });
+  assert.deepEqual(ok.warnings, []);
+});

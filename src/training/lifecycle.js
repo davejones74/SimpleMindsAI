@@ -224,6 +224,11 @@ export async function executeFullRun({
       trainerVersion: trainer?.version ?? config.trainerVersion,
       trainerKind: trainer?.kind ?? config.trainerKind,
       examplesAvailable: rows.length,
+      // Advisory only (e.g. an undersized frozen evaluation set). Recorded on
+      // the run so the shortfall stays explainable after the fact; it never
+      // gates the run or the promotion decision.
+      evaluationSetSize: evalSet.size,
+      evaluationWarnings: evalSet.warnings ?? [],
     });
     runId = run.runId;
     registry.bindRunLock(runId);
@@ -442,6 +447,34 @@ export async function executeFullRun({
       manifest = await updateManifest(manifestPath, manifest, { consumed: true, activated: true });
     }
 
+    // -------------------------------------------------------------------
+    // Deferral / retry / retire bookkeeping (Refinement #6).
+    //
+    // This runs for EVERY decision branch, which is why it lives here and not
+    // inside one of them. It is durable: the article store appends an event per
+    // transition, so the retry counters and retirements replay identically
+    // after a restart. A `not_evaluated` run changes nothing — training or
+    // evaluation never produced a verdict about the material.
+    // -------------------------------------------------------------------
+    const bookkeepingIds = snapshot.manifest.articleIds ?? snapshot.rows.map((r) => r.articleId);
+    if (decision.decision === "rejected" && typeof store.deferArticles === "function") {
+      // Increment the deferral retry count for every article in the rejected
+      // run; the store retires those whose limit is exhausted so future runs
+      // never reconsider them.
+      await store.deferArticles(bookkeepingIds, {
+        runId,
+        reason: decision.reason ?? "rejected by loss threshold",
+        maxRetries: config.jobs.training.maxRejectedRetries,
+      });
+    } else if (decision.decision === "promoted" && typeof store.clearDeferral === "function") {
+      // Articles consumed by the promoted model are owned by the active
+      // version and must not be reconsidered under a different run.
+      await store.clearDeferral(
+        bookkeepingIds.filter((id) => store.getArticle?.(id)?.consumedAt),
+        { runId },
+      );
+    }
+
     // ---- persist the decision on the model, then close the run ----
     await registry.modelEvent(candidate.modelId, {
       status: decision.decision === "promoted" ? "promoted" : "rejected",
@@ -466,6 +499,7 @@ export async function executeFullRun({
         ? { loss: candidateResult.loss, datasetHash: candidateResult.datasetHash, version: trainingResult.version }
         : { evalRunId: candidateResult.evalRunId, score: candidateResult.score, score100: candidateResult.score100 },
       evaluationDelta: pythonMode ? decision.improvement : decision.delta,
+      evaluationWarnings: evalSet.warnings ?? [],
       activatedVersion: pythonMode && decision.decision === "promoted" ? trainingResult.version : null,
       // Run linkage: Node run -> frozen dataset -> Python execution -> committed
       // candidate. Checkpoint path/version stay a secondary integrity check.

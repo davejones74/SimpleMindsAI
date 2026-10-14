@@ -32,10 +32,15 @@ async function seededStore(n = 3) {
 
 // A store whose reviewed material is never consumed and never shrinks, so we can
 // observe the supervisor's OWN circuit breaker rather than the eligibility gate.
+// Deferral/retirement is stubbed for the same reason: a rejected run normally
+// retires its batch once the retry budget is exhausted (see
+// `test/lifecycle.test.js`), which would empty the store mid-streak and hide the
+// breaker this test exists to exercise.
 function reusableStore(base, trainable) {
   return new Proxy(base, {
     get(target, prop) {
       if (prop === "markConsumed") return async () => ({ consumed: [], skipped: [] });
+      if (prop === "deferArticles") return async () => ({ deferred: [], retired: [], skipped: [] });
       if (prop === "getStats") return () => ({ ...target.getStats(), trainable });
       const v = Reflect.get(target, prop, target);
       return typeof v === "function" ? v.bind(target) : v;

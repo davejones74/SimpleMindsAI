@@ -402,7 +402,18 @@ test("staging: a rejected candidate is never published and is discarded with its
   assert.equal(discarded[0][0], "v002");
   assert.match(discarded[0][1], /rejected[\\/]/, "rejection provenance is retained somewhere durable");
   assert.deepEqual(activated, [], "a rejected candidate never moves the pointer");
-  assert.equal(store.getStats().uniqueConsumed, 3, "a completed rejection still records consumption");
+  // A rejection DEFERS its batch instead of consuming it: the material stays
+  // eligible so a later run can retry it alongside new articles. The deferral
+  // is durable (an appended article-store event), not an in-memory flag.
+  assert.equal(store.getStats().uniqueConsumed, 0, "a rejection must not consume its batch");
+  const deferredArticles = store.articlesPage({ limit: 50 }).items;
+  assert.equal(deferredArticles.length, 3);
+  for (const a of deferredArticles) {
+    assert.equal(a.deferralRetries, 1, "each rejected article records one deferral");
+    assert.equal(a.deferredRunId, out.run.runId, "the deferral names the run that rejected it");
+    assert.equal(a.status, "REVIEWED", "one rejection defers, it does not retire");
+    assert.equal(a.trainable, true, "deferred material stays eligible for a later run");
+  }
   await store.close();
   await registry.close();
 });

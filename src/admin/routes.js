@@ -78,6 +78,24 @@ export function attachAdmin({ app, store, registry, governance, chat, conversati
     activeVersion: py?.activeVersion ?? null,
   });
 
+  /**
+   * Advisory evaluation-set warnings, read from the most recent run that
+   * recorded any. This is a pure registry read (no file is opened, nothing is
+   * created), so an inspection-only workspace reports exactly what its ledger
+   * holds. These are warnings, never a gate: promotion is still decided solely
+   * by the causal-LM loss gate.
+   */
+  const evaluationAdvisories = (registry) => {
+    const runs = registry.listRuns();
+    for (let i = runs.length - 1; i >= 0; i -= 1) {
+      const run = runs[i];
+      const warnings = Array.isArray(run?.evaluationWarnings) ? run.evaluationWarnings : null;
+      if (!warnings || !warnings.length) continue;
+      return { warnings, runId: run.runId, size: run.evaluationSetSize ?? null, at: run.completedAt ?? run.startedAt ?? null };
+    }
+    return { warnings: [], runId: null, size: null, at: null };
+  };
+
   // -------------------------------------------------------- workspace list
   // Registered BEFORE the resolver so the catalogue is itself workspace-free.
   router.get("/workspaces", asyncRoute(async (_req, res) => {
@@ -130,6 +148,7 @@ export function attachAdmin({ app, store, registry, governance, chat, conversati
         snapshotCount: w.services.registry.listSnapshots().length,
         evaluationCount: w.services.registry.listEvaluations().length,
       },
+      evaluation: evaluationAdvisories(w.services.registry),
       mission: { primary: w.mission.primary(), secondary: w.mission.secondary() },
       strategy: w.strategy.active(),
       reviewCycles: cycles,

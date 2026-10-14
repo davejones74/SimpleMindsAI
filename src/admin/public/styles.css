@@ -98,6 +98,9 @@ table.data tr:hover td { background: var(--panel-2); }
 
 .empty { color: var(--muted); padding: 24px; text-align: center; border: 1px dashed var(--border); border-radius: var(--radius); }
 .loading { color: var(--muted); padding: 20px; }
+/* The job whose detail panel is open, so the selection stays attributable
+   across the Learning & Training tab's live refreshes. */
+a[data-job].selected { font-weight: 700; text-decoration: underline; }
 .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; vertical-align: middle; }
 @keyframes spin { to { transform: rotate(360deg); } }
 

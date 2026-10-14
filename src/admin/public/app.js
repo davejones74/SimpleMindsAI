@@ -32,6 +32,11 @@ const state = {
   // back to the first option.
   controlForm: {},
   jobDetail: null,
+  // The job whose detail panel is open. A refresh (SSE, poll, or a
+  // Start/Stop/Pause action) re-renders the whole Learning & Training tab, so
+  // the selection has to live here: without it the panel the operator just
+  // opened disappeared under them mid-scroll.
+  openJobId: null,
   // Shared model-version selector: pinned per workspace, independent of the
   // active pointer and of a running job's training parent.
   versions: [],
@@ -39,6 +44,68 @@ const state = {
   live: false,
   seq: 0,
 };
+
+// ---------------------------------------------------------- job hash helpers
+const JOB_HASH_PREFIX = "job=";
+
+/** Read the job ID from the URL hash, e.g. "#job=job-123". */
+function readJobHash() {
+  const hash = window.location.hash;
+  if (!hash.startsWith("#" + JOB_HASH_PREFIX)) return null;
+  return hash.slice(("#" + JOB_HASH_PREFIX).length);
+}
+
+/** Update the URL hash to reflect the currently selected job, or clear it. */
+function writeJobHash(jobId) {
+  if (jobId) {
+    window.location.hash = JOB_HASH_PREFIX + jobId;
+  } else {
+    // Only clear if the current hash is a job hash
+    if (window.location.hash.startsWith("#" + JOB_HASH_PREFIX)) {
+      window.location.hash = "";
+    }
+  }
+}
+
+/** Restore the selected job from the URL hash, if present and valid. */
+function restoreJobFromHash() {
+  const jobId = readJobHash();
+  if (jobId) {
+    state.openJobId = jobId;
+  }
+}
+
+/** Listen for hash changes (back/forward navigation, manual hash edit). */
+function watchJobHash() {
+  window.addEventListener("hashchange", () => {
+    const jobId = readJobHash();
+    // If the hash was cleared or changed to a different job, close the current panel
+    // and let the new hash take effect via the normal openJob flow.
+    if (state.openJobId !== jobId) {
+      if (!jobId) {
+        closeJob();
+      } else {
+        // The hash changed to a different job - open it
+        openJob(jobId);
+      }
+    }
+  });
+}
+
+/** Restore the selected job from URL hash if it exists in the current job list. */
+function restoreJobFromHashIfValid() {
+  const jobId = readJobHash();
+  if (!jobId) return;
+  // Check if the job still exists in the current job list
+  const jobExists = document.querySelector(`[data-job="${esc(jobId)}"]`);
+  if (jobExists) {
+    state.openJobId = jobId;
+    openJob(jobId, { silent: true });
+  } else {
+    // Job no longer exists - clear the hash
+    writeJobHash(null);
+  }
+}
 
 const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const fmt = (v) => (v === null || v === undefined ? "—" : typeof v === "number" ? (Number.isInteger(v) ? v.toLocaleString() : v.toFixed(3)) : String(v));
@@ -1598,14 +1665,26 @@ function wireControl() {
   for (const el of document.querySelectorAll("[data-job]")) {
     el.addEventListener("click", (e) => { e.preventDefault(); openJob(el.dataset.job); });
   }
+  // Restore the selected job from URL hash after the job list is rendered.
+  // This handles full page reloads, hash changes, and initial page load.
+  restoreJobFromHashIfValid();
 }
 
-async function openJob(jobId) {
+async function openJob(jobId, { silent = false } = {}) {
   const box = document.getElementById("jobDetail");
-  box.innerHTML = `<div class="panel loading">Loading job…</div>`;
+  if (!box) return;
+  state.openJobId = jobId;
+  writeJobHash(jobId);
+  markSelectedJob(jobId);
+  if (!silent) box.innerHTML = `<div class="panel loading">Loading job…</div>`;
   try {
     const d = await api(`/jobs/${encodeURIComponent(jobId)}`);
-    box.innerHTML = `
+    // The view may have moved on (tab switch, another job opened) while this
+    // request was in flight; never paint a stale job over the current one.
+    if (state.openJobId !== jobId) return;
+    const current = document.getElementById("jobDetail");
+    if (!current) return;
+    current.innerHTML = `
       <div class="panel">
         <div class="toolbar"><strong>${esc(jobId)}</strong> ${badge(d.job.status, d.job.status)}
           <span class="small muted">${esc(d.job.kind)} · ${esc(d.job.mode)}</span>
@@ -1616,9 +1695,30 @@ async function openJob(jobId) {
         <div class="k" style="margin-top:8px">Log</div>
         <div class="log-box small">${(d.log ?? []).map((l) => `<div><span class="muted">${when(l.at)}</span> [${esc(l.stream)}] ${esc(l.text)}</div>`).join("") || `<div class="muted">no log lines</div>`}</div>
       </div>`;
-    box.querySelector("[data-close-job]")?.addEventListener("click", () => (box.innerHTML = ""));
+    current.querySelector("[data-close-job]")?.addEventListener("click", () => closeJob());
   } catch (err) {
-    box.innerHTML = `<div class="panel notice"><span class="bad">${esc(err.message)}</span></div>`;
+    if (state.openJobId !== jobId) return;
+    const current = document.getElementById("jobDetail");
+    if (current) current.innerHTML = `<div class="panel notice"><span class="bad">${esc(err.message)}</span></div>`;
+  }
+}
+
+/** Closing is explicit: only the operator's `close` clears the selection. */
+function closeJob() {
+  state.openJobId = null;
+  writeJobHash(null);
+  markSelectedJob(null);
+  const box = document.getElementById("jobDetail");
+  if (box) box.innerHTML = "";
+}
+
+/** Highlight the selected row so the open panel is attributable at a glance. */
+function markSelectedJob(jobId) {
+  for (const el of document.querySelectorAll("[data-job]")) {
+    const on = jobId !== null && el.dataset.job === jobId;
+    el.classList.toggle("selected", on);
+    if (on) el.setAttribute("aria-current", "true");
+    else el.removeAttribute("aria-current");
   }
 }
 
@@ -1641,6 +1741,10 @@ function connectSSE() {
 }
 
 // -------------------------------------------------------------------- boot
+// Restore job selection from URL hash on initial page load
+restoreJobFromHashIfValid();
+watchJobHash();
+
 for (const b of document.querySelectorAll("#tabs button")) b.addEventListener("click", () => setTab(b.dataset.tab));
 document.getElementById("workspaceSelect")?.addEventListener("change", (e) => selectWorkspace(e.target.value));
 document.getElementById("modelVersion")?.addEventListener("change", (e) => setPinnedVersion(e.target.value));

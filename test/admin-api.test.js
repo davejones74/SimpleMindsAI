@@ -113,6 +113,47 @@ test("admin API: jobs, eligibility, brain versions, teacher readiness, guarded s
   }
 });
 
+test("admin API: overview reports advisory evaluation warnings, and never invents them", async () => {
+  const h = await harness();
+  try {
+    // Nothing recorded yet: an empty, honest advisory block (not a missing key).
+    const quiet = await jget(`${h.base}/api/admin/overview`);
+    assert.equal(quiet.status, 200);
+    assert.deepEqual(quiet.body.evaluation.warnings, []);
+    assert.equal(quiet.body.evaluation.runId, null);
+
+    // A run that recorded an undersized frozen eval set surfaces it verbatim.
+    const warning = {
+      code: "eval-set-undersized",
+      severity: "advisory",
+      datasetId: "eval-001",
+      size: 2,
+      minDocuments: 19,
+      message: "frozen evaluation set 'eval-001' holds 2 document(s), below the advisory minimum of 19",
+    };
+    const run = await h.registry.createRun({
+      datasetId: "ds-1",
+      evaluationSetSize: 2,
+      evaluationWarnings: [warning],
+    });
+    await h.registry.completeRun(run.runId, { status: "promoted", promotionStatus: "promoted" });
+
+    const seen = await jget(`${h.base}/api/admin/overview`);
+    assert.equal(seen.status, 200);
+    assert.equal(seen.body.evaluation.warnings.length, 1);
+    assert.deepEqual(seen.body.evaluation.warnings[0], warning);
+    assert.equal(seen.body.evaluation.runId, run.runId);
+    assert.equal(seen.body.evaluation.size, 2);
+    // Advisory, not a gate: the run still completed as a promotion.
+    assert.equal(h.registry.getRun(run.runId).status, "promoted");
+
+    // Retired material is reported as its own category in the same payload.
+    assert.equal(seen.body.articles.retired, 0);
+  } finally {
+    await h.close();
+  }
+});
+
 const jpost = async (url, body) => {
   const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body ?? {}) });
   return { status: res.status, body: await res.json() };

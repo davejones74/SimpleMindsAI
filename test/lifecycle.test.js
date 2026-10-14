@@ -7,6 +7,7 @@ import { RegistryStore } from "../src/storage/registry-store.js";
 import { ArticleStore } from "../src/storage/article-store.js";
 import { stubTrainer } from "../src/training/trainer-interface.js";
 import { executeFullRun } from "../src/training/lifecycle.js";
+import { config } from "../src/config.js";
 
 const tmp = () => path.join(mkdtempSync(path.join(tmpdir(), "sma-")));
 
@@ -133,6 +134,183 @@ test("chain: second run trains FROM the promoted model as its baseline", async (
   });
   assert.equal(out2.run.baseModel, first.modelId); // promoted model = new baseline
   assert.equal(registry.getRun(out2.run.runId).status, "promoted");
+  await store.close();
+  await registry.close();
+});
+
+// ------------------------------------------------- deferral / retirement
+//
+// A rejected run must NOT consume its batch: the material is DEFERRED with a
+// retry count so a later run can retry it alongside new articles, and is
+// RETIRED only once the configured retry budget is exhausted. Every transition
+// is an appended article-store event, so it survives a restart.
+
+const rejectedRun = (registry, store) =>
+  executeFullRun({
+    registry,
+    options: { paths: { snapshots: tmp(), models: tmp(), plans: tmp(), evaluation: tmp() } },
+    deps: { store, trainer: stubTrainer(), complete: regressingComplete(), evalSeed: async () => EVAL_SEED },
+  });
+
+test("rejected run defers its batch durably instead of consuming it", async () => {
+  const registry = await RegistryStore.open(tmp());
+  const store = await seededStore();
+
+  const out = await rejectedRun(registry, store);
+  assert.equal(out.decision.decision, "rejected");
+
+  const stats = store.getStats();
+  assert.equal(stats.uniqueConsumed, 0, "a rejection never consumes");
+  assert.equal(stats.trainable, 3, "deferred material stays eligible");
+  assert.equal(stats.retired, 0);
+
+  for (const a of store.articlesPage({ limit: 50 }).items) {
+    assert.equal(a.deferralRetries, 1);
+    assert.equal(a.deferredRunId, out.run.runId);
+    assert.match(a.deferredReason, /improvement|rejected/);
+  }
+
+  // Restart recovery: the counters come back from the event log, not memory.
+  const dir = store.dir;
+  await store.close();
+  const reopened = await ArticleStore.open(dir);
+  for (const a of reopened.articlesPage({ limit: 50 }).items) {
+    assert.equal(a.deferralRetries, 1, "the retry count replays from the log");
+    assert.equal(a.deferredRunId, out.run.runId);
+    assert.equal(a.status, "REVIEWED");
+  }
+  assert.equal(reopened.getStats().trainable, 3);
+  await reopened.close();
+  await registry.close();
+});
+
+test("a second rejection exhausts the retry budget and retires the batch", async () => {
+  const prev = config.jobs.training.maxRejectedRetries;
+  config.jobs.training.maxRejectedRetries = 2;
+  const registry = await RegistryStore.open(tmp());
+  const store = await seededStore();
+  try {
+    await rejectedRun(registry, store);
+    const second = await rejectedRun(registry, store);
+    assert.equal(second.decision.decision, "rejected");
+
+    const stats = store.getStats();
+    assert.equal(stats.retired, 3, "retired material is its own visible category");
+    assert.equal(stats.trainable, 0, "retired material is no longer eligible");
+    assert.equal(stats.uniqueConsumed, 0);
+    assert.equal(stats.totalArticles, 3, "retirement hides nothing from the ledger");
+
+    for (const a of store.articlesPage({ limit: 50 }).items) {
+      assert.equal(a.status, "RETIRED");
+      assert.equal(a.deferralRetries, 2);
+      assert.equal(a.deferredReason, "max-retries-exceeded");
+      assert.equal(a.deferredRunId, null);
+      assert.equal(a.trainable, false);
+    }
+    // Still addressable by status, and absent from the active queues.
+    assert.equal(store.articlesPage({ limit: 50, status: "RETIRED" }).items.length, 3);
+    assert.equal(store.reviewQueue({ limit: 50 }).items.length, 0);
+    assert.equal(store.trainablePage({ limit: 50 }).items.length, 0);
+
+    // A further run has nothing left to train on — reported, never fabricated.
+    await assert.rejects(rejectedRun(registry, store), /dataset empty after snapshot guards/);
+
+    const dir = store.dir;
+    await store.close();
+    const reopened = await ArticleStore.open(dir);
+    assert.equal(reopened.getStats().retired, 3, "retirement replays from the log");
+    assert.equal(reopened.getStats().trainable, 0);
+    await reopened.close();
+  } finally {
+    config.jobs.training.maxRejectedRetries = prev;
+    await registry.close();
+  }
+});
+
+test("re-driving the same rejected run does not inflate the retry count", async () => {
+  const store = await seededStore();
+  const ids = store.articlesPage({ limit: 50 }).items.map((a) => a.articleId);
+
+  const first = await store.deferArticles(ids, { runId: "run-1", reason: "rejected", maxRetries: 2 });
+  assert.equal(first.deferred.length, 3);
+  const again = await store.deferArticles(ids, { runId: "run-1", reason: "rejected", maxRetries: 2 });
+  assert.equal(again.deferred.length, 0, "the same run is idempotent");
+  assert.equal(again.skipped.length, 3);
+  for (const a of store.articlesPage({ limit: 50 }).items) assert.equal(a.deferralRetries, 1);
+
+  // A DIFFERENT run is a genuine second attempt, and exhausts the budget.
+  const next = await store.deferArticles(ids, { runId: "run-2", reason: "rejected", maxRetries: 2 });
+  assert.equal(next.retired.length, 3);
+  // A retired article is never deferred again.
+  const after = await store.deferArticles(ids, { runId: "run-3", reason: "rejected", maxRetries: 2 });
+  assert.deepEqual(after.deferred, []);
+  assert.deepEqual(after.retired, []);
+  await store.close();
+});
+
+test("a promoted run clears the deferral state of the batch it consumed", async () => {
+  const registry = await RegistryStore.open(tmp());
+  const store = await seededStore();
+
+  await rejectedRun(registry, store);
+  for (const a of store.articlesPage({ limit: 50 }).items) assert.equal(a.deferralRetries, 1);
+
+  const promoted = await executeFullRun({
+    registry,
+    options: { paths: { snapshots: tmp(), models: tmp(), plans: tmp(), evaluation: tmp() } },
+    deps: { store, trainer: stubTrainer(), complete: exactComplete, evalSeed: async () => EVAL_SEED },
+  });
+  assert.equal(promoted.decision.decision, "promoted");
+  assert.equal(store.getStats().uniqueConsumed, 3);
+
+  const dir = store.dir;
+  await store.close();
+  const reopened = await ArticleStore.open(dir);
+  for (const a of reopened.articlesPage({ limit: 50 }).items) {
+    assert.equal(a.deferralRetries, 0, "the clearing is durable, not in-memory");
+    assert.equal(a.deferredRunId, null);
+    assert.equal(a.deferredReason, null);
+  }
+  await reopened.close();
+  await registry.close();
+});
+
+test("an undersized frozen eval set warns on the run record without gating promotion", async () => {
+  const prev = config.evalMinDocuments;
+  config.evalMinDocuments = 5; // EVAL_SEED holds 2
+  const registry = await RegistryStore.open(tmp());
+  const store = await seededStore();
+  try {
+    const out = await executeFullRun({
+      registry,
+      options: { paths: { snapshots: tmp(), models: tmp(), plans: tmp(), evaluation: tmp() } },
+      deps: { store, trainer: stubTrainer(), complete: exactComplete, evalSeed: async () => EVAL_SEED },
+    });
+    // Advisory ONLY: the loss/score gate still decided, and it promoted.
+    assert.equal(out.decision.decision, "promoted");
+    assert.equal(out.run.status, "promoted");
+    assert.equal(out.run.evaluationSetSize, 2);
+    assert.equal(out.run.evaluationWarnings.length, 1);
+    assert.equal(out.run.evaluationWarnings[0].code, "eval-set-undersized");
+    assert.equal(out.run.evaluationWarnings[0].severity, "advisory");
+    assert.equal(out.run.evaluationWarnings[0].minDocuments, 5);
+  } finally {
+    config.evalMinDocuments = prev;
+    await store.close();
+    await registry.close();
+  }
+});
+
+test("the advisory floor is off by default, so a small eval set warns about nothing", async () => {
+  const registry = await RegistryStore.open(tmp());
+  const store = await seededStore();
+  const out = await executeFullRun({
+    registry,
+    options: { paths: { snapshots: tmp(), models: tmp(), plans: tmp(), evaluation: tmp() } },
+    deps: { store, trainer: stubTrainer(), complete: exactComplete, evalSeed: async () => EVAL_SEED },
+  });
+  assert.equal(config.evalMinDocuments, 0);
+  assert.deepEqual(out.run.evaluationWarnings, []);
   await store.close();
   await registry.close();
 });
