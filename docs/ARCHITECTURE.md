@@ -19,6 +19,9 @@ model, not the first-time visitor.
 - [Node data plane components](#node-data-plane-components)
 - [Python compute plane components](#python-compute-plane-components)
 - [Data flow](#data-flow)
+- [Four states of a brain](#four-states-of-a-brain-run-staged-candidate-published-version-pruned-version)
+- [Version numbering](#version-numbering-monotonic-and-collision-safe)
+- [Retention and pruning](#retention-and-pruning)
 - [The training unit is an article, not a pair](#the-training-unit-is-an-article-not-a-pair)
 - [The dataset store is a ledger, not a queue](#the-dataset-store-is-a-ledger-not-a-queue)
 - [How documents become training examples](#how-documents-become-training-examples)
@@ -121,10 +124,10 @@ The Python plane owns the accelerator. Its modules (`python/sma/`):
 | `configs.py` | The 3B architecture source of truth, the derived 62M config, and expected parameter counts. |
 | `arch.py` | SmolLM3 construction, validation, and parameter accounting. |
 | `proof.py` | Config-only fetch, AST audit for pretrained-weight loads, tensor hashes, and the loss-signature check. |
-| `store.py` | Immutable versions, atomic commit, durability, heartbeat, content-addressed naming, export and verify. |
+| `store.py` | Immutable versions, atomic commit, durability, heartbeat, content-addressed naming, export and verify. Also monotonic version allocation (`allocate_version`) and retention (`plan_prune` / `prune_versions`, tombstones, prune log). |
 | `data.py` | Ingestion, content hashes, `concatenate-chunk-v1` packing, and the train/validation split. |
 | `train.py` | The precision model, guards, instrumentation, and resumable train state. |
-| `brain.py` | The CLI and the one-JSON-object subprocess contract (`init`, `status`, `corpus-info`, `train` (+`--stage-only`), `publish`, `discard`, `eval` (+`--staged`), `generate`, `diff`, `export`, `verify-export`, `active`). |
+| `brain.py` | The CLI and the one-JSON-object subprocess contract (`init`, `status`, `corpus-info`, `train` (+`--stage-only`), `publish`, `discard`, `eval` (+`--staged`), `generate`, `diff`, `export`, `verify-export`, `active`, `prune`, `prune-log`). |
 | `student.py` | The long-lived chat worker (framed stdio, hot active brain). |
 | `preflight.py` | The read-only Phase 2 memory/portability budget that gates a long 3B run. |
 | `portability.py` | Platform and backend detection, and the bf16 probe. |
@@ -172,9 +175,9 @@ Key boundary rules:
 
 ---
 
-## Three states of a brain: run, staged candidate, published version
+## Four states of a brain: run, staged candidate, published version, pruned version
 
-The lifecycle deliberately separates three things that earlier shared one name,
+The lifecycle deliberately separates four things that earlier shared one name,
 because conflating them is exactly how a rejected candidate leaked into the
 version lineage as a new `vNNN`:
 
@@ -183,6 +186,7 @@ version lineage as a new `vNNN`:
 | **Training run** | Node `TrainingRun` record + frozen snapshot + `_runs/vNNN.train-state.pt` | no | a run is a process, not an artifact |
 | **Staged candidate** | `SMA_STORE/vNNN.tmp/` (full checkpoint, **no** `COMMITTED`) | no — `list_versions` skips it | yes; deleted on rejection |
 | **Published version** | `SMA_STORE/vNNN/` + `COMMITTED` | yes | no — immutable and append-only |
+| **Pruned version** | `SMA_STORE/_pruned/vNNN.json` (tombstone); the **weights are gone** | no — `list_versions` skips it | no; the record is append-only too |
 
 **Commit-on-promotion.** A real (Python) training run builds its checkpoint with
 `--stage-only`, which writes an *unpublished* `vNNN.tmp` and nothing else. The
@@ -214,6 +218,97 @@ re-activated, and re-consumed without duplicating either the version or the
 consumption. The `.tmp` directory a killed process leaves behind is invisible to
 every consumer and re-swept (`store.sweep_stale_staging`) or overwritten by the
 next `stage_dir`.
+
+Older stores legitimately contain versions that predate this rule; they are left
+untouched. The rule governs only how *new* candidates become versions.
+
+---
+
+## Version numbering: monotonic and collision-safe
+
+`vNNN` is a logical clock over **attempts**, not over published versions. Two
+guarantees, both durable:
+
+**Monotonic.** `store.allocate_version(root)` claims the next number and appends
+it to `_allocations.ndjson` *before a single weight is written*. A rejected
+candidate therefore burns its number for good, and the published lineage keeps
+the gaps where attempts happened. A counter that only advanced on success would
+report a dense, unbroken lineage and quietly hide how many attempts the failures
+took — so gaps are the honest reading, not a defect to be tidied away.
+
+**Collision-safe.** Three independent claims reserve a number, and
+`next_version` takes the union of all of them:
+
+1. a committed `vNNN/` directory,
+2. a live `vNNN.tmp/` staging directory,
+3. an `_allocations.ndjson` record.
+
+The third is the one that makes crashes correct. Without it, two runs (or a
+restarted run) allocate the same `vNNN`, and `stage_dir` would wipe the other's
+half-built checkpoint. Recording the allocation before building anything is what
+means a process that dies immediately afterwards still leaves its number taken;
+the next run moves past it rather than colliding with what it was about to build.
+A crash therefore leaves a permanent gap, which `sweep_stale_staging` can recover
+and which is honest until it does.
+
+A committed version ID is **never** reused and a published version is **never**
+overwritten — that is the append-only invariant, and the numbering scheme is what
+enforces it rather than merely asserting it.
+
+---
+
+## Retention and pruning
+
+A published version's weights are ~230 MiB (fp32 masters plus a safetensors
+checkpoint), so a lineage that has trained for years is gigabytes of history, most
+of which is inert. Retention reclaims that **without rewriting history**.
+
+```
+python -m sma.brain prune                 # DRY RUN: report only, deletes nothing
+python -m sma.brain prune --keep 5        # same, with an explicit window
+python -m sma.brain prune --confirm       # ACTUALLY DELETE (requires the plan)
+python -m sma.brain prune --confirm --protect v003 --protect v007
+python -m sma.brain prune-log             # the durable record of every prune
+```
+
+**It is a policy, not a side effect.** Training and promotion never prune
+anything. This command is the only operation in the store that removes a
+published version, so it is:
+
+| Property | Mechanism |
+| --- | --- |
+| **Dry-run by default** | Nothing is deleted without `--confirm`; the plan is printed and the run exits. |
+| **Reported before deleting** | `plan_prune` builds the report the operator reviews, and `prune_versions` executes that *same* object — a confirmation cannot drift from what was proposed. |
+| **Refusing** | The active version is always retained *even when it falls outside the window*; `--protect`ed versions are always retained. |
+| **Resume-aware** | A version still able to continue a run (`train-state.json` **and** its optimizer pickle) is reported as resume loss, and pruning **refuses** unless `--allow-resume-loss`. Losing a resume capability silently is worse than being asked. |
+| **Tombstoned** | Every removal writes `_pruned/vNNN.json` with the digests of its record files, *before* the directory is deleted. |
+| **Logged durably** | One append-only JSON line per operation in `_prune-log.ndjson`: what was kept, what was removed, and how many bytes were freed. |
+| **Idempotent** | The plan is recomputed from live state on every call, so an interrupted prune is completed by running it again — never guessed at, and never a delete-twice. |
+
+**What survives a prune, and that is the point:** the store keeps the newest
+weights, and the git-tracked mirror under `models/` keeps **all** historical text.
+The mirror is therefore the durable review record; pruning only reclaims weight
+bytes. `store.verify_mirror` closes the loop and is now symmetric in the
+direction that matters:
+
+- a mirror directory whose version was pruned is reported under
+  `retainedHistory`, and its files are re-hashed **against the prune tombstone**,
+  so the retained history is still provably byte-for-byte what the store held;
+- a mirror directory with no store version **and no tombstone** stays `drifted` —
+  an unexplained disappearance must not pass as a policy outcome.
+
+This is why a pruned version has its own row in the table above: a tombstone is
+the difference between *"the weights were removed on purpose and the record was
+kept"* and *"the weights are gone and nobody knows why"*.
+
+**The Observatory reports all four states separately** (`/brain/versions`
+returns `versions`, `staged`, `pruned` and `counts`; `python-store.js` reads
+`.tmp` directories and prune tombstones). The version **selector** lists only
+committed versions — those are the ones that exist as working, servable
+checkpoints — and labels the active one. The Python-store panel shows the staged
+candidates and the pruned-but-recorded versions alongside the published ones, so
+a shrunken store is never mistaken for missing history. Valid historical versions
+are never hidden to make a count look smaller.
 
 Older stores legitimately contain versions that predate this rule; they are left
 untouched. The rule governs only how *new* candidates become versions.
@@ -515,9 +610,13 @@ pins this so a future transformers upgrade that aligns the defaults is noticed.
    unevaluable candidate is `not_evaluated`, never promoted.
 7. **A rejected candidate never becomes a version.** Training stages an
    unpublished `vNNN.tmp`; only a promoted candidate is published into an
-   immutable `vNNN`. See *Three states of a brain*.
+   immutable `vNNN`. See *Four states of a brain*.
 8. **Checkpoints are immutable and append-only.** `vNNN` directories are never
-   rewritten.
+   rewritten. Version numbers are monotonic and collision-safe, so the same ID is
+   never handed out twice — see *Version numbering*. Retention (`sma.brain prune`)
+   is the one operation that removes a published version's *weights*, and it
+   always leaves a tombstone plus the retained git mirror — see *Retention and
+   pruning*.
 9. **Every checkpoint carries provenance.** Seed, initializer, config source,
    tensor hashes, and the structural audit result.
 10. **A failed or corrupted run never replaces the active brain.** Numerical

@@ -28,7 +28,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict
 
-from .store import store_root
+from .store import PRUNE_DEFAULT_KEEP, store_root
 
 # The store root is resolved at *parse* time from SMA_STORE rather than at
 # import time, so a caller or a test can change the environment and be
@@ -328,18 +328,6 @@ def _validate_run_id(run_id: Optional[str]) -> Optional[str]:
     return node_run_id
 
 
-def _next_train_version(args: argparse.Namespace, root: Path, store_mod) -> str:
-    """Pick the version a train run publishes.
-
-    An explicit ``--version`` wins (resume/continue callers). Otherwise the next
-    free ``vNNN`` is allocated. The parent is NEVER reused: versions are
-    immutable and append-only, so staging over the parent's committed directory
-    would raise FileExistsError — the exact failure continuous cycles hit when
-    the parent version was reused as the output name.
-    """
-    return args.version or store_mod.next_version(root)
-
-
 def cmd_train(args: argparse.Namespace) -> Dict[str, Any]:
     """Phase 1 check 5: real optimization, published atomically or not at all."""
     from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -357,7 +345,11 @@ def cmd_train(args: argparse.Namespace) -> Dict[str, Any]:
     # Reusing the parent version would make staging_dir collide with the parent's
     # committed directory (FileExistsError). Continuous cycles therefore produce
     # v007, v008, … rather than overwriting one checkpoint.
-    version = _next_train_version(args, root, store)
+    #
+    # The allocation is claimed DURABLY before anything is built, so a crash at
+    # any later point still leaves the number taken: the next run cannot collide
+    # with it, and the published lineage keeps the gap that records the attempt.
+    version = args.version or store.allocate_version(root, run_id=node_run_id)
     device = _resolve_device(args.device)
     node_run_id = _validate_run_id(getattr(args, "run_id", None))
     t0 = time.perf_counter()
@@ -665,6 +657,65 @@ def cmd_discard(args: argparse.Namespace) -> Dict[str, Any]:
     result = store.discard_staged(root, args.version, record_dir=record_dir)
     _log(f"discard {args.version}: removed={result.get('discarded')}")
     return {"ok": True, "verb": "discard", **result}
+
+
+def cmd_prune(args: argparse.Namespace) -> Dict[str, Any]:
+    """Retention: remove published versions outside the retained window.
+
+    DRY RUN by default. This is the only operation in the store that deletes a
+    published version, so it is explicit, reported and never triggered by
+    training or promotion. The active version, the `--keep` most recent
+    published versions and anything `--protect`ed are always retained.
+    """
+    from . import store
+
+    root = Path(args.out)
+    active = store.active_version(root)
+    result = store.prune_versions(
+        root,
+        keep=args.keep,
+        active=active,
+        protect=args.protect or [],
+        confirm=getattr(args, "confirm", False),
+        allow_resume_loss=getattr(args, "allow_resume_loss", False),
+    )
+    if not result.get("executed"):
+        _log(
+            f"prune dry run: {result.get('pruneCount')} version(s) would be removed, "
+            f"{result.get('freedBytes', 0) / 1e9:.2f} GB; {result.get('reason')}"
+        )
+    else:
+        _log(
+            f"prune executed: removed {result.get('removedCount')} version(s), "
+            f"freed {result.get('freedBytes', 0) / 1e9:.2f} GB"
+        )
+    return {"ok": not result.get("refused"), "verb": "prune", **result}
+
+
+def cmd_prune_log(args: argparse.Namespace) -> Dict[str, Any]:
+    """The durable record of every pruning decision and its outcome."""
+    from . import store
+
+    root = Path(args.out)
+    log = store.prune_log_path(root)
+    records = []
+    if log.is_file():
+        for line in log.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if line:
+                try:
+                    records.append(json.loads(line))
+                except json.JSONDecodeError:
+                    continue
+    tombstones = store.pruned_versions(root)
+    return {
+        "ok": True,
+        "verb": "prune-log",
+        "entries": records,
+        "entryCount": len(records),
+        "prunedVersions": sorted(tombstones),
+        "prunedCount": len(tombstones),
+    }
 
 
 def _safe_read_json(path: Path) -> Dict[str, Any]:
@@ -1350,6 +1401,41 @@ def build_parser() -> argparse.ArgumentParser:
     sp = sub.add_parser("verify-export", help="re-check an export's SHA256SUMS")
     sp.add_argument("--path", required=True, help="export directory to verify")
     sp.set_defaults(func=cmd_verify_export)
+
+    pr = sub.add_parser(
+        "prune",
+        help="retention: remove published versions outside the retained window (DRY RUN by default)",
+    )
+    common(pr)
+    pr.add_argument(
+        "--keep",
+        type=int,
+        default=PRUNE_DEFAULT_KEEP,
+        help=f"how many of the most recent published versions to retain (default {PRUNE_DEFAULT_KEEP}); "
+        "the active version is ALWAYS retained, even outside this window",
+    )
+    pr.add_argument(
+        "--protect",
+        action="append",
+        default=[],
+        help="version to retain regardless of the window; repeatable",
+    )
+    pr.add_argument(
+        "--confirm",
+        action="store_true",
+        help="ACTUALLY DELETE. Without this flag the run is a dry run and removes nothing.",
+    )
+    pr.add_argument(
+        "--allow-resume-loss",
+        dest="allow_resume_loss",
+        action="store_true",
+        help="permit discarding resumable training state that pruning would otherwise remove",
+    )
+    pr.set_defaults(func=cmd_prune)
+
+    pl = sub.add_parser("prune-log", help="the durable record of pruning decisions and outcomes")
+    common(pl)
+    pl.set_defaults(func=cmd_prune_log)
 
     act = sub.add_parser(
         "active",

@@ -148,11 +148,24 @@ async function loadVersions() {
     state.selectedVersion = null;
     writePinnedVersion(state.workspace, null);
   }
+  // Only committed versions are selectable. The active one is labelled so a
+  // long lineage can be scanned without cross-referencing the banner.
   sel.innerHTML = [
     `<option value="">active/default</option>`,
-    ...committed.map((v) => `<option value="${esc(v.version)}">${esc(v.version)}${v.parentVersion ? ` ← ${esc(v.parentVersion)}` : ""}</option>`),
+    ...committed.map((v) => {
+      const active = isActiveVersion(v.version) ? " (active)" : "";
+      const parent = v.parentVersion ? ` ← ${esc(v.parentVersion)}` : "";
+      return `<option value="${esc(v.version)}">${esc(v.version)}${active}${parent}</option>`;
+    }),
   ].join("");
   sel.value = state.selectedVersion ?? "";
+}
+
+/** The version the server is actually serving, from the workspace overview. */
+function isActiveVersion(version) {
+  if (!version) return false;
+  const active = state.overview?.pythonStore?.activeVersion ?? state.workspaceInfo?.activeVersion ?? null;
+  return Boolean(active) && active === version;
 }
 
 function setPinnedVersion(version) {
@@ -332,22 +345,78 @@ function storeStatus() {
 }
 
 function renderPythonStore(py) {
-  if (!py) return `<div class="muted">—</div>`;
+  if (!py) return `<div class="muted">-</div>`;
   if (!py.available) return `<div class="muted">${esc(py.reason ?? "unavailable")}</div>`;
   const rows = py.versions.map((v) => `
-    <tr>
-      <td>${esc(v.version)} ${v.version === py.activeVersion ? badge("REVIEWED", "active") : ""}</td>
-      <td>${v.committed ? badge("REVIEWED", "committed") : badge("REJECTED", "uncommitted")}</td>
-      <td>${fmt(v.metrics.loss)}</td>
-      <td>${fmt(v.metrics.steps)}</td>
-      <td>${fmt(v.metrics.tokens)}</td>
-      <td>${fmt(v.metrics.parameters)}</td>
-      <td class="small muted">${when(v.committedAt)}</td>
-    </tr>`).join("");
+  <tr>
+    <td>${esc(v.version)} ${v.version === py.activeVersion ? badge("REVIEWED", "active") : ""}</td>
+    <td>${v.committed ? badge("REVIEWED", "committed") : badge("REJECTED", "uncommitted")}</td>
+    <td>${fmt(v.metrics.loss)}</td>
+    <td>${fmt(v.metrics.steps)}</td>
+    <td>${fmt(v.metrics.tokens)}</td>
+    <td>${fmt(v.metrics.parameters)}</td>
+    <td class="small muted">${when(v.committedAt)}</td>
+  </tr>`).join("");
   return `root: <code>${esc(py.root)}</code>
+    ${brainStateSummary(py)}
     <table style="margin-top:8px"><tr><th>Version</th><th>State</th><th>Loss</th><th>Steps</th><th>Tokens</th><th>Params</th><th>Committed</th></tr>
     ${rows || `<tr><td colspan="7" class="muted">no versions yet</td></tr>`}</table>
+    ${prunedTable(py)}
+    ${stagedTable(py)}
     <div class="small muted" style="margin-top:6px">Read-only reader. “—” means the metric is unavailable, not zero.</div>`;
+}
+
+/**
+ * What the store's counts actually mean. Four different things are all called a
+ * "brain" in conversation, and reporting them as one number is what makes the
+ * version count look wrong: a published version is a checkpoint, a staged
+ * candidate is not yet published, a training run is an event, and a pruned
+ * version's weights are gone while its record survives in the git mirror.
+ */
+function brainStateSummary(py) {
+  const c = py.counts;
+  if (!c) return "";
+  const parts = [
+    `<span class="pill">${c.published} published</span>`,
+    `<span class="pill">${c.uncommitted} uncommitted</span>`,
+  ];
+  if (c.staged) parts.push(`<span class="pill">${c.staged} staged candidate${c.staged === 1 ? "" : "s"}</span>`);
+  if (c.pruned) parts.push(`<span class="pill" title="weights removed by retention; the record survives in the git mirror">${c.pruned} pruned (record retained)</span>`);
+  return `<div class="toolbar" style="margin:6px 0">${parts.join(" ")}
+    <span class="small muted">${(py.versions ?? []).length} version director${(py.versions ?? []).length === 1 ? "y" : "ies"} on disk</span></div>`;
+}
+
+/** Weights deliberately removed by retention. History, not loss. */
+function prunedTable(py) {
+  const pruned = py.pruned ?? [];
+  if (!pruned.length) return "";
+  const rows = pruned.map((p) => `<tr>
+    <td>${esc(p.version)}</td>
+    <td class="small muted">${when(p.prunedAt)}</td>
+    <td class="small">${p.weightBytes == null ? "—" : `${(p.weightBytes / 1e9).toFixed(2)} GB`}</td>
+    <td class="small muted">${p.mirrorRetained ? "record retained in git" : "record location unknown"}</td>
+  </tr>`).join("");
+  return `<div style="margin-top:12px">
+    <div class="k small muted">Pruned by retention (no weights; record retained)</div>
+    <table style="margin-top:4px"><tr><th>Version</th><th>Pruned</th><th>Weights</th><th>Record</th></tr>${rows}</table>
+    <div class="small muted" style="margin-top:4px">Removed deliberately by <code>sma.brain prune</code>. Their text remains reviewable in the git-tracked mirror under <code>models/</code>, so the lineage stays inspectable.</div>
+  </div>`;
+}
+
+/** Candidates built by `train --stage-only`, awaiting promotion or rejection. */
+function stagedTable(py) {
+  const staged = py.staged ?? [];
+  if (!staged.length) return "";
+  const rows = staged.map((s) => `<tr>
+    <td>${esc(s.version)}</td>
+    <td class="small muted">${esc(s.stagingDir)}</td>
+    <td>${s.hasManifest ? badge("PENDING_REVIEW", "built, not published") : badge("REJECTED", "incomplete")}</td>
+  </tr>`).join("");
+  return `<div style="margin-top:12px">
+    <div class="k small muted">Staged candidates (not published)</div>
+    <table style="margin-top:4px"><tr><th>Version</th><th>Directory</th><th>State</th></tr>${rows}</table>
+    <div class="small muted" style="margin-top:4px">A staged candidate is a fully built checkpoint with no <code>COMMITTED</code> marker. It becomes a version only on promotion, and its weights are discarded on rejection.</div>
+  </div>`;
 }
 
 // ---------------------------------------------------------------- articles
@@ -1022,7 +1091,9 @@ function trendsBody(m) {
   const seg = (m.segments ?? []).find((s) => s.version === m.effectiveVersion);
   const ev = t.evidence ?? {};
   const valLost = ev.first == null && ev.last == null ? "—" : `${fmt(ev.first)} → ${fmt(ev.last)}`;
-  const best = (m.best ?? []).filter((b) => Number.isFinite(b.loss));
+  // ONE checkpoint, comparable to this lineage. `best` is per-dataset-hash, so
+  // rendering it here would list every version on a multi-corpus store.
+  const best = m.bestInLineage && Number.isFinite(m.bestInLineage.loss) ? [m.bestInLineage] : [];
   const thresholds = m.thresholds ?? {};
   const tab = state.trendsTab;
   return `
@@ -1039,7 +1110,12 @@ function trendsBody(m) {
         ${trendCard("Validation loss", `${valLost}${ev.best == null ? "" : ` <span class="muted small">best ${fmt(ev.best)}</span>`}`)}
         ${trendCard("Steps covered", m.chain?.fromStep == null ? "—" : `${fmt(m.chain.fromStep)} → ${fmt(m.chain.toStep)}`)}
         ${trendCard("Effective version", `${esc(m.effectiveVersion ?? "—")} ${samplingLabel(seg?.sampling)}`)}
-        ${trendCard("Best checkpoint", best.length ? best.map((b) => `${esc(b.version ?? b.runId ?? "?")} <span class="muted small">${fmt(b.loss)} <span title="${esc(b.datasetHash ?? "")}">${esc(shortHash(b.datasetHash) ?? "unkeyed")}</span></span>`).join("<br>") : "—")}
+        ${trendCard(
+          "Best checkpoint",
+          best.length
+            ? `${esc(best[0].version ?? best[0].runId ?? "?")} <span class="muted small">${fmt(best[0].loss)} <span title="dataset hash ${esc(best[0].datasetHash ?? "")}">${esc(shortHash(best[0].datasetHash) ?? "unkeyed")}</span></span>`
+            : "—",
+        )}
       </div>
       <div class="panel">
         <div class="k">Why ${label.toLowerCase()}</div>

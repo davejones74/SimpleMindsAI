@@ -76,6 +76,37 @@ test("training history and trends are tabbed so wide tables get full width", asy
   // A free-text column needs a width floor, or the auto layout still starves it.
   assert.ok(/td\.reason[^{]*\{[^}]*min-width/.test(css.replace(/\n/g, " ")), "reason column has no min-width floor");
   assert.ok(/nav\.subtabs/.test(css), "sub-tab styles missing");
+  // ...and the page must be wide enough for a ten-column table at that floor.
+  const mainWidth = css.match(/main\s*\{[^}]*max-width:\s*(\d+)px/);
+  assert.ok(mainWidth, "main has no max-width");
+  assert.ok(Number(mainWidth[1]) >= 1500, `main max-width is only ${mainWidth[1]}px; a 10-column table cannot fit`);
+  // The reason column must also wrap, so a long note cannot push the table out.
+  const reasonCss = css.match(/td\.reason[^{]*\{([^}]*)\}/);
+  assert.ok(reasonCss[1].includes("overflow-wrap"), "reason column does not wrap");
+  // And a table that still overflows scrolls inside the panel rather than
+  // widening the page and pushing the free-text column off-screen.
+  assert.ok(/\.panel\s*\{[^}]*overflow-x:\s*auto/.test(css.replace(/\n/g, " ")), "panel does not contain a wide table");
+});
+
+test("the best-checkpoint card renders one checkpoint, not a per-corpus list", async () => {
+  const app = await readFile(path.join(PUBLIC, "app.js"), "utf8");
+  const routes = await readFile(path.join(REPO, "src", "admin", "routes.js"), "utf8");
+  const metrics = await readFile(path.join(REPO, "src", "admin", "metrics.js"), "utf8");
+
+  // `bestCheckpoint` is a per-dataset-hash summary, so on a store where every
+  // version trained on its own corpus it returns every version. A card labelled
+  // "Best checkpoint" must not render that.
+  assert.ok(metrics.includes("export function bestCheckpointForHash("), "no single-lineage best helper");
+  assert.ok(routes.includes("bestInLineage:"), "route does not expose bestInLineage");
+  assert.ok(app.includes("m.bestInLineage"), "the card does not read bestInLineage");
+
+  // The card's value must be DERIVED from bestInLineage, and there must be no
+  // fallback to the per-hash list.
+  assert.ok(
+    /const best = m\.bestInLineage/.test(app),
+    "the card's `best` is not derived from bestInLineage",
+  );
+  assert.ok(!/best\s*=\s*\(m\.best/.test(app), "the card still falls back to the per-corpus list");
 });
 
 test("a missing loss is never coerced to zero in the trends graph", async () => {

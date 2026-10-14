@@ -43,7 +43,7 @@ nav.tabs button { background: transparent; border: 1px solid transparent; color:
 nav.tabs button:hover { color: var(--text); }
 nav.tabs button.active { color: var(--text); background: var(--panel); border-color: var(--border); }
 
-main { padding: 20px; max-width: 1200px; margin: 0 auto; }
+main { padding: 20px; max-width: 1600px; margin: 0 auto; }
 .section-title { margin: 0 0 14px; font-size: 18px; }
 .sub { color: var(--muted); font-size: 12px; }
 .muted { color: var(--muted); }
@@ -124,8 +124,15 @@ nav.subtabs button.active { color: var(--text); background: var(--panel-2); bord
 
 /* A free-text column must keep enough width to stay a paragraph. Without a
    floor, the auto table layout starves it to a single character and
-   `overflow-wrap: anywhere` turns every character into its own line. */
-td.reason, th.reason { min-width: 16rem; max-width: 40rem; }
+   `overflow-wrap: anywhere` turns every character into its own line.
+   The floor is what makes `anywhere` safe: it guarantees a usable width first,
+   and only breaks a token that would not fit even then. */
+td.reason, th.reason { min-width: 14rem; max-width: 44rem; overflow-wrap: anywhere; }
+
+/* A table whose min-content width exceeds its panel scrolls inside the panel
+   instead of widening the page — otherwise the last column (the free-text one)
+   is pushed past the viewport with no way to reach it. */
+.panel { overflow-x: auto; }
 
 .chat { display: flex; flex-direction: column; }
 .chat .log {

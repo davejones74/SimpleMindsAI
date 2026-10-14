@@ -53,6 +53,60 @@ function readRecord(root, version, name) {
   return readJsonSafe(path.join(root, version, name));
 }
 
+/**
+ * `vNNN.tmp` directories: candidates built by `train --stage-only` that have
+ * not been promoted or discarded yet. They are NOT published versions and must
+ * never be offered as one, so they are reported separately rather than being
+ * folded into `versions`.
+ */
+function listStagedCandidates(root) {
+  let entries;
+  try {
+    entries = readdirSync(root, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  return entries
+    .filter((d) => d.isDirectory() && /^v\d+\.tmp$/.test(d.name))
+    .map((d) => ({
+      version: d.name.slice(0, -".tmp".length),
+      stagingDir: d.name,
+      path: path.join(root, d.name),
+      hasManifest: existsSync(path.join(root, d.name, RECORD.manifest)),
+    }))
+    .sort((a, b) => a.version.localeCompare(b.version));
+}
+
+/**
+ * Versions whose weights were deliberately removed by retention, read from their
+ * prune tombstones. The git-tracking mirror keeps their text, so these remain
+ * part of history — they are listed so a shrunken store never looks like records
+ * were lost.
+ */
+function listPrunedVersions(root) {
+  const dir = path.join(root, "_pruned");
+  let entries;
+  try {
+    entries = readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  return entries
+    .filter((d) => d.isFile() && /^v\d+\.json$/.test(d.name))
+    .map((d) => {
+      const record = readJsonSafe(path.join(dir, d.name)) ?? {};
+      return {
+        version: d.name.slice(0, -".json".length),
+        prunedAt: record.prunedAt ?? null,
+        reason: record.reason ?? null,
+        weightBytes: Number.isFinite(record.weightBytes) ? record.weightBytes : null,
+        recordFiles: Array.isArray(record.recordFiles) ? Object.keys(record.recordFiles).sort() : [],
+        mirrorRetained: record.mirror === "retained in git",
+      };
+    })
+    .sort((a, b) => a.version.localeCompare(b.version));
+}
+
 /** Normalise recorded metrics, keeping null distinct from 0. */
 function metricsFor(manifest, trainState) {
   // A trained version's most representative number is its held-out validation
@@ -171,5 +225,18 @@ export function readPythonStore(explicit = null) {
 
   result.available = true;
   if (!active) result.reason = "active.json missing (no brain activated)";
+
+  // The other three states of a brain, kept deliberately OUT of `versions`:
+  // a staged candidate is not published, a training run is not an artifact, and
+  // a pruned version's WEIGHTS are gone even though its record survives. Mixing
+  // them into one list is what makes a brain count look wrong.
+  result.staged = listStagedCandidates(root);
+  result.pruned = listPrunedVersions(root);
+  result.counts = {
+    published: result.versions.filter((v) => v.committed).length,
+    uncommitted: result.versions.filter((v) => !v.committed).length,
+    staged: result.staged.length,
+    pruned: result.pruned.length,
+  };
   return result;
 }

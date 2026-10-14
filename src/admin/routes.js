@@ -9,6 +9,7 @@ import { createWorkspaceRegistry } from "./workspace.js";
 import { probeTeacher } from "./teacher.js";
 import {
   bestCheckpoint,
+  bestCheckpointForHash,
   classifyTrend,
   deriveRunEvents,
   deriveSeries,
@@ -461,6 +462,23 @@ export function attachAdmin({ app, store, registry, governance, chat, conversati
           })
           .concat(markers.map((m) => ({ version: m.version, loss: m.loss, datasetHash: m.datasetHash, runId: m.runId, source: "frozen-eval-set" }))),
       ),
+      // The card labelled "Best checkpoint" must be ONE checkpoint. `best` is
+      // per-dataset-hash, so on a multi-corpus store it is every version; this
+      // is the best of the entries comparable to the selected lineage.
+      bestInLineage: bestCheckpointForHash(
+        segments
+          .map((s) => {
+            const ts = readPythonTrainState(s.version, w.pythonStorePath) ?? {};
+            return {
+              version: s.version,
+              loss: s.finalValidationLoss,
+              datasetHash: ts?.packing?.datasetHash ?? null,
+              stepsCompleted: s.stepsCompleted,
+            };
+          })
+          .concat(markers.map((m) => ({ version: m.version, loss: m.loss, datasetHash: m.datasetHash, runId: m.runId, source: "frozen-eval-set" }))),
+        chainHash,
+      ),
       trend: classifyTrend(validationChain.points, trainingChain.points, thresholds),
     });
   }));
@@ -631,6 +649,11 @@ export function attachAdmin({ app, store, registry, governance, chat, conversati
   router.get("/brain/versions", asyncRoute(async (req, res) => {
     const w = req.workspace;
     const py = readPythonStore(w.pythonStorePath);
+    // The selector lists ONLY committed versions: those are the ones that
+    // actually exist as working, servable, immutable checkpoints. A staged
+    // candidate is not published, a training run is not an artifact, and a
+    // pruned version has no weights left. All three are reported separately so
+    // a shrunken store is not mistaken for missing history.
     ok(res, {
       workspace: identity(w, py),
       available: py.available,
@@ -647,6 +670,10 @@ export function attachAdmin({ app, store, registry, governance, chat, conversati
         initialValidationLoss: v.initialValidationLoss ?? null,
         finalValidationLoss: v.finalValidationLoss ?? null,
       })),
+      // Not selectable: reported so the counts can be explained.
+      staged: py.staged ?? [],
+      pruned: py.pruned ?? [],
+      counts: py.counts ?? null,
     });
   }));
 

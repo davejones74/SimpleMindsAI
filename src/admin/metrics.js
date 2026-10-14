@@ -250,6 +250,30 @@ export function bestCheckpoint(entries) {
   return [...bestByHash.values()];
 }
 
+/**
+ * The single best checkpoint comparable to one lineage, or null.
+ *
+ * `bestCheckpoint` above returns one winner *per dataset hash*, which is the
+ * right answer for "what is the best thing I ever did on each corpus" — but on
+ * a store where every version was trained on a different corpus, that list is
+ * every version, and a card labelled "Best checkpoint" that renders all of them
+ * is not a best, it is a disguised inventory.
+ *
+ * Losses are only comparable inside one dataset hash (see the honesty rules at
+ * the top of this file), so the best checkpoint *for a lineage* is the best of
+ * the entries sharing that lineage's hash. Entries on other corpora are not
+ * worse versions of the same thing, they are a different measurement.
+ */
+export function bestCheckpointForHash(entries, datasetHash) {
+  if (!datasetHash) return null;
+  let best = null;
+  for (const e of entries ?? []) {
+    if (!e || e.datasetHash !== datasetHash || !Number.isFinite(e.loss)) continue;
+    if (best === null || e.loss < best.loss) best = { ...e };
+  }
+  return best;
+}
+
 // --------------------------------------------------------------- run events
 //
 // A diamond on the Trends graph is a RUN, not a version. That distinction

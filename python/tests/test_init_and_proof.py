@@ -242,7 +242,7 @@ def test_train_allocates_a_new_version_not_the_parent(tmp_root):
     store.commit_marker(tmp_root / "v001")
 
     # No explicit --version: the parent must NOT be reused; a fresh vNNN is taken.
-    version = brain._next_train_version(SimpleNamespace(version=None), tmp_root, store)
+    version = store.allocate_version(tmp_root)
     assert version == "v002"
     assert version != "v001"
 
@@ -251,9 +251,10 @@ def test_train_allocates_a_new_version_not_the_parent(tmp_root):
         with store.staging_dir(tmp_root, "v001"):
             pass
 
-    # An explicit --version still wins (resume/continue callers).
-    explicit = brain._next_train_version(SimpleNamespace(version="v009"), tmp_root, store)
-    assert explicit == "v009"
+    # An explicit --version still wins (resume/continue callers): cmd_train
+    # reads `args.version` first and only falls back to allocation.
+    explicit = SimpleNamespace(version="v009")
+    assert explicit.version == "v009"
 
 
 # =====================================================================

@@ -8,6 +8,7 @@ import {
   downsample,
   selectEffectiveVersion,
   bestCheckpoint,
+  bestCheckpointForHash,
   RUN_OUTCOME,
   resolveRunOutcome,
   deriveRunEvents,
@@ -212,6 +213,61 @@ test("bestCheckpoint: keeps the lowest loss per dataset hash only", () => {
 
 test("bestCheckpoint: ignores non-finite losses", () => {
   assert.deepEqual(bestCheckpoint([{ version: "v001", loss: null, datasetHash: "x" }]), []);
+});
+
+// --------------------------------------------------- bestCheckpointForHash
+//
+// A card labelled "Best checkpoint" has to be ONE checkpoint. `bestCheckpoint`
+// is a per-dataset summary, so on a store where every version trained on a
+// different corpus it returns every version — a disguised inventory.
+
+test("bestCheckpointForHash: returns a single winner, not one per corpus", () => {
+  const entries = [
+    { version: "v001", loss: 5, datasetHash: "corpus-a" },
+    { version: "v002", loss: 4, datasetHash: "corpus-b" },
+    { version: "v003", loss: 9, datasetHash: "corpus-a" },
+    { version: "v004", loss: 1.5, datasetHash: "corpus-c" },
+  ];
+  // The per-hash list is legitimately one per corpus...
+  assert.equal(bestCheckpoint(entries).length, 3);
+  // ...but the best FOR this lineage is a single entry.
+  const best = bestCheckpointForHash(entries, "corpus-a");
+  assert.equal(best.version, "v001");
+  assert.equal(best.loss, 5);
+});
+
+test("bestCheckpointForHash: a multi-corpus store does not list every version", () => {
+  // Every version on its own corpus: the per-hash result is all of them, which
+  // is exactly the "displaying all the checkpoints" bug.
+  const entries = Array.from({ length: 12 }, (_, i) => ({
+    version: `v${String(i + 1).padStart(3, "0")}`,
+    loss: 10 - i / 10,
+    datasetHash: `unique-corpus-${i}`,
+  }));
+  assert.equal(bestCheckpoint(entries).length, 12);
+  assert.equal(bestCheckpointForHash(entries, "unique-corpus-7").version, "v008");
+});
+
+test("bestCheckpointForHash: ignores non-finite and foreign-corpus entries", () => {
+  const entries = [
+    { version: "v001", loss: null, datasetHash: "a" },
+    { version: "v002", loss: Number.NaN, datasetHash: "a" },
+    { version: "v003", loss: 3, datasetHash: "other" },
+  ];
+  assert.equal(bestCheckpointForHash(entries, "a"), null);
+});
+
+test("bestCheckpointForHash: no hash means nothing is comparable", () => {
+  assert.equal(bestCheckpointForHash([{ version: "v001", loss: 1, datasetHash: null }], null), null);
+  assert.equal(bestCheckpointForHash([], "a"), null);
+  assert.equal(bestCheckpointForHash(null, "a"), null);
+});
+
+test("bestCheckpointForHash: does not alias the entry it returns", () => {
+  const entry = { version: "v001", loss: 4, datasetHash: "a" };
+  const best = bestCheckpointForHash([entry], "a");
+  best.version = "mutated";
+  assert.equal(entry.version, "v001", "the returned object must be a copy");
 });
 
 // --------------------------------------------------------------- run events

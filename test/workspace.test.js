@@ -293,6 +293,28 @@ test("workspaces: training-history + metrics load the trial from persisted artif
     assert.equal(promotedMarker.tokensSeen, 30720);
     assert.ok(m.body.markers.some((mk) => mk.promotionStatus === "rejected" && mk.loss === 11.95));
 
+    // "Best checkpoint" must be ONE checkpoint, comparable to this lineage.
+    // `best` is per-dataset-hash, so on a multi-corpus store it is every
+    // version; the card reads `bestInLineage` instead.
+    assert.ok(m.body.bestInLineage && typeof m.body.bestInLineage === "object", "no single best-in-lineage checkpoint");
+    assert.ok(!Array.isArray(m.body.bestInLineage), "bestInLineage must be one entry, not a list");
+    // It must belong to the lineage the trend is computed over...
+    assert.equal(m.body.bestInLineage.datasetHash, m.body.datasetHash);
+    // ...and be the lowest loss among the comparable recorded entries. Two
+    // different measurements exist for a version here (held-out validation
+    // during training, and the frozen eval set), so the card must never claim
+    // more than "lowest comparable number, from this lineage".
+    const comparable = (m.body.segments ?? [])
+      .map((s) => s.finalValidationLoss)
+      .filter((v) => Number.isFinite(v));
+    if (comparable.length) {
+      assert.equal(m.body.bestInLineage.loss, Math.min(...comparable));
+    } else {
+      assert.ok(Number.isFinite(m.body.bestInLineage.loss));
+    }
+    // The per-hash summary stays exposed for callers that want it.
+    assert.ok((m.body.best ?? []).length >= 1, "the per-hash summary must still be exposed");
+
     // Diamonds are RUNS, not versions: the rejected candidate, the failed run
     // and the in-progress run are all present even though only one of the four
     // runs produced a published version.
@@ -314,6 +336,50 @@ test("workspaces: training-history + metrics load the trial from persisted artif
     const devHist = await jget(`${h.base}/api/admin/training-history?workspace=development`);
     const devRun = devHist.body.registry.runs.find((r) => r.runId === "run-1");
     assert.equal(devRun.pythonVersion, "v003");
+  } finally {
+    await h.close();
+  }
+});
+
+test("workspaces: the version selector lists only committed versions", async () => {
+  const h = await harness();
+  try {
+    // A store with all four states present at once.
+    mkdirSync(path.join(h.trial.pyRoot, "v005.tmp"), { recursive: true });
+    writeFileSync(
+      path.join(h.trial.pyRoot, "v005.tmp", "init-manifest.json"),
+      JSON.stringify({ version: "v005" }),
+    );
+    mkdirSync(path.join(h.trial.pyRoot, "_pruned"), { recursive: true });
+    writeFileSync(
+      path.join(h.trial.pyRoot, "_pruned", "v001.json"),
+      JSON.stringify({
+        schema: "sma/pruned@1",
+        version: "v001",
+        prunedAt: new Date().toISOString(),
+        reason: "older than the retained window",
+        weightBytes: 123456,
+        recordFiles: { "init-manifest.json": { sha256: "a".repeat(64) } },
+        mirror: "retained in git",
+      }),
+    );
+
+    const list = await jget(`${h.base}/api/admin/brain/versions?workspace=trial-100`);
+    assert.equal(list.status, 200);
+    assert.deepEqual(
+      list.body.versions.map((v) => v.version),
+      ["v004"],
+      "only committed versions are offered; the staged candidate is not a version",
+    );
+    assert.equal(list.body.versions[0].committed, true);
+    assert.equal(list.body.activeVersion, "v004");
+    // The other two states are reported, not hidden.
+    assert.equal(list.body.counts.published, 1);
+    assert.equal(list.body.counts.staged, 1);
+    assert.equal(list.body.counts.pruned, 1);
+    assert.deepEqual(list.body.staged.map((s) => s.version), ["v005"]);
+    assert.equal(list.body.pruned[0].mirrorRetained, true);
+    assert.equal(list.body.pruned[0].reason, "older than the retained window");
   } finally {
     await h.close();
   }

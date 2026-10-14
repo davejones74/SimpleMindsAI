@@ -139,28 +139,114 @@ def fsync_dir(path: Path) -> bool:
 
 
 # ----------------------------------------------------------------- versions
+#
+# Numbering carries two guarantees, both durable:
+#
+#   MONOTONIC. A version number is a logical clock over ATTEMPTS, not over
+#   published versions. Every allocation is appended to `_allocations.ndjson`
+#   before a single weight is written, so a rejected candidate burns its number
+#   for good and the published lineage keeps the gaps where attempts happened.
+#   A count that only advanced on success would report a dense, unbroken history
+#   and quietly hide how many attempts the failures took.
+#
+#   COLLISION-SAFE. A number is claimed by a committed version, by a live
+#   staging directory, OR by an allocation record — so two runs cannot allocate
+#   the same name, and a crashed process's in-flight number is not handed to the
+#   next run. A crash therefore leaves a gap, which `sweep_stale_staging` can
+#   recover and which is honest until it does.
+#
+# Retaining/pruning whole versions is a separate policy: see the retention
+# section further down.
 
 
 def version_path(root: Path, version: str) -> Path:
     return Path(root) / version
 
 
-def next_version(root: Path) -> str:
-    """Lowest unused vNNN. Version lineage is append-only: a rejected version
-    is retained and the next child continues from the last *promoted* one, so
-    versions are never reused or rewritten."""
+ALLOCATIONS_NAME = "_allocations.ndjson"
+
+
+def allocations_path(root: Path) -> Path:
+    return Path(root) / ALLOCATIONS_NAME
+
+
+def allocated_versions(root: Path) -> set:
+    """Every version number ever handed out, committed or not."""
     root = Path(root)
-    if not root.exists():
-        return "v001"
-    used = {
-        int(p.name[1:])
-        for p in root.iterdir()
-        if p.is_dir()
-        and p.name.startswith("v")
-        and p.name[1:].isdigit()
-        and not p.name.endswith(TMP_SUFFIX)
+    path = allocations_path(root)
+    if not path.is_file():
+        return set()
+    out = set()
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            out.add(json.loads(line).get("version"))
+        except json.JSONDecodeError:
+            continue
+    return {v for v in out if isinstance(v, str) and v[1:].isdigit()}
+
+
+def _claimed_numbers(root: Path) -> set:
+    """Numbers that must not be handed out again.
+
+    Committed versions and live staging directories are read from the
+    filesystem; the allocation log supplies the third claim, for numbers whose
+    attempt ended in rejection without ever creating a directory a reader could
+    see. Without it a rejected candidate's number returns to the pool and the
+    published lineage loses the gap that records the attempt.
+    """
+    root = Path(root)
+    claimed = set()
+    if root.exists():
+        for p in root.iterdir():
+            if not p.is_dir() or not p.name.startswith("v"):
+                continue
+            digits = p.name[1:]
+            if digits.endswith(TMP_SUFFIX):
+                digits = digits[: -len(TMP_SUFFIX)]
+            if digits.isdigit():
+                claimed.add(int(digits))
+    return claimed | {int(v[1:]) for v in allocated_versions(root)}
+
+
+def next_version(root: Path) -> str:
+    """Lowest unclaimed vNNN.
+
+    Monotonic by construction: the scan includes the durable allocation log, so
+    the counter can only move forward. See the numbering note above for why a
+    rejected candidate burns its number instead of returning it.
+    """
+    claimed = _claimed_numbers(Path(root))
+    n = 1
+    while n in claimed:
+        n += 1
+    return f"v{n:03d}"
+
+
+def allocate_version(root: Path, *, run_id: Optional[str] = None) -> str:
+    """Claim the next version number DURABLY, before anything is built.
+
+    Recording the allocation before the first weight is written is what makes
+    numbering correct across crashes: a process that dies immediately after this
+    call still leaves its number claimed, so the next run cannot collide with it.
+    """
+    root = Path(root)
+    version = next_version(root)
+    record = {
+        "version": version,
+        "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     }
-    return f"v{max(used) + 1 if used else 1:03d}"
+    if run_id:
+        record["runId"] = run_id
+    path = allocations_path(root)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "a", encoding="utf-8") as fh:
+        fh.write(json.dumps(record, sort_keys=True) + "\n")
+        fh.flush()
+        os.fsync(fh.fileno())
+    return version
 
 
 def is_committed(path: Path) -> bool:
@@ -326,6 +412,356 @@ def discard_staged(
 
     shutil.rmtree(tmp, ignore_errors=True)
     return {"version": version, "discarded": True, "recordPath": record_path}
+
+
+# ---------------------------------------------------------------- retention
+#
+# Retention is a policy, not a side effect. Training and promotion never prune
+# anything: the lineage is append-only and immutable for as long as a version
+# exists, and the ONLY thing that removes a published version is this explicit
+# command. Because it is the one destructive operation in the store, it is:
+#
+#   - DRY-RUN BY DEFAULT. Nothing is deleted without a separate confirm flag.
+#   - TOMBSTONED. Every removal writes a durable record of what was removed and
+#     its digests, so a version that was deliberately pruned is
+#     distinguishable from one that vanished without explanation. That is what
+#     lets the git mirror keep all historical text while the store keeps only
+#     the newest weights.
+#   - REFUSING. The active version, operator-protected versions and retained
+#     audit records are never deleted.
+#   - IDEMPOTENT. The plan is recomputed from live state on every call, so an
+#     interrupted prune is finished by running it again rather than guessed at.
+#
+# Retained: the active version (always, even outside the window) plus the `keep`
+# most recent published versions, plus anything explicitly protected.
+#
+# Version NUMBERING (monotonic, gap-preserving) is a separate concern, defined
+# with `next_version`/`allocate_version` in the versions section above.
+
+
+PRUNE_DEFAULT_KEEP = 5
+PRUNED_DIR_NAME = "_pruned"
+PRUNE_LOG_NAME = "_prune-log.ndjson"
+RUNS_DIR_NAME = "_runs"
+
+
+def _dir_bytes(path: Path) -> int:
+    total = 0
+    for entry in Path(path).rglob("*"):
+        try:
+            if entry.is_file():
+                total += entry.stat().st_size
+        except OSError:
+            continue
+    return total
+
+
+def pruned_dir(root: Path) -> Path:
+    return Path(root) / PRUNED_DIR_NAME
+
+
+def prune_log_path(root: Path) -> Path:
+    return Path(root) / PRUNE_LOG_NAME
+
+
+def tombstone_path(root: Path, version: str) -> Path:
+    return pruned_dir(root) / f"{version}.json"
+
+
+def pruned_versions(root: Path) -> Dict[str, Dict[str, Any]]:
+    """Every version that was deliberately pruned, keyed by version name.
+
+    A tombstone is the difference between "the weights were removed on purpose
+    and the record was kept" and "the weights are gone and nobody knows why".
+    """
+    root = Path(root)
+    out: Dict[str, Dict[str, Any]] = {}
+    directory = pruned_dir(root)
+    if not directory.is_dir():
+        return out
+    for entry in sorted(directory.glob("v*.json")):
+        try:
+            record = read_json(entry)
+        except (json.JSONDecodeError, OSError):
+            continue
+        version = record.get("version")
+        if version:
+            out[version] = record
+    return out
+
+
+def resume_state_path(root: Path, version: str) -> Path:
+    return Path(root) / RUNS_DIR_NAME / f"{version}.train-state.pt"
+
+
+def is_resumable(root: Path, version: str) -> bool:
+    """True when this version can still continue a run.
+
+    Both halves are needed: the readable JSON carries the config/dataset identity
+    the guard checks, the pickle carries the optimizer moments. Neither alone can
+    resume, and silently resuming without the moments would restart AdamW's
+    accumulators from zero.
+    """
+    root = Path(root)
+    return (
+        (root / version / "train-state.json").is_file()
+        and resume_state_path(root, version).is_file()
+    )
+
+
+def resume_capability(root: Path, version: str) -> Optional[Dict[str, Any]]:
+    """Where a version's resumable state lives, or None if it has none."""
+    if not is_resumable(root, version):
+        return None
+    return {
+        "version": version,
+        "stateJson": str(root / version / "train-state.json"),
+        "pickle": str(resume_state_path(root, version)),
+        "pickleBytes": resume_state_path(root, version).stat().st_size,
+    }
+
+
+def plan_prune(
+    root: Path,
+    keep: int = PRUNE_DEFAULT_KEEP,
+    *,
+    active: Optional[str] = None,
+    protect: Sequence[str] = (),
+) -> Dict[str, Any]:
+    """Compute a pruning plan WITHOUT touching anything.
+
+    Planning is deliberately separate from deleting: the report an operator
+    reviews is the same object the deleter executes, so a confirmation cannot
+    drift from what was proposed.
+    """
+    root = Path(root)
+    if keep < 0:
+        raise ValueError(f"keep must be >= 0, got {keep}")
+
+    committed = [v for v in list_versions(root) if is_committed(root / v)]
+    tombstones = pruned_versions(root)
+
+    protected: list[Dict[str, Any]] = []
+    protected_names: set[str] = set()
+
+    def _protect(version: str, reason: str) -> None:
+        if version and version in committed:
+            if version not in protected_names:
+                protected_names.add(version)
+                protected.append({"version": version, "reason": reason})
+
+    # The active brain is never deletable, even when it falls outside the window.
+    if active:
+        _protect(active, "active pointer")
+        if active not in committed:
+            protected.append({
+                "version": active,
+                "reason": "active version is not committed in this store",
+                "invalid": True,
+            })
+    for version in protect or ():
+        _protect(version, "operator-protected")
+
+    window = committed[-keep:] if keep > 0 else []
+    for version in window:
+        _protect(version, f"one of the {keep} most recent published versions")
+
+    prune: list[Dict[str, Any]] = []
+    resume_lost: list[Dict[str, Any]] = []
+    for version in committed:
+        if version in protected_names:
+            continue
+        resume = resume_capability(root, version)
+        entry = {
+            "version": version,
+            "bytes": _dir_bytes(root / version),
+            "reason": "older than the retained window",
+        }
+        if resume:
+            entry["bytes"] += resume["pickleBytes"]
+            entry["resumeCapability"] = True
+            resume_lost.append(resume)
+        else:
+            entry["resumeCapability"] = False
+        prune.append(entry)
+
+    # Informational, not a conflict: a retained version's PARENT going away only
+    # breaks `diff`/`eval` against that ancestor, never training or serving.
+    parent_of_retained = [
+        {"retained": v, "lostParent": (read_json(root / v / "init-manifest.json") or {}).get("parentVersion")}
+        for v in window
+        if (read_json(root / v / "init-manifest.json") or {}).get("parentVersion") in {p["version"] for p in prune}
+    ]
+
+    return {
+        "store": str(root),
+        "keep": keep,
+        "activeVersion": active,
+        "published": committed,
+        "retained": committed[-max(keep, 0):] if keep > 0 else [],
+        "protected": protected,
+        "prune": prune,
+        "pruneCount": len(prune),
+        "freedBytes": sum(p["bytes"] for p in prune),
+        "resumeLost": resume_lost,
+        "resumeLostCount": len(resume_lost),
+        "resumeRetained": [
+            resume_capability(root, v) for v in window if is_resumable(root, v)
+        ],
+        "parentOfRetainedLost": parent_of_retained,
+        "tombstonesAlready": sorted(tombstones),
+        "uncommittedVersions": [v for v in list_versions(root) if not is_committed(root / v)],
+    }
+
+
+def _write_tombstone(root: Path, version: str, reason: str) -> Dict[str, Any]:
+    """Durably record that a version's weights were removed on purpose.
+
+    Written BEFORE the directory is deleted, and it carries a digest of every
+    record file, so a later `verify_mirror` can prove the retained git mirror
+    still describes exactly what was pruned.
+    """
+    root = Path(root)
+    src = root / version
+    files: Dict[str, Any] = {}
+    for name in RECORD_FILES:
+        candidate = src / name
+        if candidate.is_file():
+            files[name] = {
+                "sha256": file_sha256(candidate),
+                "bytes": candidate.stat().st_size,
+            }
+    manifest = {}
+    if (src / "init-manifest.json").is_file():
+        try:
+            manifest = read_json(src / "init-manifest.json")
+        except (json.JSONDecodeError, OSError):
+            manifest = {}
+    # A tombstone is a PROVENANCE record, so an unnameable manifest must not
+    # abort the deletion half-way through the prune set.
+    try:
+        artifact = artifact_name(manifest) if manifest else None
+    except ValueError:
+        artifact = None
+    record = {
+        "schema": "sma/pruned@1",
+        "version": version,
+        "prunedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "reason": reason,
+        "weightBytes": _dir_bytes(src),
+        "recordFiles": files,
+        "artifactId": artifact,
+        "parentVersion": manifest.get("parentVersion"),
+        "createdAt": manifest.get("createdAt"),
+        "mirror": "retained in git",
+    }
+    write_json(tombstone_path(root, version), record)
+    return record
+
+
+def prune_versions(
+    root: Path,
+    keep: int = PRUNE_DEFAULT_KEEP,
+    *,
+    active: Optional[str] = None,
+    protect: Sequence[str] = (),
+    confirm: bool = False,
+    allow_resume_loss: bool = False,
+) -> Dict[str, Any]:
+    """Delete published versions outside the retained window.
+
+    DRY RUN unless `confirm` is True. Re-running after an interruption is safe
+    because the plan is recomputed from live state each time: whatever already
+    went is simply not in the plan any more.
+    """
+    root = Path(root)
+    plan = plan_prune(root, keep, active=active, protect=protect)
+
+    if not confirm:
+        plan["executed"] = False
+        plan["dryRun"] = True
+        plan["reason"] = "dry run: pass --confirm to delete; nothing was removed"
+        return plan
+
+    if plan["pruneCount"] == 0:
+        plan.update({
+            "executed": True,
+            "dryRun": False,
+            "removed": [],
+            "removedCount": 0,
+            "freedBytes": 0,
+            "reason": "nothing to prune",
+        })
+        return plan
+
+    if plan["resumeLostCount"] and not allow_resume_loss:
+        plan["executed"] = False
+        plan["dryRun"] = False
+        plan["refused"] = True
+        plan["removed"] = []
+        plan["reason"] = (
+            f"{plan['resumeLostCount']} version(s) in the prune set are still resumable "
+            f"({', '.join(sorted(r['version'] for r in plan['resumeLost']))}); "
+            "pass --allow-resume-loss to confirm that this resume capability is discarded"
+        )
+        return plan
+
+    removed: list[Dict[str, Any]] = []
+    for entry in plan["prune"]:
+        version = entry["version"]
+        version_dir = root / version
+        if not version_dir.is_dir():
+            # Already gone: an interrupted earlier pass, or a concurrent prune.
+            continue
+        if is_committed(version_dir) is False:
+            continue
+        # Tombstone first: if the process dies mid-delete, the tombstone is what
+        # distinguishes "pruned on purpose" from "vanished".
+        record = _write_tombstone(root, version, entry["reason"])
+        weight_bytes = record["weightBytes"]
+        shutil.rmtree(version_dir, ignore_errors=True)
+        pickle = resume_state_path(root, version)
+        pickle_bytes = 0
+        if pickle.is_file():
+            try:
+                pickle_bytes = pickle.stat().st_size
+            except OSError:
+                pickle_bytes = 0
+            pickle.unlink(missing_ok=True)
+        removed.append({
+            "version": version,
+            "weightBytes": weight_bytes,
+            "resumePickleBytes": pickle_bytes,
+            "bytes": weight_bytes + pickle_bytes,
+            "recordFiles": sorted(record["recordFiles"]),
+        })
+
+    outcome = {
+        "schema": "sma/pruned@1",
+        "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "keep": keep,
+        "activeVersion": active,
+        "protected": [p["version"] for p in plan["protected"]],
+        "removed": removed,
+        "removedCount": len(removed),
+        "freedBytes": sum(r["bytes"] for r in removed),
+        "allowResumeLoss": allow_resume_loss,
+    }
+    # Durable, append-only: the pruning decision and its outcome are part of the
+    # audit trail, not a console line that scrolls away.
+    log = prune_log_path(root)
+    log.parent.mkdir(parents=True, exist_ok=True)
+    with open(log, "a", encoding="utf-8") as fh:
+        fh.write(json.dumps(outcome, sort_keys=True, default=str) + "\n")
+        fh.flush()
+        os.fsync(fh.fileno())
+
+    plan["executed"] = True
+    plan["dryRun"] = False
+    plan["removed"] = removed
+    plan["removedCount"] = len(removed)
+    plan["freedBytes"] = sum(r["bytes"] for r in removed)
+    return plan
 
 
 def commit_marker(path: Path, payload: Optional[Dict[str, Any]] = None) -> None:
@@ -676,22 +1112,36 @@ def mirror_record(root: Path, version: str, repo_models: Path) -> Dict[str, Any]
     )}
 
 
-def verify_mirror(root: Path, repo_models: Path) -> Dict[str, Any]:
+def verify_mirror(
+    root: Path,
+    repo_models: Path,
+    *,
+    check_history: bool = True,
+) -> Dict[str, Any]:
     """Check every git-tracked record against the store it claims to describe.
 
-    Symmetric on purpose. Checking only what the store happens to hold would
-    let the mirror accumulate invented content and still report clean, which
-    makes it a second, unverified source of truth -- precisely the failure this
-    mirror exists to avoid.
-    """
-    repo_models = Path(repo_models)
-    results, drifted = [], []
-    for version in list_versions(root):
-        src = Path(root) / version
-        dest = repo_models / version
-        if not dest.is_dir():
-            continue
+    Symmetric on purpose, in both directions:
+      - a record file the store has and the mirror does not is drift;
+      - a mirror directory with NO store version behind it is also checked,
+        because otherwise the mirror could accumulate invented content and still
+        report clean -- precisely the failure this mirror exists to avoid.
 
+    A mirror directory whose version was deliberately pruned is NOT drift: the
+    store keeps only the newest weights while the mirror keeps ALL historical
+    text, so the version is reported under `retainedHistory` and its digests are
+    re-checked against its prune tombstone. Missing with a tombstone is a policy
+    outcome; missing without one is an unexplained disappearance and stays drift.
+
+    `check_history=False` reverts to checking only live versions, for callers
+    that want the cost of a full scan avoided and will accept the asymmetry.
+    """
+    root = Path(root)
+    repo_models = Path(repo_models)
+    tombstones = pruned_versions(root) if check_history else {}
+
+    results, drifted, retained_history = [], [], []
+
+    def _check_files(version: str, src: Path, dest: Path) -> None:
         for name in RECORD_FILES:
             a, b = src / name, dest / name
             if not a.is_file() and not b.is_file():
@@ -703,6 +1153,7 @@ def verify_mirror(root: Path, repo_models: Path) -> Dict[str, Any]:
             elif file_sha256(a) != file_sha256(b):
                 drifted.append({"version": version, "file": name, "reason": "differs from store"})
 
+    def _check_stray(version: str, dest: Path) -> None:
         # Anything else in the mirror is unrequested content. A weight file
         # copied here by accident, or a hand-written claim, must not pass as
         # if it were part of the reviewed record.
@@ -711,9 +1162,51 @@ def verify_mirror(root: Path, repo_models: Path) -> Dict[str, Any]:
                 continue
             drifted.append({"version": version, "file": stray.name, "reason": "not a record file"})
 
+    for version in list_versions(root):
+        src = Path(root) / version
+        dest = repo_models / version
+        if not dest.is_dir():
+            continue
+        _check_files(version, src, dest)
+        _check_stray(version, dest)
         results.append(version)
 
-    return {"store": str(root), "mirror": str(repo_models), "checked": results, "drifted": drifted, "ok": not drifted}
+    if check_history:
+        live = set(list_versions(root))
+        mirror_dirs = sorted(p for p in repo_models.iterdir() if p.is_dir()) if repo_models.is_dir() else []
+        for dest in mirror_dirs:
+            version = dest.name
+            if version in live:
+                continue
+            tombstone = tombstones.get(version)
+            # The tombstone's digests are the store's own record of what it held,
+            # so the retained history can still be proven byte-for-byte.
+            if tombstone:
+                for name, recorded in sorted((tombstone.get("recordFiles") or {}).items()):
+                    mirrored = dest / name
+                    if not mirrored.is_file():
+                        drifted.append({"version": version, "file": name, "reason": "pruned version's record missing from mirror"})
+                    elif file_sha256(mirrored) != recorded.get("sha256"):
+                        drifted.append({"version": version, "file": name, "reason": "mirror no longer matches the pruned record"})
+                _check_stray(version, dest)
+                retained_history.append({
+                    "version": version,
+                    "prunedAt": tombstone.get("prunedAt"),
+                    "reason": tombstone.get("reason"),
+                    "recordFiles": sorted(tombstone.get("recordFiles") or {}),
+                })
+            elif dest.name.startswith("v") and dest.name[1:].isdigit():
+                drifted.append({"version": version, "file": None, "reason": "mirror directory has no store version and no prune tombstone"})
+
+    return {
+        "store": str(root),
+        "mirror": str(repo_models),
+        "checked": results,
+        "drifted": drifted,
+        "retainedHistory": retained_history,
+        "prunedCount": len(retained_history),
+        "ok": not drifted,
+    }
 
 
 # ------------------------------------------------------- deployment pointer
