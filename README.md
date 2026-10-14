@@ -32,8 +32,8 @@ Verified on the development machine (Windows, RTX 4090 24,564 MiB, CUDA capabili
 
 | | |
 |---|---|
-| Node data plane | 108 `node:test` tests — all pass (see [Testing](#testing)) |
-| Python compute plane | 158/158 pytest tests pass |
+| Node data plane | 221 `node:test` tests — all pass (see [Testing](#testing)) |
+| Python compute plane | 193/193 pytest tests pass |
 | Checkpoint `v001` | committed, 62M params, provenance recorded |
 | Checkpoint `v002` | committed, 60 real steps, 74/74 params moved, 2 buffers unchanged |
 
@@ -238,7 +238,7 @@ python -m venv .venv
 pip install -r requirements-cuda.txt      # NVIDIA (RTX 4090 dev box)
 # pip install -r requirements-rocm.txt    # AMD ROCm (Ryzen AI HX 370 / 890M, gfx1150)
 
-python -m pytest                                  # 158 tests
+python -m pytest                                  # 193 tests
 python -m sma.brain init   --config small --out $SMA_STORE
 python -m sma.brain status --out $SMA_STORE
 
@@ -322,12 +322,12 @@ The full index is at [docs/README.md](docs/README.md).
 ## Testing
 
 ```bash
-npm test                    # Node data plane: 122 node:test tests (repo root)
-cd python; python -m pytest # Python compute plane: 158 pytest tests
+npm test                    # Node data plane: 221 node:test tests (repo root)
+cd python; python -m pytest # Python compute plane: 193 pytest tests
 ```
 
 Measured on the verified development machine (Windows, RTX 4090): Python
-**158/158 pass**; Node **122/122 pass**. The trends classifier
+**193/193 pass**; Node **221/221 pass**. The trends classifier
 `finitePoints` (`src/admin/metrics.js`) drops non-finite and empty `loss`
 samples rather than coercing them with `Number(...)` (an earlier version
 turned `loss: null` into `0` and kept the sample; `test/metrics.test.js`

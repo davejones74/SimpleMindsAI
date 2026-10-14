@@ -274,14 +274,24 @@ Real, unfixed, and listed so they are not mistaken for intended behavior.
 5. **`TeacherClient` has no `complete` implementation.**
 6. **`promptsPage` cursor plus trained-filter can skip rows**; move to a keyset
    cursor as the buffer grows.
-7. **The critic fixture cannot approve articles.** In fixture mode
-   (`OLLAMA_FIXTURE=true`) `src/services/ollama-client.js` detects the critic via
-   `/reward model/i` in the system prompt, but the critic prompt in
-   `src/reward/reward-scorer.js` no longer contains "reward model", so the fixture
-   returns a generic hit: raw score 5, verdict `uncertain`, no approval. Fixture-mode
-   `npm run perpetual` therefore loops past review without ever reaching training;
-   review needs a real Ollama critic or a human decision. Fix, with a regression
-   test, is a separate code change.
+7. ~~**The critic fixture cannot approve articles.**~~ **Resolved.** In fixture
+   mode (`OLLAMA_FIXTURE=true`) `src/services/ollama-client.js` now detects the
+   critic by markers present in the current `CRITIC_PROMPT`
+   (`harsh but fair teacher` / `suggestedImportance` / `reviewing a single
+   ARTICLE`) and returns a real scored reply (raw score `6.5`, verdict `approve`),
+   so fixture-mode `npm run perpetual` reaches training. A missing/unparseable
+   critic reply no longer becomes a neutral `5`; it is recorded as missing and
+   fails closed to `uncertain` (`criticScoreMissing`, score `0`). Regression
+   coverage in `test/critic.test.js`.
+8. **Repeated rejection / no-progress loops had no visible failure.** A run that
+   kept staging the same candidate version with no improvement, or a learning job
+   that made no progress, previously churned indefinitely. The job supervisor now
+   fails closed: training raises `repeated-rejection` after
+   `TRAIN_MAX_CONSECUTIVE_REJECTIONS`, learning raises `no-progress` after
+   `LEARNING_NO_PROGRESS_CYCLES`, and both honour an optional
+   `JOBS_MAX_RUNTIME_MS` wall-clock bound (`max-runtime`). Progress is counted
+   only from genuinely acquired (`ingested`) material, not deduped events.
+   Regression coverage in `test/jobs-resilience.test.js`.
 
 ---
 

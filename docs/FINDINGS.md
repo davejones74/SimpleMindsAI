@@ -15,6 +15,8 @@ see [PROOF.md](PROOF.md).
 - [bf16 master weights silently freeze 17 parameters](#bf16-master-weights-silently-freeze-17-parameters)
 - [bf16 on CPU is emulated and 220× slower](#bf16-on-cpu-is-emulated-and-220x-slower)
 - [A ragged final batch makes effectiveBatchSize a lie](#a-ragged-final-batch-makes-effectivebatchsize-a-lie)
+- [A shared loss axis hides held-out validation](#a-shared-loss-axis-hides-held-out-validation)
+- [A missing critic score is not a neutral 5](#a-missing-critic-score-is-not-a-neutral-5)
 - [Platform and storage quirks](#platform-and-storage-quirks)
 - [Manifest shape changes to flatten before Phase 2](#manifest-shape-changes-to-flatten-before-phase-2)
 
@@ -119,6 +121,48 @@ reshuffle, so every micro-batch is exactly `microBatchSize` blocks; token
 accounting is then exact by construction and is asserted. The general lesson is
 the one this repository keeps hitting: a training number that is *nearly* right is
 worse than one that is absent, because it reads as evidence.
+
+---
+
+## A shared loss axis hides held-out validation
+
+The version-history chart originally plotted three incomparable series on one
+y-axis. Measured on `v034`: training loss ranged `0.2866→2.3377`, in-training
+validation loss `3.0388→3.4494`, and 39 frozen-eval markers `4.7386→10.6877`. On a
+242 px plot the validation band occupied **3.9 %** of the height — present, and
+effectively invisible.
+
+The cause was not only the axis. `mergeChain` unioned points by `step` alone, so
+two lineages that happened to share a `datasetHash` silently overwrote each
+other's points at colliding steps, and the survivor was whichever was merged
+last.
+
+The fix is structural: a per-segment `stepOffset` so chained runs occupy
+disjoint step ranges, a `collisions` count surfaced in the UI when ranges do
+overlap, and separate left (in-run train + held-out validation) and right
+(frozen eval-set) axes. A degenerate one-point series is padded rather than drawn
+as a line of zero height, and non-finite marker losses are dropped, not coerced.
+The lesson is the same as the ragged-batch one: a chart that *nearly* tells the
+truth is worse than no chart.
+
+---
+
+## A missing critic score is not a neutral 5
+
+Two separate defects produced the same false result. In fixture mode the client
+detected the critic by looking for `/reward model/i` in the system prompt, but
+the prompt had since been reworded and no longer contained that phrase, so the
+fixture returned a generic hit: raw score `5`. And when a real critic reply was
+missing or unparseable, the scorer coerced it to a neutral `5` rather than
+leaving it absent.
+
+A `5` sits in the uncertain band, so both cases silently became `uncertain` — the
+article was neither approved nor rejected, it was lost to a fabricated middle.
+Measured after the fix: a real scored fixture reply is `6.5` (`approve`), and a
+missing or unparseable reply is recorded as **missing** (`criticScoreMissing`,
+score `0`, `criticError` set) and fails closed to `uncertain`. The general rule
+applies again: a score that is *nearly* right — a plausible `5` — reads as
+evidence and is worse than an absent one.
 
 ---
 

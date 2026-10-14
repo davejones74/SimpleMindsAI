@@ -27,6 +27,9 @@ landing page and quickstart; the articles below go deeper.
 - [Verified empirical findings](FINDINGS.md) — measured behaviours (bf16 masters
   freezing parameters, 220× bf16-on-CPU penalty, tensor-hash shape) that shaped
   the design.
+- [Phase 7 validation report](PHASE7_REPORT.md) — the pre-deployment gate: crash
+  recovery, the promotion gate, chart honesty, the critic-temperature experiment,
+  and resource readiness, with its limitations stated.
 
 ## Contribute
 

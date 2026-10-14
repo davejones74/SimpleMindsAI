@@ -51,8 +51,9 @@ python/                        compute plane
   sma/preflight.py             read-only Phase 2 memory/portability budget
   sma/portability.py           platform/backend detection and the bf16 probe
   sma/fixtures/tiny_en.txt     deterministic corpus (original prose — no licensing question)
-  tests/                       158 pytest tests (proof/init, training/check-7, publication/store,
-                               phase-1 checks 6/8/9/10/11, student worker, phase-2 preflight)
+  tests/                       193 pytest tests (proof/init, training/check-7, publication/store,
+                               phase-1 checks 6/8/9/10/11, student worker, phase-2 preflight,
+                               frozen-eval provenance record)
 
 src/
   harness/ services/           crawl, curate, plan, ollama-client (teacher/critic only)
@@ -70,7 +71,10 @@ src/
   admin/                       portal REST/SSE routes, change-feed, governance services,
                                read-only Python store reader, public/ SPA (vanilla JS)
 
-test/                          108 node:test tests — all pass (see README "Testing")
+test/                          221 node:test tests — all pass (see README "Testing"); includes the
+                               eval-gate metric-signature, critic provenance, job-resilience
+                               (repeated-rejection / no-progress / max-runtime) and lifecycle
+                               crash-recovery suites
 test-support/                  shared Python-prerequisite test helpers (not auto-discovered)
 ```
 
@@ -124,19 +128,21 @@ fast with `train failed: dataset empty after snapshot guards (no reviewed,
 unconsumed articles)`. For the full server-free autonomous loop — discover →
 curate → **review** → snapshot → plan → baseline-eval → train → candidate-eval →
 promote/reject, repeating — use `npm run perpetual`. Review requires a real Ollama
-critic or a human decision in the admin portal; `OLLAMA_FIXTURE=true` stubs the
-curator but the critic fixture cannot approve (see
-[known defects](ROADMAP.md#known-defects)).
+critic or a human decision in the admin portal; `OLLAMA_FIXTURE=true` stubs both
+curator and critic, and the critic fixture now returns a real score for critic
+prompts (score `6.5`, verdict `approve` once the guardrail penalty is applied), so
+fixture-mode `perpetual` reaches training.
 
 `npm run chat` does not fall back to a teacher: it starts the Python student
 worker, loads the `COMMITTED` version named by `$SMA_STORE/active.json`, and
 returns `503` if no version is active or the worker is down.
 
 Server-free one-shot CLIs: `train`, `evaluate`, `promote`, `reject`, `perpetual`
-(`PERPETUAL_CYCLES=n`, `OLLAMA_FIXTURE=true` for CI). Fixture caveat: the critic
-fixture scores `uncertain` for every article, so fixture-mode `perpetual`
-stops short of training — review needs a real critic or a human decision
-(known defect 7, [ROADMAP.md](ROADMAP.md#known-defects)).
+(`PERPETUAL_CYCLES=n`, `OLLAMA_FIXTURE=true` for CI). Fixture caveat: before the
+Phase 7 fix the critic fixture scored `uncertain` for every article and
+fixture-mode `perpetual` stopped short of training; the prompt-marker detection
+is now correct, so the fixture critic scores real articles and the loop can reach
+training end-to-end.
 
 ---
 
@@ -153,7 +159,7 @@ python -m venv .venv
 pip install -r requirements-cuda.txt      # NVIDIA
 # pip install -r requirements-rocm.txt    # AMD ROCm
 
-python -m pytest                                  # 158 tests
+python -m pytest                                  # 193 tests
 python -m sma.brain init   --config small --out $SMA_STORE
 python -m sma.brain status --out $SMA_STORE
 
@@ -223,8 +229,8 @@ line on stdin, one response per line on stdout, echoing `id`); see
 
 | Suite | Command | Count |
 |---|---|---|
-| Node data plane | `npm test` (from repo root) | 108 `node:test` tests — all pass |
-| Python compute plane | `python -m pytest` (from `python/`) | 158 pytest tests — all pass |
+| Node data plane | `npm test` (from repo root) | 221 `node:test` tests — all pass |
+| Python compute plane | `python -m pytest` (from `python/`) | 193 pytest tests — all pass |
 
 Both suites were run on the verified development machine; see README "Testing"
 for the exact counts. The Python suite includes proof/init, check-7 training,

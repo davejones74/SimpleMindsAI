@@ -275,6 +275,12 @@ most relevant to deployment:
 | `TRAIN_COMPUTE_DTYPE` | `bfloat16` | Compute dtype. Use `float32` on CPU (see below). |
 | `INIT_CONFIG` | `small` | `sma.brain init --config` architecture (random init). |
 | `CRAWL_MODE` | `fixture` | `fixture` \| `real`. `real` fetches ONLY the explicit `CRAWL_URLS`. |
+| `CRITIC_TEMPERATURE` | `0.1` | Critic sampling temperature; recorded with every review. The Phase 7 experiment retained `0.5` in `.env` (verdicts stable; see [PHASE7_REPORT.md](PHASE7_REPORT.md#critic-temperature-experiment)). |
+| `CRITIC_PROMPT_VERSION` | `critic-prompt-v1` | Operator-managed label for the critic prompt wording; recorded with every review. Bump it when the prompt changes. |
+| `EVAL_MIN_DOCUMENTS` | `0` | Advisory floor on frozen-eval-set size. Non-enforcing by default. |
+| `JOBS_MAX_RUNTIME_MS` | `0` | Wall-clock bound for a job; `0` is unbounded. A job past it ends `max-runtime`. |
+| `LEARNING_NO_PROGRESS_CYCLES` | `5` | Consecutive no-progress learning cycles before the job ends `no-progress`. |
+| `TRAIN_MAX_CONSECUTIVE_REJECTIONS` | `5` | Consecutive rejected training candidates before the job ends `repeated-rejection`. |
 
 The full, authoritative list lives in `.env.example` and `src/config.js`. The
 Python backend is pinned separately in `python/requirements-cuda.txt` or
@@ -300,6 +306,20 @@ purpose — that pair is what makes a run's provenance unambiguous.
 - **Disk space for checkpoints.** A 62M fp32 version plus its optimizer pickle is
   ~252 MiB + ~472 MiB; a 3B run is far larger. The `preflight` command estimates
   checkpoint write space and refuses a run the store cannot hold.
+- **Resume-state growth, and how to reclaim it.** `_runs/*.train-state.pt`
+  optimizer-moment blobs accumulate at ~472 MB per version and are the only part
+  of the store that grows without bound. `prune-runs` deletes stale blobs (never a
+  published version, weight, or record) and is a **dry run by default**:
+
+  ```bash
+  python -m sma.brain prune-runs                  # dry run: report only
+  python -m sma.brain prune-runs --keep 2 --confirm   # actually delete
+  ```
+
+  The active version and the `--keep` most recent published versions are always
+  retained. `prune` applies the same dry-run-by-default retention policy to whole
+  published version directories. Both append a durable record to the store's
+  prune log; nothing is deleted without `--confirm`.
 - **Master weights are fp32.** This is an invariant, not a tuning choice: bf16
   masters silently freeze the 17 RMSNorm parameters. See
   [FINDINGS.md](FINDINGS.md#bf16-master-weights-silently-freeze-17-parameters).
