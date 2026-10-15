@@ -244,6 +244,65 @@ def test_bf16_master_failure_is_not_reachable_by_config():
         _cfg(masterDtype="float16").validate()
 
 
+def test_loss_spike_needs_history_and_spread():
+    """A spike cannot be declared without an established baseline."""
+    # Too little history: nothing is a spike yet.
+    assert train_mod.loss_spike_exceeded([1.0] * 9, 100.0, 2.5) is None
+    # Zero spread: the guard has no scale to exceed.
+    assert train_mod.loss_spike_exceeded([1.0] * 20, 100.0, 2.5) is None
+    # Detection disabled by factor <= 0.
+    assert train_mod.loss_spike_exceeded([1.0, 2.0] * 10, 100.0, 0.0) is None
+
+
+def test_loss_spike_exceeded_flags_only_the_outlier():
+    steady = [8.8 + 0.01 * (i % 3) for i in range(20)]
+    # A value inside the trailing band is not a spike.
+    assert train_mod.loss_spike_exceeded(steady, 8.81, 2.5) is None
+    # The reported field failure was detected, not missed: 9.884 vs a band of
+    # ~8.81. Detection is unchanged; only its *consequence* is.
+    stats = train_mod.loss_spike_exceeded(steady, 9.884, 2.5)
+    assert stats is not None
+    assert stats["z"] > 2.5
+
+
+def test_isolated_spike_is_tolerated_but_a_persistent_streak_is_fatal():
+    """The fix, tested on the tracker the loop actually consults.
+
+    A lone excursion above the window must not stop a run training from random
+    init; a run that stays there is diverging and must. The streak resets on any
+    in-band step, so two spikes separated by normal steps are not "consecutive".
+    """
+    steady = [8.8 + 0.01 * (i % 3) for i in range(20)]
+    tracker = train_mod.SpikeTracker(factor=2.5, warmup=10, max_consecutive=3)
+
+    # Isolated spike: logged, not fatal.
+    stats, fatal = tracker.observe(50, steady, 9.884)
+    assert stats is not None and fatal is None
+    assert tracker.consecutive == 1
+    # A normal step resets the streak.
+    stats, fatal = tracker.observe(51, steady, 8.81)
+    assert stats is None and fatal is None
+    assert tracker.consecutive == 0
+
+    # Three in a row is divergence: the third raises.
+    assert tracker.observe(52, steady, 9.9)[1] is None
+    assert tracker.observe(53, steady, 9.9)[1] is None
+    _stats, fatal = tracker.observe(54, steady, 9.9)
+    assert fatal is not None and "consecutive loss spikes" in fatal
+
+
+def test_spike_guard_stays_off_during_warmup():
+    steady = [8.8 + 0.01 * (i % 3) for i in range(20)]
+    tracker = train_mod.SpikeTracker(factor=2.5, warmup=100, max_consecutive=1)
+    stats, fatal = tracker.observe(5, steady, 9.884)
+    assert stats is None and fatal is None
+
+
+def test_spike_consecutive_must_be_at_least_one():
+    with pytest.raises(ValueError, match="maxSpikeConsecutive"):
+        _cfg(maxSpikeConsecutive=0).validate()
+
+
 def test_learning_rate_schedule_shape():
     cfg = _cfg(steps=20, warmupSteps=5)
     lrs = [train_mod.learning_rate_at(s, cfg) for s in range(20)]

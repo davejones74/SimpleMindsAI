@@ -15,7 +15,10 @@ Everything the README's loss-instability section requires is recorded here:
 per-step learning rate, gradient norm, training loss, validation loss, NaN/Inf
 detection, gradient clipping, and loss-spike detection. A run that trips a
 guard stops before it can publish anything, so a failed run can never become
-the active brain.
+the active brain. A spike is only fatal when it *persists*: an isolated
+excursion above the trailing window is recorded and logged, because a model
+training from random init crosses that line by ordinary noise long before it
+diverges.
 """
 
 from __future__ import annotations
@@ -68,6 +71,11 @@ class TrainConfig:
     logEvery: int = 1
     spikeFactor: float = 2.5
     spikeWarmup: int = 10
+    # A spike threshold is crossed by ordinary noise as well as by divergence, so
+    # a single crossing is logged but not fatal. Only this many *consecutive*
+    # steps above `mean + spikeFactor*sd` mean the run has actually left the
+    # basin and must not publish.
+    maxSpikeConsecutive: int = 3
     maxNonFiniteConsecutive: int = 3
     # Record held-out validation loss every N steps so a validation *curve*
     # exists, not just the two endpoints. 0 disables periodic sampling (a run
@@ -105,6 +113,11 @@ class TrainConfig:
             raise ValueError("batch dimensions must be positive")
         if self.evalEvery < 0:
             raise ValueError("evalEvery cannot be negative; 0 disables periodic validation")
+        if self.maxSpikeConsecutive < 1:
+            raise ValueError(
+                "maxSpikeConsecutive must be at least 1: a lone spike is logged, "
+                "so 0 would leave no spike ever fatal"
+            )
 
 
 def environment() -> Dict[str, Any]:
@@ -218,6 +231,73 @@ class TrainResult:
 
 def _finite(t: torch.Tensor) -> bool:
     return bool(torch.isfinite(t).all())
+
+
+def loss_spike_exceeded(
+    recent_losses: List[float],
+    current: float,
+    factor: float,
+    *,
+    window: int = 20,
+    min_history: int = 10,
+) -> Optional[Dict[str, float]]:
+    """Return the trailing-window stats when `current` sits above them, else None.
+
+    Pure, so the guard's arithmetic is testable without building a model.
+    Detection needs an established baseline: with fewer than `min_history`
+    points, or with zero spread, nothing can be called a spike. `factor <= 0`
+    disables detection entirely.
+    """
+    if factor <= 0 or len(recent_losses) < min_history:
+        return None
+    window_losses = recent_losses[-window:]
+    mean = float(np.mean(window_losses))
+    std = float(np.std(window_losses))
+    if std <= 0:
+        return None
+    if current > mean + factor * std:
+        return {"mean": mean, "std": std, "z": (current - mean) / std}
+    return None
+
+
+@dataclass
+class SpikeTracker:
+    """Counts *consecutive* spikes so one transient excursion is not fatal.
+
+    A single step above the trailing window is ordinary noise while training
+    from random init; a run that stays above it is diverging. Only the latter
+    may stop a run, so this tracks the streak and resets it on any in-band step.
+    Kept separate from the loop so the streak arithmetic is testable on its own.
+    """
+
+    factor: float
+    warmup: int
+    max_consecutive: int
+    consecutive: int = 0
+
+    def observe(
+        self, step: int, recent_losses: List[float], current: float
+    ) -> tuple:
+        """Return `(stats, fatal_message)`; either or both may be None.
+
+        `stats` is non-None whenever this step exceeded the threshold (so the
+        caller logs every spike), `fatal_message` only once the streak reaches
+        `max_consecutive`.
+        """
+        if step < self.warmup:
+            self.consecutive = 0
+            return None, None
+        stats = loss_spike_exceeded(recent_losses, current, self.factor)
+        if stats is None:
+            self.consecutive = 0
+            return None, None
+        self.consecutive += 1
+        if self.consecutive >= self.max_consecutive:
+            return stats, (
+                f"{self.consecutive} consecutive loss spikes at step {step}: "
+                f"{current:.4f} vs mean {stats['mean']:.4f} + {self.factor}sd"
+            )
+        return stats, None
 
 
 def mean_cross_entropy(
@@ -428,6 +508,11 @@ def train(
 
     model.train()
     consecutive_nonfinite = 0
+    spikes = SpikeTracker(
+        factor=cfg.spikeFactor,
+        warmup=cfg.spikeWarmup,
+        max_consecutive=cfg.maxSpikeConsecutive,
+    )
     stopped_early = False
     stop_reason: Optional[str] = None
     steps_this_run = 0
@@ -497,19 +582,15 @@ def train(
         optimizer.step()
         losses.append(accumulated)
 
-        if (
-            step >= cfg.spikeWarmup
-            and len(losses) > 10
-            and cfg.spikeFactor > 0
-        ):
-            window = losses[:-1][-20:]
-            mean = float(np.mean(window))
-            std = float(np.std(window))
-            if std > 0 and accumulated > mean + cfg.spikeFactor * std:
-                raise NumericalFailure(
-                    f"loss spike at step {step}: {accumulated:.4f} vs "
-                    f"mean {mean:.4f} + {cfg.spikeFactor}sd"
-                )
+        spike_stats, spike_fatal = spikes.observe(step, losses[:-1], accumulated)
+        if spike_stats is not None:
+            log(
+                f"step {step}: loss spike {accumulated:.4f} vs mean "
+                f"{spike_stats['mean']:.4f} + {cfg.spikeFactor}sd "
+                f"({spike_stats['z']:.1f}sd, consecutive {spikes.consecutive})"
+            )
+        if spike_fatal is not None:
+            raise NumericalFailure(spike_fatal)
 
         if step % cfg.logEvery == 0:
             log(
@@ -524,6 +605,7 @@ def train(
                 "clipped": step_clipped,
                 "loss": accumulated,
                 "nonFinite": step_nonfinite,
+                "spike": spike_stats is not None,
                 "tokens": tokens_seen,
                 "seconds": round(time.perf_counter() - step_started, 4),
             }
