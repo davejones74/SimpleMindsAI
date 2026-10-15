@@ -211,8 +211,6 @@ development store:
 - **Training** — one-shot (refuses below the eligible gate) or continuous (waits for
   eligible reviewed+unconsumed articles). An explicit training parent can be chosen;
   it is resolved fail-closed from the store and never silently replaced by the active pointer.
-  The **target articles** field sets exactly how many articles a run consumes: it overrides the
-  `SNAPSHOT_LIMIT` default, so a run consumes at most that many eligible articles and no more.
 - **Fresh brain** — creates a genuinely randomly-initialised version (no pretrained
   student weights) as an unpromoted candidate; it never activates itself.
 - **Stop** is cooperative-first with a bounded grace period before the process tree is

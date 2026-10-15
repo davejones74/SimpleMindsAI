@@ -194,18 +194,13 @@ export class JobSupervisor {
     });
   }
 
-  async startTraining({ mode = "one-shot", parentVersion = null, minEligible, targetArticles } = {}) {
+  async startTraining({ mode = "one-shot", parentVersion = null, minEligible } = {}) {
     const m = mode === "continuous" ? "continuous" : "one-shot";
     return this.#start("training", {
       mode: m,
       params: {
         parentVersion: parentVersion ?? null,
         minEligible: Number.isFinite(minEligible) ? minEligible : config.jobs.training.minEligible,
-        // The operator's per-run consumption target. It OVERRIDES the
-        // SNAPSHOT_LIMIT default; an absent/invalid value falls back to it.
-        targetArticles: Number.isFinite(targetArticles) && targetArticles > 0
-          ? Math.floor(targetArticles)
-          : config.snapshotLimit,
       },
     });
   }
@@ -554,12 +549,6 @@ export class JobSupervisor {
   async #runTraining(job, params, base) {
     const { jobId } = job;
     const minEligible = params.minEligible;
-    // Strict consumption target: the snapshot (and therefore the exactly-once
-    // consumption commit) is capped at exactly this many articles, overriding
-    // the SNAPSHOT_LIMIT default the operator set in the portal.
-    const targetArticles = Number.isFinite(params.targetArticles) && params.targetArticles > 0
-      ? Math.floor(params.targetArticles)
-      : config.snapshotLimit;
     let last = null;
     let runs = 0;
     let consecutiveRejections = 0;
@@ -610,7 +599,6 @@ export class JobSupervisor {
           trainer: this.trainerFactory(base.signal),
           parentVersion: params.parentVersion,
           minEligible,
-          snapshotLimit: targetArticles,
           logger: this.#jobLogger(jobId),
         });
       } catch (err) {

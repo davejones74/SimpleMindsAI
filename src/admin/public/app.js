@@ -1736,8 +1736,6 @@ function renderControl() {
           </select>
           <label class="small muted">min eligible</label>
           <input type="number" id="trainMin" value="1" min="1" style="width:80px" ${roAttr()} />
-          <label class="small muted">target articles</label>
-          <input type="number" id="trainTarget" value="${esc(String(elig.snapshotLimit ?? 256))}" min="1" style="width:90px" title="Exactly how many articles this run may consume. Overrides the SNAPSHOT_LIMIT default." ${roAttr()} />
         </div>
         <div class="toolbar">
           <button id="trainStart" class="primary" ${roAttr()}>Start training</button>
@@ -1789,7 +1787,7 @@ function renderControl() {
   wireControl();
 }
 
-const CONTROL_FORM_FIELDS = ["learnMode", "learnTarget", "learnRaw", "trainMode", "trainParent", "trainMin", "trainTarget", "freshSeed", "freshConfig"];
+const CONTROL_FORM_FIELDS = ["learnMode", "learnTarget", "learnRaw", "trainMode", "trainParent", "trainMin", "freshSeed", "freshConfig"];
 
 /**
  * Restore the operator's last Learning & Training selections onto the freshly
@@ -1850,7 +1848,6 @@ function wireControl() {
         mode: document.getElementById("trainMode").value,
         parentVersion: document.getElementById("trainParent").value || null,
         minEligible: Number(document.getElementById("trainMin").value),
-        targetArticles: Number(document.getElementById("trainTarget").value),
       } });
       await loadControl();
     } catch (err) { alert(err.message); e.target.disabled = false; }

@@ -653,7 +653,6 @@ export function attachAdmin({ app, store, registry, governance, chat, conversati
       mode: req.body?.mode,
       parentVersion: req.body?.parentVersion ?? null,
       minEligible: req.body?.minEligible,
-      targetArticles: req.body?.targetArticles,
     });
     ok(res, { job });
   }));
@@ -674,9 +673,6 @@ export function attachAdmin({ app, store, registry, governance, chat, conversati
       workspace: req.workspace.id,
       trainable: stats.trainable,
       minEligible,
-      // The default per-run consumption cap, so the portal can seed its
-      // "target articles" control from the real value instead of a hardcoded one.
-      snapshotLimit: config.snapshotLimit,
       eligible: stats.trainable >= minEligible,
     });
   }));

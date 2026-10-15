@@ -412,59 +412,6 @@ test("supervisor: one-shot training runs the lifecycle and reports promotion", a
   await registry.close();
 });
 
-test("supervisor: target articles strictly caps how many articles a run consumes", async () => {
-  // 3 eligible articles, but the operator asked to consume exactly 2. The run
-  // must override the SNAPSHOT_LIMIT default and consume only the target.
-  const store = await seededStore(3);
-  const registry = await RegistryStore.open(tmp());
-  let trainedRecordCount = null;
-  const trainer = {
-    kind: "python",
-    version: "py-1",
-    resolveBaseline: async () => ({ version: "v001", path: "x/v001" }),
-    resolveVersion: async (v) => ({ version: v, path: `x/${v}` }),
-    train: async ({ runId, configuration }) => {
-      trainedRecordCount = configuration?.recordCount ?? null;
-      return {
-        checkpointPath: "x/v002",
-        version: "v002",
-        parentVersion: "v001",
-        trainingRunId: "trid",
-        nodeRunId: runId,
-        datasetHash: "DH",
-        recordsProcessed: configuration?.recordCount ?? null,
-        finalTrainLoss: 1.2,
-        note: "python",
-      };
-    },
-  };
-  const sup = new JobSupervisor({
-    store,
-    registry,
-    dir: tmp(),
-    trainerFactory: () => trainer,
-    trainingDeps: {
-      paths: { snapshots: tmp(), models: tmp(), plans: tmp(), evaluation: tmp() },
-      evalSeed: async () => EVAL_SEED,
-      evaluateLoss: async ({ version }) => ({ version, loss: version === "v001" ? 2.0 : 1.4, datasetHash: "EVAL", ok: true }),
-      setActive: async (version) => ({ version }),
-    },
-  });
-  await sup.init({ reconcile: false });
-
-  const job = await sup.startTraining({ mode: "one-shot", targetArticles: 2 });
-  const done = await waitTerminal(sup, job.jobId);
-  assert.equal(done.status, JOB_STATUS.COMPLETED, done.error ?? "");
-  assert.equal(done.result.decision, "promoted");
-  assert.equal(trainedRecordCount, 2, "the run trained on exactly the target articles");
-  assert.equal(store.getStats().uniqueConsumed, 2, "only the target number of articles were consumed");
-  assert.equal(store.getStats().trainable, 1, "the remaining eligible article stays unconsumed");
-
-  await sup.close();
-  await store.close();
-  await registry.close();
-});
-
 test("supervisor: one-shot training refuses an undersized corpus before any run", async () => {
   const store = await seededStore(1);
   const registry = await RegistryStore.open(tmp());
