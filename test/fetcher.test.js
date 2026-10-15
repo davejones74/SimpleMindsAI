@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import http from "node:http";
 import { fetchDocument, assertUrlAllowed, parseRobots, robotsAllows, isPrivateIp, contentHashFor, FetchError } from "../src/harness/fetcher.js";
 import { collectDocuments, classifyCrawlMode, harvest, CAPABILITY } from "../src/harness/crawler.js";
+import { createDomainRegistry } from "../src/storage/domain-registry.js";
 import { mkdtempSync, readFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -122,7 +123,10 @@ test("collectDocuments: real mode records successes and labelled failures", asyn
 
 test("harvest: writes corpus + failures files with capability labels", async () => {
   const dir = mkdtempSync(path.join(tmpdir(), "sma-crawl-"));
-  const res = await harvest({ dir, mode: "real", urls: [`${base}/page`, `${base}/private`], allowPrivate: true, respectRobots: true });
+  // Harvest writes discovered domains to a registry; give it an isolated one so
+  // the test can never touch the configured live registry (data/frontier).
+  const domainRegistry = createDomainRegistry({ dir: mkdtempSync(path.join(tmpdir(), "sma-crawl-reg-")), forceNew: true });
+  const res = await harvest({ dir, mode: "real", urls: [`${base}/page`, `${base}/private`], allowPrivate: true, respectRobots: true, domainRegistry });
   assert.ok(existsSync(res.file));
   assert.ok(res.failuresFile && existsSync(res.failuresFile));
   const line = JSON.parse(readFileSync(res.file, "utf8").trim().split("\n")[0]);

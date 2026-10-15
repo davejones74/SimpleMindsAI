@@ -550,6 +550,7 @@ export async function harvest({
   allowPrivate = config.crawlAllowPrivate,
   respectRobots = config.crawlRespectRobots,
   userAgent = config.crawlUserAgent,
+  domainRegistry = null,
 } = {}) {
   const decided = classifyCrawlMode({ mode, urls });
 
@@ -575,8 +576,12 @@ export async function harvest({
       mode: config.crawlDiscoveryPolicy,
     });
     // Run bounded cycles (unlimited unless CRAWL_TOTAL_BUDGET / depth caps bound it)
-    const domainRegistry = createDomainRegistry({ dir: config.paths.frontier });
-    const result = await runCrawlBatches({ frontier, domainRegistry, maxCycles: 0, policy, allowPrivate, respectRobots, userAgent });
+    // Use the caller's registry when provided (production injects the process
+    // singleton so the admin UI and the crawler agree). Otherwise default to the
+    // configured frontier dir. A caller using an isolated data dir MUST inject
+    // its own registry, or discoveries leak into the live one.
+    const registry = domainRegistry ?? createDomainRegistry({ dir: config.paths.frontier });
+    const result = await runCrawlBatches({ frontier, domainRegistry: registry, maxCycles: 0, policy, allowPrivate, respectRobots, userAgent });
 
     // Persist what was ACTUALLY fetched (previously this branch returned
     // `documents: []`, so the frontier crawler silently produced nothing).

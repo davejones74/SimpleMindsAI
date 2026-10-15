@@ -21,7 +21,7 @@ import { createDomainRegistry } from "../storage/domain-registry.js";
  * layers changing.
  */
 export class DiscoveryService {
-  constructor({ frontier, policy = null, seeds = config.crawlUrls, log = () => {} } = {}) {
+  constructor({ frontier, policy = null, seeds = config.crawlUrls, log = () => {}, domainRegistry = null } = {}) {
     this.frontier = frontier ?? new Frontier({ dir: config.paths.frontier });
     this.seeds = (seeds ?? []).filter(Boolean);
     this.policy =
@@ -33,7 +33,11 @@ export class DiscoveryService {
         mode: config.crawlDiscoveryPolicy,
       });
     this.log = log;
-    this.domainRegistry = createDomainRegistry({ dir: config.paths.frontier });
+    // Callers may inject the process-wide registry (the server does, so the
+    // admin UI and the crawler share one instance). When isolated storage is
+    // required — e.g. a caller using a temp data dir — it MUST inject its own,
+    // otherwise discoveries would leak into the configured live registry.
+    this.domainRegistry = domainRegistry ?? createDomainRegistry({ dir: config.paths.frontier });
     // Discovery is inherently a live crawler; the server only wires it when
     // CRAWL_MODE=real. Its reported mode must therefore be `real`.
     this.mode = "real";

@@ -7,6 +7,13 @@ import path from "node:path";
 import { Frontier } from "../src/frontier.js";
 import { createDiscoveryPolicy } from "../src/discovery/discovery-policy.js";
 import { DiscoveryService } from "../src/discovery/discovery-service.js";
+import { createDomainRegistry } from "../src/storage/domain-registry.js";
+
+// Each test gets its own registry on disk: discovery must never write into the
+// configured live registry (data/frontier) just because a test drove a crawl.
+function isolatedRegistry() {
+  return createDomainRegistry({ dir: mkdtempSync(path.join(tmpdir(), "sma-disc-reg-")), forceNew: true });
+}
 
 let serverA;
 let serverB;
@@ -85,6 +92,7 @@ test("DiscoveryService (open): follows links beyond the seed host and records pr
     frontier,
     seeds: [`${originA}/seed`],
     policy: createDiscoveryPolicy({ seedUrls: [`${originA}/seed`], mode: "open" }),
+    domainRegistry: isolatedRegistry(),
   });
   const res = await service.collect({ maxPages: 3, maxDepth: 1, allowPrivate: true });
   const urls = res.documents.map((d) => d.url).sort();
@@ -104,6 +112,7 @@ test("DiscoveryService (seeds-only): refuses cross-host expansion but follows sa
     frontier,
     seeds: [`${originA}/seed`],
     policy: createDiscoveryPolicy({ seedUrls: [`${originA}/seed`], mode: "seeds-only" }),
+    domainRegistry: isolatedRegistry(),
   });
   const res = await service.collect({ maxPages: 5, maxDepth: 1, allowPrivate: true });
   const urls = res.documents.map((d) => d.url);
@@ -119,6 +128,7 @@ test("DiscoveryService: a second cycle fetches only newly discovered URLs (no re
     frontier,
     seeds: [`${originA}/seed`],
     policy: createDiscoveryPolicy({ seedUrls: [`${originA}/seed`], mode: "open" }),
+    domainRegistry: isolatedRegistry(),
   });
   const first = await service.collect({ maxPages: 1, maxDepth: 1, allowPrivate: true });
   assert.equal(first.documents.length, 1);
@@ -149,6 +159,7 @@ test("DiscoveryService: no configured seeds means no fetch (stale frontier is cl
     frontier,
     seeds: [],
     policy: createDiscoveryPolicy({ seedUrls: [], mode: "open" }),
+    domainRegistry: isolatedRegistry(),
   });
   const res = await service.collect({ maxPages: 5, maxDepth: 1, allowPrivate: true });
 
