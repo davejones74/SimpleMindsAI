@@ -628,6 +628,10 @@ async function openArticle(articleId) {
     const a = await api(`/articles/${encodeURIComponent(articleId)}`);
     box.innerHTML = articleDetail(a);
     wireDetail(a);
+    // The detail panel sits below the (potentially long) article table, so
+    // opening an article would otherwise leave the operator at the top of the
+    // page scrolling down by hand. Bring the panel into view once it has content.
+    box.scrollIntoView({ behavior: "smooth", block: "start" });
   } catch (err) {
     box.innerHTML = `<div class="panel notice"><span class="bad">${esc(err.message)}</span></div>`;
   }

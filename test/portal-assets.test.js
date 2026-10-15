@@ -134,6 +134,10 @@ test("articles tab lists newest-first, filters domains by selection, and shows c
     "curated-at column is missing or misplaced",
   );
   assert.ok(table.includes("when(x.createdAt)"), "curated-at cell does not render createdAt");
+
+  // Opening an article jumps to the detail panel below the table.
+  const open = app.slice(app.indexOf("async function openArticle"), app.indexOf("function articleDetail("));
+  assert.ok(open.includes("scrollIntoView"), "opening an article does not scroll the detail panel into view");
 });
 
 test("a missing loss is never coerced to zero in the trends graph", async () => {
