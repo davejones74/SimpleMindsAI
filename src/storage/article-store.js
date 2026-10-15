@@ -316,11 +316,24 @@ const rec = {
    * Paginated read with optional filters. Cursor is an articleId; filtering may
    * skip pages, which is acceptable for a prototype and flagged in the README.
    */
-  articlesPage({ after = null, limit = 100, status, importance, consumed, domain } = {}) {
-    const startIdx = after ? this.articleOrder.indexOf(after) + 1 : 0;
+  articlesPage({ after = null, limit = 100, status, importance, consumed, domain, order = "asc" } = {}) {
+    // Insertion order is recency order (articles are appended as they are
+    // curated), so `order: "desc"` walks the tail first to surface the newest
+    // material. The cursor is the last id returned; the next page resumes on
+    // the adjacent index in the same direction, which keeps `after` stable
+    // under the same skips-and-continue filtering as the ascending default.
+    const desc = order === "desc";
+    const total = this.articleOrder.length;
+    let i;
+    if (!after) {
+      i = desc ? total - 1 : 0;
+    } else {
+      const idx = this.articleOrder.indexOf(after);
+      i = idx === -1 ? (desc ? total - 1 : 0) : desc ? idx - 1 : idx + 1;
+    }
     const items = [];
     let nextCursor = null;
-    for (let i = startIdx; i < this.articleOrder.length && items.length < limit; i++) {
+    for (; i >= 0 && i < total && items.length < limit; i += desc ? -1 : 1) {
       const rec = { ...this.articles.get(this.articleOrder[i]) };
       if (status && rec.status !== status) continue;
       if (importance && rec.importance !== importance) continue;

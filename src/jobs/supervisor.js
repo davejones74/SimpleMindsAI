@@ -51,6 +51,16 @@ function isNetworkError(err) {
 }
 
 /**
+ * Errors that mean "there is not enough trainable material right now" rather
+ * than "training is broken". A CONTINUOUS training job waits and retries these;
+ * a one-shot job surfaces them as a clear terminal failure. `INSUFFICIENT_CORPUS`
+ * is raised by the Python corpus preflight (the snapshot is shorter than one
+ * block), `NO_ELIGIBLE_MATERIAL` by the empty snapshot guard, and
+ * `INSUFFICIENT_ELIGIBLE` by the run-level eligibility gate.
+ */
+const NO_MATERIAL_CODES = new Set(["INSUFFICIENT_CORPUS", "NO_ELIGIBLE_MATERIAL", "INSUFFICIENT_ELIGIBLE"]);
+
+/**
  * JobSupervisor — owns the long-running lifecycle work the Observatory starts.
  *
  * Design rules:
@@ -184,13 +194,18 @@ export class JobSupervisor {
     });
   }
 
-  async startTraining({ mode = "one-shot", parentVersion = null, minEligible } = {}) {
+  async startTraining({ mode = "one-shot", parentVersion = null, minEligible, targetArticles } = {}) {
     const m = mode === "continuous" ? "continuous" : "one-shot";
     return this.#start("training", {
       mode: m,
       params: {
         parentVersion: parentVersion ?? null,
         minEligible: Number.isFinite(minEligible) ? minEligible : config.jobs.training.minEligible,
+        // The operator's per-run consumption target. It OVERRIDES the
+        // SNAPSHOT_LIMIT default; an absent/invalid value falls back to it.
+        targetArticles: Number.isFinite(targetArticles) && targetArticles > 0
+          ? Math.floor(targetArticles)
+          : config.snapshotLimit,
       },
     });
   }
@@ -539,6 +554,12 @@ export class JobSupervisor {
   async #runTraining(job, params, base) {
     const { jobId } = job;
     const minEligible = params.minEligible;
+    // Strict consumption target: the snapshot (and therefore the exactly-once
+    // consumption commit) is capped at exactly this many articles, overriding
+    // the SNAPSHOT_LIMIT default the operator set in the portal.
+    const targetArticles = Number.isFinite(params.targetArticles) && params.targetArticles > 0
+      ? Math.floor(params.targetArticles)
+      : config.snapshotLimit;
     let last = null;
     let runs = 0;
     let consecutiveRejections = 0;
@@ -589,18 +610,20 @@ export class JobSupervisor {
           trainer: this.trainerFactory(base.signal),
           parentVersion: params.parentVersion,
           minEligible,
+          snapshotLimit: targetArticles,
           logger: this.#jobLogger(jobId),
         });
       } catch (err) {
-        // A corpus too small to form one block is an operator condition, not a
-        // training fault: a continuous job waits for more reviewed material (the
-        // articles stay unconsumed), while a one-shot job fails with the clear
-        // message instead of a Python traceback.
-        if (err?.code === "INSUFFICIENT_CORPUS") {
+        // Insufficient material — too few eligible articles, a corpus too small
+        // to form one block, or a snapshot the guards emptied — is an operator
+        // condition, not a training fault: a continuous job waits for more
+        // reviewed material (the articles stay unconsumed), while a one-shot job
+        // fails with the clear message instead of a Python traceback.
+        if (NO_MATERIAL_CODES.has(err?.code)) {
           if (job.mode === "one-shot") throw err;
           await this.#event(jobId, {
             status: JOB_STATUS.WAITING,
-            phase: "waiting-for-corpus",
+            phase: err.code === "INSUFFICIENT_CORPUS" ? "waiting-for-corpus" : "waiting-for-eligible",
             note: err.message,
           });
           await this.#gate(jobId, config.jobs.pollIntervalMs);

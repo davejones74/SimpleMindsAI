@@ -51,6 +51,18 @@ async function readManifest(manifestPath) {
   }
 }
 
+/**
+ * No reviewed, unconsumed article survived collection and the leak guards. The
+ * `NO_ELIGIBLE_MATERIAL` code lets a continuous training job wait for new
+ * material instead of failing, while a one-shot run surfaces it as a clear,
+ * terminal error.
+ */
+function noEligibleMaterial() {
+  const err = new Error("dataset empty after snapshot guards (no reviewed, unconsumed articles)");
+  err.code = "NO_ELIGIBLE_MATERIAL";
+  return err;
+}
+
 /** Update the run manifest with current state. */
 async function updateManifest(manifestPath, manifest, fields) {
   const updated = { ...manifest, ...fields };
@@ -146,6 +158,11 @@ export async function executeFullRun({
 
     // ---- immutable, capped, leak-guarded snapshot ----
     const { rows } = collectRowsFromArticles(store, { limit });
+    // Refuse BEFORE baking an artifact when there is nothing to collect: a
+    // continuous job treats this as a wait condition and polls, so an empty
+    // snapshot manifest must not be appended on every cycle.
+    if (!rows.length) throw noEligibleMaterial();
+
     snapshot = await buildSnapshot({
       registry,
       rowsRaw: rows,
@@ -153,9 +170,9 @@ export async function executeFullRun({
       evalGuard: makeEvalGuard(evalSet),
     });
 
-    if (!snapshot.rows.length) {
-      throw new Error("dataset empty after snapshot guards (no reviewed, unconsumed articles)");
-    }
+    // The evaluation leak guard can still empty a non-empty collection (every
+    // row colliding with the frozen eval set): same condition, same code.
+    if (!snapshot.rows.length) throw noEligibleMaterial();
 
     // ---- validated curriculum plan ----
     const storeStats = typeof store.getStats === "function" ? store.getStats() : {};

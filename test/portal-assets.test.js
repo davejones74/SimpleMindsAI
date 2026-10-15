@@ -109,6 +109,33 @@ test("the best-checkpoint card renders one checkpoint, not a per-corpus list", a
   assert.ok(!/best\s*=\s*\(m\.best/.test(app), "the card still falls back to the per-corpus list");
 });
 
+/**
+ * The Articles tab lists newest-first, filters domains through a fixed set of
+ * choices, and shows when each article was curated. These are source-level
+ * assertions for the same reason as the parse check above: the portal is a
+ * dependency-free module with no DOM harness, so a mistake here would only
+ * surface in a running browser.
+ */
+test("articles tab lists newest-first, filters domains by selection, and shows curation time", async () => {
+  const app = await readFile(path.join(PUBLIC, "app.js"), "utf8");
+
+  // Newest-first: the portal pins the descending order.
+  assert.ok(app.includes('q.set("order", "desc")'), "articles load is not newest-first");
+
+  // Domain is a fixed set drawn from the overview, not a free-text box.
+  assert.ok(/<select data-filter="domain">/.test(app), "domain filter is not a select");
+  assert.ok(!/<input type="text" data-filter="domain"/.test(app), "domain filter is still free text");
+  assert.ok(app.includes("articles?.byDomain"), "domain options are not sourced from the overview");
+
+  // "Curated at" sits between Trainable and Consumed in the article table.
+  const table = app.slice(app.indexOf("function articleTable()"), app.indexOf("function wireArticles()"));
+  assert.ok(
+    /<th>Trainable<\/th><th>Curated at<\/th><th>Consumed<\/th>/.test(table),
+    "curated-at column is missing or misplaced",
+  );
+  assert.ok(table.includes("when(x.createdAt)"), "curated-at cell does not render createdAt");
+});
+
 test("a missing loss is never coerced to zero in the trends graph", async () => {
   const metrics = await readFile(path.join(REPO, "src", "admin", "metrics.js"), "utf8");
   // The coercion guard has to come BEFORE Number(): Number(null) === 0, so the

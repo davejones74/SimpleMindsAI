@@ -162,6 +162,9 @@ export function attachAdmin({ app, store, registry, governance, chat, conversati
   // ------------------------------------------------------------- articles
   router.get("/articles", asyncRoute(async (req, res) => {
     const { after = null, limit = 50, status, importance, consumed, domain } = req.query;
+    // The portal lists newest-first; other store callers keep the ascending
+    // default, so the direction is fixed here rather than in the store.
+    const order = req.query.order === "asc" ? "asc" : "desc";
     ok(res, req.workspace.services.store.articlesPage({
       after,
       limit: Number(limit) || 50,
@@ -169,6 +172,7 @@ export function attachAdmin({ app, store, registry, governance, chat, conversati
       importance: importance || undefined,
       consumed: consumed === undefined ? undefined : consumed === "true",
       domain: domain || undefined,
+      order,
     }));
   }));
 
@@ -649,6 +653,7 @@ export function attachAdmin({ app, store, registry, governance, chat, conversati
       mode: req.body?.mode,
       parentVersion: req.body?.parentVersion ?? null,
       minEligible: req.body?.minEligible,
+      targetArticles: req.body?.targetArticles,
     });
     ok(res, { job });
   }));
@@ -669,6 +674,9 @@ export function attachAdmin({ app, store, registry, governance, chat, conversati
       workspace: req.workspace.id,
       trainable: stats.trainable,
       minEligible,
+      // The default per-run consumption cap, so the portal can seed its
+      // "target articles" control from the real value instead of a hardcoded one.
+      snapshotLimit: config.snapshotLimit,
       eligible: stats.trainable >= minEligible,
     });
   }));

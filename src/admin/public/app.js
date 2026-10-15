@@ -15,6 +15,11 @@ const state = {
     conversations: [],
     currentConversationId: null,
     currentConvVersion: null,
+    // The composer's in-progress text. An SSE-driven refresh re-renders the
+    // whole chat view, which would otherwise discard an unsent draft; keeping it
+    // in state (like the form selections and open job above) means a refresh is
+    // invisible to an operator who is mid-message.
+    draft: "",
   },
   mission: null,
   strategy: null,
@@ -496,6 +501,7 @@ async function loadArticles() {
   const f = state.articles.filters;
   const q = new URLSearchParams();
   q.set("limit", "50");
+  q.set("order", "desc"); // newest curated articles first
   for (const key of ["status", "importance", "domain", "consumed"]) if (f[key]) q.set(key, f[key]);
   if (state.articles.nextCursor) q.set("after", state.articles.nextCursor);
   const page = await api(`/articles?${q.toString()}`);
@@ -507,6 +513,17 @@ async function loadArticles() {
 function renderArticles() {
   const a = state.articles;
   const f = a.filters;
+  // The domain filter is a fixed set, not free text: the list is the domains
+  // actually present on articles, which `/overview` already reports (sorted by
+  // count). A filtered domain that no longer exists keeps its own option so the
+  // active filter is never silently dropped.
+  const domains = state.overview?.articles?.byDomain ?? [];
+  const domainOptions = domains
+    .map((d) => `<option value="${esc(d.domain)}" ${f.domain === d.domain ? "selected" : ""}>${esc(d.domain)} (${fmt(d.count)})</option>`)
+    .join("");
+  const staleDomain = f.domain && !domains.some((d) => d.domain === f.domain)
+    ? `<option value="${esc(f.domain)}" selected>${esc(f.domain)}</option>`
+    : "";
   main.innerHTML = `
     <h2 class="section-title">Articles</h2>
     ${isReadOnly() ? `<div class="panel notice"><div class="title">Inspection-only workspace</div><div class="small muted">This view reads a frozen store. Mutations — review selection, importance changes and review verdicts — are disabled.</div></div>` : ""}
@@ -524,7 +541,11 @@ function renderArticles() {
         <option value="false" ${f.consumed === "false" ? "selected" : ""}>unconsumed</option>
         <option value="true" ${f.consumed === "true" ? "selected" : ""}>consumed</option>
       </select>
-      <input type="text" data-filter="domain" placeholder="domain…" value="${esc(f.domain ?? "")}" />
+      <select data-filter="domain">
+        <option value="">all domains</option>
+        ${staleDomain}
+        ${domainOptions}
+      </select>
       <button id="reloadArticles">Apply</button>
       <button id="selectReview" class="primary" ${roAttr()}>Run review selection</button>
     </div>
@@ -540,7 +561,7 @@ function renderArticles() {
 function articleTable() {
   const items = state.articles.items;
   if (!items.length) return `<div class="empty">No articles match. Ingest via the GraphQL/REST API, or run the crawler + curator.</div>`;
-  return `<table><tr><th>Article</th><th>Domain</th><th>Importance</th><th>Status</th><th>Trainable</th><th>Consumed</th><th>Actions</th></tr>
+  return `<table><tr><th>Article</th><th>Domain</th><th>Importance</th><th>Status</th><th>Trainable</th><th>Curated at</th><th>Consumed</th><th>Actions</th></tr>
     ${items.map((x) => `
       <tr data-id="${esc(x.articleId)}">
         <td class="wrap" style="max-width:420px"><a href="#" data-open="${esc(x.articleId)}">${esc((x.text ?? "").slice(0, 110))}${(x.text ?? "").length > 110 ? "…" : ""}</a>
@@ -549,6 +570,7 @@ function articleTable() {
         <td>${badge(x.importance.toUpperCase(), x.importance)}${x.suggestedImportance ? ` ${badge(`suggested ${String(x.suggestedImportance).toUpperCase()}`, `sugg: ${x.suggestedImportance}`)}` : ""}</td>
         <td>${badge(x.status, x.status)}</td>
         <td>${x.trainable ? "✔" : "—"}</td>
+        <td class="small muted">${when(x.createdAt)}</td>
         <td>${x.consumedAt ? `<span title="${esc(x.consumedRef ?? "")}">${when(x.consumedAt)}</span>` : "—"}</td>
         <td class="actions">
           <button data-imp="${esc(x.articleId)}" data-val="Important" ${roAttr()}>Mark Important</button>
@@ -697,6 +719,17 @@ async function loadChat() {
 function renderChat() {
   const c = state.chat;
   const id = c.identity ?? {};
+  // renderChat replaces the entire view via `main.innerHTML`, and refresh()
+  // calls it on every inbound SSE change while the Live Chat tab is active. An
+  // unsent message, its caret and the log's scroll must survive that rebuild, or
+  // the composer is emptied under the operator mid-keystroke.
+  const prevInput = document.getElementById("chatInput");
+  const prevLog = document.getElementById("chatLog");
+  if (prevInput) c.draft = prevInput.value;
+  const hadFocus = prevInput != null && document.activeElement === prevInput;
+  const selStart = prevInput ? prevInput.selectionStart : null;
+  const selEnd = prevInput ? prevInput.selectionEnd : null;
+  const logScroll = prevLog ? prevLog.scrollTop : null;
   const vScope = versionScope();
   const curVer = c.currentConvVersion || null;
   const curId = c.currentConversationId || null;
@@ -727,12 +760,23 @@ function renderChat() {
       </div>
       </div>
     </div>`;
+  const inputEl = document.getElementById("chatInput");
+  if (inputEl) inputEl.value = c.draft ?? "";
+  if (hadFocus && inputEl) {
+    inputEl.focus();
+    if (selStart != null && selEnd != null) {
+      try { inputEl.setSelectionRange(selStart, selEnd); } catch {}
+    }
+  }
+  const logEl = document.getElementById("chatLog");
+  if (logEl) logEl.scrollTop = logScroll ?? 1e9;
   const send = async () => {
     const input = document.getElementById("chatInput");
     const text = input.value.trim();
     if (!text) return;
     c.messages.push({ role: "user", text, meta: new Date().toLocaleTimeString() });
     input.value = "";
+    c.draft = "";
     renderChat();
     document.getElementById("chatLog").scrollTop = 1e9;
     try {
@@ -758,6 +802,7 @@ function renderChat() {
     c.messages = [];
     c.currentConversationId = null;
     c.currentConvVersion = state.selectedVersion || null;
+    c.draft = "";
     renderChat();
     document.getElementById("chatInput")?.focus();
   };
@@ -765,6 +810,7 @@ function renderChat() {
   document.getElementById("chatInput")?.addEventListener("keydown", (e) => {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
   });
+  document.getElementById("chatInput")?.addEventListener("input", (e) => { c.draft = e.target.value; });
   document.getElementById("chatNewBtn")?.addEventListener("click", newConv);
 }
 
@@ -1686,6 +1732,8 @@ function renderControl() {
           </select>
           <label class="small muted">min eligible</label>
           <input type="number" id="trainMin" value="1" min="1" style="width:80px" ${roAttr()} />
+          <label class="small muted">target articles</label>
+          <input type="number" id="trainTarget" value="${esc(String(elig.snapshotLimit ?? 256))}" min="1" style="width:90px" title="Exactly how many articles this run may consume. Overrides the SNAPSHOT_LIMIT default." ${roAttr()} />
         </div>
         <div class="toolbar">
           <button id="trainStart" class="primary" ${roAttr()}>Start training</button>
@@ -1737,7 +1785,7 @@ function renderControl() {
   wireControl();
 }
 
-const CONTROL_FORM_FIELDS = ["learnMode", "learnTarget", "learnRaw", "trainMode", "trainParent", "trainMin", "freshSeed", "freshConfig"];
+const CONTROL_FORM_FIELDS = ["learnMode", "learnTarget", "learnRaw", "trainMode", "trainParent", "trainMin", "trainTarget", "freshSeed", "freshConfig"];
 
 /**
  * Restore the operator's last Learning & Training selections onto the freshly
@@ -1798,6 +1846,7 @@ function wireControl() {
         mode: document.getElementById("trainMode").value,
         parentVersion: document.getElementById("trainParent").value || null,
         minEligible: Number(document.getElementById("trainMin").value),
+        targetArticles: Number(document.getElementById("trainTarget").value),
       } });
       await loadControl();
     } catch (err) { alert(err.message); e.target.disabled = false; }

@@ -111,3 +111,44 @@ test("purgeBuffer wipes transient articles but keeps the durable consumption led
   assert.equal(reopened.getStats().uniqueConsumed, 1);
   await reopened.close();
 });
+
+/**
+ * The portal lists newest-first. Insertion order is recency order, so
+ * `order: "desc"` walks the tail. The cursor must resume adjacent to the last
+ * id without skipping: a filtered desc page that stops early must still hand
+ * back the articles after it on the next call.
+ */
+test("articlesPage order:'desc' returns newest first and paginates without gaps", async () => {
+  const store = await ArticleStore.open(tmp());
+  const ids = [];
+  for (let i = 0; i < 5; i++) {
+    const a = await store.ingestArticle({ text: `Ordering article number ${i} with enough prose.`, domain: i % 2 === 0 ? "even" : "odd" });
+    ids.push(a.articleId);
+  }
+
+  // Default stays ascending (oldest first) for non-portal callers.
+  assert.deepEqual(store.articlesPage({ limit: 10 }).items.map((a) => a.articleId), ids);
+
+  // Descending is newest first.
+  assert.deepEqual(
+    store.articlesPage({ limit: 10, order: "desc" }).items.map((a) => a.articleId),
+    [...ids].reverse(),
+  );
+
+  // Paginate desc two at a time and reassemble the full newest-first order.
+  const pages = [];
+  let cursor = null;
+  do {
+    const page = store.articlesPage({ after: cursor, limit: 2, order: "desc" });
+    pages.push(...page.items.map((a) => a.articleId));
+    cursor = page.nextCursor;
+  } while (cursor);
+  assert.deepEqual(pages, [...ids].reverse());
+
+  // A filtered desc page resumes from the last returned id instead of skipping.
+  const filtered = store.articlesPage({ limit: 2, order: "desc", domain: "even" });
+  assert.deepEqual(filtered.items.map((a) => a.articleId), [ids[4], ids[2]]);
+  const next = store.articlesPage({ after: filtered.nextCursor, limit: 2, order: "desc", domain: "even" });
+  assert.deepEqual(next.items.map((a) => a.articleId), [ids[0]]);
+  await store.close();
+});

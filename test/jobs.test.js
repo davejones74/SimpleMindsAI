@@ -412,6 +412,59 @@ test("supervisor: one-shot training runs the lifecycle and reports promotion", a
   await registry.close();
 });
 
+test("supervisor: target articles strictly caps how many articles a run consumes", async () => {
+  // 3 eligible articles, but the operator asked to consume exactly 2. The run
+  // must override the SNAPSHOT_LIMIT default and consume only the target.
+  const store = await seededStore(3);
+  const registry = await RegistryStore.open(tmp());
+  let trainedRecordCount = null;
+  const trainer = {
+    kind: "python",
+    version: "py-1",
+    resolveBaseline: async () => ({ version: "v001", path: "x/v001" }),
+    resolveVersion: async (v) => ({ version: v, path: `x/${v}` }),
+    train: async ({ runId, configuration }) => {
+      trainedRecordCount = configuration?.recordCount ?? null;
+      return {
+        checkpointPath: "x/v002",
+        version: "v002",
+        parentVersion: "v001",
+        trainingRunId: "trid",
+        nodeRunId: runId,
+        datasetHash: "DH",
+        recordsProcessed: configuration?.recordCount ?? null,
+        finalTrainLoss: 1.2,
+        note: "python",
+      };
+    },
+  };
+  const sup = new JobSupervisor({
+    store,
+    registry,
+    dir: tmp(),
+    trainerFactory: () => trainer,
+    trainingDeps: {
+      paths: { snapshots: tmp(), models: tmp(), plans: tmp(), evaluation: tmp() },
+      evalSeed: async () => EVAL_SEED,
+      evaluateLoss: async ({ version }) => ({ version, loss: version === "v001" ? 2.0 : 1.4, datasetHash: "EVAL", ok: true }),
+      setActive: async (version) => ({ version }),
+    },
+  });
+  await sup.init({ reconcile: false });
+
+  const job = await sup.startTraining({ mode: "one-shot", targetArticles: 2 });
+  const done = await waitTerminal(sup, job.jobId);
+  assert.equal(done.status, JOB_STATUS.COMPLETED, done.error ?? "");
+  assert.equal(done.result.decision, "promoted");
+  assert.equal(trainedRecordCount, 2, "the run trained on exactly the target articles");
+  assert.equal(store.getStats().uniqueConsumed, 2, "only the target number of articles were consumed");
+  assert.equal(store.getStats().trainable, 1, "the remaining eligible article stays unconsumed");
+
+  await sup.close();
+  await store.close();
+  await registry.close();
+});
+
 test("supervisor: one-shot training refuses an undersized corpus before any run", async () => {
   const store = await seededStore(1);
   const registry = await RegistryStore.open(tmp());
@@ -487,6 +540,84 @@ test("supervisor: continuous training waits for more corpus instead of crashing"
 
   await sup.stop(job.jobId);
   await waitTerminal(sup, job.jobId);
+
+  await sup.close();
+  await store.close();
+  await registry.close();
+});
+
+test("supervisor: continuous training waits when the dataset is empty instead of failing", async () => {
+  // No trainable articles at all, and the eligibility gate set to 0 so the
+  // supervisor's own pre-check cannot short-circuit: the empty snapshot must be
+  // a WAIT condition for a continuous job, never a terminal failure. The
+  // operator reported exactly this — a continuous job failed with "dataset empty
+  // after snapshot guards" when there was simply nothing to train on yet.
+  const store = await seededStore(0);
+  const registry = await RegistryStore.open(tmp());
+  const trainer = {
+    kind: "python",
+    version: "test",
+    resolveBaseline: async () => ({ version: "v001", path: "x/v001" }),
+    resolveVersion: async (v) => ({ version: v, path: `x/${v}` }),
+    preflight: async () => ({ ok: true }),
+    train: async () => {
+      throw new Error("train must not be reached when the dataset is empty");
+    },
+  };
+  const sup = new JobSupervisor({
+    store,
+    registry,
+    dir: tmp(),
+    trainerFactory: () => trainer,
+    trainingDeps: { paths: { snapshots: tmp(), models: tmp(), plans: tmp(), evaluation: tmp() } },
+  });
+  await sup.init({ reconcile: false });
+
+  const job = await sup.startTraining({ mode: "continuous", minEligible: 0 });
+  for (let i = 0; i < 200 && sup.getJob(job.jobId).phase !== "waiting-for-eligible"; i++) {
+    await new Promise((r) => setTimeout(r, 10));
+  }
+  const waiting = sup.getJob(job.jobId);
+  assert.equal(waiting.status, JOB_STATUS.WAITING);
+  assert.equal(waiting.phase, "waiting-for-eligible");
+  assert.match(waiting.note, /dataset empty after snapshot guards/);
+  assert.equal(registry.listRuns().length, 0, "an empty dataset must never become a failed run");
+  // The wait must not bake an empty snapshot artifact on every poll.
+  assert.equal(registry.listSnapshots().length, 0, "no empty snapshot should be persisted while waiting");
+
+  await sup.stop(job.jobId);
+  await waitTerminal(sup, job.jobId);
+
+  await sup.close();
+  await store.close();
+  await registry.close();
+});
+
+test("supervisor: one-shot training still fails clearly on an empty dataset", async () => {
+  const store = await seededStore(0);
+  const registry = await RegistryStore.open(tmp());
+  const trainer = {
+    kind: "python",
+    version: "test",
+    resolveBaseline: async () => ({ version: "v001", path: "x/v001" }),
+    train: async () => {
+      throw new Error("train must not be reached when the dataset is empty");
+    },
+  };
+  const sup = new JobSupervisor({
+    store,
+    registry,
+    dir: tmp(),
+    trainerFactory: () => trainer,
+    trainingDeps: { paths: { snapshots: tmp(), models: tmp(), plans: tmp(), evaluation: tmp() } },
+  });
+  await sup.init({ reconcile: false });
+
+  const job = await sup.startTraining({ mode: "one-shot", minEligible: 0 });
+  const done = await waitTerminal(sup, job.jobId);
+  assert.equal(done.status, JOB_STATUS.FAILED);
+  assert.match(done.error, /dataset empty after snapshot guards/);
+  assert.equal(registry.listRuns().length, 0);
 
   await sup.close();
   await store.close();
