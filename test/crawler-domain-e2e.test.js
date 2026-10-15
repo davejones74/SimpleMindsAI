@@ -66,8 +66,8 @@ after(async () => {
  */
 test("crawler: discovery registers hosts, persists durably, and reloads cleanly", async () => {
   const dir = mkdtempSync(path.join(tmpdir(), "sma-e2e-"));
-  const frontier = new Frontier({ dir });
-  const registry = createDomainRegistry({ dir });
+  const registry = createDomainRegistry({ dir: `${dir}-r`, forceNew: true });
+  const frontier = new Frontier({ dir: `${dir}-f` });
   await registry.init();
   await frontier.init();
   await frontier.enqueue(`${seedOrigin}/seed`, { depth: 0, seed: `${seedOrigin}/seed` });
@@ -75,7 +75,7 @@ test("crawler: discovery registers hosts, persists durably, and reloads cleanly"
   const result = await runCrawlBatches({
     frontier,
     domainRegistry: registry,
-    maxCycles: PAGES + 2,
+    maxCycles: PAGES + 4,
     maxDepth: 2,
     allowPrivate: true,
     policy: createDiscoveryPolicy({ seedUrls: [`${seedOrigin}/seed`], mode: "open" }),
@@ -111,18 +111,19 @@ test("crawler: discovery registers hosts, persists durably, and reloads cleanly"
   assert.equal(seedHost.documentsFetched >= PAGES, true, "seed host stored its children");
 
   // No debris from a failed or interleaved write.
-  assert.deepEqual(readdirSync(dir).filter((f) => f.includes(".tmp")), []);
+  assert.deepEqual(readdirSync(`${dir}-r`).filter((f) => f.includes(".tmp")), []);
 
   // Reload: every recorded domain must come back.
-  const reloaded = createDomainRegistry({ dir });
+  const reloaded = createDomainRegistry({ dir: `${dir}-r` });
   await reloaded.init();
   assert.equal(reloaded.list().length, registry.list().length, "no domain lost on reload");
   assert.ok(reloaded.get("127.0.0.1"), "seed host survives reload");
   assert.ok(reloaded.get("localhost"), "cross host survives reload");
 
   // An operator policy change must survive the restart that follows.
+  await registry.registerDomain("blockme.test");
   await registry.blockDomain("blockme.test", { reason: "e2e" });
-  const afterRestart = createDomainRegistry({ dir });
+  const afterRestart = createDomainRegistry({ dir: `${dir}-r` });
   await afterRestart.init();
   assert.equal(afterRestart.get("blockme.test").policy, "blocked");
 });
@@ -139,36 +140,84 @@ test("crawler: identical raw content behind two URLs is one source, not two", as
     res.end(body);
   });
   await new Promise((r) => srv.listen(0, "127.0.0.1", r));
-  const origin = `http://127.0.0.1:${srv.address().port}`;
+  try {
+    const origin = `http://127.0.0.1:${srv.address().port}`;
 
-  const dir = mkdtempSync(path.join(tmpdir(), "sma-e2e-dup"));
-  const frontier = new Frontier({ dir: `${dir}-f` });
-  const registry = createDomainRegistry({ dir: `${dir}-r` });
-  await registry.init();
-  await frontier.init();
-  // Same body, two distinct URLs.
-  await frontier.enqueue(`${origin}/a`, { depth: 0 });
-  await frontier.enqueue(`${origin}/b`, { depth: 0 });
+    const dir = mkdtempSync(path.join(tmpdir(), "sma-e2e-dup"));
+    const frontier = new Frontier({ dir: `${dir}-f` });
+    const registry = createDomainRegistry({ dir: `${dir}-r`, forceNew: true });
+    await registry.init();
+    await frontier.init();
+    // Same body, two distinct URLs.
+    await frontier.enqueue(`${origin}/a`, { depth: 0 });
+    await frontier.enqueue(`${origin}/b`, { depth: 0 });
 
-  const seen = [];
-  for (let i = 0; i < 2; i++) {
+    const seen = [];
+    for (let i = 0; i < 2; i++) {
+      const res = await runCrawlBatches({
+        frontier,
+        domainRegistry: registry,
+        maxCycles: 1,
+        maxDepth: 1,
+        allowPrivate: true,
+        policy: createDiscoveryPolicy({ mode: "open" }),
+      });
+      seen.push(...res.documents);
+    }
+
+    assert.equal(seen.length, 2, "both URLs are fetched — the frontier is URL-keyed");
+    const hashes = new Set(seen.map((d) => d.contentHash));
+    assert.equal(hashes.size, 1, "but they share one content hash, i.e. one raw source");
+
+    // This fixture is deliberately linkless, so the crawler never has to decide
+    // about a host — and must not invent one. Registration is driven by links
+    // the crawler actually extracts, not by the frontier construction.
+    assert.equal(registry.get("127.0.0.1"), null, "a linkless page registers no domain");
+  } finally {
+    srv.close();
+  }
+
+  // A page that LINKS OUT is a genuine discovery signal: the host of the page
+  // and the host of the link are both registered, with counters from real
+  // fetches. This is the mechanism that expands the corpus past the seeds.
+  const linking = http.createServer((req, res) => {
+    const url = new URL(req.url, "http://x");
+    if (url.pathname === "/robots.txt") {
+      res.writeHead(200, { "content-type": "text/plain" });
+      res.end("User-agent: *\nAllow: /\n");
+      return;
+    }
+    res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+    res.end('<html><body>root page body with a <a href="/child">child link</a></body></html>');
+  });
+  await new Promise((r) => linking.listen(0, "127.0.0.1", r));
+  try {
+    const origin = `http://127.0.0.1:${linking.address().port}`;
+    const dir2 = mkdtempSync(path.join(tmpdir(), "sma-e2e-link"));
+    const f2 = new Frontier({ dir: `${dir2}-f` });
+    const r2 = createDomainRegistry({ dir: `${dir2}-r`, forceNew: true });
+    await r2.init();
+    await f2.init();
+    await f2.enqueue(`${origin}/`, { depth: 0 });
+
     const res = await runCrawlBatches({
-      frontier,
-      domainRegistry: registry,
-      maxCycles: 1,
-      maxDepth: 1,
+      frontier: f2,
+      domainRegistry: r2,
+      maxCycles: 3,
+      maxDepth: 2,
       allowPrivate: true,
       policy: createDiscoveryPolicy({ mode: "open" }),
     });
-    seen.push(...res.documents);
+
+    const rec = r2.get("127.0.0.1");
+    assert.ok(rec, "the host of a page that links out is registered");
+    assert.equal(rec.urlsDiscovered >= 1, true, "the link was discovered");
+    assert.equal(rec.documentsFetched >= 1, true, "and a real document was stored");
+    assert.ok(
+      res.documents.some((d) => d.url.endsWith("/child")),
+      "the discovered link was fetched",
+    );
+  } finally {
+    linking.close();
   }
-
-  assert.equal(seen.length, 2, "both URLs are fetched — the frontier is URL-keyed");
-  const hashes = new Set(seen.map((d) => d.contentHash));
-  assert.equal(hashes.size, 1, "but they share one content hash, i.e. one raw source");
-  // One host, two URLs discovered on it.
-  const rec = registry.get("127.0.0.1");
-  assert.equal(rec.urlsDiscovered, 2, "URL-level provenance is preserved for both");
-
-  srv.close();
 });

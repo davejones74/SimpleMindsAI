@@ -29,16 +29,40 @@ const DOMAIN_ORIGIN = Object.freeze({
 });
 
 /**
- * Canonical domain identity for a hostname OR an http(s) URL.
+ * True for an IPv4/IPv6 literal (a bare address, not a named host).
+ *
+ * Used by the OPERATOR boundary, not by discovery: the crawler must be able to
+ * register whatever host it actually fetched (including a self-hosted IP or
+ * loopback), so normalization itself never rejects an address. Refusing to let
+ * an operator type an IP into the manual form is a separate, deliberate
+ * validation — it catches a truncated IP or a pasted `http://10.0.0.5/path`
+ * instead of silently filing it under the domain "10.0.0.5/path".
+ */
+function isIpLiteral(host) {
+  if (typeof host !== "string" || !host) return false;
+  const h = host.trim().toLowerCase();
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(h)) return true;
+  if (/^\[[0-9a-f:.]+\]$/.test(h)) return true;
+  if (/^[0-9a-f]*:[0-9a-f:.]*$/.test(h) && h.includes(":")) return true;
+  return false;
+}
+
+/**
+ * Normalise a hostname OR an http(s) URL to its canonical domain identity.
  *
  * Rules (spec §2):
  *   - normalise case, strip port, path, query and fragment;
- *   - reject IP literals and anything that is not a valid dotted hostname, so a
- *     URL-encoded path segment or a stray string can never become a "domain";
+ *   - reject malformed input (bare paths, queries, userinfo, whitespace,
+ *     over-long or malformed labels) so it can never become a "domain";
+ *   - accept a valid single-label host such as `localhost`, which RFC 6761
+ *     reserves and which the crawler legitimately meets;
+ *   - keep IP literals VALID here — a fetched host is a fetched host. Whether an
+ *     operator may enter one is decided separately at the operator boundary
+ *     (`isIpLiteral`), not by the normalization every caller depends on;
  *   - IDN is handled by WHATWG URL, which lower-cases and PunyConverts, so an
  *     internationalised domain and its A-label form settle on one identity.
  *
- * Returns null for anything that is not a usable hostname: the caller must treat
+ * Returns null for anything that is not a usable host: the caller must treat
  * that as "not a domain", never as an empty-string domain.
  */
 function canonicalDomain(hostOrUrl) {
@@ -59,24 +83,24 @@ function canonicalDomain(hostOrUrl) {
   } else {
     // A bare input is a hostname, not a URL: reject userinfo, paths and queries
     // so "example.com/a?b=c" cannot become the domain "example.com/a".
-    if (/[/?#@\s]/.test(raw)) return null;
+    // Bracketed IPv6 ("[::1]") is a legal bare host and is allowed through.
+    if (/[/?#@\s]/.test(raw.replace(/^\[[0-9a-f:.]+\]$/, ""))) return null;
     host = raw;
   }
 
   // A trailing dot in a valid FQDN is legal and normalises away.
   let normalizedHost = host.toLowerCase().replace(/\.$/, "");
+  // Strip IPv6 brackets so the identity is the bare address.
+  normalizedHost = normalizedHost.replace(/^\[|\]$/g, "");
   if (!normalizedHost) return null;
 
-  // IPv4 / IPv6 literals are addresses, not domains. URL gives IPv6 already
-  // bracketed; a bare input may arrive as "127.0.0.1" or "::1".
-  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(normalizedHost)) return null;
-  if (/^\[[0-9a-f:.]+\]$/.test(normalizedHost)) return null;
-  if (normalizedHost.includes(":")) return null;
+  // A host that is nothing but a port ("http://:8080/x") is not a domain.
+  // IPv6 literals legitimately start with ":", so they are checked first.
+  if (isIpLiteral(normalizedHost)) return normalizedHost;
+  if (/^\d*$/.test(normalizedHost)) return null;
+  if (/^:/.test(normalizedHost)) return null;
 
-  // A hostname is a series of dot-separated labels; each label is alphanumeric
-  // or a hyphen, must not start or end with a hyphen, and is ≤63 characters.
   const labels = normalizedHost.split(".");
-  if (labels.length < 2) return null;
   for (const label of labels) {
     if (!label || label.length > 63) return null;
     if (!/^[a-z0-9-]+$/.test(label)) return null;
@@ -280,6 +304,12 @@ function buildDomainRegistry(dir, readOnly) {
   async function registerDomain(domain, { source = null, origin = DOMAIN_ORIGIN.AUTO } = {}) {
     const canonical = canonicalDomain(domain);
     if (!canonical) return { ok: false, reason: "bad-domain" };
+    // Operator-entered domains must be named hosts. The crawler registers
+    // whatever it fetched (including an IP); a manual entry of an address is a
+    // paste or a typo, and is refused rather than silently filed as a domain.
+    if (origin === DOMAIN_ORIGIN.MANUAL && isIpLiteral(canonical)) {
+      return { ok: false, reason: "ip-literal-not-allowed" };
+    }
     const existing = domains.get(canonical);
     const record = ensureRecord(canonical, {
       // Preserve the ORIGINAL provenance of a known domain: re-discovery must
@@ -423,4 +453,4 @@ function buildDomainRegistry(dir, readOnly) {
   };
 }
 
-export { canonicalDomain, matchesDomain, DOMAIN_POLICY, DOMAIN_ORIGIN };
+export { canonicalDomain, matchesDomain, isIpLiteral, DOMAIN_POLICY, DOMAIN_ORIGIN };

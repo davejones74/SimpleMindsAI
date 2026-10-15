@@ -7,6 +7,7 @@ import {
   createDomainRegistry,
   canonicalDomain,
   matchesDomain,
+  isIpLiteral,
   DOMAIN_POLICY,
   DOMAIN_ORIGIN,
 } from "../src/storage/domain-registry.js";
@@ -292,5 +293,44 @@ test("createDomainRegistry: callers share one authority per directory", async ()
   await a.init();
   await a.registerDomain("shared.test");
   assert.equal(b.has("shared.test"), true, "the second caller sees the first caller's write");
+  cleanup(dir);
+});
+
+/**
+ * REGRESSION: single-label hosts and IP literals.
+ *
+ * `canonicalDomain` must normalise whatever host the crawler actually fetched —
+ * `localhost` and a loopback IP are legitimate fetched hosts. Rejecting them at
+ * the normalisation step meant discovery silently registered NOTHING for any
+ * loopback test fixture: the registry was always empty and the Sources &
+ * Domains tab always looked backend-broken. IP literals are refused only at the
+ * OPERATOR boundary, where they are a paste or a typo.
+ */
+test("canonicalDomain: localhost and IP literals normalise; only operators are refused IP entry", async () => {
+  assert.equal(canonicalDomain("http://localhost:3000/x"), "localhost");
+  assert.equal(canonicalDomain("LOCALHOST"), "localhost");
+  assert.equal(canonicalDomain("http://127.0.0.1:8443/a?b=c"), "127.0.0.1");
+  // A URL with an IPv6 literal is normalized the same way.
+  assert.equal(canonicalDomain("http://[::1]:8080/x"), "::1");
+  assert.equal(isIpLiteral("127.0.0.1"), true);
+  assert.equal(isIpLiteral("::1"), true);
+  assert.equal(isIpLiteral("localhost"), false);
+  assert.equal(isIpLiteral("en.wikipedia.org"), false);
+
+  const dir = tmp();
+  const reg = registry(dir);
+  await reg.init();
+
+  // Discovery registers whatever it met.
+  const discovered = await reg.registerDomain("http://127.0.0.1:8443/a", { source: "crawler" });
+  assert.equal(discovered.ok, true);
+  assert.equal(discovered.domain, "127.0.0.1");
+  await reg.recordFetchSuccess("127.0.0.1", { url: "http://127.0.0.1:8443/a", contentHash: "h" });
+  assert.equal(reg.get("127.0.0.1").documentsFetched, 1);
+
+  // An operator typing an IP is refused.
+  const manualIp = await reg.registerDomain("10.0.0.5", { origin: DOMAIN_ORIGIN.MANUAL });
+  assert.equal(manualIp.ok, false);
+  assert.equal(manualIp.reason, "ip-literal-not-allowed");
   cleanup(dir);
 });
