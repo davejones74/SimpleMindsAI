@@ -274,7 +274,13 @@ most relevant to deployment:
 | `TRAIN_WARMUP` / `TRAIN_VAL_BLOCKS` / `TRAIN_EVAL_EVERY` / `TRAIN_TIMEOUT_MS` | `10`, `2`, `10`, `3600000` | LR warmup steps, held-out validation blocks, validation-record interval (0 keeps the legacy two endpoints), and trainer subprocess timeout. |
 | `TRAIN_COMPUTE_DTYPE` | `bfloat16` | Compute dtype. Use `float32` on CPU (see below). |
 | `INIT_CONFIG` | `small` | `sma.brain init --config` architecture (random init). |
-| `CRAWL_MODE` | `fixture` | `fixture` \| `real`. `real` fetches ONLY the explicit `CRAWL_URLS`. |
+| `CRAWL_MODE` | `fixture` | `fixture` \| `real`. `real` uses the persisted, robots-aware frontier; `CRAWL_URLS` seeds it, but an empty `CRAWL_URLS` never clears persisted work and never disables discovery. |
+| `CRAWL_URLS` | (empty) | Optional bootstrap seeds. Leaving it empty is valid; discovery continues from the domain registry and the adapters below. |
+| `CRAWL_DISCOVERY_ADAPTERS` | `sitemap,feed` | Enabled discovery adapters: `sitemap` (robots `Sitemap:` + `/sitemap.xml`, bounded index traversal), `feed` (RSS/Atom), `search` (only with a configured provider). |
+| `CRAWL_DISCOVERY_SEEDS` / `CRAWL_DISCOVERY_FEEDS` | (empty) | Optional extra discovery roots / explicit feed URLs. |
+| `CRAWL_DISCOVERY_MAX_ROOTS` / `CRAWL_DISCOVERY_MAX_CANDIDATES` | `25`, `500` | Per-cycle caps on bootstrap roots and adapter-proposed candidates. |
+| `CRAWL_DISCOVERY_MAX_SITEMAPS` / `CRAWL_DISCOVERY_SITEMAP_MAX_DEPTH` | `50`, `3` | Sitemap traversal bounds. |
+| `CRAWL_SEARCH_ENDPOINT` / `CRAWL_SEARCH_PROVIDER` / `CRAWL_SEARCH_QUERY_PARAM` / `CRAWL_SEARCH_QUERIES` | (empty) | Optional search-provider adapter; active only when an endpoint is set. No credentialed provider is required. |
 | `CRITIC_TEMPERATURE` | `0.1` | Critic sampling temperature; recorded with every review. The Phase 7 experiment retained `0.5` in `.env` (verdicts stable; see [PHASE7_REPORT.md](PHASE7_REPORT.md#critic-temperature-experiment)). |
 | `CRITIC_PROMPT_VERSION` | `critic-prompt-v1` | Operator-managed label for the critic prompt wording; recorded with every review. Bump it when the prompt changes. |
 | `EVAL_MIN_DOCUMENTS` | `0` | Advisory floor on frozen-eval-set size. Non-enforcing by default. |

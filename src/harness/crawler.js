@@ -561,13 +561,10 @@ export async function harvest({
 
   // If frontier is provided and we're in real mode, use frontier-managed cycle(s)
   if (frontier && mode === "real") {
-    // If no URLs configured, don't run the crawler at all (prevents crawling stale frontier data)
-    if (!urls.length) {
-      return { mode: "real", capability: CAPABILITY.real, documents: [], failures: [], discovered: [], cycles: 0, totalPagesFetched: 0, totalLinksDiscovered: 0, totalUrlsEnqueued: 0 };
-    }
-    // Clear any stale frontier data when no URLs are configured
-    await frontier.clear();
-    // Seed frontier from CRAWL_URLS if not already seeded
+    // Seed frontier from CRAWL_URLS if not already seeded. Pending frontier
+    // entries are NEVER cleared here: they are legitimate persisted discovery
+    // work and must survive a config change (see DiscoveryService for the
+    // bootstrap that keeps discovery alive with empty CRAWL_URLS).
     await seedFrontierFromConfig(frontier, urls);
     const policy = createDiscoveryPolicy({
       seedUrls: urls,

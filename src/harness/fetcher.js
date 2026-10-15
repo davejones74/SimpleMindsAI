@@ -22,6 +22,10 @@ export class FetchError extends Error {
 
 const HTML_TYPE = /^(text\/html|application\/xhtml\+xml)\b/i;
 const TEXT_TYPE = /^text\/[a-z0-9.+-]+\b/i;
+// Sitemaps and RSS/Atom feeds are XML. Discovery adapters fetch them through
+// this same bounded, SSRF-checked path, so the allow-list must admit them as
+// text — but they are NOT HTML, so link-extraction must not be run on them.
+const XML_TYPE = /^(application|text)\/(xml|atom\+xml|rss\+xml)\b/i;
 
 /** Canonical content hash — MUST equal domain/article.js contentHash (sha256 utf8). */
 export function contentHashFor(text) {
@@ -209,7 +213,7 @@ export async function fetchDocument(url, {
       }
       if (!res.ok) throw new FetchError("FETCH_STATUS", `HTTP ${res.status}`, { url: current, status: res.status });
       const contentType = res.headers.get("content-type") ?? "";
-      if (!HTML_TYPE.test(contentType) && !TEXT_TYPE.test(contentType)) {
+      if (!HTML_TYPE.test(contentType) && !TEXT_TYPE.test(contentType) && !XML_TYPE.test(contentType)) {
         throw new FetchError("FETCH_BAD_CONTENT_TYPE", `unsupported content-type "${contentType}"`, { url: current });
       }
       const buf = await readCapped(res.body, maxBytes);

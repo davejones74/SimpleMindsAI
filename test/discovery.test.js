@@ -138,32 +138,34 @@ test("DiscoveryService: a second cycle fetches only newly discovered URLs (no re
 });
 
 /**
- * STALE-FRONTIER REGRESSION.
+ * PERSISTED-FRONTIER CONTINUITY.
  *
- * CRAWL_URLS is a bootstrap list an operator edits freely. When it is cleared
- * the frontier still holds URLs from the earlier configuration, so the crawler
- * silently kept fetching the old corpus — the operator saw "real mode, 39
- * documents" with nothing configured. With no seeds there is nothing legitimate
- * to fetch, so the frontier must be cleared.
+ * CRAWL_URLS is bootstrap input, not a boundary, and an empty seed list is not a
+ * reason to throw away work already queued. Pending frontier entries are
+ * legitimate persisted discovery work and must be resumed after a config change
+ * or a process restart — never silently deleted.
  */
-test("DiscoveryService: no configured seeds means no fetch (stale frontier is cleared)", async () => {
+test("DiscoveryService: empty seeds resumes persisted frontier work instead of clearing it", async () => {
   // A frontier left over from a previous configuration.
   const dir = mkdtempSync(path.join(tmpdir(), "sma-disc-"));
   const frontier = new Frontier({ dir });
   await frontier.init();
   await frontier.enqueue(`${originA}/seed`, { depth: 0, seed: `${originA}/seed` });
-  await frontier.enqueue(`${originA}/local`, { depth: 1 });
+  await frontier.enqueue(`${originA}/local`, { depth: 0 });
   assert.equal(frontier.state.size, 2, "frontier starts with the previous run's URLs");
 
   const service = new DiscoveryService({
     frontier,
     seeds: [],
+    adapters: [], // no adapter capability in this test
     policy: createDiscoveryPolicy({ seedUrls: [], mode: "open" }),
     domainRegistry: isolatedRegistry(),
   });
-  const res = await service.collect({ maxPages: 5, maxDepth: 1, allowPrivate: true });
+  const res = await service.collect({ maxPages: 5, maxDepth: 0, allowPrivate: true });
 
-  assert.equal(res.documents.length, 0, "nothing may be fetched when no seeds are configured");
-  assert.equal(frontier.state.size, 0, "the stale frontier must be discarded, not replayed");
-  assert.equal(frontier.summary().queued, 0);
+  const urls = res.documents.map((d) => d.url).sort();
+  assert.deepEqual(urls, [`${originA}/local`, `${originA}/seed`], "persisted frontier work is resumed");
+  assert.equal(res.discovery.status, "ok", "pending work is a real source, not a dead end");
+  assert.ok(frontier.state.size >= 2, "entries are not discarded");
+  assert.equal(frontier.summary().visited, 2);
 });

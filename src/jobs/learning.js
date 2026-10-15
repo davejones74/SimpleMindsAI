@@ -34,7 +34,14 @@ export async function runLearningCycle(ctx) {
   };
   const result = await collect(crawlCtx);
   const rawDocs = result.documents?.length ?? 0;
-  log("out", `harvest mode=${result.mode} capability=${result.capability} documents=${rawDocs} failures=${result.failures?.length ?? 0}`);
+  // `result.discovery` is present only when a DiscoveryService produced the docs.
+  // It distinguishes "the frontier is momentarily empty" from "no discovery
+  // capability is configured at all" so the caller never conflates the two.
+  const discoveryStatus = result.discovery?.status ?? null;
+  log(
+    "out",
+    `harvest mode=${result.mode} capability=${result.capability} documents=${rawDocs} failures=${result.failures?.length ?? 0}${discoveryStatus ? ` discovery=${discoveryStatus}` : ""}`,
+  );
 
   const cap = ctx.maxRawDocs > 0 ? Math.min(rawDocs, ctx.maxRawDocs) : rawDocs;
   let ingested = 0;
@@ -143,5 +150,8 @@ export async function runLearningCycle(ctx) {
     failures: result.failures ?? [],
     sourceExhausted,
     skippedUnchanged,
+    // Pass the discovery report through so the supervisor can tell an empty
+    // queue from a genuinely unconfigured discovery source.
+    discovery: result.discovery ?? null,
   };
 }

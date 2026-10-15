@@ -1,4 +1,4 @@
-import { mkdir, writeFile, readFile, rename } from "node:fs/promises";
+import { mkdir, writeFile, readFile, rename, unlink, copyFile } from "node:fs/promises";
 import path from "node:path";
 import { contentHashFor } from "./harness/fetcher.js";
 
@@ -96,7 +96,7 @@ export class Frontier {
   // Idempotent enqueue: returns the canonical key; if URL already tracked,
   // does not re-enqueue. If URL failed with exhausted retries, may re-enqueue
   // only when `force` is set.
-  async enqueue(url, { depth = 0, parent = null, seed = null, force = false, maxRetries = 2 } = {}) {
+  async enqueue(url, { depth = 0, parent = null, seed = null, force = false, maxRetries = 2, discoveryProvenance = null } = {}) {
     if (!this.initialized) await this.init();
     const canonical = canonicalURL(url);
     if (!canonical) return null;
@@ -114,7 +114,7 @@ export class Frontier {
       if (existing.state === URL_STATE.DEFERRED && !force) return null;
     }
 
-    const record = makeFrontierRecord(url, URL_STATE.QUEUED, depth, parent, seed);
+    const record = makeFrontierRecord(url, URL_STATE.QUEUED, depth, parent, seed, { discoveryProvenance });
     this.state.set(canonical, record);
     await this.persist();
     return canonical;

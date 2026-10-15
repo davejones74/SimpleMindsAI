@@ -488,6 +488,19 @@ export class JobSupervisor {
         outcome = "target-reached";
         break;
       }
+      // No discovery source is configured at all (no seeds, no eligible
+      // registered domains, no usable adapter). This is NOT "sources exhausted":
+      // the honest report is that there is no capability to obtain documents, so
+      // an operator can configure one instead of concluding the web is empty.
+      if (last?.discovery?.status === "no-source-configured") {
+        await this.#safeEvent(jobId, {
+          status: JOB_STATUS.RUNNING,
+          phase: "no-source-configured",
+          note: "stopping: no discovery source configured (set CRAWL_URLS, register a domain, or enable a discovery adapter)",
+        });
+        outcome = "no-source-configured";
+        break;
+      }
       if (last.sourceExhausted) {
         outcome = "sources-exhausted";
         break;
@@ -880,6 +893,9 @@ function summarizeLearning(r) {
     corpusCeiling: r.corpusCeiling ?? null,
     failures: r.failures?.length ?? 0,
     sourceExhausted: r.sourceExhausted,
+    // Adapter/bootstrap observability: which sources ran, what they found, and
+    // whether discovery was actually reachable this cycle.
+    discovery: r.discovery ?? null,
   };
 }
 

@@ -264,9 +264,12 @@ export const config = {
   trainTimeoutMs: num("TRAIN_TIMEOUT_MS", 60 * 60 * 1000),
   initConfig: env("INIT_CONFIG", "small"), // sma.brain init --config
 
-  // ---- Harvest / crawl (configured-source fetching ONLY; no web discovery) ----
-  // CRAWL_MODE=real fetches ONLY the URLs in CRAWL_URLS (bounded, robots-aware).
-  // There is NO search-engine/discovery mode — the system never invents sources.
+  // ---- Harvest / crawl ----
+  // CRAWL_MODE=real fetches the persistent frontier (bounded, robots-aware),
+  // seeded from CRAWL_URLS and expanded by the discovery adapters below.
+  // CRAWL_URLS is now OPTIONAL bootstrap input, not a required boundary: when it
+  // is empty the frontier is NOT cleared — discovery bootstraps from eligible
+  // registered domains and the configured adapters (sitemap / feed / search).
   crawlMode: env("CRAWL_MODE", "fixture"), // fixture | real
   crawlUrls: env("CRAWL_URLS", "").split(",").map((s) => s.trim()).filter(Boolean),
   crawlAllowPrivate: bool("CRAWL_ALLOW_PRIVATE", false), // SSRF guard off-switch (tests use loopback)
@@ -308,6 +311,34 @@ export const config = {
   crawlDeniedDomains: env("CRAWL_DENIED_DOMAINS", "").split(",").map((s) => s.trim()).filter(Boolean),
   // Cap links enqueued from a single fetched page (prevents link-farm blowups).
   crawlMaxLinksPerPage: num("CRAWL_MAX_LINKS_PER_PAGE", "50"),
+
+  // ---- Genuine autonomous document discovery (source-backed adapters) ----
+  // Adapters propose candidate URLs into the SAME persistent frontier; the
+  // DiscoveryService is the only writer and applies the discovery policy and
+  // the domain registry (blocked domains, etc.) to every candidate. Adapters
+  // never bypass a fetch-time safety check.
+  //   sitemap : robots.txt Sitemap: directives + /sitemap.xml, bounded indexes
+  //   feed    : RSS/Atom feeds advertised by roots (or listed explicitly)
+  //   search  : an INDEPENDENT provider — reports `unavailable` unless configured
+  crawlDiscoveryAdapters: env("CRAWL_DISCOVERY_ADAPTERS", "sitemap,feed").split(",").map((s) => s.trim()).filter(Boolean),
+  // Optional extra bootstrap seed URLs used only when CRAWL_URLS is empty. These
+  // are a convenience, never mandatory — discovery works from the registry or an
+  // independent adapter without them.
+  crawlDiscoverySeeds: env("CRAWL_DISCOVERY_SEEDS", "").split(",").map((s) => s.trim()).filter(Boolean),
+  // Extra feed URLs to poll directly, in addition to feeds auto-detected on roots.
+  crawlDiscoveryFeeds: env("CRAWL_DISCOVERY_FEEDS", "").split(",").map((s) => s.trim()).filter(Boolean),
+  // Bounds so a discovery pass stays cheap and testable.
+  crawlDiscoveryMaxRoots: num("CRAWL_DISCOVERY_MAX_ROOTS", 25),
+  crawlDiscoveryMaxCandidates: num("CRAWL_DISCOVERY_MAX_CANDIDATES", 500),
+  crawlDiscoveryMaxSitemaps: num("CRAWL_DISCOVERY_MAX_SITEMAPS", 50),
+  crawlDiscoverySitemapMaxDepth: num("CRAWL_DISCOVERY_SITEMAP_MAX_DEPTH", 3),
+  // Optional independent search provider. Unset => the search adapter reports
+  // `unavailable` and produces nothing; it never pretends to be operational and
+  // never silently requires paid credentials.
+  crawlSearchProvider: env("CRAWL_SEARCH_PROVIDER", null),
+  crawlSearchEndpoint: env("CRAWL_SEARCH_ENDPOINT", null),
+  crawlSearchQueryParam: env("CRAWL_SEARCH_QUERY_PARAM", "q"),
+  crawlSearchQueries: env("CRAWL_SEARCH_QUERIES", "").split(",").map((s) => s.trim()).filter(Boolean),
 
   // ---- Observatory workspaces (allow-listed; `development` is implicit) ----
   // Extra, inspection-only stores the portal may display (e.g. a completed

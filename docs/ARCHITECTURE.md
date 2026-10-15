@@ -98,7 +98,7 @@ following groups:
 
 | Area | Modules | Responsibility |
 |---|---|---|
-| Harvest / ingest | `src/harness/crawler.js`, `src/harness/fetcher.js`, `src/services/curator.js` | Fetch configured sources only (`CRAWL_MODE=real` fetches the explicit `CRAWL_URLS`, bounded and robots-aware; there is no search-engine discovery mode) and turn raw text into long-form articles via the teacher. |
+| Harvest / ingest | `src/harness/crawler.js`, `src/harness/fetcher.js`, `src/services/curator.js` | Persisted, robots-aware, bounded frontier. `CRAWL_URLS` seeds it (empty is allowed and never clears persisted work); `src/discovery/discovery-service.js` plus the `src/discovery/adapters/` layer (sitemap, RSS/Atom feed, optional search provider) independently discover further candidates and enqueue them. Raw text becomes long-form articles via the teacher. |
 | Teacher client | `src/services/ollama-client.js` | Talks to Ollama. Teacher/critic only. |
 | Domain | `src/domain/article.js`, `src/domain/review-policy.js` | Authoritative article lifecycle and importance, and the review-policy rules for autonomous selection and teacher/human transitions. |
 | Storage | `src/storage/article-store.js`, `src/storage/registry-store.js` | The authoritative `Article` ledger, and the append-only registry (ledger + `RUN.lock`). A legacy pair-buffer is detect-only. |
