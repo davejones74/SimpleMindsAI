@@ -85,6 +85,7 @@ export function createWorkspaceRegistry({
   conversations = null,
   pythonStorePath = null,
   workspaces = [],
+  domainRegistry = null,
 } = {}) {
   const entries = new Map();
 
@@ -96,7 +97,11 @@ export function createWorkspaceRegistry({
     readOnly: false,
     pythonStorePath,
     paths: null,
-    services: { store, registry, governance, chat, conversations },
+    services: { store, registry, governance, chat, conversations, domainRegistry },
+    // Exposed directly so the `/domains` API surface can read it as
+    // `req.workspace.domainRegistry` (the registry is a live process singleton,
+    // not a per-workspace store like articles/registry/governance).
+    domainRegistry,
     ...buildServices(governance),
   });
 

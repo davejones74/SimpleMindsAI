@@ -15,6 +15,7 @@ import { ConversationStore } from "./chat/conversation-store.js";
 import { JobSupervisor } from "./jobs/supervisor.js";
 import { Frontier } from "./frontier.js";
 import { DiscoveryService } from "./discovery/discovery-service.js";
+import { createDomainRegistry } from "./storage/domain-registry.js";
 import { resolvers } from "./graphql/resolvers.js";
 
 /**
@@ -30,7 +31,10 @@ import { resolvers } from "./graphql/resolvers.js";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const typeDefs = readFileSync(path.join(__dirname, "graphql", "schema.graphql"), "utf8");
 
-const store = await ArticleStore.open(config.paths.articles);
+const domainRegistry = createDomainRegistry({ dir: config.paths.frontier });
+await domainRegistry.init();
+
+const store = await ArticleStore.open(config.paths.articles, { domainRegistry });
 const registry = await RegistryStore.open(config.paths.registry);
 const governance = await GovernanceStore.open(config.paths.governance);
 const conversations = await ConversationStore.open(path.join(config.paths.chat, "conversations.ndjson"));
@@ -66,18 +70,19 @@ app.post("/api/ingest", async (req, res) => {
 // static URL list, so cycles keep finding new material. Only wired in real mode;
 // fixture mode keeps the deterministic built-in documents.
 const frontier = new Frontier({ dir: config.paths.frontier });
-const discovery = config.crawlMode === "real" ? new DiscoveryService({ frontier }) : null;
+  const discovery = config.crawlMode === "real" ? new DiscoveryService({ frontier }) : null;
 
-const supervisor = new JobSupervisor({
-  store,
-  registry,
-  governance,
-  changeFeed,
-  pythonStorePath: config.pythonStore ?? null,
-  pythonBin: config.pythonBin ?? undefined,
-  discovery,
-});
-await supervisor.init({ reconcile: true });
+  const supervisor = new JobSupervisor({
+    store,
+    registry,
+    governance,
+    changeFeed,
+    pythonStorePath: config.pythonStore ?? null,
+    pythonBin: config.pythonBin ?? undefined,
+    discovery,
+    domainRegistry,
+  });
+  await supervisor.init({ reconcile: true });
 
 attachAdmin({
   app,
@@ -89,6 +94,7 @@ attachAdmin({
   workspaces: config.workspaces,
   pythonStorePath: config.pythonStore,
   supervisor,
+  domainRegistry,
 });
 
 const httpServer = app.listen(config.port, config.host, () =>

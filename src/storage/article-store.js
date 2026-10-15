@@ -11,6 +11,7 @@ import {
   isTrainable,
   normalizeImportance,
 } from "../domain/article.js";
+import { canonicalDomain } from "../storage/domain-registry.js";
 import { DEFAULT_POLICY, evaluateVerdict, selectionDecision } from "../domain/review-policy.js";
 
 /**
@@ -48,8 +49,8 @@ const COLLECTIONS = {
 const LEGACY_FILES = ["prompts.ndjson", "completions.ndjson", "rewards.ndjson", "state.ndjson", "runs.ndjson"];
 
 export class ArticleStore {
-  static async open(dir = process.env.ARTICLE_DIR ?? process.env.BUFFER_DIR ?? path.resolve("data", "articles"), { readOnly = false } = {}) {
-    const s = new ArticleStore(dir, { readOnly });
+  static async open(dir = process.env.ARTICLE_DIR ?? process.env.BUFFER_DIR ?? path.resolve("data", "articles"), { readOnly = false, domainRegistry = null } = {}) {
+    const s = new ArticleStore(dir, { readOnly, domainRegistry });
     await s.#loadFromDisk();
     return s;
   }
@@ -64,10 +65,11 @@ export class ArticleStore {
    * workspace's completed trial) can never create or mutate a file. Every
    * mutating method throws.
    */
-  constructor(dir, { policy = DEFAULT_POLICY, readOnly = false } = {}) {
+  constructor(dir, { policy = DEFAULT_POLICY, readOnly = false, domainRegistry = null } = {}) {
     this.dir = dir;
     this.policy = policy;
     this.readOnly = readOnly;
+    this.domainRegistry = domainRegistry;
     if (!readOnly) mkdirSync(dir, { recursive: true });
 
     this.articles = new Map();
@@ -254,9 +256,9 @@ export class ArticleStore {
       missionRelevance,
       reviewRequested,
     };
-    const { selected, reasons } = selectionDecision(draft, this.policy);
+    const { selected, reasons } = selectionDecision(draft, this.policy, this.domainRegistry);
 
-    const rec = {
+const rec = {
       articleId,
       contentHash: hash,
       text,
@@ -269,6 +271,7 @@ export class ArticleStore {
       status: selected ? STATUS.PENDING_REVIEW : STATUS.INGESTED,
       origin,
       source,
+      sourceDomain: sourceUrl ? canonicalDomain(sourceUrl) : null,
       model,
       rawText,
       // Only present when the caller supplied them, so records from the
@@ -286,13 +289,6 @@ export class ArticleStore {
       updatedAt: now,
       consumedAt: null,
       consumedRef: null,
-      // Deferral state — set by the training lifecycle when a run rejects
-      // the batch.  cleared when the article is successfully consumed by a
-      // promoted model.  persisted in the article record so it survives
-      // process crash / restart.
-      deferredRunId: null,
-      deferredReason: null,
-      deferralRetries: 0,
     };
     this.articles.set(articleId, rec);
     this.articleOrder.push(articleId);
@@ -426,14 +422,14 @@ export class ArticleStore {
   }
 
   /** Deterministic autonomous pass: queue INGESTED articles that policy selects. */
-  async selectForReview({ limit = 500 } = {}) {
+  async selectForReview({ limit = 500, domainRegistry = null } = {}) {
     this.#assertWritable();
     const selected = [];
     for (const id of this.articleOrder) {
       if (selected.length >= limit) break;
       const a = this.articles.get(id);
       if (a.status !== STATUS.INGESTED) continue;
-      const { selected: yes, reasons } = selectionDecision(a, this.policy);
+      const { selected: yes, reasons } = selectionDecision(a, this.policy, domainRegistry);
       if (!yes) continue;
       await this.#event({ type: "status", articleId: id, from: a.status, to: STATUS.PENDING_REVIEW, actor: AUTHORITY.AUTOMATION, reason: reasons.join(",") });
       selected.push(id);

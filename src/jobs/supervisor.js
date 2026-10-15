@@ -80,6 +80,7 @@ export class JobSupervisor {
     scorer = null,
     crawl = null,
     discovery = null,
+    domainRegistry = null,
     runPython: runPythonFn = runPython,
     trainerFactory = null,
     trainingDeps = {},
@@ -98,6 +99,7 @@ export class JobSupervisor {
     this.scorer = scorer ?? new ReviewScorer({ ollama: this.ollama });
     this.crawl = crawl;
     this.discovery = discovery;
+    this.domainRegistry = domainRegistry;
     this.runPython = runPythonFn;
     this.trainerFactory = trainerFactory ?? ((signal) => selectTrainer({ signal }));
     this.trainingDeps = trainingDeps;
@@ -382,7 +384,10 @@ export class JobSupervisor {
 
   async #runLearning(job, params, base) {
     const { jobId } = job;
-    const target = params.targetArticles;
+    // Ensure target is a valid positive integer, default to config if invalid
+    const target = Number.isFinite(params.targetArticles) && params.targetArticles > 0 
+      ? Math.floor(params.targetArticles) 
+      : config.jobs.learning.targetArticles;
     const ctx = {
       ...base,
       ollama: this.ollama,
@@ -392,6 +397,7 @@ export class JobSupervisor {
       // frontier (seeds + policy-approved links) instead of a static URL list.
       collectDocuments: this.discovery ? (c) => this.discovery.collect(c) : undefined,
       maxRawDocs: params.maxRawDocs,
+      domainRegistry: this.domainRegistry,
       ...this.learningDeps,
     };
     let cycle = 0;

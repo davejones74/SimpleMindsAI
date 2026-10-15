@@ -2,6 +2,7 @@ import { Frontier } from "../frontier.js";
 import { config } from "../config.js";
 import { CAPABILITY, runCrawlBatches, seedFrontierFromConfig } from "../harness/crawler.js";
 import { createDiscoveryPolicy } from "./discovery-policy.js";
+import { createDomainRegistry } from "../storage/domain-registry.js";
 
 /**
  * DiscoveryService — the acquisition front end for the learning job.
@@ -32,6 +33,7 @@ export class DiscoveryService {
         mode: config.crawlDiscoveryPolicy,
       });
     this.log = log;
+    this.domainRegistry = createDomainRegistry({ dir: config.paths.frontier });
     // Discovery is inherently a live crawler; the server only wires it when
     // CRAWL_MODE=real. Its reported mode must therefore be `real`.
     this.mode = "real";
@@ -53,10 +55,20 @@ export class DiscoveryService {
     await this.frontier.init();
     // Recover URLs left in-progress by a crashed cycle before claiming new ones.
     await this.frontier.recoverStaleClaims({ claimTimeoutMs: config.crawlCooldownMs }).catch(() => {});
-    await seedFrontierFromConfig(this.frontier, this.seeds);
+
+    if (this.seeds.length) {
+      await seedFrontierFromConfig(this.frontier, this.seeds);
+    } else {
+      // No configured seeds. The frontier is the ONLY thing that would otherwise
+      // hand us URLs, and it persists across restarts — so a cleared CRAWL_URLS
+      // would silently keep re-crawling whatever an earlier configuration left
+      // behind. With nothing configured there is nothing legitimate to fetch.
+      await this.frontier.clear();
+    }
 
     const result = await runCrawlBatches({
       frontier: this.frontier,
+      domainRegistry: this.domainRegistry,
       maxCycles: maxCycles > 0 ? maxCycles : 0,
       maxDepth: ctx.maxDepth ?? config.crawlMaxDepth,
       maxLinksPerPage: ctx.maxLinksPerPage ?? config.crawlMaxLinksPerPage,

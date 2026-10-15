@@ -45,9 +45,12 @@ export function sampleUnit(articleId, salt = DEFAULT_POLICY.salt) {
 
 /**
  * Decide whether an article should enter teacher review.
+ * @param {object} article - The article to evaluate
+ * @param {object} policy - Selection policy
+ * @param {object} [domainRegistry] - Optional domain registry for importance weighting
  * @returns {{selected: boolean, reasons: string[], sample: number, sampleReason?: string}}
  */
-export function selectionDecision(article, policy = DEFAULT_POLICY) {
+export function selectionDecision(article, policy = DEFAULT_POLICY, domainRegistry = null) {
   const reasons = [];
   if (article?.reviewRequested) reasons.push("human-requested");
 
@@ -56,6 +59,14 @@ export function selectionDecision(article, policy = DEFAULT_POLICY) {
 
   const relevance = Number(article?.missionRelevance);
   if (Number.isFinite(relevance) && relevance >= policy.missionRelevanceThreshold) reasons.push("mission-relevance");
+
+  // Domain importance: modest preference for articles from important domains
+  if (domainRegistry && article?.sourceDomain) {
+    const domainRecord = domainRegistry.get(article.sourceDomain);
+    if (domainRecord && domainRecord.policy === "important") {
+      reasons.push("important-domain");
+    }
+  }
 
   const uncertainty = Number(article?.uncertainty);
   if (Number.isFinite(uncertainty) && uncertainty >= policy.uncertaintyThreshold) reasons.push("uncertainty");

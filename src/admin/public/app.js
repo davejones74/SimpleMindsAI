@@ -297,6 +297,7 @@ async function refresh() {
     if (state.tab === "cycles") await loadCycles();
     if (state.tab === "history") await loadHistory();
     if (state.tab === "trends") await loadTrends();
+    if (state.tab === "sources") await loadSources();
   } catch (err) {
     main.innerHTML = `<div class="panel notice"><div class="title bad">Portal error</div><div class="muted">${esc(err.message)}</div></div>`;
   }
@@ -333,6 +334,10 @@ function render() {
   else if (state.tab === "cycles") renderCycles();
   else if (state.tab === "history") renderHistory();
   else if (state.tab === "trends") renderTrends();
+  // Sources & Domains renders only from authoritative API state. `render()` runs
+  // before that state exists, so this tab is populated exclusively by
+  // `loadSources()`; calling it here with no data would render an empty table
+  // and look like "no domains discovered" rather than "not loaded yet".
 }
 
 // --------------------------------------------------------------- dashboard
@@ -1147,8 +1152,196 @@ function renderTrends() {
       : m.reason
         ? `<div class="panel notice"><div class="muted">${esc(m.reason)}</div></div>`
         : trendsBody(m);
-  main.innerHTML = `<h2 class="section-title">Trends &amp; Metrics <span class="sm">${versionScope()}</span></h2>${body}`;
+  main.innerHTML = `<h2 class="section-title">Trends & Metrics <span class="sm">${versionScope()}</span></h2>${body}`;
   bindSubtabs();
+}
+
+// --------------------------------------------------------- sources & domains
+// The domain registry is a live server-side singleton. The browser has no
+// direct handle on it, so every number and row here comes from the admin API:
+// this tab is a view over persisted state, never a cache that could drift.
+async function loadSources() {
+  // Never leave the tab blank: a spinner says "measuring", which is the truth.
+  main.innerHTML = `<h2 class="section-title">Sources &amp; Domains</h2><div class="panel loading">Loading discovered domains…</div>`;
+  let stats = null;
+  let domains = [];
+  let error = null;
+  try {
+    const [s, d] = await Promise.all([api("/domains/stats"), api("/domains?limit=200")]);
+    stats = s;
+    domains = d.items ?? [];
+  } catch (err) {
+    error = err.message;
+  }
+  renderSources({ stats, domains, error });
+}
+
+function renderSources({ stats, domains, error }) {
+  if (error) {
+    // A 503 here means "this deployment has no discovery service" — report that
+    // honestly instead of rendering an empty table that looks like "no domains".
+    const missing = /no rows|not available|inspection-only|503|Unknown table/i.test(error);
+    main.innerHTML = `
+      <h2 class="section-title">Sources &amp; Domains</h2>
+      <div class="panel notice"><div class="title ${missing ? "warn" : "bad"}">Domain registry unavailable</div>
+        <div class="muted">${esc(error)}</div>
+        <div class="small muted" style="margin-top:6px">Domain discovery, blocking and importance are enforced by the acquisition service. If it is not running, sources cannot be self-expanded.</div></div>`;
+    return;
+  }
+
+  const s = stats ?? { total: 0, byPolicy: { normal: 0, important: 0, blocked: 0 }, byOrigin: { auto: 0, manual: 0 } };
+
+  main.innerHTML = `
+    <h2 class="section-title">Sources &amp; Domains</h2>
+    <div class="small muted" style="margin:-6px 0 12px">
+      Domains the crawler discovered on its own, plus anything an operator added. Blocking a domain stops the crawler fetching it; marking it
+      important gives its articles a modest selection preference. Removing a domain is NOT a block — it can be rediscovered.
+    </div>
+
+    <div class="grid" style="margin-bottom:16px">
+      <div class="card"><div class="k">Registered domains</div><div class="v">${fmt(s.total)}</div></div>
+      <div class="card"><div class="k">Important</div><div class="v">${fmt(s.byPolicy.important)}</div></div>
+      <div class="card"><div class="k">Blocked</div><div class="v">${fmt(s.byPolicy.blocked)}</div></div>
+      <div class="card"><div class="k">Auto-discovered</div><div class="v">${fmt(s.byOrigin.auto)}</div></div>
+      <div class="card"><div class="k">Manually added</div><div class="v">${fmt(s.byOrigin.manual)}</div></div>
+    </div>
+
+    <div class="toolbar">
+      <input type="text" id="domainSearch" placeholder="Search domains…" style="flex:1; max-width:300px" />
+      <select id="domainFilterPolicy">
+        <option value="">All policies</option>
+        <option value="normal">Normal</option>
+        <option value="important">Important</option>
+        <option value="blocked">Blocked</option>
+      </select>
+      <select id="domainFilterOrigin">
+        <option value="">All origins</option>
+        <option value="auto">Auto-discovered</option>
+        <option value="manual">Manually added</option>
+      </select>
+      <button id="addDomainBtn" class="primary" ${roAttr()}>Add domain</button>
+    </div>
+
+    <div class="panel" id="domainTable">
+      ${domains.length
+        ? `<table><tr><th>Domain</th><th>Policy</th><th>Origin</th><th>URLs found</th><th>Docs kept</th><th>Failures</th><th>Last seen</th><th>Last fetched</th><th></th></tr>${domains.map(domainRow).join("")}</table>`
+        : `<div class="empty">No domains discovered yet. Run a learning job with CRAWL_MODE=real and CRAWL_URLS set — discovery expands from those seeds.</div>`}
+    </div>
+
+    <div id="addDomainModal" class="hidden">
+      <div class="panel" style="max-width:520px; margin:24px auto">
+        <div class="toolbar"><strong>Add a domain</strong><button id="closeAddDomainModal">x</button></div>
+        <div class="small muted" style="margin:8px 0">A hostname or a full URL — the domain is extracted automatically. No page is fetched by adding it.</div>
+        <div class="toolbar">
+          <input type="text" id="newDomainInput" placeholder="example.com or https://example.com/page" style="flex:1" />
+          <select id="newDomainOrigin" style="width:auto">
+            <option value="manual" selected>Manually added</option>
+            <option value="auto">Auto-discovered</option>
+          </select>
+          <button id="confirmAddDomain" class="primary">Add</button>
+        </div>
+      </div>
+    </div>
+  `;
+  wireDomainActions();
+}
+
+function domainRow(d) {
+  const policyLabel = d.policy === "blocked" ? "Blocked" : d.policy === "important" ? "Important" : "Normal";
+  const actions = [];
+  if (d.policy === "blocked") {
+    actions.push(`<button class="primary" data-act="unblock" data-domain="${esc(d.domain)}" ${roAttr()}>Unblock</button>`);
+  } else {
+    actions.push(`<button class="danger" data-act="block" data-domain="${esc(d.domain)}" ${roAttr()}>Block</button>`);
+    if (d.policy === "important") {
+      actions.push(`<button data-act="unimportant" data-domain="${esc(d.domain)}" ${roAttr()}>Remove importance</button>`);
+    } else {
+      actions.push(`<button class="primary" data-act="important" data-domain="${esc(d.domain)}" ${roAttr()}>Mark important</button>`);
+    }
+  }
+  actions.push(`<button class="danger" data-act="remove" data-domain="${esc(d.domain)}" ${roAttr()}>Remove</button>`);
+  return `<tr data-domain="${esc(d.domain)}" data-policy="${esc(d.policy)}" data-origin="${esc(d.origin)}">
+    <td class="wrap" style="max-width:320px">
+      <strong>${esc(d.domain)}</strong>
+      ${d.firstDiscoveredVia?.parentUrl ? `<div class="small muted" title="first found via a link from">via ${esc(d.firstDiscoveredVia.parentUrl)}</div>` : ""}
+      ${d.policyReason ? `<div class="small muted" title="${esc(d.policyReason)}">${esc(d.policyReason)}</div>` : ""}
+    </td>
+    <td>${badge(d.policy === "blocked" ? "REJECTED" : d.policy === "important" ? "REVIEWED" : "INGESTED", policyLabel)}</td>
+    <td class="small">${esc(d.origin === "manual" ? "manual" : "crawler")}</td>
+    <td>${fmt(d.urlsDiscovered ?? 0)}</td>
+    <td>${fmt(d.documentsFetched ?? 0)}</td>
+    <td class="small">${d.failureCount ? `<span class="warn">${fmt(d.failureCount)}</span>${d.lastError ? ` <span class="muted" title="${esc(d.lastError)}">${esc(d.lastError)}</span>` : ""}` : "—"}</td>
+    <td class="small">${when(d.lastSeenAt)}</td>
+    <td class="small">${when(d.lastSuccessfulFetch)}</td>
+    <td class="actions">${actions.join(" ")}</td>
+  </tr>`;
+}
+
+/** Rows are re-filtered in place, so a long registry is never re-fetched to filter. */
+function applyDomainFilters() {
+  const search = (document.getElementById("domainSearch")?.value ?? "").toLowerCase();
+  const policy = document.getElementById("domainFilterPolicy")?.value ?? "";
+  const origin = document.getElementById("domainFilterOrigin")?.value ?? "";
+  for (const row of document.getElementById("domainTable")?.querySelectorAll("tr[data-domain]") ?? []) {
+    const domain = row.getAttribute("data-domain") ?? "";
+    const match =
+      domain.includes(search) &&
+      (!policy || row.getAttribute("data-policy") === policy) &&
+      (!origin || row.getAttribute("data-origin") === origin);
+    row.style.display = match ? "" : "none";
+  }
+}
+
+function wireDomainActions() {
+  document.getElementById("domainSearch")?.addEventListener("input", applyDomainFilters);
+  document.getElementById("domainFilterPolicy")?.addEventListener("change", applyDomainFilters);
+  document.getElementById("domainFilterOrigin")?.addEventListener("change", applyDomainFilters);
+
+  const modal = document.getElementById("addDomainModal");
+  document.getElementById("addDomainBtn")?.addEventListener("click", () => modal?.classList.remove("hidden"));
+  document.getElementById("closeAddDomainModal")?.addEventListener("click", () => modal?.classList.add("hidden"));
+  document.getElementById("confirmAddDomain")?.addEventListener("click", async () => {
+    const input = document.getElementById("newDomainInput").value.trim();
+    if (!input) return alert("Enter a domain or a URL");
+    try {
+      const res = await api("/domains", {
+        method: "POST",
+        body: { domain: input, origin: document.getElementById("newDomainOrigin").value },
+      });
+      if (res.ok === false) { alert(res.error ?? "Could not add that domain"); return; }
+      document.getElementById("newDomainInput").value = "";
+      modal?.classList.add("hidden");
+      await loadSources();
+    } catch (err) { alert(err.message); }
+  });
+
+  // Row actions go straight to the API and then reload from authoritative state,
+  // so a stale client-side list can never be the source of truth.
+  document.getElementById("domainTable")?.addEventListener("click", async (e) => {
+    const btn = e.target.closest("button[data-act]");
+    if (!btn) return;
+    const domain = btn.getAttribute("data-domain");
+    const act = btn.getAttribute("data-act");
+    if (!domain || !act) return;
+    if (act === "remove" && !confirm(`Remove ${domain} from the registry?\n\nThis does NOT block it: the crawler may rediscover it. Its articles and history are kept.`)) return;
+    if (act === "block" && !confirm(`Block ${domain}?\n\nThe crawler will stop fetching that domain and its subdomains. Existing articles are kept.`)) return;
+
+    let endpoint;
+    let method = "POST";
+    let body = null;
+    if (act === "block") { endpoint = `/domains/${encodeURIComponent(domain)}/block`; body = { reason: "blocked by operator" }; }
+    else if (act === "unblock") { endpoint = `/domains/${encodeURIComponent(domain)}/unblock`; }
+    else if (act === "important") { endpoint = `/domains/${encodeURIComponent(domain)}/important`; body = { important: true }; }
+    else if (act === "unimportant") { endpoint = `/domains/${encodeURIComponent(domain)}/important`; body = { important: false }; }
+    else if (act === "remove") { endpoint = `/domains/${encodeURIComponent(domain)}`; method = "DELETE"; }
+    else return;
+
+    try {
+      const res = await api(endpoint, { method, body });
+      if (res.ok === false) { alert(res.error ?? "That action was refused"); return; }
+      await loadSources();
+    } catch (err) { alert(err.message); }
+  });
 }
 
 function trendsBody(m) {

@@ -5,6 +5,7 @@ import { Frontier } from "../frontier.js";
 import { config } from "../config.js";
 import { createDiscoveryPolicy } from "../discovery/discovery-policy.js";
 import { fetchDocument, parseRobots, robotsAllows, assertUrlAllowed, contentHashFor } from "./fetcher.js";
+import { canonicalDomain, matchesDomain, DOMAIN_POLICY } from "../storage/domain-registry.js";
 
 /**
  * Harvest — the ONLY entry point that produces raw docs.
@@ -177,6 +178,7 @@ function normalizeRawDoc(doc, record = {}) {
 export async function runCrawlCycle(ctx = {}) {
   const {
     frontier,
+    domainRegistry,
     maxDepth = config.crawlMaxDepth,
     maxPages = config.crawlPagesPerCycle,
     totalBudget = config.crawlTotalBudget,
@@ -261,12 +263,25 @@ export async function runCrawlCycle(ctx = {}) {
     return summary;
   }
 
-  // Domain check
+  // Extract domain from the claimed URL
+  const domain = canonicalDomain(record.url);
+
+  // Domain check - check both discovery policy and domain registry
   const claimDecision = decideUrl(record.url);
   if (!claimDecision.allowed) {
     await frontier.markFailed(canonical, { reason: claimDecision.reason ?? "disallowed_domain" });
     summary.domainFiltered = 1;
     return summary;
+  }
+
+  // Check domain registry for blocked domains
+  if (domainRegistry && domain) {
+    const domainRecord = domainRegistry.get(domain);
+    if (domainRecord && domainRecord.policy === "blocked") {
+      await frontier.markFailed(canonical, { reason: "domain_blocked" });
+      summary.domainFiltered = 1;
+      return summary;
+    }
   }
 
   // Fetch the URL
@@ -278,6 +293,11 @@ export async function runCrawlCycle(ctx = {}) {
     // Mark visited
     await frontier.markVisited(canonical, { contentHash: doc?.contentHash });
     summary.documents.push(normalizeRawDoc(doc, record));
+
+    // Register domain in registry if provided
+    if (domainRegistry && domain) {
+      domainRegistry.recordFetchSuccess(domain, { url: record.url, contentHash: doc?.contentHash });
+    }
 
     // Extract links from the RAW HTML (the plain-text `doc.text` has no tags).
     // Resolve relative hrefs against the FINAL URL after redirects.
@@ -297,6 +317,28 @@ export async function runCrawlCycle(ctx = {}) {
           summary.discovered.push({ url: linkUrl, accepted: false, reason: linkDecision.reason });
           continue;
         }
+
+        // Check domain registry for discovered links
+        const linkDomain = canonicalDomain(linkUrl);
+        if (domainRegistry && linkDomain) {
+          const domainRecord = domainRegistry.get(linkDomain);
+          if (domainRecord && domainRecord.policy === "blocked") {
+            summary.domainFiltered++;
+            summary.discovered.push({ url: linkUrl, accepted: false, reason: "domain_blocked" });
+            continue;
+          }
+        }
+
+        // Register discovered domain
+        if (domainRegistry && linkDomain) {
+          domainRegistry.recordDiscovery(linkDomain, {
+            url: linkUrl,
+            parentUrl: record.url,
+            depth: urlDepth,
+            trust: linkDecision.trust,
+          });
+        }
+
         const enqueued = await frontier.enqueue(linkUrl, {
           depth: linkDepth,
           parent: record.url,
@@ -312,6 +354,9 @@ export async function runCrawlCycle(ctx = {}) {
     }
   } else {
     // Fetch failed
+    if (domainRegistry && domain) {
+      domainRegistry.recordFetchFailure(domain, { url: record.url, error: fetchResult.error });
+    }
     await frontier.markFailed(canonical, { reason: fetchResult.reason ?? "fetch-failed", error: fetchResult.error });
     summary.errors++;
     summary.failures.push({ url: record.url, ok: false, reason: fetchResult.reason ?? "fetch-failed" });
@@ -329,6 +374,7 @@ export async function runCrawlCycle(ctx = {}) {
  */
 export async function runCrawlBatches({
   frontier,
+  domainRegistry,
   maxCycles = 0,
   maxPages = config.crawlPagesPerCycle,
   maxDepth = config.crawlMaxDepth,
@@ -360,6 +406,7 @@ export async function runCrawlBatches({
 
     const cycleCtx = {
       frontier,
+      domainRegistry,
       maxPages,
       maxDepth,
       respectRobots,
@@ -513,6 +560,12 @@ export async function harvest({
 
   // If frontier is provided and we're in real mode, use frontier-managed cycle(s)
   if (frontier && mode === "real") {
+    // If no URLs configured, don't run the crawler at all (prevents crawling stale frontier data)
+    if (!urls.length) {
+      return { mode: "real", capability: CAPABILITY.real, documents: [], failures: [], discovered: [], cycles: 0, totalPagesFetched: 0, totalLinksDiscovered: 0, totalUrlsEnqueued: 0 };
+    }
+    // Clear any stale frontier data when no URLs are configured
+    await frontier.clear();
     // Seed frontier from CRAWL_URLS if not already seeded
     await seedFrontierFromConfig(frontier, urls);
     const policy = createDiscoveryPolicy({
@@ -521,9 +574,9 @@ export async function harvest({
       deniedDomains: config.crawlDeniedDomains,
       mode: config.crawlDiscoveryPolicy,
     });
-
     // Run bounded cycles (unlimited unless CRAWL_TOTAL_BUDGET / depth caps bound it)
-    const result = await runCrawlBatches({ frontier, maxCycles: 0, policy, allowPrivate, respectRobots, userAgent });
+    const domainRegistry = createDomainRegistry({ dir: config.paths.frontier });
+    const result = await runCrawlBatches({ frontier, domainRegistry, maxCycles: 0, policy, allowPrivate, respectRobots, userAgent });
 
     // Persist what was ACTUALLY fetched (previously this branch returned
     // `documents: []`, so the frontier crawler silently produced nothing).

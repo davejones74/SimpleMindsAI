@@ -37,7 +37,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
  * `x-sma-workspace` header). Inspection-only workspaces refuse every mutation
  * with 403 and never run seeding writes on read endpoints.
  */
-export function attachAdmin({ app, store, registry, governance, chat, conversations = null, changeFeed = defaultFeed, pythonStorePath = null, workspaces = [], supervisor = null, logger = console }) {
+export function attachAdmin({ app, store, registry, governance, chat, conversations = null, changeFeed = defaultFeed, pythonStorePath = null, workspaces = [], supervisor = null, domainRegistry = null, logger = console }) {
   const workspaceRegistry = createWorkspaceRegistry({
     store,
     registry,
@@ -46,6 +46,7 @@ export function attachAdmin({ app, store, registry, governance, chat, conversati
     conversations,
     pythonStorePath,
     workspaces,
+    domainRegistry,
   });
 
   const router = express.Router();
@@ -746,6 +747,85 @@ export function attachAdmin({ app, store, registry, governance, chat, conversati
       unsubscribe();
     });
   });
+
+  // ------------------------------------------------------------- domains
+  router.get("/domains", asyncRoute(async (req, res) => {
+    const w = req.workspace;
+    if (w.readOnly) return fail(res, new Error("inspection-only workspace"), 403);
+    const registry = w.services?.domainRegistry ?? w.domainRegistry;
+    if (!registry) return fail(res, new Error("domain registry not available"), 503);
+    const { policy, origin, after, limit: limitParam } = req.query;
+    let domains = registry.list();
+    if (policy) domains = domains.filter((d) => d.policy === policy);
+    if (origin) domains = domains.filter((d) => d.origin === origin);
+    domains.sort((a, b) => (b.lastSeenAt ?? "").localeCompare(a.lastSeenAt ?? ""));
+    if (after) domains = domains.filter((d) => (d.lastSeenAt ?? "") > after);
+    const limit = Number(limitParam) || 100;
+    const items = domains.slice(0, limit);
+    const nextCursor = domains.length > limit ? items[items.length - 1].domain : null;
+    ok(res, { items, nextCursor, total: domains.length });
+  }));
+
+  router.post("/domains", blockWrites, asyncRoute(async (req, res) => {
+    const registry = req.workspace.domainRegistry;
+    if (!registry) return fail(res, new Error("domain registry not available"), 503);
+    const { domain, origin = "manual" } = req.body ?? {};
+    if (!domain) return fail(res, new Error("domain is required"), 400);
+    const result = await registry.registerDomain(domain, { origin });
+    if (!result.ok) return fail(res, new Error(result.reason), 400);
+    ok(res, result);
+  }));
+
+  router.patch("/domains/:domain/policy", blockWrites, asyncRoute(async (req, res) => {
+    const registry = req.workspace.domainRegistry;
+    if (!registry) return fail(res, new Error("domain registry not available"), 503);
+    const { policy, reason } = req.body ?? {};
+    if (!["normal", "important", "blocked"].includes(policy)) return fail(res, new Error("invalid policy"), 400);
+    const result = await registry.setPolicy(req.params.domain, policy, { reason });
+    if (!result.ok) return fail(res, new Error(result.reason), 404);
+    ok(res, result);
+  }));
+
+  router.post("/domains/:domain/block", blockWrites, asyncRoute(async (req, res) => {
+    const registry = req.workspace.domainRegistry;
+    if (!registry) return fail(res, new Error("domain registry not available"), 503);
+    const { reason } = req.body ?? {};
+    const result = await registry.blockDomain(req.params.domain, { reason });
+    if (!result.ok) return fail(res, new Error(result.reason), 404);
+    ok(res, result);
+  }));
+
+  router.post("/domains/:domain/unblock", blockWrites, asyncRoute(async (req, res) => {
+    const registry = req.workspace.domainRegistry;
+    if (!registry) return fail(res, new Error("domain registry not available"), 503);
+    const result = await registry.unblockDomain(req.params.domain);
+    if (!result.ok) return fail(res, new Error(result.reason), 404);
+    ok(res, result);
+  }));
+
+  router.post("/domains/:domain/important", blockWrites, asyncRoute(async (req, res) => {
+    const registry = req.workspace.domainRegistry;
+    if (!registry) return fail(res, new Error("domain registry not available"), 503);
+    const { important } = req.body ?? {};
+    if (typeof important !== "boolean") return fail(res, new Error("important must be boolean"), 400);
+    const result = await registry.setImportant(req.params.domain, important);
+    if (!result.ok) return fail(res, new Error(result.reason), 404);
+    ok(res, result);
+  }));
+
+  router.delete("/domains/:domain", blockWrites, asyncRoute(async (req, res) => {
+    const registry = req.workspace.domainRegistry;
+    if (!registry) return fail(res, new Error("domain registry not available"), 503);
+    const result = await registry.removeDomain(req.params.domain);
+    if (!result.ok) return fail(res, new Error(result.reason), 404);
+    ok(res, result);
+  }));
+
+  router.get("/domains/stats", asyncRoute(async (req, res) => {
+    const registry = req.workspace.domainRegistry;
+    if (!registry) return fail(res, new Error("domain registry not available"), 503);
+    ok(res, registry.getStats());
+  }));
 
   app.use("/api/admin", router);
   app.use("/admin", express.static(path.join(__dirname, "public")));

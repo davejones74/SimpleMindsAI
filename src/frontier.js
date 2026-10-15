@@ -283,6 +283,18 @@ export class Frontier {
       retryDist,
     };
   }
+
+  // Clear all persisted frontier data
+  async clear() {
+    await mkdir(this.dir, { recursive: true });
+    const filePath = path.join(this.dir, FRONTIER_FILE);
+    try {
+      await unlink(filePath);
+    } catch {
+      // file doesn't exist, that's fine
+    }
+    this.state.clear();
+  }
 }
 
 // Export a convenience: seed the frontier from CRAWL_URLS config

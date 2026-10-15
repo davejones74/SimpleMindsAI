@@ -126,3 +126,33 @@ test("DiscoveryService: a second cycle fetches only newly discovered URLs (no re
   assert.ok(!second.documents.some((d) => d.url === `${originA}/seed`), "seed must not be re-fetched");
   assert.ok(second.documents.length >= 2);
 });
+
+/**
+ * STALE-FRONTIER REGRESSION.
+ *
+ * CRAWL_URLS is a bootstrap list an operator edits freely. When it is cleared
+ * the frontier still holds URLs from the earlier configuration, so the crawler
+ * silently kept fetching the old corpus — the operator saw "real mode, 39
+ * documents" with nothing configured. With no seeds there is nothing legitimate
+ * to fetch, so the frontier must be cleared.
+ */
+test("DiscoveryService: no configured seeds means no fetch (stale frontier is cleared)", async () => {
+  // A frontier left over from a previous configuration.
+  const dir = mkdtempSync(path.join(tmpdir(), "sma-disc-"));
+  const frontier = new Frontier({ dir });
+  await frontier.init();
+  await frontier.enqueue(`${originA}/seed`, { depth: 0, seed: `${originA}/seed` });
+  await frontier.enqueue(`${originA}/local`, { depth: 1 });
+  assert.equal(frontier.state.size, 2, "frontier starts with the previous run's URLs");
+
+  const service = new DiscoveryService({
+    frontier,
+    seeds: [],
+    policy: createDiscoveryPolicy({ seedUrls: [], mode: "open" }),
+  });
+  const res = await service.collect({ maxPages: 5, maxDepth: 1, allowPrivate: true });
+
+  assert.equal(res.documents.length, 0, "nothing may be fetched when no seeds are configured");
+  assert.equal(frontier.state.size, 0, "the stale frontier must be discarded, not replayed");
+  assert.equal(frontier.summary().queued, 0);
+});
