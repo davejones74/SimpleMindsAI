@@ -1,6 +1,7 @@
 import { OllamaClient } from "../services/ollama-client.js";
 import { config } from "../config.js";
 import { VERDICT } from "../domain/article.js";
+import { authHeaders } from "../auth/simple-auth.js";
 
 const GRAPHQL_URL = process.env.GRAPHQL_URL ?? "http://localhost:4000/graphql";
 const REVIEW_M = `
@@ -12,7 +13,7 @@ mutation Review($input: ReviewInput!) {
 async function gql(query, variables) {
   const body = await fetch(GRAPHQL_URL, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify({ query, variables }),
   });
   const json = await body.json();

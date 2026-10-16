@@ -128,6 +128,11 @@ export const config = {
   host: env("API_HOST", "127.0.0.1"),
   port: num("API_PORT", 4000),
 
+  // Access token for the data plane (CompanionAI-style). Unset/blank disables
+  // auth entirely (dev + tests); set it in production to gate /graphql, /admin
+  // and the REST surface behind a login page / Bearer header.
+  authToken: env("SIMPLEMINDS_AUTH_TOKEN", null),
+
   graphqlUrl: env("GRAPHQL_URL", "http://localhost:4000/graphql"),
   ollamaEndpoint: env("OLLAMA_ENDPOINT", "http://localhost:11434"),
   ollamaFixture: bool("OLLAMA_FIXTURE", false),

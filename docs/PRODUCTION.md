@@ -237,16 +237,20 @@ also routed at the domain root (§5.2).
 `[PLANNED]` The GraphQL port is the only SimpleMindsAI listener to expose. The chat UI is left
 internal until it is reviewed; it can be added to the same snippet later.
 
-### 4.1 Bind address `[TBD]`
+### 4.1 Bind address `[CURRENT]`
 
-`[CURRENT]` `src/server.js:48` calls `app.listen(port)` with no host argument, so Node binds
-**all interfaces** (`0.0.0.0` / `::`). The same is true of `src/chat/chat-server.js:52`. This is
-acceptable only while the port is never forwarded at the Sky Hub — but it is weaker than
-CompanionAI's `127.0.0.1` bind and is an SSRF-adjacent exposure if the host is ever multi-homed.
+`[CURRENT]` `src/server.js:113` calls `app.listen(config.port, config.host)`, and `config.host`
+defaults to `127.0.0.1` (`API_HOST` in `src/config.js:128`), so the **API server binds loopback by
+default** — matching CompanionAI's `COMPANIONAI_HOST=127.0.0.1`.
 
-**Recommended before go-live:** add an optional `API_HOST` (and `CHAT_HOST`) to config and bind to
-`127.0.0.1` in production, matching `COMPANIONAI_HOST=127.0.0.1`. Until then, rely on the Sky Hub
-not forwarding `4000` and verify with `ss -ltnp`.
+`[CURRENT]` The **chat** server is weaker: `src/chat/chat-server.js:39` calls `app.listen(port)`
+with no host argument, so Node binds **all interfaces** (`0.0.0.0` / `::`). There is no
+`CHAT_HOST` yet. This is acceptable only while the port is never forwarded at the Sky Hub — but it
+is an SSRF-adjacent exposure if the host is ever multi-homed.
+
+**Recommended before go-live:** add a `CHAT_HOST` (mirroring `API_HOST`) and pass it to
+`app.listen` in `chat-server.js`, binding `127.0.0.1` in production. Until then, rely on the Sky
+Hub not forwarding `8787` and verify with `ss -ltnp`.
 
 ---
 
@@ -429,8 +433,12 @@ before dropping to `User=simpleminds`. Modelled on `deploy/companionai.env.examp
 # --- Servers ---------------------------------------------------------------------
 API_PORT=4000
 CHAT_PORT=8787
-# Recommended once API_HOST support exists (see 4.1):
-# API_HOST=127.0.0.1
+API_HOST=127.0.0.1
+# (CHAT_HOST does not exist yet — chat-server.js binds all interfaces; see 4.1.)
+
+# --- Auth (CompanionAI-style). Blank = auth OFF. Set in production. ---------------
+# Generate:  openssl rand -hex 24
+SIMPLEMINDS_AUTH_TOKEN=
 
 # --- Storage (absolute; never inside the checkout) -------------------------------
 BUFFER_DIR=/var/lib/simpleminds/data/buffer
@@ -455,9 +463,9 @@ PERPETUAL_CYCLES=1
 PERPETUAL_IDLE_MS=10000
 ```
 
-`[CURRENT]` There is **no auth token in SimpleMindsAI** today. The GraphQL and REST surfaces are
-unauthenticated. Once published at `/simpleminds/` they are reachable by anyone who can reach the
-hostname. See §10.
+`[CURRENT]` `SIMPLEMINDS_AUTH_TOKEN` gates the GraphQL and REST surfaces (and the `/admin/`
+portal). Leave it blank to disable auth (dev/tests); set it in production so the published
+`/simpleminds/` surface is not reachable by anyone who can reach the hostname. See §10.
 
 ---
 
@@ -605,17 +613,36 @@ only, reduce the timer cadence, or give the perpetual unit a `Conflicts=`/`ExecS
 `443` are forwarded from the Sky Hub. **No SimpleMindsAI, Ollama or FastFlowLM port is ever
 forwarded.** SimpleMindsAI adds no new inbound port.
 
-`[PLANNED]` Requirements once `/simpleminds/` is public:
+`[CURRENT]` **Token auth is implemented** (CompanionAI-style), off by default and enabled by
+setting `SIMPLEMINDS_AUTH_TOKEN` in `/etc/simpleminds/simpleminds.env`:
 
-- The GraphQL/API surface is **unauthenticated** today. Publishing it exposes `POST /api/ingest`
-  and `/graphql` mutations to anyone who can reach the hostname. **Either do not expose
-  `/simpleminds/` publicly until auth exists, or restrict it** (HTTP basic auth at Nginx,
-  `allow`/`deny`, or an auth filter in the app). This is the single most important security gap in
-  the current plan.
+- With the token unset/blank, auth is disabled (dev and the test suite are unaffected). With it
+  set, every route is gated except `/health`: `GET /health` stays open so systemd/nginx probes
+  never need a credential.
+- A browser hitting an HTML route (`/admin/`) gets a login page (`src/auth/simple-auth.js`);
+  signing in sets an `httpOnly`, `SameSite=Lax`, 7-day cookie `simpleminds_auth` whose value is
+  `sha256(token)`. Non-HTML callers (GraphQL, `POST /api/ingest`) get `401` unless they send
+  `Authorization: Bearer <token>`.
+- The token value is never stored or logged server-side; only its SHA-256 is compared (constant
+  time). The comparison **validates the bearer value** (unlike CompanionAI's prefix-only filter).
+- The login/logout endpoints live at `/api/admin/auth` and `/api/admin/auth/logout` — under the
+  `/api/admin/` prefix nginx already routes here, so **no nginx change is needed**.
+- The internal subsystems that call `fetch(GRAPHQL_URL)` — `src/services/curator.js`,
+  `src/services/planner.js`, `src/reward/reward-scorer.js` — attach `...authHeaders()` so the
+  learning cycle authenticates to its own server. Without this they would 401 themselves.
+- Rotating the token means editing the env var and `systemctl restart simpleminds.service`; every
+  existing cookie becomes invalid (its hash no longer matches).
+
+`[PLANNED]` Residual hardening once `/simpleminds/` is public:
+
 - `[CURRENT]` `express.json({ limit: "25mb" })` on `POST /api/ingest` is a write path into the
-  buffer; it must not be left open unauthenticated.
-- `[CURRENT]` Both Node listeners bind all interfaces (§4.1). Bind loopback or firewall the host
-  so `4000` and `8787` are not reachable from the LAN.
+  buffer; the token gate now covers it — keep the token set in production.
+- `[CURRENT]` The API server binds loopback (`app.listen(config.port, config.host)`,
+  `src/server.js:113`; `API_HOST` defaults to `127.0.0.1`). The **chat** server
+  (`src/chat/chat-server.js:39`) still calls `app.listen(port)` with no host and therefore binds
+  all interfaces — see §4.1. The public surface is only via the X1 Pro Nginx reverse proxy, and
+  `4000`/`8787` are never forwarded.
+- Consider per-client tokens or HTTP basic auth at Nginx if the single shared token is too coarse.
 - `[CURRENT]` Chat has **no teacher fallback**: `npm run chat` serves the committed student
   (`active.json`) and returns `503` when no version is active or the worker is down. (`BRAIN_MODE`
   was removed; the README lists the absence of a fallback as a hard invariant.)
@@ -745,7 +772,11 @@ sudo -u simpleminds env SMA_STORE=/var/lib/simpleminds/store .venv/bin/python -m
 - [x] `curl -sS https://x1pro.runningcode.dev/` still returns the placeholder page.
 - [x] `curl -sS -o /dev/null -w '%{http_code}\n' https://x1pro.runningcode.dev/companionAI/`
       returns `401` (auth-gated) — reachable, so CompanionAI was not broken by the second snippet.
-- [x] A GraphQL query to `/simpleminds/graphql` succeeds through Nginx.
+- [x] A GraphQL query to `/simpleminds/graphql` succeeds through Nginx (verified pre-auth).
+- [ ] With `SIMPLEMINDS_AUTH_TOKEN` set: `/simpleminds/graphql` returns `401` **without** a
+      credential and succeeds with `Authorization: Bearer <token>`.
+- [ ] `/admin/` returns the login page (HTML) unauthenticated; signing in with the token sets the
+      `simpleminds_auth` cookie and loads the portal. `/api/admin/auth/logout` clears it.
 
 ### Storage and provenance
 
@@ -758,7 +789,7 @@ sudo -u simpleminds env SMA_STORE=/var/lib/simpleminds/store .venv/bin/python -m
 
 - [ ] `curl --max-time 5 http://<PUBLIC-IP>:4000/health` times out from **off-box**.
 - [ ] `curl --max-time 5 http://<PUBLIC-IP>:11434/api/tags` times out from **off-box**.
-- [ ] `/simpleminds/` is either not public or is access-restricted (§10).
+- [ ] `/simpleminds/` is access-restricted via `SIMPLEMINDS_AUTH_TOKEN` (§10); `/health` stays open.
 
 ---
 
