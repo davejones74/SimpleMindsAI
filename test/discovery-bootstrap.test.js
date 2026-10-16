@@ -75,6 +75,7 @@ test("empty CRAWL_URLS + no registry: an independent search provider bootstraps 
   const service = new DiscoveryService({
     frontier: tmpFrontier(),
     seeds: [],
+    defaultSeeds: [], // isolate the independent-provider path from the bootstrap fallback
     adapters: [
       createSearchAdapter({ provider: "test", endpoint: "https://search.test/api", queryParam: "q", queries: ["x"], fetchJson }),
     ],
@@ -92,6 +93,7 @@ test("no configured source reports `no-source-configured`, not `exhausted`", asy
   const service = new DiscoveryService({
     frontier: tmpFrontier(),
     seeds: [],
+    defaultSeeds: [], // isolate the "nothing configured" branch from the bootstrap fallback
     adapters: [],
     policy: openPolicy(),
     domainRegistry: reg(),
@@ -106,6 +108,7 @@ test("an unavailable search provider is never reported as operational", async ()
   const service = new DiscoveryService({
     frontier: tmpFrontier(),
     seeds: [],
+    defaultSeeds: [], // isolate the "nothing configured" branch from the bootstrap fallback
     adapters: [createSearchAdapter({ endpoint: null, queries: ["x"], fetchJson: async () => ({}) })],
     policy: openPolicy(),
     domainRegistry: reg(),
@@ -124,7 +127,7 @@ test("persisted frontier discovery work survives a restart (new instance, same d
 
   // Simulate a process restart: a brand-new frontier over the same directory.
   const restarted = new Frontier({ dir });
-  const service = new DiscoveryService({ frontier: restarted, seeds: [], adapters: [], policy: openPolicy(), domainRegistry: reg() });
+  const service = new DiscoveryService({ frontier: restarted, seeds: [], defaultSeeds: [], adapters: [], policy: openPolicy(), domainRegistry: reg() });
   const res = await service.collect({ maxPages: 5, maxDepth: 0, allowPrivate: true });
 
   assert.deepEqual(res.documents.map((d) => d.url), [`${base}/page-a`]);
@@ -207,4 +210,125 @@ test("a failed candidate fetch does not discard the other discovered candidates"
   assert.deepEqual(res.documents.map((d) => d.url), [`${base}/page-a`]);
   assert.ok(res.failures.some((f) => f.url === `${base}/boom`));
   assert.equal(res.frontier.total, 2, "both discovered URLs are retained; one merely failed");
+});
+
+// Regression: the DEFAULT policy is `seeds-only` (production leaves
+// CRAWL_DISCOVERY_POLICY unset), and it used to seed `seedHosts` from CRAWL_URLS
+// only. With an empty CRAWL_URLS that meant EVERY candidate from a registry root
+// was rejected as `not-seed-host`, so the documented "registry-first bootstrap
+// lets discovery run with an empty CRAWL_URLS" was false. Every other test in this
+// file injects an `open` policy, which is why the bug was never caught.
+test("seeds-only + empty CRAWL_URLS: registered domains are trusted bootstrap roots", async () => {
+  const registry = reg();
+  await registry.init();
+  await registry.registerDomain("127.0.0.1", { source: "test" });
+
+  const fetchText = async (url) => {
+    if (url === "https://127.0.0.1/robots.txt") return "Sitemap: https://127.0.0.1/sitemap.xml\n";
+    if (url === "https://127.0.0.1/sitemap.xml")
+      return `<urlset><url><loc>${base}/page-a</loc></url></urlset>`;
+    if (url === "https://127.0.0.1/") return "<html></html>";
+    throw new Error(`unexpected ${url}`);
+  };
+
+  const frontier = tmpFrontier();
+  // No injected policy => the constructor builds the real default one
+  // (mode seeds-only, seedHosts seeded from CRAWL_URLS, which is empty here).
+  const service = new DiscoveryService({ frontier, seeds: [], fetchText, domainRegistry: registry });
+  const res = await service.collect({ maxPages: 10, maxDepth: 0, allowPrivate: true });
+
+  const sm = res.discovery.bootstrap.adapters.find((a) => a.name === "sitemap");
+  assert.equal(sm.rejected, 0, "no candidate is rejected as not-seed-host");
+  assert.equal(sm.enqueued, 1, "the registry-root candidate is trusted under seeds-only");
+  assert.deepEqual(res.documents.map((d) => d.url), [`${base}/page-a`]);
+  assert.equal(res.discovery.status, "ok");
+  assert.equal(res.discovery.via, "registry");
+});
+
+test("a denied domain can never be re-enabled by addSeedHosts", () => {
+  const policy = createDiscoveryPolicy({
+    seedUrls: [],
+    deniedDomains: ["blocked.test"],
+    mode: "seeds-only",
+  });
+  // Even the operator trusting the host as a bootstrap root must not override a block.
+  policy.addSeedHosts(["blocked.test", "allowed.test"]);
+  assert.equal(policy.decide("https://blocked.test/x").allowed, false);
+  assert.equal(policy.decide("https://blocked.test/x").reason, "denied-domain");
+  assert.equal(policy.decide("https://allowed.test/x").allowed, true);
+});
+
+// A virgin host (no CRAWL_URLS, no CRAWL_DISCOVERY_SEEDS, empty registry) used to
+// report `no-source-configured` because the sitemap/feed adapters need a root and
+// there was none. The built-in default-seed fallback gives the FIRST cycle
+// something to discover from so the domain registry can get populated.
+test("virgin host: the default-seed fallback bootstraps the first cycle", async () => {
+  // fetchText is used ONLY by the adapters (robots/sitemap). The documents
+  // themselves are fetched by the real crawler over HTTP.
+  const fetchText = async (url) => {
+    if (url === `${base}/robots.txt`) return `Sitemap: ${base}/sitemap.xml\n`;
+    if (url === `${base}/sitemap.xml`)
+      return `<urlset><url><loc>${base}/page-b</loc></url></urlset>`;
+    throw new Error(`unexpected ${url}`);
+  };
+
+  const service = new DiscoveryService({
+    frontier: tmpFrontier(),
+    seeds: [],
+    discoverySeeds: [],
+    defaultSeeds: [`${base}/page-a`], // enqueued AND used as a root
+    fetchText,
+    policy: openPolicy(),
+    domainRegistry: reg(),
+  });
+  const res = await service.collect({ maxPages: 10, maxDepth: 0, allowPrivate: true });
+
+  assert.equal(res.discovery.status, "ok");
+  assert.equal(res.discovery.via, "default-seeds");
+  assert.equal(res.discovery.bootstrap.defaultSeeds, 1);
+  // The default seed page is fetched directly, and its sitemap yields another page.
+  assert.deepEqual(res.documents.map((d) => d.url).sort(), [`${base}/page-a`, `${base}/page-b`].sort());
+});
+
+test("the default-seed fallback is ignored when another source already yields roots", async () => {
+  const registry = reg();
+  await registry.init();
+  await registry.registerDomain("127.0.0.1", {});
+
+  const fetchText = async (url) => {
+    if (url === "https://127.0.0.1/robots.txt") return "Sitemap: https://127.0.0.1/sitemap.xml\n";
+    if (url === "https://127.0.0.1/sitemap.xml")
+      return `<urlset><url><loc>${base}/page-a</loc></url></urlset>`;
+    if (url === "https://127.0.0.1/") return "<html></html>";
+    throw new Error(`unexpected ${url}`);
+  };
+
+  const service = new DiscoveryService({
+    frontier: tmpFrontier(),
+    seeds: [],
+    discoverySeeds: [],
+    defaultSeeds: [`${base}/`], // present, but must not be used
+    fetchText,
+    policy: openPolicy(),
+    domainRegistry: registry,
+  });
+  const res = await service.collect({ maxPages: 10, maxDepth: 0, allowPrivate: true });
+
+  assert.equal(res.discovery.via, "registry");
+  assert.equal(res.discovery.bootstrap.defaultSeeds, 0, "fallback skipped when the registry has roots");
+  assert.deepEqual(res.documents.map((d) => d.url), [`${base}/page-a`]);
+});
+
+test("the default-seed fallback can be disabled (empty defaultSeeds)", async () => {
+  const service = new DiscoveryService({
+    frontier: tmpFrontier(),
+    seeds: [],
+    discoverySeeds: [],
+    defaultSeeds: [],
+    adapters: [],
+    policy: openPolicy(),
+    domainRegistry: reg(),
+  });
+  const res = await service.collect({ allowPrivate: true });
+  assert.equal(res.discovery.status, "no-source-configured");
 });

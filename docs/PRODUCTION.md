@@ -406,6 +406,8 @@ re-clone or redeploy.
     evaluation/                       EVALUATION_DIR
     plans/                            PLAN_DIR
     models/                           MODEL_DIR
+    frontier/                         FRONTIER_DIR (URL frontier + DOMAIN registry)
+    raw/                              RAW_DIR
   store/                              SMA_STORE for the Python compute plane (vNNN, _runs, active.json)
 
 /etc/simpleminds/
@@ -414,9 +416,14 @@ re-clone or redeploy.
 
 `[CURRENT]` `src/config.js` resolves every path from an environment variable with a **relative**
 `data/...` default (`BUFFER_DIR`, `REGISTRY_DIR`, `SNAPSHOT_DIR`, `EVALUATION_DIR`, `PLAN_DIR`,
-`MODEL_DIR`). Left unset, those paths land inside the working directory. Production must set all
-six explicitly to absolute paths under `/var/lib/simpleminds/data`, exactly as the CompanionAI
-`COMPANIONAI_DATA_DIR` precedent does.
+`MODEL_DIR`, `FRONTIER_DIR`, `RAW_DIR`, `CHAT_DIR`). Left unset, those paths land inside the
+working directory. Production must set them explicitly to absolute paths under
+`/var/lib/simpleminds/data`, exactly as the CompanionAI `COMPANIONAI_DATA_DIR` precedent does.
+
+`FRONTIER_DIR` is load-bearing for discovery: it holds the persistent URL frontier **and** the
+domain registry whose eligible domains are the bootstrap roots for the next cycle. If it is left
+unset, discovery state is written inside the checkout (`/opt/simpleminds/data/frontier`), so it is
+not durable across redeploys and it is not where an operator would look for it.
 
 ---
 
@@ -439,6 +446,9 @@ SNAPSHOT_DIR=/var/lib/simpleminds/data/snapshots
 EVALUATION_DIR=/var/lib/simpleminds/data/evaluation
 PLAN_DIR=/var/lib/simpleminds/data/plans
 MODEL_DIR=/var/lib/simpleminds/data/models
+# Discovery state: URL frontier + the DOMAIN registry discovery bootstraps from.
+FRONTIER_DIR=/var/lib/simpleminds/data/frontier
+RAW_DIR=/var/lib/simpleminds/data/raw
 GRAPHQL_URL=http://127.0.0.1:4000/graphql
 
 # --- Teacher (Ollama). Text only; never the brain. -------------------------------
@@ -463,6 +473,30 @@ LANGUAGE_FILTER_ENABLED=false
 LANGUAGE_FILTER_SHADOW=false
 LANGUAGE_FILTER_MIN_CONFIDENCE=0.8
 LANGUAGE_FILTER_UNKNOWN_POLICY=allow   # allow (fail-open) | reject
+
+# --- Crawling / discovery --------------------------------------------------------
+# CRAWL_URLS is optional BOOTSTRAP input, not a required boundary. When empty the
+# frontier is NOT cleared; discovery bootstraps from eligible registered domains
+# (in FRONTIER_DIR) and the configured adapters.
+CRAWL_MODE=real
+CRAWL_URLS=
+CRAWL_DISCOVERY_SEEDS=
+# Built-in bootstrap FALLBACK — used ONLY when nothing else yields a root (no
+# CRAWL_URLS, no CRAWL_DISCOVERY_SEEDS, empty domain registry). A brand-new host
+# therefore makes its first crawl with zero configuration instead of reporting
+# `no-source-configured`. After that first cycle populates the domain registry,
+# the fallback is no longer used. Set to empty to disable it entirely.
+CRAWL_DISCOVERY_DEFAULT_SEEDS=https://en.wikipedia.org/wiki/Steam_engine,https://en.wikipedia.org/wiki/James_Watt,https://en.wikipedia.org/wiki/Recursion,https://en.wikipedia.org/wiki/Photosynthesis
+# Discovery policy — which hosts may be fetched beyond the bootstrap roots:
+#   seeds-only : only bootstrap-source hosts (DEFAULT — and a trap on a fresh host,
+#                because with empty CRAWL_URLS nothing is a seed, so nothing expands)
+#   allowlist  : bootstrap hosts + CRAWL_ALLOWED_DOMAINS
+#   open       : any host except CRAWL_DENIED_DOMAINS (use this to actually discover)
+CRAWL_DISCOVERY_POLICY=open
+CRAWL_DISCOVERY_ADAPTERS=sitemap,feed
+CRAWL_DENIED_DOMAINS=
+CRAWL_MAX_DEPTH=2
+CRAWL_MAX_LINKS_PER_PAGE=50
 ```
 
 `[CURRENT]` There is **no auth token in SimpleMindsAI** today. The GraphQL and REST surfaces are

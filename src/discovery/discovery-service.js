@@ -17,7 +17,10 @@ import { buildAdapters, createAdapterFetchText } from "./adapters/index.js";
  *   2. otherwise, discovery bootstraps from ELIGIBLE REGISTERED DOMAINS, then
  *      from the configured adapters (sitemap / feed / an optional search
  *      provider), then from optional CRAWL_DISCOVERY_SEEDS;
- *   3. if none of those yield roots or a provider, it reports a clear
+ *   3. a BRAND-NEW install (no seeds, no registered domains) falls back to a
+ *      small BUILT-IN seed set so the first crawl can discover — never a dead
+ *      end on a virgin host;
+ *   4. if none of those yield roots or a provider, it reports a clear
  *      `no-source-configured` status — it never claims the web is empty.
  *
  * The service NEVER clears pending frontier entries just because the seed list
@@ -33,6 +36,7 @@ export class DiscoveryService {
     policy = null,
     seeds = config.crawlUrls,
     discoverySeeds = config.crawlDiscoverySeeds,
+    defaultSeeds = config.crawlDiscoveryDefaultSeeds,
     adapters = null,
     log = () => {},
     domainRegistry = null,
@@ -42,6 +46,7 @@ export class DiscoveryService {
     this.frontier = frontier ?? new Frontier({ dir: config.paths.frontier });
     this.seeds = (seeds ?? []).filter(Boolean);
     this.discoverySeeds = (discoverySeeds ?? []).filter(Boolean);
+    this.defaultSeeds = (defaultSeeds ?? []).filter(Boolean);
     this.policy =
       policy ??
       createDiscoveryPolicy({
@@ -105,6 +110,7 @@ export class DiscoveryService {
       seeds: 0,
       bootstrapSeeds: 0,
       registryRoots: 0,
+      defaultSeeds: 0,
       adapters: [],
     };
     const roots = [];
@@ -134,10 +140,44 @@ export class DiscoveryService {
     bootstrap.registryRoots = eligible.length;
     for (const d of eligible) roots.push(`https://${d}/`);
 
-    const uniqueRoots = [...new Set(roots)].slice(0, this.maxRoots);
+    let uniqueRoots = [...new Set(roots)].slice(0, this.maxRoots);
     if (bootstrap.via === "none" && uniqueRoots.length) {
       bootstrap.via = bootstrap.registryRoots > 0 ? "registry" : "bootstrap-seeds";
     }
+
+    // Built-in bootstrap fallback. A brand-new install has no CRAWL_URLS, no
+    // CRAWL_DISCOVERY_SEEDS and an empty domain registry, so nothing yields a root
+    // and the sitemap/feed adapters would have nothing to probe. Rather than report
+    // `no-source-configured` on a virgin host, fall back to a small default seed
+    // set so the FIRST cycle can discover and register domains. Operators disable
+    // it with CRAWL_DISCOVERY_DEFAULT_SEEDS= (empty) to return to strict
+    // operator-provided sourcing.
+    if (!uniqueRoots.length && this.defaultSeeds.length) {
+      // Enqueue the default seeds so the FIRST cycle actually FETCHES them as
+      // documents (link extraction then expands the frontier). Relying on the
+      // sitemap/feed adapters alone is not enough: not every site advertises a
+      // parseable sitemap (Wikipedia's robots.txt points at a REST endpoint the
+      // sitemap adapter cannot read). This mirrors exactly how CRAWL_URLS seeds
+      // behave — enqueued at depth 0, idempotent, and their origins become roots.
+      await seedFrontierFromConfig(this.frontier, this.defaultSeeds);
+      for (const s of this.defaultSeeds) {
+        const o = originOf(s) ?? null;
+        if (o) {
+          uniqueRoots.push(o);
+          bootstrap.defaultSeeds++;
+        }
+      }
+      uniqueRoots = [...new Set(uniqueRoots)].slice(0, this.maxRoots);
+      if (uniqueRoots.length) bootstrap.via = "default-seeds";
+    }
+
+    // The roots we just chose (CRAWL_URLS + CRAWL_DISCOVERY_SEEDS + registered
+    // domains + the default-seed fallback) are the bootstrap SOURCES for this
+    // cycle, so the policy must trust their hosts — not just use them to drive the
+    // adapters. Without this the default `seeds-only` policy rejects every
+    // candidate from a registry root as `not-seed-host`, and discovery could never
+    // run with an empty CRAWL_URLS.
+    this.policy.addSeedHosts?.(uniqueRoots.map(hostOf).filter(Boolean));
 
     for (const adapter of this.adapters) {
       let res;

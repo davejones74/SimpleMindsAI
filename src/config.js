@@ -347,6 +347,20 @@ export const config = {
   // are a convenience, never mandatory — discovery works from the registry or an
   // independent adapter without them.
   crawlDiscoverySeeds: env("CRAWL_DISCOVERY_SEEDS", "").split(",").map((s) => s.trim()).filter(Boolean),
+  // Built-in bootstrap FALLBACK: the seed set used ONLY when nothing else yields a
+  // root (no CRAWL_URLS, no CRAWL_DISCOVERY_SEEDS and an empty domain registry). A
+  // brand-new install therefore makes its first crawl with zero configuration
+  // instead of reporting `no-source-configured`. Stable, English, robots-friendly
+  // encyclopedic pages that give the sitemap/feed adapters something to expand
+  // from. Set CRAWL_DISCOVERY_DEFAULT_SEEDS= (empty) to disable the fallback and
+  // return to strict operator-provided sourcing.
+  crawlDiscoveryDefaultSeeds: env(
+    "CRAWL_DISCOVERY_DEFAULT_SEEDS",
+    "https://en.wikipedia.org/wiki/Steam_engine,https://en.wikipedia.org/wiki/James_Watt,https://en.wikipedia.org/wiki/Recursion,https://en.wikipedia.org/wiki/Photosynthesis",
+  )
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean),
   // Extra feed URLs to poll directly, in addition to feeds auto-detected on roots.
   crawlDiscoveryFeeds: env("CRAWL_DISCOVERY_FEEDS", "").split(",").map((s) => s.trim()).filter(Boolean),
   // Bounds so a discovery pass stays cheap and testable.

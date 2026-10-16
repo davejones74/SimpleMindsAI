@@ -157,6 +157,7 @@ test("DiscoveryService: empty seeds resumes persisted frontier work instead of c
   const service = new DiscoveryService({
     frontier,
     seeds: [],
+    defaultSeeds: [], // isolate frontier-resume from the bootstrap fallback
     adapters: [], // no adapter capability in this test
     policy: createDiscoveryPolicy({ seedUrls: [], mode: "open" }),
     domainRegistry: isolatedRegistry(),

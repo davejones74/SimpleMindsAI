@@ -6,9 +6,16 @@
  * (scheme, private-address SSRF guard, robots, byte/redirect caps, budgets).
  *
  * Modes:
- *   seeds-only : only the hosts of the seed URLs may be fetched
- *   allowlist  : seed hosts + CRAWL_ALLOWED_DOMAINS may be fetched
+ *   seeds-only : only the hosts of the bootstrap sources may be fetched
+ *   allowlist  : bootstrap hosts + CRAWL_ALLOWED_DOMAINS may be fetched
  *   open       : any host except CRAWL_DENIED_DOMAINS may be fetched
+ *
+ * "Bootstrap sources" are CRAWL_URLS, CRAWL_DISCOVERY_SEEDS and the eligible
+ * REGISTERED domains discovery bootstraps from. The DiscoveryService calls
+ * `addSeedHosts` with the roots it actually used this cycle, so a registered
+ * domain (or a discovery seed) is fetchable even when CRAWL_URLS is empty —
+ * which is what makes the default `seeds-only` policy compatible with
+ * registry-first discovery.
  *
  * `CRAWL_DENIED_DOMAINS` is always prohibited, in every mode.
  */
@@ -42,11 +49,32 @@ export function createDiscoveryPolicy({
     return seedHosts.has(host);
   }
 
-  return {
+  const policy = {
     mode: m,
     seedHosts: [...seedHosts],
     allowedDomains: [...allowed],
     deniedDomains: [...denied],
+
+    /**
+     * Trust extra bootstrap hosts.
+     *
+     * CRAWL_URLS are NOT the only bootstrap source: discovery may also start from
+     * eligible REGISTERED domains and from CRAWL_DISCOVERY_SEEDS. Those roots must
+     * be fetchable too — otherwise the documented "registry-first bootstrap lets
+     * discovery run with an empty CRAWL_URLS" would be false under the default
+     * `seeds-only` policy, which rejects every host that is not a CRAWL_URL host.
+     * DENIED domains still win (they are checked first in `decide`), so this can
+     * never re-enable a domain the operator blocked.
+     */
+    addSeedHosts(hosts = []) {
+      for (const h of hosts) {
+        if (!h) continue;
+        const norm = String(h).toLowerCase();
+        if (seedHosts.has(norm)) continue;
+        seedHosts.add(norm);
+        policy.seedHosts.push(norm);
+      }
+    },
 
     /**
      * Decide whether a URL may be fetched/enqueued.
@@ -75,4 +103,6 @@ export function createDiscoveryPolicy({
       return m !== "seeds-only";
     },
   };
+
+  return policy;
 }
