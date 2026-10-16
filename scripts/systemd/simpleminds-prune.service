@@ -1,0 +1,26 @@
+[Unit]
+Description=SimpleMindsAI optimizer-state pruning (DRY RUN)
+After=network-online.target simpleminds.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=simpleminds
+Group=simpleminds
+WorkingDirectory=/opt/simpleminds
+Environment=HOME=/var/lib/simpleminds
+EnvironmentFile=/etc/simpleminds/simpleminds.env
+ExecStart=/opt/simpleminds/python/.venv/bin/python -m sma.brain prune-runs --out /var/lib/simpleminds/store
+# Replace the line above WITH --confirm ONLY after Stage 2 review and explicit approval.
+
+TimeoutStartSec=1800
+Nice=10
+IOSchedulingClass=idle
+
+NoNewPrivileges=yes
+PrivateTmp=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+
+[Install]
+WantedBy=multi-user.target

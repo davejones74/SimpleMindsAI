@@ -1,0 +1,10 @@
+[Unit]
+Description=Run SimpleMindsAI prune (dry run) weekly
+
+[Timer]
+OnCalendar=Sun *-*-* 03:00
+RandomizedDelaySec=30m
+Persistent=true
+
+[Install]
+WantedBy=timers.target

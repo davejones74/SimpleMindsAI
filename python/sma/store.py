@@ -783,27 +783,44 @@ def plan_prune_runs(
 ) -> Dict[str, Any]:
     """Compute a resume-state pruning plan WITHOUT touching anything.
 
-    The `_runs/` directory holds one `<version>.train-state.pt` pickle per
-    version — the optimizer moments that make a paused training resumable. After
-    a version is committed and a newer one exists, that pickle is dead weight
-    (hundreds of MB each). This plan keeps the `keep` most recent committed
-    versions (plus the active version and operator-protected ones) resumable and
-    proposes the rest for deletion. Only `*.train-state.pt` files are ever in
-    scope; published version directories are never touched.
+    Safeguards:
+      * store root must contain committed versions and a valid active pointer
+        passed-in `active`; active may not be None or uncommitted.
+      * version directories, manifests, records and all non-pickle files are
+        outside this function's scope entirely.
+      * A live `_runs/<version>.lock` protects that version's pickle.
     """
     root = Path(root)
     if keep < 0:
         raise ValueError(f"keep must be >= 0, got {keep}")
 
+    if not root.is_dir():
+        raise ValueError(f"store root is missing or not a directory: {root}")
     committed = [v for v in list_versions(root) if is_committed(root / v)]
+    if not committed:
+        raise ValueError(f"no committed versions in store root: {root}")
+    if not active:
+        raise ValueError("active version is missing; refusing to plan prune-runs")
+    if active not in committed:
+        raise ValueError(f"active version {active!r} is not committed in this store")
+
     retained = committed[-keep:] if keep > 0 else []
     retained_set = set(retained)
-    if active:
-        retained_set.add(active)
+    retained_set.add(active)
     for version in protect or ():
         retained_set.add(version)
 
     runs_dir = root / RUNS_DIR_NAME
+    # Detect live/resumable runs; never propose their state.
+    locked_versions = []
+    if runs_dir.is_dir():
+        for lock in runs_dir.glob("*.lock"):
+            v = lock.name[:-len(".lock")]
+            if run_lock_active(root, v):
+                locked_versions.append(v)
+    for v in locked_versions:
+        retained_set.add(v)
+
     candidates: list[Dict[str, Any]] = []
     if runs_dir.is_dir():
         for path in sorted(runs_dir.glob("*.train-state.pt")):
@@ -813,6 +830,8 @@ def plan_prune_runs(
             except OSError:
                 size = 0
             if version in retained_set:
+                continue
+            if version in locked_versions:
                 continue
             if version in committed:
                 reason = "resume state for a version outside the retained window"
@@ -824,6 +843,7 @@ def plan_prune_runs(
                 "name": path.name,
                 "bytes": size,
                 "reason": reason,
+                "locked": version in locked_versions,
             })
 
     return {
@@ -833,6 +853,7 @@ def plan_prune_runs(
         "published": committed,
         "retained": retained,
         "protected": sorted(p for p in retained_set if p not in committed),
+        "lockedVersions": sorted(locked_versions),
         "prune": candidates,
         "pruneCount": len(candidates),
         "freedBytes": sum(c["bytes"] for c in candidates),
@@ -849,12 +870,32 @@ def prune_runs(
 ) -> Dict[str, Any]:
     """Delete stale resume-state pickles. DRY RUN unless `confirm` is True.
 
-    Never deletes a published version or any record/weight file — only the
-    `_runs/*.train-state.pt` optimizer-moment blobs that are no longer needed to
-    resume. Re-running is safe: the plan is recomputed from live state.
+    Fail-closed requirements:
+      * active pointer must be present and valid.
+      * Audit log must be writable BEFORE any deletion is attempted.
+      * Any live run lock on any candidate blocks the whole operation.
+      * Per-candidate lock state is re-checked immediately before unlink.
+      * Path containment: refuses symlink traversal outside store root.
     """
     root = Path(root)
-    plan = plan_prune_runs(root, keep, active=active, protect=protect)
+
+    # Fail closed on missing/invalid active.
+    if not active:
+        plan = {"store": str(root), "keep": keep, "activeVersion": None,
+                "published": [], "retained": [], "protected": [], "prune": [],
+                "pruneCount": 0, "freedBytes": 0}
+        plan.update({"executed": False, "dryRun": (not confirm), "refused": True,
+                     "reason": "active pointer is missing or invalid; refusing destructive execution"})
+        return plan
+
+    try:
+        plan = plan_prune_runs(root, keep, active=active, protect=protect)
+    except (ValueError, OSError) as e:
+        plan = {"store": str(root), "keep": keep, "activeVersion": active,
+                "passed": False, "executed": False, "dryRun": (not confirm),
+                "refused": True, "reason": f"plan validation failed: {e}", "prune": [],
+                "pruneCount": 0, "freedBytes": 0}
+        return plan
 
     if not confirm:
         plan["executed"] = False
@@ -862,9 +903,50 @@ def prune_runs(
         plan["reason"] = "dry run: pass --confirm to delete; nothing was removed"
         return plan
 
+    if plan.get("pruneCount", 0) == 0:
+        plan.update({"executed": True, "dryRun": False, "removed": [],
+                     "removedCount": 0, "freedBytes": 0, "reason": "nothing to prune"})
+        return plan
+
+    # Pre-flight: audit log must be writable before any deletion.
+    log = runs_prune_log_path(root)
+    try:
+        log.parent.mkdir(parents=True, exist_ok=True)
+        with open(log, "a", encoding="utf-8") as fh:
+            fh.flush()
+    except OSError as e:
+        plan.update({"executed": False, "dryRun": False, "refused": True,
+                     "reason": f"audit log not writable before deletion: {e}; no deletion performed",
+                     "removed": []})
+        return plan
+
+    # Pre-flight: live locks over candidates block the operation.
+    live_locks = [entry["version"] for entry in plan["prune"]
+                  if run_lock_active(root, entry["version"])]
+    if live_locks:
+        plan.update({"executed": False, "dryRun": False, "refused": True,
+                     "removed": [],
+                     "reason": ("cannot delete while active/resumable runs hold candidate "
+                                "state: " + ", ".join(sorted(live_locks)))})
+        return plan
+
     removed: list[Dict[str, Any]] = []
+    skipped: list[Dict[str, Any]] = []
     for entry in plan["prune"]:
         path = Path(entry["file"])
+        # Path-containment: must remain inside root/_runs.
+        try:
+            path.relative_to(root / RUNS_DIR_NAME)
+        except ValueError:
+            skipped.append({"version": entry["version"], "reason": f"path escapes store root: {path}"})
+            continue
+        if path.is_symlink():
+            skipped.append({"version": entry["version"], "reason": f"refusing symlink path: {path}"})
+            continue
+        # Re-check live lock per candidate.
+        if run_lock_active(root, entry["version"]):
+            skipped.append({"version": entry["version"], "reason": "run lock live during deletion"})
+            continue
         if not path.is_file():
             continue
         try:
@@ -883,8 +965,6 @@ def prune_runs(
         "removedCount": len(removed),
         "freedBytes": sum(r["bytes"] for r in removed),
     }
-    log = runs_prune_log_path(root)
-    log.parent.mkdir(parents=True, exist_ok=True)
     with open(log, "a", encoding="utf-8") as fh:
         fh.write(json.dumps(outcome, sort_keys=True, default=str) + "\n")
         fh.flush()
@@ -895,6 +975,7 @@ def prune_runs(
     plan["removed"] = removed
     plan["removedCount"] = len(removed)
     plan["freedBytes"] = sum(r["bytes"] for r in removed)
+    plan["skipped"] = skipped
     return plan
 
 
