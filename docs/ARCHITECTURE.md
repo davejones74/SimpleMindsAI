@@ -45,14 +45,14 @@ process:
   packing, optimization, checkpointing, evaluation, generation. It owns the
   accelerator. It never writes the Node registry.
 
-The teacher (DeepSeek, via Ollama) is a **researcher and reviewer only**. It is
+The teacher (gemma4-turbo, via Ollama) is a **researcher and reviewer only**. It is
 never the brain, and it is never a fallback for the brain.
 
 ```
   SUBSYSTEM A (harvest & ingest)          SUBSYSTEM B (plan)
   ┌──────────────┐   ┌────────────────┐   ┌──────────────────────┐
   │ crawler.js   │──▶│ curator.js     │   │ planner.js           │
-  │ raw blobs    │   │ deepseek-r1    │   │ reads measurements,  │
+  │ raw blobs    │   │ gemma4-turbo   │   │ reads measurements,  │
   │(placeholder) │   │ via Ollama     │   │ asks LLM for a       │
   └──────────────┘   │ → long-form    │   │ balanced curriculum  │
                      │   articles     │   └──────────┬───────────┘
@@ -87,7 +87,7 @@ never the brain, and it is never a fallback for the brain.
 
 There is **no teacher fallback**: `src/brain/brain.js` talks only to the Python
 student worker, and if that worker is unavailable the chat route returns an
-explicit `503` rather than asking DeepSeek to answer as the student.
+explicit `503` rather than asking the teacher to answer as the student.
 
 ---
 

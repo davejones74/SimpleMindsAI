@@ -1,0 +1,20 @@
+[Unit]
+Description=SimpleMindsAI perpetual cycle (one shot)
+After=network-online.target simpleminds.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=simpleminds
+Group=simpleminds
+WorkingDirectory=/opt/simpleminds
+Environment=HOME=/var/lib/simpleminds
+EnvironmentFile=/etc/simpleminds/simpleminds.env
+ExecStart=/usr/bin/npm run perpetual
+
+TimeoutStartSec=1800
+
+NoNewPrivileges=yes
+PrivateTmp=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes

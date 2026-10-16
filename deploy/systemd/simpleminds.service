@@ -1,0 +1,24 @@
+[Unit]
+Description=SimpleMindsAI Node data plane (GraphQL buffer + REST)
+After=network-online.target ollama.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=simpleminds
+Group=simpleminds
+WorkingDirectory=/opt/simpleminds
+Environment=HOME=/var/lib/simpleminds
+EnvironmentFile=/etc/simpleminds/simpleminds.env
+ExecStart=/usr/bin/npm start
+
+Restart=on-failure
+RestartSec=10
+
+NoNewPrivileges=yes
+PrivateTmp=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+
+[Install]
+WantedBy=multi-user.target

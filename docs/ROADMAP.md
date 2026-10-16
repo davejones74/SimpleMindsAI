@@ -270,7 +270,7 @@ Real, unfixed, and listed so they are not mistaken for intended behavior.
 4. ~~**The Ollama/DeepSeek brain fallback still exists** in `brain/brain.js`.~~
    **Resolved.** `brain/brain.js` now talks only to the Python student worker and
    throws if it is unavailable; a regression test fails if Ollama/DeepSeek
-   reappear in its code. DeepSeek remains a teacher/critic only.
+   reappear in its code. The LLM model remains a teacher/critic only.
 5. **`TeacherClient` has no `complete` implementation.**
 6. **`promptsPage` cursor plus trained-filter can skip rows**; move to a keyset
    cursor as the buffer grows.

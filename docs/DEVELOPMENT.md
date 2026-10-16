@@ -92,7 +92,7 @@ npm install
 npm test
 
 npm start
-$env:OLLAMA_FIXTURE="true"; $env:OLLAMA_MODEL="deepseek-r1:8b"; npm run crawl
+$env:OLLAMA_FIXTURE="true"; $env:OLLAMA_MODEL="ssfdre38/gemma4-turbo:e4b"; npm run crawl
 npm run curate
 npm run plan
 npm run init:brain

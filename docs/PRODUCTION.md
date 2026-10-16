@@ -1,10 +1,18 @@
 # SimpleMindsAI Production Deployment (X1 Pro)
 
-## Planned hosting of the SimpleMindsAI data plane alongside CompanionAI
+## Hosting the SimpleMindsAI data plane alongside CompanionAI
 
-This document captures the **planned** deployment of SimpleMindsAI onto the Minisforum X1 Pro
-HX-370 Ubuntu server (`dave-X1PRO`), the same host that already runs CompanionAI and FastFlowLM.
-It is a preparation document, not a record of a completed deployment.
+This document describes the deployment of SimpleMindsAI onto the Minisforum X1 Pro HX-370 Ubuntu
+server (`dave-X1PRO`), the same host that already runs CompanionAI and FastFlowLM. It began as a
+preparation document; the first deployment was executed on **2026-10-16** and the status markers
+below now reflect what was measured on the host.
+
+> **Deployed 2026-10-16.** Code at `/opt/simpleminds`, environment at
+> `/etc/simpleminds/simpleminds.env`, the three systemd units enabled and active (perpetual timer
+> firing every minute, cycles clean), the Python compute plane venv built with the `gfx1150` ROCm
+> wheels and `sma.brain preflight` passing on ROCm `gfx1150` with native bf16 (§2.1). The Nginx
+> `include` on the x1pro vhost is in place, so `/simpleminds/` is served end-to-end. Verify with
+> §12; redeploy with §15.1.
 
 The deployment is expected to reuse the **existing** Nginx virtual host
 (`x1pro.runningcode.dev`) that already serves CompanionAI, run the Node data plane with
@@ -137,10 +145,11 @@ Two corrections follow, both applied to `python/requirements-rocm.txt`:
    **not** depend on the distro's ROCm 7.1.0 packages; only the in-kernel `amdgpu` driver and the
    `gfx1150` target matter. `+rocm7.14.0` names the ROCm release the wheel carries, not `apt`'s.
 
-`[TBD]` still to confirm by running, not reading: `python -m sma.brain preflight` reports the
-device as `gfx1150` and bf16 works. The pin now matches AMD's matrix for this APU; the runtime
-check is the backstop. Note residual community reports of gfx1150 Linux rough edges (e.g.
-`hipMallocManaged`/GTT limits) — operator-facing, not pin-blocking.
+`[VALIDATED]` Confirmed by running on 2026-10-16: `python -m sma.brain preflight` reports
+`backend=rocm`, `device=AMD Radeon 890M Graphics`, `arch=gfx1150`, native bf16 (2.94x over fp32),
+a 3.52 GiB resident budget against 14.86 GiB usable, and `exitCode 0`. The pin matches AMD's
+matrix for this APU. Residual community reports of gfx1150 Linux rough edges (e.g.
+`hipMallocManaged`/GTT limits) remain operator-facing, not pin-blocking.
 
 ---
 
@@ -176,7 +185,7 @@ DNS, TLS, Certbot and DDNS are untouched.
               |                       |
       +-------v-------+       +-------v---------+
       |  FastFlowLM   |       |    Ollama       |
-      |  NPU (XDNA2)  |       |  deepseek-r1    |
+      |  NPU (XDNA2)  |       | gemma4-turbo    |
       +---------------+       +-----------------+
 
   Scheduled, no ingress:
@@ -212,7 +221,7 @@ runs on ROCm, and CompanionAI's runtime runs on the NPU. Three roles, three back
 
 | Component | Process | Port | Exposed? |
 |---|---|---|---|
-| SimpleMindsAI GraphQL + REST | `npm start` (`src/server.js`) | `4000` (`API_PORT`) | Via Nginx `/simpleminds/` only |
+| SimpleMindsAI GraphQL + REST + admin portal | `npm start` (`src/server.js`) | `4000` (`API_PORT`) | Via Nginx `/simpleminds/` **and** `/admin/` + `/api/admin/` (see §5.2) |
 | SimpleMindsAI chat UI (optional) | `npm run chat` (`src/chat/chat-server.js`) | `8787` (`CHAT_PORT`) | **Not exposed initially** `[PLANNED]` |
 | SimpleMindsAI perpetual cycle | `npm run perpetual` on a timer | none | Never; file I/O only |
 | Python compute plane | `python -m sma.brain …` | none | Never; subprocess/file I/O |
@@ -221,7 +230,9 @@ runs on ROCm, and CompanionAI's runtime runs on the NPU. Three roles, three back
 | CompanionAI | `companionai.service` | `8080` | Via Nginx `/companionAI/` |
 
 `[CURRENT]` Exposed by `src/server.js`: `/graphql` (Apollo), `/health`, `/api/stats`,
-`POST /api/ingest`.
+`POST /api/ingest`, plus the Learning Observatory portal at `/admin` (a static SPA) and its
+REST/SSE API at `/api/admin`. The portal hardcodes absolute URLs, which is why those two paths are
+also routed at the domain root (§5.2).
 
 `[PLANNED]` The GraphQL port is the only SimpleMindsAI listener to expose. The chat UI is left
 internal until it is reviewed; it can be added to the same snippet later.
@@ -257,14 +268,17 @@ dedicated prefix instead:
 https://x1pro.runningcode.dev/simpleminds/graphql
 https://x1pro.runningcode.dev/simpleminds/health
 https://x1pro.runningcode.dev/simpleminds/api/stats
+https://x1pro.runningcode.dev/admin/              # Learning Observatory portal (see 5.2)
+https://x1pro.runningcode.dev/api/admin/          # portal REST/SSE API (see 5.2)
 ```
 
 The trailing slash on `proxy_pass http://127.0.0.1:4000/;` strips the `/simpleminds` prefix, so
 the Node app still sees `/graphql`, `/health`, `/api/stats`.
 
-### 5.2 The snippet `[PLANNED]`
+### 5.2 The snippet `[CURRENT]`
 
-File: `/etc/nginx/snippets/simpleminds-locations.conf`
+File: `/etc/nginx/snippets/simpleminds-locations.conf` (mirrors
+`deploy/nginx/simpleminds-locations.conf` in the repo)
 
 ```nginx
 # SimpleMindsAI locations for the existing x1pro.runningcode.dev server block.
@@ -297,7 +311,64 @@ location /simpleminds/ {
     # The /api/ingest shunts up to 25 MB JSON (express.json limit in src/server.js).
     client_max_body_size 25m;
 }
+
+# The admin portal's HTML/JS hardcode absolute URLs -- /admin/styles.css,
+# /admin/app.js and fetch('/api/admin/...') -- so those must be routable at the
+# domain root too, not only under the /simpleminds prefix. Same reason
+# companionai-locations.conf routes /api/ and /upload/ at the root.
+#
+# proxy_pass here has NO trailing slash: the app is mounted at /admin and
+# /api/admin, so the URI must pass through unchanged (no prefix stripping).
+#
+# /api/admin/ is a longer prefix than CompanionAI's /api/, so nginx's longest-
+# prefix match sends it to SimpleMindsAI, not to Tomcat.
+
+location = /admin {
+    return 301 /admin/;
+}
+
+location /admin/ {
+    proxy_pass http://127.0.0.1:4000;
+
+    proxy_http_version 1.1;
+    proxy_set_header Connection "";
+    proxy_set_header Host              $host;
+    proxy_set_header X-Real-IP         $remote_addr;
+    proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_connect_timeout 5s;
+}
+
+location /api/admin/ {
+    proxy_pass http://127.0.0.1:4000;
+
+    # Live Chat is SSE (`/api/admin/events`); proxy_buffering would otherwise
+    # hold every delta until the stream ends and turn it into one lump.
+    proxy_buffering off;
+    proxy_cache off;
+
+    proxy_http_version 1.1;
+    proxy_set_header Connection "";
+    proxy_set_header Host              $host;
+    proxy_set_header X-Real-IP         $remote_addr;
+    proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+
+    client_max_body_size 25m;
+    proxy_read_timeout 120s;
+    proxy_connect_timeout 5s;
+}
 ```
+
+> **Why the portal is at the domain root, not under `/simpleminds/`.** The portal SPA hardcodes
+> absolute URLs — `index.html` links `/admin/styles.css` and `/admin/app.js`, and `app.js:1` sets
+> `const API = "/api/admin"` (with SSE at `${API}/events`). A browser resolves those against the
+> domain root, so no amount of prefix-stripping on `/simpleminds/` can make them work. Express even
+> 301-redirects `/admin` → `/admin/` with a root-relative `Location`. The fix is CompanionAI's own
+> solution (see `companionai-locations.conf:14-17`): route the absolute paths at the root as well.
+> `/api/admin/` beats CompanionAI's `/api/` on nginx longest-prefix match, so the two do not collide.
+> Consequence: the portal lives at `https://x1pro.runningcode.dev/admin/`, while GraphQL/REST stay
+> under `/simpleminds/`.
 
 `[PLANNED]` It is intentionally a **new snippet file**, not an edit to
 `companionai-locations.conf`. Two applications, two fragments, so either can be removed without
@@ -372,7 +443,7 @@ GRAPHQL_URL=http://127.0.0.1:4000/graphql
 
 # --- Teacher (Ollama). Text only; never the brain. -------------------------------
 OLLAMA_ENDPOINT=http://127.0.0.1:11434
-OLLAMA_MODEL=deepseek-r1:latest
+OLLAMA_MODEL=ssfdre38/gemma4-turbo:e4b
 OLLAMA_FIXTURE=false
 # (No BRAIN_MODE / no teacher fallback: chat serves the student or returns 503.)
 
@@ -505,7 +576,7 @@ single run).
 
 Every perpetual cycle calls the curator and critic, which call Ollama. If the teacher model is
 evicted between minutes, each run pays a cold model load and the schedule wastes far more than it
-computes. Decide during testing whether to keep `deepseek-r1` resident
+computes. Decide during testing whether to keep `gemma4-turbo` resident
 (`OLLAMA_KEEP_ALIVE=-1` or a long duration) or to lower the cadence to match model-load economics.
 This is a load decision, measured in situ, not assumed here.
 
@@ -551,10 +622,11 @@ forwarded.** SimpleMindsAI adds no new inbound port.
 
 ---
 
-## 11. Deployment sequence (planned runbook)
+## 11. Deployment sequence (as-run runbook)
 
-Only Step 1 has been executed (Node.js installed). The rest is the ordered procedure for the
-test session.
+Executed on 2026-10-16. The ordered procedure below is retained as the install runbook and is the
+basis for the redeploy cycle in §15.1. Steps 2–8 were performed as written; Step 6's `include` was
+applied after the initial install (see the as-run note under Step 6).
 
 ### Step 1 — Node.js `[CURRENT]`
 
@@ -600,7 +672,7 @@ sudoedit /etc/simpleminds/simpleminds.env      # set the absolute paths from §7
 ### Step 5 — teacher model `[PLANNED]`
 
 ```bash
-ollama pull deepseek-r1:latest      # confirm the tag actually present with: ollama list
+ollama pull ssfdre38/gemma4-turbo:e4b      # confirm the tag actually present with: ollama list
 sudo systemctl status ollama --no-pager
 ```
 
@@ -613,6 +685,19 @@ sudoedit /etc/nginx/sites-enabled/x1pro        # add the include line inside the
 sudo nginx -t && sudo systemctl reload nginx
 # verify the CompanionAI and placeholder paths still answer (§12)
 ```
+
+> **As-run (2026-10-16).** The snippet was placed at
+> `/etc/nginx/snippets/simpleminds-locations.conf`, and the `include` was added to
+> `/etc/nginx/sites-available/x1pro` (reached via the `sites-enabled/x1pro` symlink) with:
+>
+> ```bash
+> sudo sed -i 's#\(include /etc/nginx/snippets/companionai-locations.conf;\)#\1\n    include /etc/nginx/snippets/simpleminds-locations.conf;#' /etc/nginx/sites-available/x1pro
+> sudo nginx -t && sudo systemctl reload nginx
+> ```
+>
+> The snippet and unit files are tracked in the repo under `deploy/` (`deploy/nginx/`,
+> `deploy/systemd/`) and mirror what is installed on the host, so Steps 6 and 7 are reproducible
+> from a fresh checkout.
 
 ### Step 7 — units and timer `[PLANNED]`
 
@@ -643,31 +728,31 @@ sudo -u simpleminds env SMA_STORE=/var/lib/simpleminds/store .venv/bin/python -m
 
 - [x] `node --version` reports v22.22.1, satisfying `engines.node >= 20`.
 - [x] `command -v npm` resolves to `/usr/bin/npm`, the path used in `simpleminds.service`.
-- [ ] `ollama list` shows the configured `OLLAMA_MODEL` tag.
-- [ ] `rocminfo` gfx target recorded and matched to the ROCm wheel before any Python run.
+- [x] `ollama list` shows `ssfdre38/gemma4-turbo:e4b`, the configured `OLLAMA_MODEL` tag.
+- [x] `rocminfo` reports `gfx1150`, matched to the `rocm-sdk-device-gfx1150` wheel (§2.1).
 
 ### Service
 
-- [ ] `systemctl status simpleminds` is `active (running)`.
-- [ ] `systemctl status simpleminds-perpetual.timer` is `active (waiting)`.
-- [ ] `ss -ltnp` shows `4000` (and confirm whether it is `127.0.0.1` or `0.0.0.0`).
-- [ ] `journalctl -u simpleminds-perpetual -n 50` shows completed cycles, not repeated failures.
+- [x] `systemctl status simpleminds` is `active (running)`.
+- [x] `systemctl status simpleminds-perpetual.timer` is `active (waiting)`.
+- [x] `ss -ltnp` shows `4000` bound to **`127.0.0.1`** (`API_HOST` default), not `0.0.0.0`.
+- [x] `journalctl -u simpleminds-perpetual -n 50` shows completed cycles, not repeated failures.
 
 ### Reverse proxy
 
-- [ ] `curl -sS http://127.0.0.1:4000/health` returns `{"ok":true,...}` locally.
-- [ ] `curl -sS https://x1pro.runningcode.dev/simpleminds/health` returns the same through Nginx.
-- [ ] `curl -sS https://x1pro.runningcode.dev/` still returns the placeholder page — proving the
-      new `include` merged rather than displaced anything.
-- [ ] `curl -sS -o /dev/null -w '%{http_code}\n' https://x1pro.runningcode.dev/companionAI/`
-      still succeeds — proving CompanionAI was not broken by the second snippet.
-- [ ] A GraphQL query to `/simpleminds/graphql` succeeds.
+- [x] `curl -sS http://127.0.0.1:4000/health` returns `{"ok":true,...}` locally.
+- [x] `curl -sS https://x1pro.runningcode.dev/simpleminds/health` returns `{"ok":true,...}` through Nginx.
+- [x] `curl -sS https://x1pro.runningcode.dev/` still returns the placeholder page.
+- [x] `curl -sS -o /dev/null -w '%{http_code}\n' https://x1pro.runningcode.dev/companionAI/`
+      returns `401` (auth-gated) — reachable, so CompanionAI was not broken by the second snippet.
+- [x] A GraphQL query to `/simpleminds/graphql` succeeds through Nginx.
 
 ### Storage and provenance
 
-- [ ] Files appear under `/var/lib/simpleminds/data/{buffer,registry,snapshots,...}` after a cycle.
-- [ ] Nothing is written under `/opt/simpleminds/data`.
-- [ ] After a restart, buffer and registry state survives (install target is not the git tree).
+- [x] Files appear under `/var/lib/simpleminds/data/{registry,articles,...}` after a cycle.
+- [x] Nothing is written under `/opt/simpleminds/data` (only an empty `frontier/` directory
+      remains from the pre-env-file first run).
+- [x] After a restart (07:19), buffer and registry state survives (install target is not the git tree).
 
 ### Exposure
 
@@ -736,6 +821,74 @@ systemctl status ollama --no-pager
 ollama list
 ss -ltnp | grep -E '4000|8787|11434|52625'
 ```
+
+### 15.1 Redeploy cycle (git pull → restart)
+
+The install target is `/opt/simpleminds` — a **copy**, not a git working tree (§2). An update means
+pulling in the developer checkout and syncing the tree across. Durable state in
+`/var/lib/simpleminds` and host config in `/etc/` are never touched by this cycle.
+
+Run from the checkout (`/home/dave/Repositories/SimpleMindsAI`):
+
+```bash
+# 1. Get the new code
+cd /home/dave/Repositories/SimpleMindsAI
+git pull origin master
+
+# 2. Quiet the planes so nothing is mid-cycle while files swap
+sudo systemctl stop simpleminds-perpetual.timer simpleminds.service
+
+# 3. Sync the tree to the install target.
+#    rsync (not cp) so files deleted upstream are removed too; the excludes
+#    protect the venv, installed deps, and the stray runtime data dir.
+sudo rsync -a --delete \
+  --exclude '.git' \
+  --exclude 'node_modules' \
+  --exclude '.venv' \
+  --exclude 'data' \
+  ./ /opt/simpleminds/
+sudo chown -R simpleminds:simpleminds /opt/simpleminds
+
+# 4. Refresh Node dependencies (production only)
+cd /opt/simpleminds
+sudo -u simpleminds npm ci --omit=dev
+
+# 4b. Python deps — ONLY if python/requirements*.txt changed
+sudo -u simpleminds /opt/simpleminds/python/.venv/bin/pip install \
+  -r /opt/simpleminds/python/requirements-rocm.txt
+
+# 5. Bring the planes back up (restart drops in-flight requests; expected)
+sudo systemctl start simpleminds.service
+sudo systemctl start simpleminds-perpetual.timer
+
+# 6. Verify
+systemctl is-active simpleminds.service simpleminds-perpetual.timer
+curl -sS http://127.0.0.1:4000/health
+curl -sS https://x1pro.runningcode.dev/simpleminds/health
+```
+
+Notes:
+
+- **A normal code update does not touch systemd or Nginx.** The units
+  (`/etc/systemd/system/simpleminds*.{service,timer}`) and the snippet
+  (`/etc/nginx/snippets/simpleminds-locations.conf`) are host state. Their definitions are tracked
+  in the repo under `deploy/` and mirror what is installed; re-copy them only when those
+  definitions change:
+  ```bash
+  sudo cp deploy/systemd/simpleminds.service deploy/systemd/simpleminds-perpetual.service \
+         deploy/systemd/simpleminds-perpetual.timer /etc/systemd/system/
+  sudo cp deploy/nginx/simpleminds-locations.conf /etc/nginx/snippets/
+  sudo systemctl daemon-reload && sudo nginx -t && sudo systemctl reload nginx
+  ```
+- **Never overwrite `/etc/simpleminds/simpleminds.env`.** It is host state, not part of the sync
+  (the `sudo -u simpleminds` run reads it via the unit's `EnvironmentFile`). Copy `.env.example`
+  over it only on first install.
+- **No git runs on the server.** The cycle is pull-to-checkout, then sync.
+- If `git pull` reports conflicts, resolve them in the checkout first; `rsync` mirrors whatever the
+  checkout contains.
+- For a Python-only change, you may instead rebuild in place:
+  `sudo -u simpleminds /opt/simpleminds/python/.venv/bin/pip install -r ...` then restart
+  `simpleminds.service` (the perpetual unit spawns Python fresh each cycle).
 
 ---
 
