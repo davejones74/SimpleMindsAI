@@ -54,7 +54,7 @@ RTX 4090 in the table above):
 | Stage | Result |
 |---|---|
 | Acquisition | **100 unique** fetched articles (English Wikipedia featured articles; real, robots-aware fetch), 108 attempts / 108 successes, 0 fetch failures |
-| Curation | teacher `ssfdre38/gemma4-turbo:e4b`; 102 curated articles, each keeping its source URL + fetched-content hash |
+| Curation | teacher `llama3.2:latest`; 102 curated articles, each keeping its source URL + fetched-content hash |
 | Review | 10 reviewed, 10 approved (teacher critic in the loop; policy unchanged) |
 | Training | real Python CausalLM; `v004` built from `v003`, 10 articles, 60 steps |
 | Evaluation | frozen-set loss **11.8392 → 11.3805** (Δ 0.4587) → **promoted** |
@@ -129,7 +129,7 @@ npm test
 
 npm start
 # $env:OLLAMA_FIXTURE="true"; $env:OLLAMA_MODEL="deepseek-r1:8b"; npm run crawl
-$env:OLLAMA_FIXTURE="true"; $env:OLLAMA_MODEL="ssfdre38/gemma4-turbo:e4b"; npm run crawl
+$env:OLLAMA_FIXTURE="true"; $env:OLLAMA_MODEL="llama3.2:latest"; npm run crawl
 npm run curate
 npm run plan
 npm run init:brain

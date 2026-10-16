@@ -45,14 +45,14 @@ process:
   packing, optimization, checkpointing, evaluation, generation. It owns the
   accelerator. It never writes the Node registry.
 
-The teacher (gemma4-turbo, via Ollama) is a **researcher and reviewer only**. It is
+The teacher (llama3.2, via Ollama) is a **researcher and reviewer only**. It is
 never the brain, and it is never a fallback for the brain.
 
 ```
   SUBSYSTEM A (harvest & ingest)          SUBSYSTEM B (plan)
   ┌──────────────┐   ┌────────────────┐   ┌──────────────────────┐
   │ crawler.js   │──▶│ curator.js     │   │ planner.js           │
-  │ raw blobs    │   │ gemma4-turbo   │   │ reads measurements,  │
+  │ raw blobs    │   │ llama3.2       │   │ reads measurements,  │
   │(placeholder) │   │ via Ollama     │   │ asks LLM for a       │
   └──────────────┘   │ → long-form    │   │ balanced curriculum  │
                      │   articles     │   └──────────┬───────────┘
