@@ -363,5 +363,6 @@ test("CRAWL_DISCOVERY_SEEDS are enqueued and become bootstrap roots", async () =
   assert.ok(res.frontier.total > 0, "discoverySeeds enqueued into frontier");
   // At least one document should be fetched from the seeds.
   assert.ok(res.documents.length > 0, "discoverySeeds fetched as documents");
-  assert.equal(res.discovery.via, "seeds", "via should be seeds");
+  // With only discoverySeeds set (no CRAWL_URLS), via is "bootstrap-seeds".
+  assert.equal(res.discovery.via, "bootstrap-seeds", "via should be bootstrap-seeds");
 });

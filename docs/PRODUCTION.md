@@ -507,6 +507,11 @@ CRAWL_MAX_DEPTH=2
 CRAWL_MAX_LINKS_PER_PAGE=50
 ```
 
+> **Note (code fix):** `CRAWL_DISCOVERY_SEEDS` are now enqueued as documents
+> into the frontier, not just used as adapter roots. Previously only adapter
+> roots, a host configured only with discovery seeds would report
+> `sources-exhausted` indefinitely.
+
 `[CURRENT]` `SIMPLEMINDS_AUTH_TOKEN` gates the GraphQL and REST surfaces (and the `/admin/`
 portal). Leave it blank to disable auth (dev/tests); set it in production so the published
 `/simpleminds/` surface is not reachable by anyone who can reach the hostname. See §10.

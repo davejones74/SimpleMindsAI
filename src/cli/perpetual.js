@@ -1,5 +1,6 @@
 import readline from "node:readline";
 import { createReadStream, existsSync } from "node:fs";
+import path from "node:path";
 import { ArticleStore } from "../storage/article-store.js";
 import { RegistryStore } from "../storage/registry-store.js";
 import { OllamaClient } from "../services/ollama-client.js";
@@ -7,6 +8,7 @@ import { ReviewScorer } from "../reward/reward-scorer.js";
 import { selectTrainer } from "../training/trainer-interface.js";
 import { executeFullRun } from "../training/lifecycle.js";
 import { defaultEvalSeed, renderRunReport } from "./report.js";
+import { config } from "../config.js";
 
 /**
  * `npm run perpetual` — the full autonomous cycle, server-free (requirement #14):
@@ -20,19 +22,34 @@ import { defaultEvalSeed, renderRunReport } from "./report.js";
  */
 
 async function rawDocs() {
-  const file = "data/raw/sample.ndjson";
-  if (!existsSync(file)) return [];
-  const rl = readline.createInterface({ input: createReadStream(file), crlfDelay: Infinity });
-  const out = [];
-  for await (const line of rl) {
-    if (!line.trim()) continue;
-    try {
-      out.push(JSON.parse(line).text);
-    } catch {
-      /* skip */
+  const rawDir = config.paths.raw;
+  const candidates = [
+    path.join(rawDir, "corpus.jsonl"),
+    path.join(rawDir, "sample.ndjson"),
+    path.join(rawDir, "raw-sources.ndjson"),
+  ];
+  for (const file of candidates) {
+    if (!existsSync(file)) continue;
+    const rl = readline.createInterface({ input: createReadStream(file), crlfDelay: Infinity });
+    const out = [];
+    for await (const line of rl) {
+      if (!line.trim()) continue;
+      try {
+        const rec = JSON.parse(line);
+        if (rec && rec.text !== undefined) {
+          out.push(rec.text);
+        } else if (rec && rec.fetchedContentHash) {
+          // raw-sources.ndjson: record the source hash for provenance,
+          // but do not treat it as curatable raw text; skip.
+          continue;
+        }
+      } catch {
+        /* skip */
+      }
     }
+    if (out.length > 0) return out;
   }
-  return out;
+  return [];
 }
 
 async function curateAndIngest(store, docs, ollama) {
@@ -97,8 +114,12 @@ for (let cycle = 1; cycle <= maxCycles; cycle++) {
   try {
     const docs = await rawDocs();
     if (process.env.PERPETUAL_DEBUG === "1") console.error(`[debug] rawDocs -> ${docs.length} docs, cwd=${process.cwd()}`);
-    if (!docs.length) console.log("[perpetual] no raw docs — run `npm run crawl` first");
     const ingested = docs.length ? await curateAndIngest(store, docs, ollama) : 0;
+    // Queue INGESTED articles for review before reviewing pending ones.
+    // This ensures articles already in the store (from prior cycles or the
+    // crawler/harvest) are processed through teacher scoring, not just those
+    // pre-existing in PENDING_REVIEW status.
+    await store.selectForReview({ limit: 500 });
     const reviewed = await reviewPending(store, scorer);
     const stats0 = store.getStats();
     console.log(`[perpetual] ingested=${ingested} reviewed=${reviewed} trainable=${stats0.trainable}`);
