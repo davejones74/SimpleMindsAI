@@ -151,6 +151,37 @@ a 3.52 GiB resident budget against 14.86 GiB usable, and `exitCode 0`. The pin m
 matrix for this APU. Residual community reports of gfx1150 Linux rough edges (e.g.
 `hipMallocManaged`/GTT limits) remain operator-facing, not pin-blocking.
 
+### 2.2 Ollama on the Radeon 890M `[CURRENT]`
+
+The Radeon 890M is an integrated GPU (iGPU). Ollama does not enable iGPUs by default,
+and the 890M reports an RDNA 3.5 (`gfx1150`) architecture that Ollama's ROCm backend
+does not recognise as a valid discrete target. Two environment variables are required:
+
+| Variable | Value | Purpose |
+|---|---|---|
+| `OLLAMA_IGPU_ENABLE` | `1` | Allow Ollama to use integrated graphics |
+| `HSA_OVERRIDE_GFX_VERSION` | `11.0.2` | Spoof a compatible discrete RDNA 3 architecture |
+
+Apply via a systemd drop-in (preserves the package-managed unit):
+
+```bash
+sudo systemctl edit ollama.service
+```
+
+```ini
+[Service]
+Environment="OLLAMA_IGPU_ENABLE=1"
+Environment="HSA_OVERRIDE_GFX_VERSION=11.0.2"
+```
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart ollama
+```
+
+Verify with `ollama list` (model loads without falling back to CPU) and
+`journalctl -u ollama --no-pager | grep -i gpu` (confirms GPU device selection).
+
 ---
 
 ## 3. Architecture
@@ -185,7 +216,7 @@ DNS, TLS, Certbot and DDNS are untouched.
               |                       |
       +-------v-------+       +-------v---------+
       |  FastFlowLM   |       |    Ollama       |
-      |  NPU (XDNA2)  |       | gemma4-turbo    |
+      |  NPU (XDNA2)  |       | llama3.2        |
       +---------------+       +-----------------+
 
   Scheduled, no ingress:
@@ -461,7 +492,7 @@ GRAPHQL_URL=http://127.0.0.1:4000/graphql
 
 # --- Teacher (Ollama). Text only; never the brain. -------------------------------
 OLLAMA_ENDPOINT=http://127.0.0.1:11434
-OLLAMA_MODEL=ssfdre38/gemma4-turbo:e4b
+OLLAMA_MODEL=llama3.2:latest
 OLLAMA_FIXTURE=false
 # (No BRAIN_MODE / no teacher fallback: chat serves the student or returns 503.)
 
@@ -633,7 +664,7 @@ single run).
 
 Every perpetual cycle calls the curator and critic, which call Ollama. If the teacher model is
 evicted between minutes, each run pays a cold model load and the schedule wastes far more than it
-computes. Decide during testing whether to keep `gemma4-turbo` resident
+computes. Decide during testing whether to keep `llama3.2` resident
 (`OLLAMA_KEEP_ALIVE=-1` or a long duration) or to lower the cadence to match model-load economics.
 This is a load decision, measured in situ, not assumed here.
 
@@ -748,7 +779,7 @@ sudoedit /etc/simpleminds/simpleminds.env      # set the absolute paths from §7
 ### Step 5 — teacher model `[PLANNED]`
 
 ```bash
-ollama pull ssfdre38/gemma4-turbo:e4b      # confirm the tag actually present with: ollama list
+ollama pull llama3.2:latest      # confirm the tag actually present with: ollama list
 sudo systemctl status ollama --no-pager
 ```
 
@@ -804,7 +835,7 @@ sudo -u simpleminds env SMA_STORE=/var/lib/simpleminds/store .venv/bin/python -m
 
 - [x] `node --version` reports v22.22.1, satisfying `engines.node >= 20`.
 - [x] `command -v npm` resolves to `/usr/bin/npm`, the path used in `simpleminds.service`.
-- [x] `ollama list` shows `ssfdre38/gemma4-turbo:e4b`, the configured `OLLAMA_MODEL` tag.
+- [x] `ollama list` shows `llama3.2:latest`, the configured `OLLAMA_MODEL` tag.
 - [x] `rocminfo` reports `gfx1150`, matched to the `rocm-sdk-device-gfx1150` wheel (§2.1).
 
 ### Service

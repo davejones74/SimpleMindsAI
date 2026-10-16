@@ -263,7 +263,7 @@ most relevant to deployment:
 | `API_PORT` | `4000` | GraphQL + admin portal port. |
 | `CHAT_PORT` | `8787` | Standalone chat server port (`npm run chat`). |
 | `OLLAMA_ENDPOINT` | `http://localhost:11434` | Teacher/critic endpoint. |
-| `OLLAMA_MODEL` | `ssfdre38/gemma4-turbo:e4b` | Teacher/critic model. |
+| `OLLAMA_MODEL` | `llama3.2:latest` | Teacher/critic model. |
 | `OLLAMA_FIXTURE` | `false` | `true` makes every Ollama call a deterministic stub (no GPU needed for smoke/tests). |
 | `SNAPSHOT_DIR` / `EVALUATION_DIR` / `REGISTRY_DIR` / `BUFFER_DIR` / `PLAN_DIR` | `./data/...` | Node data-plane paths. |
 | `PROMOTE_EVAL_SET` | (unset) | Frozen `.jsonl` evaluation set; required to compare parent and candidate. |
