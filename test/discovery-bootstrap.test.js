@@ -332,3 +332,36 @@ test("the default-seed fallback can be disabled (empty defaultSeeds)", async () 
   const res = await service.collect({ allowPrivate: true });
   assert.equal(res.discovery.status, "no-source-configured");
 });
+
+test("CRAWL_DISCOVERY_SEEDS are enqueued and become bootstrap roots", async () => {
+  // Regression: ensure discovery seeds are enqueued as documents, not just
+  // used as adapter roots. A host that only sets CRAWL_DISCOVERY_SEEDS
+  // (and not CRAWL_URLS) must still be able to fetch documents, otherwise
+  // every cycle ends `sourceExhausted: true` regardless of target.
+  const fetchText = async (url) => {
+    if (url === `${base}/robots.txt`) return `Sitemap: ${base}/sitemap.xml\n`;
+    if (url === `${base}/sitemap.xml`)
+      return `<urlset><url><loc>${base}/page-b</loc></url></urlset>`;
+    throw new Error(`unexpected ${url}`);
+  };
+
+  const service = new DiscoveryService({
+    frontier: tmpFrontier(),
+    seeds: [],
+    discoverySeeds: [`${base}/page-a`],
+    defaultSeeds: [],
+    fetchText,
+    policy: openPolicy(),
+    domainRegistry: reg(),
+  });
+  const res = await service.collect({ maxPages: 10, maxDepth: 0, allowPrivate: true });
+
+  // The seeds should be counted in the bootstrap report.
+  assert.equal(res.discovery.bootstrap.bootstrapSeeds, 1,
+    "discoverySeeds counted in bootstrap");
+  // Seeds should have been enqueued into the frontier (not just used as adapter roots).
+  assert.ok(res.frontier.total > 0, "discoverySeeds enqueued into frontier");
+  // At least one document should be fetched from the seeds.
+  assert.ok(res.documents.length > 0, "discoverySeeds fetched as documents");
+  assert.equal(res.discovery.via, "seeds", "via should be seeds");
+});

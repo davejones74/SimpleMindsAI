@@ -1,11 +1,10 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { Frontier } from "../frontier.js";
 import { config } from "../config.js";
 import { createDiscoveryPolicy } from "../discovery/discovery-policy.js";
 import { fetchDocument, parseRobots, robotsAllows, assertUrlAllowed, contentHashFor } from "./fetcher.js";
-import { canonicalDomain, matchesDomain, DOMAIN_POLICY } from "../storage/domain-registry.js";
+import { canonicalDomain } from "../storage/domain-registry.js";
 import { assess } from "../domain/language.js";
 
 /**
@@ -138,30 +137,6 @@ async function loadRobots(url, { timeoutMs, allowPrivate, userAgent, fetchImpl }
 }
 
 /**
- * Canonicalise a URL for frontier deduplication.
- * Preserves query parameter order and values; does not remove or reorder.
- */
-function canonicalURLSafe(urlString) {
-  try {
-    const u = new URL(urlString);
-    const scheme = u.protocol.toLowerCase();
-    const host = u.host.toLowerCase();
-    let path = u.pathname;
-    // Sort query param keys deterministically, preserve values
-    const searchParams = u.search;
-    let query = "";
-    if (searchParams.toString()) {
-      const sortedKeys = [...searchParams.keys()].sort();
-      const entries = sortedKeys.map((key) => `${key}=${searchParams.get(key)}`);
-      query = "?" + entries.join("&");
-    }
-    return `${scheme}//${host}${path}${query}`;
-  } catch {
-    return null;
-  }
-}
-
-/**
  * Extract all hrefs from HTML <a> tags as ABSOLUTE http(s) URLs.
  * Relative and protocol-relative hrefs are resolved against `baseUrl` (the
  * final URL after redirects). Fragments are dropped. Non-web schemes and
@@ -235,7 +210,6 @@ export async function runCrawlCycle(ctx = {}) {
     frontier,
     domainRegistry,
     maxDepth = config.crawlMaxDepth,
-    maxPages = config.crawlPagesPerCycle,
     totalBudget = config.crawlTotalBudget,
     respectRobots = config.crawlRespectRobots,
     allowPrivate = config.crawlAllowPrivate,
@@ -459,11 +433,11 @@ export async function runCrawlBatches({
 } = {}) {
   if (!frontier.initialized) await frontier.init();
 
-  let totalPagesFetched = 0;
+let totalPagesFetched = 0;
   let totalLinksDiscovered = 0;
   let totalUrlsEnqueued = 0;
+
   let cycles = 0;
-  let budgetRemaining = config.crawlTotalBudget;
   const documents = [];
   const failures = [];
   const discovered = [];

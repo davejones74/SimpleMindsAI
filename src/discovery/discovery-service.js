@@ -13,10 +13,11 @@ import { buildAdapters, createAdapterFetchText } from "./adapters/index.js";
  * extracts policy-approved links. CRAWL_URLS are BOOTSTRAP seeds, not a
  * permanent boundary, and an EMPTY CRAWL_URLS is not a dead end:
  *
- *   1. configured seeds (CRAWL_URLS) are enqueued when present;
- *   2. otherwise, discovery bootstraps from ELIGIBLE REGISTERED DOMAINS, then
- *      from the configured adapters (sitemap / feed / an optional search
- *      provider), then from optional CRAWL_DISCOVERY_SEEDS;
+ *   1. configured seeds (CRAWL_URLS) AND optional CRAWL_DISCOVERY_SEEDS are
+ *      enqueued when present — both are fetched as documents, not merely used as
+ *      adapter roots;
+ *   2. discovery also bootstraps from ELIGIBLE REGISTERED DOMAINS and the
+ *      configured adapters (sitemap / feed / an optional search provider);
  *   3. a BRAND-NEW install (no seeds, no registered domains) falls back to a
  *      small BUILT-IN seed set so the first crawl can discover — never a dead
  *      end on a virgin host;
@@ -104,7 +105,7 @@ export class DiscoveryService {
    * Resolve the discovery roots for this cycle and enqueue their candidates.
    * Returns a report the caller surfaces (observation + honest status).
    */
-  async #bootstrapAndAdapt(ctx) {
+  async #bootstrapAndAdapt() {
     const bootstrap = {
       via: "none",
       seeds: 0,
@@ -125,12 +126,21 @@ export class DiscoveryService {
       }
     }
 
-    // Optional bootstrap seed URLs (never mandatory).
-    for (const s of this.discoverySeeds) {
-      const o = originOf(s) ?? null;
-      if (o) {
-        roots.push(o);
-        bootstrap.bootstrapSeeds++;
+    // Optional bootstrap seed URLs (CRAWL_DISCOVERY_SEEDS). These are a REAL
+    // source, not adapter metadata: enqueue them into the frontier at depth 0 so
+    // the cycle FETCHES them as documents, exactly like CRAWL_URLS. Using their
+    // origins only as sitemap/feed roots is not enough — a site without a
+    // parseable sitemap/feed (e.g. Wikipedia) then yields nothing, and a host
+    // configured only with discovery seeds would report `sources-exhausted` on an
+    // empty frontier forever, no matter the target.
+    if (this.discoverySeeds.length) {
+      await seedFrontierFromConfig(this.frontier, this.discoverySeeds);
+      for (const s of this.discoverySeeds) {
+        const o = originOf(s) ?? null;
+        if (o) {
+          roots.push(o);
+          bootstrap.bootstrapSeeds++;
+        }
       }
     }
 
@@ -252,7 +262,7 @@ export class DiscoveryService {
     // Bootstrap + adapters. Crucially this REPLACED an unconditional
     // `frontier.clear()` on empty seeds: pending frontier entries are legitimate
     // persisted work and are never silently discarded.
-    const { bootstrap, uniqueRoots } = await this.#bootstrapAndAdapt(ctx);
+    const { bootstrap, uniqueRoots } = await this.#bootstrapAndAdapt();
 
     const result = await runCrawlBatches({
       frontier: this.frontier,
