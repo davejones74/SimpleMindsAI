@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { OllamaClient } from "./ollama-client.js";
+import { authHeaders } from "../auth/simple-auth.js";
 
 const GRAPHQL_URL = process.env.GRAPHQL_URL ?? "http://localhost:4000/graphql";
 const ARTICLE_M = `
@@ -9,7 +10,7 @@ mutation Ingest($input: ArticleInput!) { ingestArticle(input: $input) { articleI
 async function gql(query, variables) {
   const body = await fetch(GRAPHQL_URL, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify({ query, variables }),
   });
   const json = await body.json();

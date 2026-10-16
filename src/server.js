@@ -17,6 +17,7 @@ import { Frontier } from "./frontier.js";
 import { DiscoveryService } from "./discovery/discovery-service.js";
 import { createDomainRegistry } from "./storage/domain-registry.js";
 import { resolvers } from "./graphql/resolvers.js";
+import { sha256, createAuthRouter, createAuthGate } from "./auth/simple-auth.js";
 
 /**
  * Boot: GraphQL article ledger + durable registry + the admin portal, all on
@@ -50,6 +51,18 @@ await server.start();
 
 const app = express();
 app.use(express.json({ limit: "25mb" }));
+
+// CompanionAI-style token auth. Off unless SIMPLEMINDS_AUTH_TOKEN is set, so dev
+// and tests are unaffected. The auth endpoints are mounted under /api/admin
+// (which nginx already routes here) and BEFORE the gate so sign-in is reachable;
+// the gate then protects everything else. Internal subsystems that call
+// fetch(GRAPHQL_URL) send the same token via authHeaders().
+if (config.authToken) {
+  const expected = sha256(config.authToken);
+  app.use("/api/admin", createAuthRouter(expected));
+  app.use(createAuthGate(expected));
+}
+
 app.use("/graphql", expressMiddleware(server, { context: async () => ({ store, registry, governance, changeFeed }) }));
 
 app.get("/health", (_req, res) => res.json({ ok: true, uptime: Math.round(process.uptime()), articles: store.getStats().totalArticles }));
