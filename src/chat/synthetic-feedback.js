@@ -63,6 +63,7 @@ export async function maybeCaptureSynthetic({
     origin: "synthetic",
     model,
   });
+  if (article?.skipped) return { captured: false, reason: article.reason ?? "language-filter-skipped" };
   await store.recordReview({
     articleId: article.articleId,
     verdict: "approve",

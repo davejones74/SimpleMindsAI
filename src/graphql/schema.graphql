@@ -328,7 +328,7 @@ type Query {
 }
 
 type Mutation {
-  ingestArticle(input: ArticleInput!): Article!
+  ingestArticle(input: ArticleInput!): Article
   recordReview(input: ReviewInput!): ReviewResult!
   setArticleImportance(articleId: ID!, importance: ArticleImportance!): Article!
   setArticleStatus(articleId: ID!, status: ArticleStatus!, reason: String): Article!

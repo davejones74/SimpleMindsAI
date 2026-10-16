@@ -31,6 +31,7 @@ export async function runLearningCycle(ctx) {
     allowPrivate: config.crawlAllowPrivate,
     respectRobots: config.crawlRespectRobots,
     userAgent: config.crawlUserAgent,
+    languageFilter: config.languageFilter,
   };
   const result = await collect(crawlCtx);
   const rawDocs = result.documents?.length ?? 0;
@@ -47,6 +48,7 @@ export async function runLearningCycle(ctx) {
   let ingested = 0;
   let deduped = 0;
   let skippedUnchanged = 0;
+  let languageSkipped = 0;
 
   onPhase("curate");
   for (let i = 0; i < cap; i++) {
@@ -83,6 +85,11 @@ export async function runLearningCycle(ctx) {
         fetchedAt: doc.fetchedAt ?? null,
         reviewRequested: true,
       });
+      if (rec.skipped) {
+        languageSkipped++;
+        log("out", `skip non-english/unknown source ${doc.url ?? ""}`);
+        continue;
+      }
       if (rec.deduped) deduped++;
       else {
         ingested++;
@@ -150,6 +157,7 @@ export async function runLearningCycle(ctx) {
     failures: result.failures ?? [],
     sourceExhausted,
     skippedUnchanged,
+    languageSkipped,
     // Pass the discovery report through so the supervisor can tell an empty
     // queue from a genuinely unconfigured discovery source.
     discovery: result.discovery ?? null,

@@ -6,6 +6,7 @@ import { config } from "../config.js";
 import { createDiscoveryPolicy } from "../discovery/discovery-policy.js";
 import { fetchDocument, parseRobots, robotsAllows, assertUrlAllowed, contentHashFor } from "./fetcher.js";
 import { canonicalDomain, matchesDomain, DOMAIN_POLICY } from "../storage/domain-registry.js";
+import { assess } from "../domain/language.js";
 
 /**
  * Harvest — the ONLY entry point that produces raw docs.
@@ -25,6 +26,60 @@ export const CAPABILITY = Object.freeze({
   real: "configured-fetch",
   fixture: "fixture",
 });
+
+/**
+ * Apply the language filter to a fetched document.
+ *
+ * Returns "pass" (document should be kept) or "skip" (document should be
+ * excluded). Updates the summary counters in place.
+ *
+ * This is the single shared enforcement point — harvest and ingestion both
+ * call assess() from src/domain/language.js with identical rules.
+ */
+function applyLanguageFilter(doc, languageFilter, summary, url) {
+  // Opt-in only: a disabled (or absent) filter is a strict no-op so existing
+  // callers and tests keep their exact behaviour.
+  if (!languageFilter?.enabled) return "pass";
+  const decision = assess(doc.text, {
+    minConfidence: languageFilter.minConfidence,
+    htmlLang: doc.htmlLang ?? null,
+  });
+  // Shadow mode observes but never changes ingestion behaviour.
+  const enforcing = !languageFilter.shadow;
+  if (enforcing) {
+    if (decision.verdict === "non-english") {
+      summary.languageFiltered += 1;
+      summary.skipped.push({
+        url,
+        reason: "non-english",
+        language: decision.detection.language,
+        script: decision.detection.script ?? null,
+        confidence: decision.detection.confidence,
+      });
+      return "skip";
+    }
+    if (decision.verdict === "unknown" && languageFilter.unknownPolicy === "reject") {
+      summary.languageFiltered += 1;
+      summary.skipped.push({
+        url,
+        reason: "unknown-language",
+        language: decision.detection.language,
+        script: decision.detection.script ?? null,
+        confidence: decision.detection.confidence,
+      });
+      return "skip";
+    }
+  }
+  if (languageFilter.shadow && decision.verdict !== "english") {
+    summary.shadowRejected.push({
+      url,
+      verdict: decision.verdict,
+      language: decision.detection.language,
+      confidence: decision.detection.confidence,
+    });
+  }
+  return "pass";
+}
 
 const FIXTURE_DOCS = [
   `|| History of the steam engine ||
@@ -187,6 +242,7 @@ export async function runCrawlCycle(ctx = {}) {
     userAgent = config.crawlUserAgent,
     policy = null,
     maxLinksPerPage = config.crawlMaxLinksPerPage,
+    languageFilter = null,
   } = ctx;
 
   if (!frontier.initialized) await frontier.init();
@@ -199,10 +255,13 @@ export async function runCrawlCycle(ctx = {}) {
     depthReached: 0,
     robotsDisallowed: 0,
     domainFiltered: 0,
+    languageFiltered: 0,
     errors: 0,
     documents: [],
     failures: [],
     discovered: [],
+    skipped: [],
+    shadowRejected: [],
   };
 
   // Domain decision: an explicit discovery policy when supplied, else the legacy
@@ -290,16 +349,18 @@ export async function runCrawlCycle(ctx = {}) {
 
   if (fetchResult.ok) {
     const doc = fetchResult.doc;
-    // Mark visited
+    // Mark visited — this is a frontier state update, NOT a fetch failure.
+    // A language-filtered document was fetched successfully; it just won't
+    // enter the article corpus.
     await frontier.markVisited(canonical, { contentHash: doc?.contentHash });
-    summary.documents.push(normalizeRawDoc(doc, record));
 
     // Register domain in registry if provided
     if (domainRegistry && domain) {
       domainRegistry.recordFetchSuccess(domain, { url: record.url, contentHash: doc?.contentHash });
     }
 
-    // Extract links from the RAW HTML (the plain-text `doc.text` has no tags).
+    // Extract links from the RAW HTML — ALWAYS, before the language check.
+    // A foreign-language page may still lead to useful English content.
     // Resolve relative hrefs against the FINAL URL after redirects.
     const source = doc?.html ?? doc?.text ?? "";
     if (source) {
@@ -352,6 +413,16 @@ export async function runCrawlCycle(ctx = {}) {
         }
       }
     }
+
+    // Language filter — AFTER link extraction so discovery continues.
+    if (languageFilter) {
+      const filterResult = applyLanguageFilter(doc, languageFilter, summary, record.url);
+      if (filterResult === "skip") {
+        return summary;
+      }
+    }
+
+    summary.documents.push(normalizeRawDoc(doc, record));
   } else {
     // Fetch failed
     if (domainRegistry && domain) {
@@ -383,6 +454,7 @@ export async function runCrawlBatches({
   userAgent = config.crawlUserAgent,
   policy = null,
   maxLinksPerPage = config.crawlMaxLinksPerPage,
+  languageFilter = null,
   onCycle = async (ctx) => ({ pagesFetched: 0, linksDiscovered: 0, urlsEnqueued: 0 }),
 } = {}) {
   if (!frontier.initialized) await frontier.init();
@@ -395,6 +467,9 @@ export async function runCrawlBatches({
   const documents = [];
   const failures = [];
   const discovered = [];
+  let languageFiltered = 0;
+  const skipped = [];
+  const shadowRejected = [];
 
   for (let cycle = 1; ; cycle++) {
     if (maxCycles > 0 && cycle > maxCycles) break;
@@ -414,6 +489,7 @@ export async function runCrawlBatches({
       userAgent,
       policy,
       maxLinksPerPage,
+      languageFilter,
       totalBudget: config.crawlTotalBudget - totalPagesFetched,
     };
     const cycleResult = await runCrawlCycle(cycleCtx);
@@ -425,6 +501,9 @@ export async function runCrawlBatches({
     if (cycleResult.documents?.length) documents.push(...cycleResult.documents);
     if (cycleResult.failures?.length) failures.push(...cycleResult.failures);
     if (cycleResult.discovered?.length) discovered.push(...cycleResult.discovered);
+    languageFiltered += cycleResult.languageFiltered ?? 0;
+    if (cycleResult.skipped?.length) skipped.push(...cycleResult.skipped);
+    if (cycleResult.shadowRejected?.length) shadowRejected.push(...cycleResult.shadowRejected);
 
     if (onCycle) await onCycle({ ...cycleResult, budgetRemaining: config.crawlTotalBudget - totalPagesFetched });
 
@@ -450,6 +529,9 @@ export async function runCrawlBatches({
     documents,
     failures,
     discovered,
+    languageFiltered,
+    skipped,
+    shadowRejected,
     budgetRemaining: config.crawlTotalBudget - totalPagesFetched,
   };
 }
@@ -482,6 +564,7 @@ export async function collectDocuments({
   allowPrivate = config.crawlAllowPrivate,
   respectRobots = config.crawlRespectRobots,
   userAgent = config.crawlUserAgent,
+  languageFilter = null,
 } = {}) {
   const decided = classifyCrawlMode({ mode, urls });
   if (decided.mode === "fixture") {
@@ -496,6 +579,7 @@ export async function collectDocuments({
 
   const documents = [];
   const failures = [];
+  const localSummary = { languageFiltered: 0, skipped: [], shadowRejected: [] };
   for (const url of urls) {
     try {
       await assertUrlAllowed(url, { allowPrivate });
@@ -508,6 +592,12 @@ export async function collectDocuments({
         }
       }
       const doc = await fetchDocument(url, { timeoutMs, maxBytes, maxRedirects, allowPrivate, userAgent });
+
+      // Language filter: a skipped page fetched fine — it is not a failure.
+      if (applyLanguageFilter(doc, languageFilter, localSummary, url) === "skip") {
+        continue;
+      }
+
       documents.push({
         text: doc.text,
         domain: "general",
@@ -519,6 +609,7 @@ export async function collectDocuments({
         bytes: doc.bytes,
         fetchedAt: doc.fetchedAt,
         contentHash: doc.contentHash,
+        htmlLang: doc.htmlLang ?? null,
         crawlMode: "real",
         capability: CAPABILITY.real,
       });
@@ -526,7 +617,7 @@ export async function collectDocuments({
       failures.push({ url, ok: false, reason: err?.code ?? err?.message ?? "fetch-failed" });
     }
   }
-  return { mode: "real", capability: CAPABILITY.real, documents, failures };
+  return { mode: "real", capability: CAPABILITY.real, documents, failures, languageFiltered: localSummary.languageFiltered, skipped: localSummary.skipped, shadowRejected: localSummary.shadowRejected };
 }
 
 /**
@@ -551,6 +642,7 @@ export async function harvest({
   respectRobots = config.crawlRespectRobots,
   userAgent = config.crawlUserAgent,
   domainRegistry = null,
+  languageFilter = null,
 } = {}) {
   const decided = classifyCrawlMode({ mode, urls });
 
@@ -578,7 +670,7 @@ export async function harvest({
     // configured frontier dir. A caller using an isolated data dir MUST inject
     // its own registry, or discoveries leak into the live one.
     const registry = domainRegistry ?? createDomainRegistry({ dir: config.paths.frontier });
-    const result = await runCrawlBatches({ frontier, domainRegistry: registry, maxCycles: 0, policy, allowPrivate, respectRobots, userAgent });
+    const result = await runCrawlBatches({ frontier, domainRegistry: registry, maxCycles: 0, policy, allowPrivate, respectRobots, userAgent, languageFilter });
 
     // Persist what was ACTUALLY fetched (previously this branch returned
     // `documents: []`, so the frontier crawler silently produced nothing).
@@ -597,6 +689,9 @@ export async function harvest({
       cycles: result.cycles,
       totalPagesFetched: result.totalPagesFetched,
       totalUrlsEnqueued: result.totalUrlsEnqueued,
+      languageFiltered: result.languageFiltered ?? 0,
+      skipped: result.skipped ?? [],
+      shadowRejected: result.shadowRejected ?? [],
       file: filePath,
       failuresFile: failuresPath,
     };
@@ -620,6 +715,7 @@ export async function harvest({
 
   const documents = [];
   const failures = [];
+  const localSummary = { languageFiltered: 0, skipped: [], shadowRejected: [] };
   for (const url of urls) {
     try {
       await assertUrlAllowed(url, { allowPrivate });
@@ -632,6 +728,12 @@ export async function harvest({
         }
       }
       const doc = await fetchDocument(url, { timeoutMs, maxBytes, maxRedirects, allowPrivate, userAgent });
+
+      // Language filter: skipped is NOT a fetch failure — the page fetched fine.
+      if (applyLanguageFilter(doc, languageFilter, localSummary, url) === "skip") {
+        continue;
+      }
+
       documents.push({
         text: doc.text,
         domain: "general",
@@ -643,6 +745,7 @@ export async function harvest({
         bytes: doc.bytes,
         fetchedAt: doc.fetchedAt,
         contentHash: doc.contentHash,
+        htmlLang: doc.htmlLang ?? null,
         crawlMode: "real",
         capability: CAPABILITY.real,
       });
@@ -662,6 +765,9 @@ export async function harvest({
     capability: CAPABILITY.real,
     documents,
     failures,
+    languageFiltered: localSummary.languageFiltered,
+    skipped: localSummary.skipped,
+    shadowRejected: localSummary.shadowRejected,
     file: filePath,
     failuresFile: failuresPath,
   };
@@ -669,9 +775,10 @@ export async function harvest({
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
-    const res = await harvest();
+    const res = await harvest({ languageFilter: config.languageFilter });
     console.log(`[crawl] mode=${res.mode} capability=${res.capability} fetched=${res.documents.length} failed=${res.failures.length}`);
     console.log(`[crawl] wrote ${res.documents.length} raw docs -> ${res.file}`);
+    if (res.languageFiltered) console.log(`[crawl] language-filtered ${res.languageFiltered} page(s) (skipped=${res.skipped?.length ?? 0}, shadow=${res.shadowRejected?.length ?? 0})`);
     if (res.failuresFile) console.log(`[crawl] ${res.failures.length} failures -> ${res.failuresFile}`);
     if (res.mode === "real" && res.documents.length === 0) {
       console.error("[crawl] real mode fetched nothing — check CRAWL_URLS / failures file");

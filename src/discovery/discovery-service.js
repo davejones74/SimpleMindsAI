@@ -224,6 +224,7 @@ export class DiscoveryService {
       allowPrivate: ctx.allowPrivate ?? config.crawlAllowPrivate,
       respectRobots: ctx.respectRobots ?? config.crawlRespectRobots,
       userAgent: ctx.userAgent ?? config.crawlUserAgent,
+      languageFilter: ctx.languageFilter ?? config.languageFilter,
     });
 
     const frontierAfter = this.frontier.summary();
@@ -253,6 +254,9 @@ export class DiscoveryService {
       cycles: result.cycles,
       totalPagesFetched: result.totalPagesFetched,
       totalUrlsEnqueued: result.totalUrlsEnqueued,
+      languageFiltered: result.languageFiltered ?? 0,
+      skipped: result.skipped ?? [],
+      shadowRejected: result.shadowRejected ?? [],
       frontier: frontierAfter,
       policy: this.policy.mode,
       discovery: {

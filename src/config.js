@@ -16,6 +16,28 @@ const num = (name, dflt) => Number(env(name, dflt));
 const bool = (name, dflt) => /^(1|true|yes)$/i.test(env(name, String(dflt)));
 
 /**
+ * Validate a 0..1 confidence value. Throws on out-of-range or non-finite input
+ * so a malformed env var can never silently disable or over-enable a filter.
+ */
+function confidence(name, dflt) {
+  const raw = env(name, dflt);
+  const v = Number(raw);
+  if (!Number.isFinite(v) || v < 0 || v > 1) {
+    throw new Error(`${name} must be a number between 0 and 1, got ${JSON.stringify(raw)}`);
+  }
+  return v;
+}
+
+/** Validate a string enum. Throws on a value outside the allowed set. */
+function oneOf(name, dflt, allowed) {
+  const v = env(name, dflt);
+  if (!allowed.includes(v)) {
+    throw new Error(`${name} must be one of ${allowed.join(", ")}, got ${JSON.stringify(v)}`);
+  }
+  return v;
+}
+
+/**
  * Load a local `.env` file so the documented, gitignored configuration actually
  * applies without a shell export. Real environment variables always WIN: a line
  * is only applied when the variable is not already set, so `OLLAMA_MODEL=... npm
@@ -339,6 +361,27 @@ export const config = {
   crawlSearchEndpoint: env("CRAWL_SEARCH_ENDPOINT", null),
   crawlSearchQueryParam: env("CRAWL_SEARCH_QUERY_PARAM", "q"),
   crawlSearchQueries: env("CRAWL_SEARCH_QUERIES", "").split(",").map((s) => s.trim()).filter(Boolean),
+
+  // ---- Language filter (deterministic, opt-in, off by default) ----
+  // A document-level English-language gate. This is NOT a domain blacklist and
+  // NOT an English-only domain allowlist: an English article on any domain is
+  // accepted, and a foreign-language article is excluded regardless of domain.
+  // The detector is deterministic and dependency-free (src/domain/language.js).
+  //
+  //   enabled       : master switch. false = detector never runs.
+  //   shadow        : run the detector, report would-be exclusions in telemetry,
+  //                   but do NOT change ingestion behaviour. Evaluation mode.
+  //   minConfidence : heuristic starting value, NOT a calibrated accuracy
+  //                   guarantee. See src/domain/language.js for the algorithm.
+  //   unknownPolicy : what to do with text the detector cannot classify.
+  //                   "allow" = pass through (conservative; default).
+  //                   "reject" = exclude.
+  languageFilter: {
+    enabled: bool("LANGUAGE_FILTER_ENABLED", false),
+    shadow: bool("LANGUAGE_FILTER_SHADOW", false),
+    minConfidence: confidence("LANGUAGE_FILTER_MIN_CONFIDENCE", 0.8),
+    unknownPolicy: oneOf("LANGUAGE_FILTER_UNKNOWN_POLICY", "allow", ["allow", "reject"]),
+  },
 
   // ---- Observatory workspaces (allow-listed; `development` is implicit) ----
   // Extra, inspection-only stores the portal may display (e.g. a completed

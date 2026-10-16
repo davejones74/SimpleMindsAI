@@ -146,6 +146,43 @@ export function htmlToText(html) {
   };
 }
 
+/**
+ * Read the value of a named attribute from an HTML tag string.
+ * Handles double-quoted, single-quoted, and unquoted attribute values.
+ */
+function attrValue(tag, name) {
+  const re = new RegExp(name + "\\s*=\\s*(?:\"([^\"]*)\"|'([^']*)'|([^\\s>]+))", "i");
+  const m = re.exec(tag);
+  return m ? (m[1] ?? m[2] ?? m[3] ?? "").trim() : null;
+}
+
+/**
+ * Extract the document's declared language from HTML metadata.
+ *
+ * Checks <html lang="..."> first, then <meta http-equiv="content-language">.
+ * Returns the raw tag value (not normalised). Returns null when neither is
+ * present or the value is empty.
+ *
+ * This is supplementary evidence for the language detector — never ground truth.
+ */
+export function extractHtmlLang(html) {
+  const src = String(html ?? "");
+  const htmlTag = /<html\b[^>]*>/i.exec(src);
+  if (htmlTag) {
+    const v = attrValue(htmlTag[0], "lang");
+    if (v) return v;
+  }
+  const metaRe = /<meta\b[^>]*>/gi;
+  let m;
+  while ((m = metaRe.exec(src)) !== null) {
+    if (/http-equiv\s*=\s*["']?content-language/i.test(m[0])) {
+      const v = attrValue(m[0], "content");
+      if (v) return v;
+    }
+  }
+  return null;
+}
+
 // ------------------------------------------------------------------ fetch
 async function readCapped(body, maxBytes) {
   const reader = body?.getReader?.();
@@ -230,6 +267,9 @@ export async function fetchDocument(url, {
         // Raw HTML is retained ONLY so link discovery can extract anchors; callers
         // that just need text ignore it. It is null for non-HTML responses.
         html: isHtml ? raw : null,
+        // Declared document language from <html lang> / <meta>. Supplementary
+        // evidence for the language detector; null when absent.
+        htmlLang: isHtml ? extractHtmlLang(raw) : null,
         contentHash: contentHashFor(text),
         redirects,
         fetchedAt: new Date().toISOString(),

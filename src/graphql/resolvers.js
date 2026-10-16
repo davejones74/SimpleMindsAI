@@ -63,8 +63,8 @@ export const resolvers = {
   },
 
   Mutation: {
-    ingestArticle: (_, { input }, { store }) =>
-      store.ingestArticle({
+    ingestArticle: async (_, { input }, { store }) => {
+      const r = await store.ingestArticle({
         text: input.text,
         domain: input.domain,
         tags: input.tags,
@@ -73,7 +73,10 @@ export const resolvers = {
         rawText: input.rawText,
         uncertainty: input.uncertainty,
         missionRelevance: input.missionRelevance,
-      }),
+      });
+      if (r?.skipped) return null;
+      return r;
+    },
     recordReview: (_, { input }, { store }) =>
       store.recordReview({
         articleId: input.articleId,

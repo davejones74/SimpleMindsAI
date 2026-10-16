@@ -13,6 +13,7 @@ import {
 } from "../domain/article.js";
 import { canonicalDomain } from "../storage/domain-registry.js";
 import { DEFAULT_POLICY, evaluateVerdict, selectionDecision } from "../domain/review-policy.js";
+import { assess } from "../domain/language.js";
 
 /**
  * ArticleStore — the authoritative article ledger (append-only NDJSON).
@@ -49,8 +50,8 @@ const COLLECTIONS = {
 const LEGACY_FILES = ["prompts.ndjson", "completions.ndjson", "rewards.ndjson", "state.ndjson", "runs.ndjson"];
 
 export class ArticleStore {
-  static async open(dir = process.env.ARTICLE_DIR ?? process.env.BUFFER_DIR ?? path.resolve("data", "articles"), { readOnly = false, domainRegistry = null } = {}) {
-    const s = new ArticleStore(dir, { readOnly, domainRegistry });
+  static async open(dir = process.env.ARTICLE_DIR ?? process.env.BUFFER_DIR ?? path.resolve("data", "articles"), { readOnly = false, domainRegistry = null, languageFilter = null } = {}) {
+    const s = new ArticleStore(dir, { readOnly, domainRegistry, languageFilter });
     await s.#loadFromDisk();
     return s;
   }
@@ -65,11 +66,17 @@ export class ArticleStore {
    * workspace's completed trial) can never create or mutate a file. Every
    * mutating method throws.
    */
-  constructor(dir, { policy = DEFAULT_POLICY, readOnly = false, domainRegistry = null } = {}) {
+  constructor(dir, { policy = DEFAULT_POLICY, readOnly = false, domainRegistry = null, languageFilter = null } = {}) {
     this.dir = dir;
     this.policy = policy;
     this.readOnly = readOnly;
     this.domainRegistry = domainRegistry;
+    // Ingest-time language backstop. `null` (the default) and
+    // `{ enabled: false }` are both no-ops, so every existing caller and test
+    // keeps its current behaviour. Enforcement only ever EXCLUDES: an English
+    // verdict, or an unknown verdict under the fail-open policy, always ingests.
+    this.languageFilter = languageFilter;
+    this.languageSkipped = 0;
     if (!readOnly) mkdirSync(dir, { recursive: true });
 
     this.articles = new Map();
@@ -242,9 +249,46 @@ export class ArticleStore {
   } = {}) {
     this.#assertWritable();
     if (!text || !String(text).trim()) throw new Error("article text is required");
+
+    // Language backstop: the harvest seam already filters fetched pages, but a
+    // curator (teacher model) can still emit a non-English unit, or a caller may
+    // bypass the crawler entirely. We re-check here so the ledger can never gain
+    // a non-English article when the feature is enforced.
+    //
+    // The feature is opt-in and enforcement-only:
+    //   disabled                -> no assessment at all (existing behaviour)
+    //   enabled + shadow        -> assess, behaviour UNCHANGED (report only)
+    //   enabled + !shadow       -> exclude non-English (and unknown under `reject`)
+    // An English verdict, or unknown under the fail-open policy, always ingests.
+    let languageVerdict = null;
+    if (this.languageFilter?.enabled) {
+      const decision = assess(text, { minConfidence: this.languageFilter.minConfidence });
+      const wouldSkip =
+        decision.verdict === "non-english" ||
+        (decision.verdict === "unknown" && this.languageFilter.unknownPolicy === "reject");
+      if (wouldSkip && !this.languageFilter.shadow) {
+        this.languageSkipped += 1;
+        return {
+          skipped: true,
+          deduped: false,
+          reason: decision.verdict === "unknown" ? "unknown-language" : "non-english",
+          language: decision.detection.language,
+          script: decision.detection.script ?? null,
+          confidence: decision.detection.confidence,
+        };
+      }
+      if (this.languageFilter.shadow && decision.verdict !== "english") {
+        languageVerdict = {
+          verdict: decision.verdict,
+          language: decision.detection.language,
+          confidence: decision.detection.confidence,
+        };
+      }
+    }
+
     const hash = contentHash(text);
     const dup = this.byHash.get(hash);
-    if (dup) return { ...this.articles.get(dup), deduped: true };
+    if (dup) return { ...this.articles.get(dup), deduped: true, ...(languageVerdict ? { languageVerdict } : {}) };
 
     const articleId = `art_${randomUUID().slice(0, 12)}`;
     const imp = normalizeImportance(importance);
@@ -295,7 +339,7 @@ const rec = {
     this.byHash.set(hash, articleId);
     await this.#persist("articles", rec);
     await this.#event({ type: "status", articleId, to: rec.status, actor: AUTHORITY.AUTOMATION, reason: reasons.join(",") || "ingested" });
-    return { ...rec, deduped: false };
+    return { ...rec, deduped: false, ...(languageVerdict ? { languageVerdict } : {}) };
   }
 
   // --------------------------------------------------------------- reads
@@ -639,6 +683,9 @@ const rec = {
       avgReviewScore: scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : null,
       uniqueConsumed,
       totalAppearances: this.consumption.length,
+      // Session-scoped count of ingests the language backstop refused. Only
+      // non-zero when the feature is enabled and enforcing.
+      languageSkipped: this.languageSkipped,
       duplicationIndex: total ? 1 - this.byHash.size / total : 0,
       distinctSourceUrls: (() => {
         const urls = [...this.articles.values()].map((a) => a.sourceUrl).filter((u) => u && u.trim().length > 0);

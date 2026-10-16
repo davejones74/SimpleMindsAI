@@ -99,6 +99,7 @@ following groups:
 | Area | Modules | Responsibility |
 |---|---|---|
 | Harvest / ingest | `src/harness/crawler.js`, `src/harness/fetcher.js`, `src/services/curator.js` | Persisted, robots-aware, bounded frontier. `CRAWL_URLS` seeds it (empty is allowed and never clears persisted work); `src/discovery/discovery-service.js` plus the `src/discovery/adapters/` layer (sitemap, RSS/Atom feed, optional search provider) independently discover further candidates and enqueue them. Raw text becomes long-form articles via the teacher. |
+| Language filter | `src/domain/language.js` | Deterministic, dependency-free English gate shared by the harvest seam and the ingest backstop. See [Language filter](#language-filter). |
 | Teacher client | `src/services/ollama-client.js` | Talks to Ollama. Teacher/critic only. |
 | Domain | `src/domain/article.js`, `src/domain/review-policy.js` | Authoritative article lifecycle and importance, and the review-policy rules for autonomous selection and teacher/human transitions. |
 | Storage | `src/storage/article-store.js`, `src/storage/registry-store.js` | The authoritative `Article` ledger, and the append-only registry (ledger + `RUN.lock`). A legacy pair-buffer is detect-only. |
@@ -112,6 +113,49 @@ following groups:
 The GraphQL surface is the only way subsystems talk to the ledger, which keeps
 the transient/durable boundary explicit. The admin REST/SSE surface is the human
 observability layer over the same validated Node services.
+
+### Language filter
+
+`src/domain/language.js` is a deterministic, dependency-free detector used to
+keep the corpus English. It is **opt-in and off by default**
+(`LANGUAGE_FILTER_ENABLED=false`); when disabled it is a strict no-op.
+
+Three stages, in order:
+
+1. **Script** — by Unicode code-point range. If more than 30% of alphabetic
+   characters are non-Latin (Cyrillic, Arabic, Han, …) the text is non-English
+   immediately, at high confidence.
+2. **Latin stopwords** — per-language function-word evidence for
+   en/fr/de/es/nl/it/pt. Words shared across languages are used only for a
+   *raw* evidence tally; the English *ratio* and the plurality language are
+   computed from *exclusive* (single-language) counts so a shared word cannot
+   inflate the English share of a foreign page.
+3. **`<html lang>`** — supplementary only. It never overrides strong textual
+   evidence and can only break a tie inside the ambiguous band. It is read from
+   `<html lang>` (falling back to `<meta http-equiv="content-language">`) by
+   `extractHtmlLang` in `src/harness/fetcher.js`.
+
+The verdict is one of `english`, `non-english`, or `unknown`. Only `non-english`
+(and `unknown` when `LANGUAGE_FILTER_UNKNOWN_POLICY=reject`) is excluded. This is
+**not** a domain allow/deny list — an English article on any domain passes, and a
+foreign article is excluded regardless of domain.
+
+Two seams share the identical `assess()` rule, so the gate cannot be bypassed:
+
+- **Harvest** (`src/harness/crawler.js`) runs the check *after* link extraction
+  and frontier updates, so a foreign page still yields its English links. A
+  language skip is recorded in the summary (`languageFiltered`, `skipped[]`,
+  `shadowRejected[]`) and is **not** counted as a fetch failure.
+- **Ingest backstop** (`src/storage/article-store.js`) re-checks every text
+  before it becomes an article, covering teacher-emitted units and callers that
+  bypass the crawler. A skipped ingest returns `{ skipped: true, reason, ... }`
+  and writes no record; the GraphQL `ingestArticle` mutation returns `null` for
+  it.
+
+`LANGUAGE_FILTER_SHADOW=true` runs the detector, records would-be exclusions in
+telemetry, and changes nothing — the evaluation mode used before enabling
+enforcement. All thresholds are heuristic starting values, **not** calibrated
+accuracy guarantees.
 
 ---
 
