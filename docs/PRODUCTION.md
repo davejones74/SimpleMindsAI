@@ -668,6 +668,67 @@ computes. Decide during testing whether to keep `llama3.2` resident
 (`OLLAMA_KEEP_ALIVE=-1` or a long duration) or to lower the cadence to match model-load economics.
 This is a load decision, measured in situ, not assumed here.
 
+### 8.5 `simpleminds-prune.service` / `.timer` — disk retention `[CURRENT]`
+
+A dedicated oneshot service plus weekly timer run the audited retention CLI
+(`python -m sma.brain prune-runs --confirm`). It is a separate unit, never embedded in the
+perpetual loop, and it uses the *same* implementation and audit log as the CLI — no deletion
+logic in a shell script. Source: `scripts/systemd/simpleminds-prune.{service,timer}`.
+
+```ini
+# simpleminds-prune.service (abridged)
+[Unit]
+Description=SimpleMindsAI optimizer-state pruning
+After=network-online.target simpleminds.service
+
+[Service]
+Type=oneshot
+User=simpleminds
+Group=simpleminds
+WorkingDirectory=/opt/simpleminds
+Environment=HOME=/var/lib/simpleminds
+Environment=PYTHONPATH=/opt/simpleminds/python
+EnvironmentFile=/etc/simpleminds/simpleminds.env
+Environment=SMA_PRUNE_KEEP=5
+Environment=SMA_RUN_LOCK=/var/lib/simpleminds/data/registry/RUN.lock
+ExecStart=/opt/simpleminds/python/.venv/bin/python -m sma.brain prune-runs --out /var/lib/simpleminds/store --confirm
+TimeoutStartSec=1800
+Nice=10
+IOSchedulingClass=idle
+NoNewPrivileges=yes
+PrivateTmp=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+```
+
+- The unit runs as the least-privileged `simpleminds` account with no inference, no Ollama call
+  and no restart of the perpetual application.
+- `Persistent=true` on the timer gives safe catch-up; a missed run is one run, never an automatic
+  over-deletion, and a live training lock (`$SMA_RUN_LOCK`) makes the service exit safely without
+  deleting. The CLI also refuses if any candidate has a live `_runs/*.lock`, if the active version
+  cannot be verified, or if the store/audit paths are unsafe.
+- `Type=oneshot` plus systemd's single-instance rule prevents overlapping runs; the CLI adds its
+  own single-writer `.prune.lock` and honours the trainer's run locks.
+- Destructive mode was enabled on 2026-10-17 by adding `--confirm` to `ExecStart` only after the
+  dry-run report was reviewed and a controlled confirmed run was verified. Do not add
+  `Restart=always`.
+
+Full policy, invariants, install/inspect/disable commands and recovery steps:
+[PRUNING.md](PRUNING.md).
+
+### 8.6 Disk-space monitoring `[PLANNED]`
+
+`python -m sma.brain prune-status --out $SMA_STORE` reports filesystem capacity and used
+percent, store size, eligible vs protected bytes, the last successful prune, the last
+planned-but-unconfirmed run, and warn/crit thresholds (`SMA_DISK_WARN_PCT` default 80,
+`SMA_DISK_CRIT_PCT` default 90). A threshold breach only raises a warning and, at most,
+triggers a fresh dry run — it never bypasses retention or deletes more categories
+automatically.
+
+If the filesystem is critically low, stop unsafe operations through the documented maintenance
+procedure (quiesce via systemd, run a reviewed `prune-runs --confirm` against the approved
+policy) rather than improvising deletion.
+
 ---
 
 ## 9. Data-plane concurrency `[TBD]`

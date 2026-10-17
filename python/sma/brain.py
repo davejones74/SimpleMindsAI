@@ -329,12 +329,36 @@ def _validate_run_id(run_id: Optional[str]) -> Optional[str]:
 
 
 def cmd_train(args: argparse.Namespace) -> Dict[str, Any]:
-    """Phase 1 check 5: real optimization, published atomically or not at all."""
+    """Phase 1 check 5: real optimization, published atomically or not at all.
+
+    The run holds the store's exclusive run lock for the version it writes (and
+    for the version it resumes from, if any), so a concurrent `prune-runs`
+    cannot delete resume state out from under a live run. This is the lock
+    pruning honours; it is released on clean exit and on exception.
+    """
+    from contextlib import ExitStack
+
+    from . import store
+
+    root = Path(args.out)
+    # The allocation is claimed DURABLY before anything is built, so a crash at
+    # any later point still leaves the number taken: the next run cannot collide
+    # with it, and the published lineage keeps the gap that records the attempt.
+    node_run_id = _validate_run_id(getattr(args, "run_id", None))
+    version = args.version or store.allocate_version(root, run_id=node_run_id)
+    with ExitStack() as stack:
+        stack.enter_context(store.run_lock(root, version))
+        resume_from = getattr(args, "resume_from", None)
+        if resume_from:
+            stack.enter_context(store.run_lock(root, resume_from))
+        return _cmd_train_locked(args, root, version, node_run_id)
+
+
+def _cmd_train_locked(args: argparse.Namespace, root: Path, version: str, node_run_id) -> Dict[str, Any]:
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
     from . import proof, store, train as train_mod
 
-    root = Path(args.out)
     parent = args.parent
     parent_dir = store.version_path(root, parent)
     if not store.is_committed(parent_dir):
@@ -345,12 +369,6 @@ def cmd_train(args: argparse.Namespace) -> Dict[str, Any]:
     # Reusing the parent version would make staging_dir collide with the parent's
     # committed directory (FileExistsError). Continuous cycles therefore produce
     # v007, v008, … rather than overwriting one checkpoint.
-    #
-    # The allocation is claimed DURABLY before anything is built, so a crash at
-    # any later point still leaves the number taken: the next run cannot collide
-    # with it, and the published lineage keeps the gap that records the attempt.
-    node_run_id = _validate_run_id(getattr(args, "run_id", None))
-    version = args.version or store.allocate_version(root, run_id=node_run_id)
     device = _resolve_device(args.device)
     t0 = time.perf_counter()
     _log(
@@ -706,24 +724,29 @@ def cmd_prune_runs(args: argparse.Namespace) -> Dict[str, Any]:
 
     root = Path(args.out)
     active = store.active_version(root)
+    run_lock = getattr(args, "run_lock", None) or os.environ.get("SMA_RUN_LOCK")
     result = store.prune_runs(
         root,
         keep=args.keep,
         active=active,
         protect=args.protect or [],
         confirm=getattr(args, "confirm", False),
+        external_run_lock=Path(run_lock) if run_lock else None,
     )
-    if not result.get("executed"):
+    if result.get("refused"):
+        _log(f"prune-runs refused: {result.get('reason')}")
+    elif not result.get("executed"):
         _log(
             f"prune-runs dry run: {result.get('pruneCount')} resume-state file(s) "
-            f"would be removed, {result.get('freedBytes', 0) / 1e9:.2f} GB; {result.get('reason')}"
+            f"would be removed, {result.get('plannedBytes', result.get('freedBytes', 0)) / 1e9:.2f} GB; "
+            f"{result.get('reason')}"
         )
     else:
         _log(
             f"prune-runs executed: removed {result.get('removedCount')} file(s), "
-            f"freed {result.get('freedBytes', 0) / 1e9:.2f} GB"
+            f"reclaimed {result.get('reclaimedBytes', result.get('freedBytes', 0)) / 1e9:.2f} GB"
         )
-    return {"ok": True, "verb": "prune-runs", **result}
+    return {"ok": not result.get("refused"), "verb": "prune-runs", **result}
 
 
 def cmd_prune_log(args: argparse.Namespace) -> Dict[str, Any]:
@@ -749,6 +772,88 @@ def cmd_prune_log(args: argparse.Namespace) -> Dict[str, Any]:
         "entryCount": len(records),
         "prunedVersions": sorted(tombstones),
         "prunedCount": len(tombstones),
+    }
+
+
+def cmd_prune_status(args: argparse.Namespace) -> Dict[str, Any]:
+    """Read-only operational report for disk/store retention.
+
+    Reports filesystem capacity, the store's size and largest categories, the
+    eligible and protected resume-state bytes, the last successful prune, the
+    last error/skip, and whether the current policy is holding growth down. A
+    threshold breach only raises a warning; it never deletes.
+    """
+    import shutil as _shutil
+
+    from . import store
+
+    root = Path(args.out)
+    fs = _shutil.disk_usage(root if root.exists() else root.parent)
+    used_pct = (fs.used / fs.total * 100.0) if fs.total else 0.0
+    warn = float(getattr(args, "warn_pct", 80.0))
+    crit = float(getattr(args, "crit_pct", 90.0))
+    if used_pct >= crit:
+        level = "critical"
+    elif used_pct >= warn:
+        level = "warning"
+    else:
+        level = "ok"
+
+    active = store.active_version(root)
+    try:
+        plan = store.plan_prune_runs(root, keep=args.keep, active=active)
+        eligible = plan["freedBytes"]
+        protected = plan
+    except (ValueError, OSError) as exc:
+        plan = None
+        eligible = 0
+        protected = {"error": str(exc)}
+
+    runs_dir = root / store.RUNS_DIR_NAME
+    store_bytes = store._dir_bytes(root) if root.exists() else 0
+    runs_bytes = store._dir_bytes(runs_dir) if runs_dir.is_dir() else 0
+
+    log = store.runs_prune_log_path(root)
+    last_success = None
+    last_error = None
+    if log.is_file():
+        for line in log.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                rec = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if rec.get("schema") == "sma/pruned-runs@1":
+                last_success = rec
+            elif rec.get("schema") == "sma/prune-runs-intent@1":
+                if last_success is None or rec.get("at", "") > last_success.get("at", ""):
+                    last_error = rec
+
+    return {
+        "ok": True,
+        "verb": "prune-status",
+        "store": str(root),
+        "filesystem": {
+            "totalBytes": fs.total,
+            "usedBytes": fs.used,
+            "freeBytes": fs.free,
+            "usedPercent": round(used_pct, 2),
+        },
+        "thresholds": {"warnPercent": warn, "critPercent": crit, "level": level},
+        "storeBytes": store_bytes,
+        "runsBytes": runs_bytes,
+        "activeVersion": active,
+        "eligibleBytes": eligible,
+        "retainedCount": len(plan["retained"]) if plan else 0,
+        "candidateCount": plan["pruneCount"] if plan else 0,
+        "lastSuccessfulPrune": last_success,
+        "lastPlannedButUnconfirmed": last_error,
+        "policy": {
+            "keep": args.keep,
+            "sufficient": (eligible == 0) or (store_bytes < fs.total * 0.5),
+        },
     }
 
 
@@ -1482,9 +1587,9 @@ def build_parser() -> argparse.ArgumentParser:
     prr.add_argument(
         "--keep",
         type=int,
-        default=RUNS_PRUNE_DEFAULT_KEEP,
+        default=int(os.environ.get("SMA_PRUNE_KEEP", RUNS_PRUNE_DEFAULT_KEEP)),
         help=f"how many of the most recent published versions keep their resume state "
-        f"(default {RUNS_PRUNE_DEFAULT_KEEP}); the active version is always kept",
+        f"(default {RUNS_PRUNE_DEFAULT_KEEP}, override with $SMA_PRUNE_KEEP); the active version is always kept",
     )
     prr.add_argument(
         "--protect",
@@ -1497,7 +1602,30 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="ACTUALLY DELETE the stale resume-state pickles. Without this flag it is a dry run.",
     )
+    prr.add_argument(
+        "--run-lock",
+        dest="run_lock",
+        default=None,
+        help="path to the trainer's external lock file (e.g. the Node registry RUN.lock); "
+        "a live lock refuses destructive execution. Defaults to $SMA_RUN_LOCK.",
+    )
     prr.set_defaults(func=cmd_prune_runs)
+
+    ps = sub.add_parser(
+        "prune-status",
+        help="read-only disk/store retention report (bytes, eligible, protected, last run, thresholds)",
+    )
+    common(ps)
+    ps.add_argument("--keep", type=int, default=int(os.environ.get("SMA_PRUNE_KEEP", RUNS_PRUNE_DEFAULT_KEEP)))
+    ps.add_argument(
+        "--warn-pct", type=float, default=float(os.environ.get("SMA_DISK_WARN_PCT", 80.0)),
+        help="filesystem used-percent that raises a warning (default 80; $SMA_DISK_WARN_PCT)",
+    )
+    ps.add_argument(
+        "--crit-pct", type=float, default=float(os.environ.get("SMA_DISK_CRIT_PCT", 90.0)),
+        help="filesystem used-percent that raises a critical (default 90; $SMA_DISK_CRIT_PCT)",
+    )
+    ps.set_defaults(func=cmd_prune_status)
 
     pl = sub.add_parser("prune-log", help="the durable record of pruning decisions and outcomes")
     common(pl)

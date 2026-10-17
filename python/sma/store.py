@@ -22,6 +22,7 @@ import hashlib
 import json
 import os
 import shutil
+import socket
 import time
 from contextlib import contextmanager
 from pathlib import Path
@@ -444,11 +445,21 @@ PRUNE_DEFAULT_KEEP = 5
 # are the dominant disk consumer after publishing. `prune-runs` is a SEPARATE,
 # narrower operation than `prune`: it never deletes a published version, only
 # the optimizer-moment pickles, and keeps the most recent versions resumable.
-RUNS_PRUNE_DEFAULT_KEEP = 2
+RUNS_PRUNE_DEFAULT_KEEP = 5
 PRUNED_DIR_NAME = "_pruned"
 PRUNE_LOG_NAME = "_prune-log.ndjson"
 RUNS_PRUNE_LOG_NAME = "_prune-runs-log.ndjson"
 RUNS_DIR_NAME = "_runs"
+# A dedicated lock so two prune processes can never interleave their deletions.
+# `O_CREAT | O_EXCL` makes it a filesystem primitive rather than a best-effort
+# flag; a lock older than the window is treated as abandoned and taken over, so
+# a killed prune self-heals instead of wedging pruning forever.
+PRUNE_LOCK_NAME = ".prune.lock"
+PRUNE_LOCK_STALE_S = 60 * 60
+# A resume run legitimately holds its version lock for days, so the stale window
+# is deliberately long (a day); a short window would let a second process steal
+# it from under a live run. Shared by `run_lock` and the prune lock check.
+RUN_LOCK_STALE_S = 24 * 60 * 60
 
 
 def _dir_bytes(path: Path) -> int:
@@ -774,12 +785,149 @@ def runs_prune_log_path(root: Path) -> Path:
     return Path(root) / RUNS_PRUNE_LOG_NAME
 
 
+def prune_lock_path(root: Path) -> Path:
+    return Path(root) / PRUNE_LOCK_NAME
+
+
+def _pid_alive(pid: Any) -> bool:
+    """True when a process with this pid exists and we may signal it.
+
+    An `EPERM` means the process exists but is owned by someone else, which is
+    still alive. Only a `ProcessLookupError` proves the owner is gone.
+    """
+    try:
+        os.kill(int(pid), 0)
+        return True
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    except (TypeError, ValueError, OSError):
+        return True
+
+
+def run_lock_file_active(
+    path: Optional[Path],
+    stale_s: float = RUN_LOCK_STALE_S,
+    *,
+    fail_closed: bool = True,
+) -> bool:
+    """Whether a trainer-held lock file (e.g. Node's registry `RUN.lock`) is live.
+
+    The Node orchestrator holds a `RUN.lock` for the whole lifecycle (train,
+    evaluate, promote) and refreshes `heartbeatAt`. Pruning must never race that
+    writer, so this is deliberately conservative:
+
+      * absent path          -> not active
+      * unparseable / legacy -> ACTIVE when `fail_closed` (never guess a live
+        trainer away), otherwise fall back to the file mtime
+      * heartbeat fresh      -> active
+      * heartbeat stale but recorded owner is on this host and alive -> active
+      * heartbeat stale, owner dead / foreign host unverifiable -> active only
+        when `fail_closed` and the file was touched within the window
+    """
+    if path is None:
+        return False
+    path = Path(path)
+    if not path.exists():
+        return False
+    try:
+        text = path.read_text(encoding="utf-8").strip()
+    except OSError:
+        return fail_closed
+    record: Optional[Dict[str, Any]] = None
+    if text:
+        try:
+            parsed = json.loads(text)
+            if isinstance(parsed, dict):
+                record = parsed
+        except json.JSONDecodeError:
+            record = None
+    if record is None:
+        # Legacy numeric-timestamp lock, or unparseable. Age is all we have.
+        age = Heartbeat.age_s(path)
+        if age <= stale_s:
+            return True
+        return fail_closed
+    heartbeat = record.get("heartbeatAt") or record.get("acquiredAt")
+    age_ms = None
+    if isinstance(heartbeat, str):
+        try:
+            import datetime as _dt
+
+            stamp = _dt.datetime.fromisoformat(heartbeat.replace("Z", "+00:00"))
+            age_ms = (time.time() - stamp.timestamp()) * 1000.0
+        except ValueError:
+            age_ms = None
+    if age_ms is not None and age_ms <= stale_s * 1000.0:
+        return True
+    host = record.get("host")
+    pid = record.get("pid")
+    if host and host != socket.gethostname():
+        # Foreign host: liveness is unverifiable, so never steal it.
+        return True
+    if isinstance(pid, int) and _pid_alive(pid):
+        return True
+    # Stale heartbeat, owner provably gone. Treat as abandoned unless the file
+    # or heartbeat is recent enough to be suspicious.
+    if age_ms is None:
+        return fail_closed and Heartbeat.age_s(path) <= stale_s
+    return False
+
+
+def prune_lock_acquire(root: Path, stale_s: float = PRUNE_LOCK_STALE_S) -> Path:
+    """Take the single-writer prune lock. Raises RuntimeError if another prune
+    is live. Returns the lock path; always release with `prune_lock_release`."""
+    root = Path(root)
+    root.mkdir(parents=True, exist_ok=True)
+    path = prune_lock_path(root)
+    payload = {
+        "pid": os.getpid(),
+        "host": socket.gethostname(),
+        "at": time.time(),
+        "iso": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    }
+
+    def _create() -> None:
+        fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            json.dump(payload, fh)
+            fh.flush()
+            os.fsync(fh.fileno())
+
+    try:
+        _create()
+    except FileExistsError:
+        try:
+            held = read_json(path)
+        except (json.JSONDecodeError, OSError):
+            held = {}
+        age = Heartbeat.age_s(path)
+        owner_alive = _pid_alive(held.get("pid")) if held.get("pid") else False
+        same_host = not held.get("host") or held.get("host") == socket.gethostname()
+        if age <= stale_s and (owner_alive or not same_host):
+            raise RuntimeError(
+                f"another prune is already running (lock {path}, pid {held.get('pid')}, "
+                f"age {age:.0f}s); refusing to start a second prune"
+            )
+        # Abandoned: clear and retake.
+        path.unlink(missing_ok=True)
+        _create()
+    return path
+
+
+def prune_lock_release(path: Path) -> None:
+    Path(path).unlink(missing_ok=True)
+
+
 def plan_prune_runs(
     root: Path,
     keep: int = RUNS_PRUNE_DEFAULT_KEEP,
     *,
     active: Optional[str] = None,
     protect: Sequence[str] = (),
+    external_run_lock: Optional[Path] = None,
+    lock_stale_s: float = RUN_LOCK_STALE_S,
 ) -> Dict[str, Any]:
     """Compute a resume-state pruning plan WITHOUT touching anything.
 
@@ -789,6 +937,8 @@ def plan_prune_runs(
       * version directories, manifests, records and all non-pickle files are
         outside this function's scope entirely.
       * A live `_runs/<version>.lock` protects that version's pickle.
+      * A live external trainer lock (Node's registry `RUN.lock`) blocks the
+        whole operation; it is reported as `externalRunLock`.
     """
     root = Path(root)
     if keep < 0:
@@ -846,6 +996,8 @@ def plan_prune_runs(
                 "locked": version in locked_versions,
             })
 
+    external_active = run_lock_file_active(external_run_lock, lock_stale_s)
+
     return {
         "store": str(root),
         "keep": keep,
@@ -854,6 +1006,10 @@ def plan_prune_runs(
         "retained": retained,
         "protected": sorted(p for p in retained_set if p not in committed),
         "lockedVersions": sorted(locked_versions),
+        "externalRunLock": {
+            "path": str(external_run_lock) if external_run_lock else None,
+            "active": external_active,
+        },
         "prune": candidates,
         "pruneCount": len(candidates),
         "freedBytes": sum(c["bytes"] for c in candidates),
@@ -867,15 +1023,20 @@ def prune_runs(
     active: Optional[str] = None,
     protect: Sequence[str] = (),
     confirm: bool = False,
+    external_run_lock: Optional[Path] = None,
+    lock_stale_s: float = RUN_LOCK_STALE_S,
+    audit_log: Optional[Path] = None,
 ) -> Dict[str, Any]:
     """Delete stale resume-state pickles. DRY RUN unless `confirm` is True.
 
     Fail-closed requirements:
       * active pointer must be present and valid.
-      * Audit log must be writable BEFORE any deletion is attempted.
-      * Any live run lock on any candidate blocks the whole operation.
-      * Per-candidate lock state is re-checked immediately before unlink.
-      * Path containment: refuses symlink traversal outside store root.
+      * audit log must be writable BEFORE any deletion is attempted.
+      * the single-writer prune lock must be acquirable.
+      * a live external trainer lock (registry `RUN.lock`) blocks the operation.
+      * any live `_runs/<version>.lock` on any candidate blocks the operation.
+      * per-candidate lock state is re-checked immediately before unlink.
+      * path containment: refuses symlink traversal outside store root.
     """
     root = Path(root)
 
@@ -889,7 +1050,10 @@ def prune_runs(
         return plan
 
     try:
-        plan = plan_prune_runs(root, keep, active=active, protect=protect)
+        plan = plan_prune_runs(
+            root, keep, active=active, protect=protect,
+            external_run_lock=external_run_lock, lock_stale_s=lock_stale_s,
+        )
     except (ValueError, OSError) as e:
         plan = {"store": str(root), "keep": keep, "activeVersion": active,
                 "passed": False, "executed": False, "dryRun": (not confirm),
@@ -897,84 +1061,131 @@ def prune_runs(
                 "pruneCount": 0, "freedBytes": 0}
         return plan
 
+    log = Path(audit_log) if audit_log else runs_prune_log_path(root)
+    plan["plannedBytes"] = plan.get("freedBytes", 0)
+
     if not confirm:
         plan["executed"] = False
         plan["dryRun"] = True
         plan["reason"] = "dry run: pass --confirm to delete; nothing was removed"
+        if plan.get("externalRunLock", {}).get("active"):
+            plan["reason"] += " (note: an external trainer lock is live; a real run would refuse)"
+        return plan
+
+    # Fail closed when a live trainer lock exists. This is the coordination the
+    # CLI cannot bypass: the trainer does not honour the prune lock, so prune
+    # honours the trainer's.
+    if run_lock_file_active(external_run_lock, lock_stale_s):
+        plan.update({"executed": False, "dryRun": False, "refused": True,
+                     "removed": [], "removedCount": 0, "reclaimedBytes": 0,
+                     "reason": (f"external trainer lock is live ({external_run_lock}); "
+                                "refusing to delete while training may be writing")})
         return plan
 
     if plan.get("pruneCount", 0) == 0:
         plan.update({"executed": True, "dryRun": False, "removed": [],
-                     "removedCount": 0, "freedBytes": 0, "reason": "nothing to prune"})
+                     "removedCount": 0, "freedBytes": 0, "reclaimedBytes": 0,
+                     "reason": "nothing to prune"})
         return plan
 
-    # Pre-flight: audit log must be writable before any deletion.
-    log = runs_prune_log_path(root)
+    # Single-writer lock: two concurrent prunes must never interleave.
+    lock_path = None
     try:
-        log.parent.mkdir(parents=True, exist_ok=True)
+        lock_path = prune_lock_acquire(root)
+    except RuntimeError as e:
+        plan.update({"executed": False, "dryRun": False, "refused": True,
+                     "removed": [], "removedCount": 0, "reclaimedBytes": 0,
+                     "reason": f"prune lock not acquired: {e}; no deletion performed"})
+        return plan
+
+    try:
+        # Pre-flight: audit log must be writable before any deletion.
+        try:
+            log.parent.mkdir(parents=True, exist_ok=True)
+            with open(log, "a", encoding="utf-8") as fh:
+                fh.write(json.dumps({
+                    "schema": "sma/prune-runs-intent@1",
+                    "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                    "keep": keep,
+                    "activeVersion": active,
+                    "prune": plan["prune"],
+                    "pruneCount": plan["pruneCount"],
+                    "plannedBytes": plan["plannedBytes"],
+                }, sort_keys=True, default=str) + "\n")
+                fh.flush()
+                os.fsync(fh.fileno())
+        except OSError as e:
+            plan.update({"executed": False, "dryRun": False, "refused": True,
+                         "reason": f"audit log not writable before deletion: {e}; no deletion performed",
+                         "removed": [], "reclaimedBytes": 0})
+            return plan
+
+        # Pre-flight: live per-candidate locks block the operation.
+        live_locks = [entry["version"] for entry in plan["prune"]
+                      if run_lock_active(root, entry["version"])]
+        if live_locks:
+            plan.update({"executed": False, "dryRun": False, "refused": True,
+                         "removed": [], "reclaimedBytes": 0,
+                         "reason": ("cannot delete while active/resumable runs hold candidate "
+                                    "state: " + ", ".join(sorted(live_locks)))})
+            return plan
+
+        removed: list[Dict[str, Any]] = []
+        skipped: list[Dict[str, Any]] = []
+        for entry in plan["prune"]:
+            path = Path(entry["file"])
+            # Path-containment: must remain inside root/_runs.
+            try:
+                path.relative_to(root / RUNS_DIR_NAME)
+            except ValueError:
+                skipped.append({"version": entry["version"], "reason": f"path escapes store root: {path}"})
+                continue
+            if path.is_symlink():
+                skipped.append({"version": entry["version"], "reason": f"refusing symlink path: {path}"})
+                continue
+            # Re-check locks immediately before unlink.
+            if run_lock_active(root, entry["version"]):
+                skipped.append({"version": entry["version"], "reason": "run lock live during deletion"})
+                continue
+            if run_lock_file_active(external_run_lock, lock_stale_s):
+                skipped.append({"version": entry["version"], "reason": "external trainer lock appeared during deletion"})
+                continue
+            if not path.is_file():
+                continue
+            try:
+                size = path.stat().st_size
+            except OSError:
+                size = entry["bytes"]
+            path.unlink(missing_ok=True)
+            removed.append({**entry, "bytes": size})
+
+        reclaimed = sum(r["bytes"] for r in removed)
+        outcome = {
+            "schema": "sma/pruned-runs@1",
+            "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "keep": keep,
+            "activeVersion": active,
+            "removed": removed,
+            "removedCount": len(removed),
+            "plannedBytes": plan["plannedBytes"],
+            "reclaimedBytes": reclaimed,
+            "freedBytes": reclaimed,
+            "skipped": skipped,
+        }
         with open(log, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(outcome, sort_keys=True, default=str) + "\n")
             fh.flush()
-    except OSError as e:
-        plan.update({"executed": False, "dryRun": False, "refused": True,
-                     "reason": f"audit log not writable before deletion: {e}; no deletion performed",
-                     "removed": []})
-        return plan
-
-    # Pre-flight: live locks over candidates block the operation.
-    live_locks = [entry["version"] for entry in plan["prune"]
-                  if run_lock_active(root, entry["version"])]
-    if live_locks:
-        plan.update({"executed": False, "dryRun": False, "refused": True,
-                     "removed": [],
-                     "reason": ("cannot delete while active/resumable runs hold candidate "
-                                "state: " + ", ".join(sorted(live_locks)))})
-        return plan
-
-    removed: list[Dict[str, Any]] = []
-    skipped: list[Dict[str, Any]] = []
-    for entry in plan["prune"]:
-        path = Path(entry["file"])
-        # Path-containment: must remain inside root/_runs.
-        try:
-            path.relative_to(root / RUNS_DIR_NAME)
-        except ValueError:
-            skipped.append({"version": entry["version"], "reason": f"path escapes store root: {path}"})
-            continue
-        if path.is_symlink():
-            skipped.append({"version": entry["version"], "reason": f"refusing symlink path: {path}"})
-            continue
-        # Re-check live lock per candidate.
-        if run_lock_active(root, entry["version"]):
-            skipped.append({"version": entry["version"], "reason": "run lock live during deletion"})
-            continue
-        if not path.is_file():
-            continue
-        try:
-            size = path.stat().st_size
-        except OSError:
-            size = entry["bytes"]
-        path.unlink(missing_ok=True)
-        removed.append({**entry, "bytes": size})
-
-    outcome = {
-        "schema": "sma/pruned-runs@1",
-        "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        "keep": keep,
-        "activeVersion": active,
-        "removed": removed,
-        "removedCount": len(removed),
-        "freedBytes": sum(r["bytes"] for r in removed),
-    }
-    with open(log, "a", encoding="utf-8") as fh:
-        fh.write(json.dumps(outcome, sort_keys=True, default=str) + "\n")
-        fh.flush()
-        os.fsync(fh.fileno())
+            os.fsync(fh.fileno())
+    finally:
+        if lock_path is not None:
+            prune_lock_release(lock_path)
 
     plan["executed"] = True
     plan["dryRun"] = False
     plan["removed"] = removed
     plan["removedCount"] = len(removed)
-    plan["freedBytes"] = sum(r["bytes"] for r in removed)
+    plan["reclaimedBytes"] = reclaimed
+    plan["freedBytes"] = reclaimed
     plan["skipped"] = skipped
     return plan
 
@@ -1519,8 +1730,6 @@ class Heartbeat:
 # from under a live run. The trade-off is that a *crashed* run blocks a resume
 # for up to that window; the lock is cheap to clear by hand and is never the
 # only thing standing between two runs.
-
-RUN_LOCK_STALE_S = 24 * 60 * 60
 
 
 def run_lock_path(root: Path, version: str) -> Path:

@@ -25,7 +25,8 @@ landing page and quickstart; the articles below go deeper.
   in git versus out of it, artifact naming, export, the `active.json` pointer, and
   environment configuration.
 - [Safe pruning](PRUNING.md) — eligible and protected data, dry-run/confirmation
-  contract, coordination safety and the systemd dry-run units.- [Verified empirical findings](FINDINGS.md) — measured behaviours (bf16 masters
+  contract, coordination safety and the systemd dry-run units.
+- [Verified empirical findings](FINDINGS.md) — measured behaviours (bf16 masters
   freezing parameters, 220× bf16-on-CPU penalty, tensor-hash shape) that shaped
   the design.
 - [Phase 7 validation report](PHASE7_REPORT.md) — the pre-deployment gate: crash

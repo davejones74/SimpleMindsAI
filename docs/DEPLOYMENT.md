@@ -318,14 +318,20 @@ purpose — that pair is what makes a run's provenance unambiguous.
   published version, weight, or record) and is a **dry run by default**:
 
   ```bash
-  python -m sma.brain prune-runs                  # dry run: report only
-  python -m sma.brain prune-runs --keep 2 --confirm   # actually delete
+  python -m sma.brain prune-runs                      # dry run: report only
+  python -m sma.brain prune-runs --keep 5 --confirm   # actually delete
+  python -m sma.brain prune-status                    # read-only disk/retention report
   ```
 
   The active version and the `--keep` most recent published versions are always
-  retained. `prune` applies the same dry-run-by-default retention policy to whole
-  published version directories. Both append a durable record to the store's
-  prune log; nothing is deleted without `--confirm`.
+  retained (`--keep` defaults to `5`, matching the whole-version retention floor,
+  and is overridable with `$SMA_PRUNE_KEEP`). Destructive pruning fails closed
+  unless `active.json` is valid, the audit log is writable, no candidate run lock
+  is live and the external trainer lock (`SMA_RUN_LOCK`, the Node registry
+  `RUN.lock`) is not held; it also refuses symlinked or out-of-store candidates.
+  `prune` applies the same dry-run-by-default policy to whole published version
+  directories. Both append a durable record to the store's prune log; nothing is
+  deleted without `--confirm`. See [PRUNING.md](PRUNING.md).
 - **Master weights are fp32.** This is an invariant, not a tuning choice: bf16
   masters silently freeze the 17 RMSNorm parameters. See
   [FINDINGS.md](FINDINGS.md#bf16-master-weights-silently-freeze-17-parameters).

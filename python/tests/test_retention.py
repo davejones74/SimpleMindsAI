@@ -17,7 +17,10 @@ These are filesystem proofs (no torch, no model). The invariants under test:
 from __future__ import annotations
 
 import json
+import os
 import shutil
+import socket
+import time
 from pathlib import Path
 
 import pytest
@@ -397,5 +400,183 @@ def test_prune_runs_writes_a_durable_log(store_root):
     log = store.runs_prune_log_path(store_root)
     assert log.is_file()
     records = [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines() if line.strip()]
-    assert records and records[0]["schema"] == "sma/pruned-runs@1"
-    assert records[0]["removedCount"] == 1
+    # A durable INTENT line is written before any deletion, then the OUTCOME.
+    assert [r["schema"] for r in records] == [
+        "sma/prune-runs-intent@1",
+        "sma/pruned-runs@1",
+    ]
+    assert records[0]["plannedBytes"] == 1000
+    assert records[1]["removedCount"] == 1
+    assert records[1]["reclaimedBytes"] == 1000
+
+
+# ------------------------------------------------- prune-runs safety (fail-closed)
+
+
+def _committed_versions(root: Path, n: int, size: int = 1000) -> None:
+    for i in range(1, n + 1):
+        make_version(root, f"v{i:03d}")
+        _write_resume_state(root, f"v{i:03d}", size)
+
+
+def test_prune_runs_fails_closed_without_active_pointer(store_root):
+    _committed_versions(store_root, 4)
+    result = store.prune_runs(store_root, keep=1, active=None, confirm=True)
+    assert result["refused"] is True
+    assert result["executed"] is False
+    # Nothing was deleted.
+    assert len(list((store_root / store.RUNS_DIR_NAME).glob("*.train-state.pt"))) == 4
+
+
+def test_prune_runs_fails_closed_when_active_is_not_committed(store_root):
+    _committed_versions(store_root, 4)
+    result = store.prune_runs(store_root, keep=1, active="v999", confirm=True)
+    assert result["refused"] is True
+    assert len(list((store_root / store.RUNS_DIR_NAME).glob("*.train-state.pt"))) == 4
+
+
+def test_prune_runs_fails_closed_when_store_root_missing(tmp_path):
+    missing = tmp_path / "nope"
+    result = store.prune_runs(missing, keep=1, active="v001", confirm=True)
+    assert result["refused"] is True
+
+
+def test_prune_runs_keeps_the_five_version_floor_by_default(store_root):
+    _committed_versions(store_root, 8)
+    plan = store.plan_prune_runs(store_root, active="v008")
+    assert store.RUNS_PRUNE_DEFAULT_KEEP == 5
+    assert plan["retained"] == ["v004", "v005", "v006", "v007", "v008"]
+    assert {c["version"] for c in plan["prune"]} == {"v001", "v002", "v003"}
+
+
+def test_prune_runs_protects_a_locked_candidate_run(store_root):
+    _committed_versions(store_root, 4)
+    with store.run_lock(store_root, "v001"):
+        result = store.prune_runs(store_root, keep=1, active="v004", confirm=True)
+    # The live-locked version's resume state is protected; the rest is pruned.
+    assert (store_root / store.RUNS_DIR_NAME / "v001.train-state.pt").is_file()
+    assert "v001" in result.get("lockedVersions", [])
+    assert result["executed"] is True
+    assert {r["version"] for r in result["removed"]} == {"v002", "v003"}
+
+
+def test_prune_runs_refuses_while_an_external_trainer_lock_is_live(store_root, tmp_path):
+    _committed_versions(store_root, 4)
+    run_lock = tmp_path / "RUN.lock"
+    run_lock.write_text(
+        '{"pid": %d, "host": "%s", "heartbeatAt": "%s"}'
+        % (os.getpid(), socket.gethostname(), time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())),
+        encoding="utf-8",
+    )
+    result = store.prune_runs(
+        store_root, keep=1, active="v004", confirm=True, external_run_lock=run_lock
+    )
+    assert result["refused"] is True
+    assert result["removed"] == []
+    assert len(list((store_root / store.RUNS_DIR_NAME).glob("*.train-state.pt"))) == 4
+
+
+def test_prune_runs_refuses_on_unparseable_recent_external_lock(store_root, tmp_path):
+    _committed_versions(store_root, 4)
+    run_lock = tmp_path / "RUN.lock"
+    run_lock.write_text("not json but recently touched", encoding="utf-8")
+    result = store.prune_runs(
+        store_root, keep=1, active="v004", confirm=True, external_run_lock=run_lock
+    )
+    assert result["refused"] is True
+
+
+def test_prune_runs_allows_stale_dead_external_lock(store_root, tmp_path):
+    _committed_versions(store_root, 4)
+    run_lock = tmp_path / "RUN.lock"
+    run_lock.write_text(
+        '{"pid": 999999, "host": "%s", "heartbeatAt": "2020-01-01T00:00:00Z"}'
+        % socket.gethostname(),
+        encoding="utf-8",
+    )
+    # A very old heartbeat whose owner is gone must not block pruning forever.
+    assert store.run_lock_file_active(run_lock) is False
+    result = store.prune_runs(
+        store_root, keep=1, active="v004", confirm=True, external_run_lock=run_lock
+    )
+    assert result["executed"] is True
+    assert result["removedCount"] == 3
+
+
+def test_prune_runs_second_concurrent_invocation_is_refused(store_root):
+    _committed_versions(store_root, 4)
+    held = store.prune_lock_acquire(store_root)
+    try:
+        result = store.prune_runs(store_root, keep=1, active="v004", confirm=True)
+        assert result["refused"] is True
+        assert "prune lock" in result["reason"]
+        assert len(list((store_root / store.RUNS_DIR_NAME).glob("*.train-state.pt"))) == 4
+    finally:
+        store.prune_lock_release(held)
+    # Released: the same operation now proceeds.
+    result = store.prune_runs(store_root, keep=1, active="v004", confirm=True)
+    assert result["executed"] is True
+
+
+def test_prune_runs_refuses_symlinked_candidate_and_spares_the_target(store_root, tmp_path):
+    _committed_versions(store_root, 4)
+    outside = tmp_path / "precious.pt"
+    outside.write_bytes(b"do not delete")
+    link = store_root / store.RUNS_DIR_NAME / "v001.train-state.pt"
+    link.unlink()
+    link.symlink_to(outside)
+
+    result = store.prune_runs(store_root, keep=1, active="v004", confirm=True)
+    assert outside.is_file(), "a symlink candidate must never delete its target"
+    assert any(s["version"] == "v001" for s in result["skipped"])
+    # The symlink itself is left in place too (refused, not unlinked).
+    assert link.is_symlink()
+
+
+def test_prune_runs_unwritable_audit_log_deletes_nothing(store_root):
+    _committed_versions(store_root, 4)
+    blocker = store_root / "not-a-dir"
+    blocker.write_text("x", encoding="utf-8")
+    result = store.prune_runs(
+        store_root, keep=1, active="v004", confirm=True,
+        audit_log=blocker / "log.ndjson",
+    )
+    assert result["refused"] is True
+    assert result["removed"] == []
+    assert len(list((store_root / store.RUNS_DIR_NAME).glob("*.train-state.pt"))) == 4
+
+
+def test_prune_runs_partial_prior_deletion_is_finished_safely(store_root):
+    _committed_versions(store_root, 4)
+    # v002 and v003 were removed by an interrupted earlier pass.
+    (store_root / store.RUNS_DIR_NAME / "v002.train-state.pt").unlink()
+    (store_root / store.RUNS_DIR_NAME / "v003.train-state.pt").unlink()
+    result = store.prune_runs(store_root, keep=1, active="v004", confirm=True)
+    assert result["executed"] is True
+    assert [r["version"] for r in result["removed"]] == ["v001"]
+    assert (store_root / store.RUNS_DIR_NAME / "v004.train-state.pt").is_file()
+
+
+def test_prune_runs_is_idempotent(store_root):
+    _committed_versions(store_root, 4)
+    first = store.prune_runs(store_root, keep=1, active="v004", confirm=True)
+    assert first["removedCount"] == 3
+    second = store.prune_runs(store_root, keep=1, active="v004", confirm=True)
+    assert second["removedCount"] == 0
+    assert second["reason"] == "nothing to prune"
+
+
+def test_prune_runs_never_touches_version_directories_or_records(store_root):
+    _committed_versions(store_root, 4)
+    before = {
+        p.relative_to(store_root).as_posix(): p.read_bytes()
+        for p in sorted(store_root.rglob("*"))
+        if p.is_file() and p.parts[0].startswith("v")
+    }
+    store.prune_runs(store_root, keep=1, active="v004", confirm=True)
+    after = {
+        p.relative_to(store_root).as_posix(): p.read_bytes()
+        for p in sorted(store_root.rglob("*"))
+        if p.is_file() and p.parts[0].startswith("v")
+    }
+    assert before == after

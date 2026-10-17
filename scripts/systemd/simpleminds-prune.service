@@ -1,5 +1,6 @@
 [Unit]
-Description=SimpleMindsAI optimizer-state pruning (DRY RUN)
+Description=SimpleMindsAI optimizer-state pruning
+Documentation=file:///opt/simpleminds/docs/PRUNING.md
 After=network-online.target simpleminds.service
 Wants=network-online.target
 
@@ -9,9 +10,20 @@ User=simpleminds
 Group=simpleminds
 WorkingDirectory=/opt/simpleminds
 Environment=HOME=/var/lib/simpleminds
+# `sma` is not pip-installed into the venv; it is imported from python/.
+Environment=PYTHONPATH=/opt/simpleminds/python
 EnvironmentFile=/etc/simpleminds/simpleminds.env
-ExecStart=/opt/simpleminds/python/.venv/bin/python -m sma.brain prune-runs --out /var/lib/simpleminds/store
-# Replace the line above WITH --confirm ONLY after Stage 2 review and explicit approval.
+# Retention policy and the trainer's external lock. A live lock makes the run
+# exit safely without deleting. Override these in the EnvironmentFile if the
+# store/registry layout differs.
+Environment=SMA_PRUNE_KEEP=5
+Environment=SMA_RUN_LOCK=/var/lib/simpleminds/data/registry/RUN.lock
+# Destructive: deletes stale _runs/*.train-state.pt outside the retention
+# window (keep=5). The run refuses automatically while the trainer's RUN.lock is
+# held, while any candidate has a live _runs/*.lock, and if the active version,
+# store root, or audit log are unsafe. Never add Restart=always to a destructive
+# maintenance service.
+ExecStart=/opt/simpleminds/python/.venv/bin/python -m sma.brain prune-runs --out /var/lib/simpleminds/store --confirm
 
 TimeoutStartSec=1800
 Nice=10
