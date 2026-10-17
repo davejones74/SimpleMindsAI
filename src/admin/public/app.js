@@ -1663,6 +1663,12 @@ function progressText(p) {
     ["ingested", v => `ingested ${v}`],
     ["deduped", v => `deduped ${v}`],
     ["reviewed", v => `reviewed ${v}`],
+    ["retired", v => `retired ${v}`],
+    ["failed", v => `failed ${v}`],
+    ["skippedCooldown", v => `cooling ${v}`],
+    ["passes", v => `passes ${v}`],
+    ["pending", v => `pending ${v}`],
+    ["eligibleRemaining", v => `eligible ${v}`],
     ["trainable", v => `trainable ${v}`],
     ["corpusCeiling", v => `source ceiling ${v}`],
     ["runs", v => `runs ${v}`],
@@ -1689,6 +1695,7 @@ function renderControl() {
   const elig = c.eligibility ?? {};
   const learning = activeJob("learning");
   const training = activeJob("training");
+  const review = activeJob("review");
   const fresh = activeJob("fresh-brain");
   const committed = (c.versions ?? []).filter((v) => v.committed);
   if (state.control.versionsUnavailable) { /* store unavailable — reported below */ }
@@ -1708,7 +1715,7 @@ function renderControl() {
             <option value="bounded">bounded (single pass)</option>
             <option value="continuous">continuous (poll)</option>
           </select>
-          <label class="small muted">target articles</label>
+          <label class="small muted">target articles <span class="muted" title="bounded mode only — continuous runs until an operator stop, no-progress, or source exhaustion">(bounded)</span></label>
           <input type="number" id="learnTarget" value="100" min="1" style="width:90px" ${roAttr()} />
           <label class="small muted">max raw docs (0=all)</label>
           <input type="number" id="learnRaw" value="0" min="0" style="width:90px" ${roAttr()} />
@@ -1745,6 +1752,18 @@ function renderControl() {
         </div>
         <div class="small muted">The selected parent is validated fail-closed; an unknown/inconsistent version is refused, never swapped for the active pointer.</div>
       </div>
+    </div>
+
+    <div class="panel">
+      <div class="k">Review backlog ${review ? badge("PENDING_REVIEW", review.status) : badge("INGESTED", "idle")}</div>
+      <div class="small muted">Drain the pending review queue under the SAME cooldown/attempt policy as the learner — an override, never a bypass. Articles that exhaust their inconclusive teacher attempts are retired with an auditable transition (retried only after the cooldown); transient critic failures use a separate allowance.</div>
+      <div class="toolbar" style="margin-top:8px">
+        <label class="small muted">limit (0 = all)</label>
+        <input type="number" id="reviewLimit" value="0" min="0" style="width:90px" ${roAttr()} />
+        <button id="reviewStart" class="primary" ${roAttr()} ${review ? "disabled" : ""}>Drain review queue</button>
+        <button id="reviewStop" class="danger" ${roAttr()} ${review ? "" : "disabled"}>Stop</button>
+      </div>
+      <div class="small muted">Also available server-free: <code>npm run review</code> (<code>--force=&lt;id&gt;</code> to reopen a retired article).</div>
     </div>
 
     <div class="panel">
@@ -1787,7 +1806,7 @@ function renderControl() {
   wireControl();
 }
 
-const CONTROL_FORM_FIELDS = ["learnMode", "learnTarget", "learnRaw", "trainMode", "trainParent", "trainMin", "freshSeed", "freshConfig"];
+const CONTROL_FORM_FIELDS = ["learnMode", "learnTarget", "learnRaw", "trainMode", "trainParent", "trainMin", "freshSeed", "freshConfig", "reviewLimit"];
 
 /**
  * Restore the operator's last Learning & Training selections onto the freshly
@@ -1808,6 +1827,32 @@ function applyControlForm() {
 
 function wireControl() {
   applyControlForm();
+  // The target only bounds a single pass; a continuous run learns until it is
+  // stopped, makes no progress, or exhausts its sources. Make that explicit.
+  const learnModeEl = document.getElementById("learnMode");
+  const learnTargetEl = document.getElementById("learnTarget");
+  const syncLearnTarget = () => {
+    if (learnTargetEl) learnTargetEl.disabled = isReadOnly() || learnModeEl?.value === "continuous";
+  };
+  learnModeEl?.addEventListener("change", syncLearnTarget);
+  syncLearnTarget();
+  document.getElementById("reviewStart")?.addEventListener("click", async (e) => {
+    if (isReadOnly()) return;
+    e.target.disabled = true;
+    try {
+      await api("/review/start", { method: "POST", body: {
+        mode: "drain",
+        limit: Number(document.getElementById("reviewLimit").value) || 0,
+      } });
+      await loadControl();
+    } catch (err) { alert(err.message); e.target.disabled = false; }
+  });
+  document.getElementById("reviewStop")?.addEventListener("click", async (e) => {
+    if (isReadOnly()) return;
+    e.target.disabled = true;
+    try { await api("/review/stop", { method: "POST", body: {} }); await loadControl(); }
+    catch (err) { alert(err.message); e.target.disabled = false; }
+  });
   document.getElementById("learnStart")?.addEventListener("click", async (e) => {
     if (isReadOnly()) return;
     e.target.disabled = true;
