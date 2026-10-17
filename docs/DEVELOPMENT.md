@@ -138,11 +138,22 @@ worker, loads the `COMMITTED` version named by `$SMA_STORE/active.json`, and
 returns `503` if no version is active or the worker is down.
 
 Server-free one-shot CLIs: `train`, `evaluate`, `promote`, `reject`, `perpetual`
-(`PERPETUAL_CYCLES=n`, `OLLAMA_FIXTURE=true` for CI). Fixture caveat: before the
+(`PERPETUAL_CYCLES=n`, `OLLAMA_FIXTURE=true` for CI), and `review`. Fixture caveat: before the
 Phase 7 fix the critic fixture scored `uncertain` for every article and
 fixture-mode `perpetual` stopped short of training; the prompt-marker detection
 is now correct, so the fixture critic scores real articles and the loop can reach
 training end-to-end.
+
+`npm run review` is the explicit backlog drain: it walks the pending review
+queue in bounded pages under the same policy as the learner — `REVIEW_COOLDOWN_MS`
+between attempts, `REVIEW_MAX_ATTEMPTS` inconclusive attempts before an auditable
+RETIRE, and a separate `REVIEW_MAX_TECHNICAL_ATTEMPTS` allowance for transient
+critic failures. It reports reviewed/retired/cooling/failed counts separately so
+a cooling backlog is never mistaken for success, and it takes no action while
+another worker holds `REVIEW.lock`. `--force=<id>` (repeatable, or
+`REVIEW_FORCE=a,b`) records a human re-review request that reopens a retired
+article and bypasses its cooldown. The Observatory drives the same pass via
+`POST /review/start` and `POST /review/stop`.
 
 ---
 

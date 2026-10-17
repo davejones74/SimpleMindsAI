@@ -2,6 +2,7 @@ import { JobStore, JOB_STATUS, isTerminal, validateTransition } from "./job-stor
 import { runLearningCycle } from "./learning.js";
 import { runTrainingOnce } from "./training.js";
 import { createFreshBrain } from "./fresh-brain.js";
+import { reviewPendingArticles } from "./review-pass.js";
 import { selectTrainer } from "../training/trainer-interface.js";
 import { runPython } from "../brain/python-cli.js";
 import { OllamaClient } from "../services/ollama-client.js";
@@ -25,7 +26,7 @@ export class JobNotFoundError extends Error {
   }
 }
 
-const KIND_TITLES = { learning: "Learning", training: "Training", "fresh-brain": "Fresh brain" };
+const KIND_TITLES = { learning: "Learning", training: "Training", "fresh-brain": "Fresh brain", review: "Review backlog" };
 
 /**
  * Connectivity failures — a loss of internet, an unreachable teacher or source,
@@ -202,6 +203,20 @@ export class JobSupervisor {
         parentVersion: parentVersion ?? null,
         minEligible: Number.isFinite(minEligible) ? minEligible : config.jobs.training.minEligible,
       },
+    });
+  }
+
+  /**
+   * Explicit backlog drain. It reviews the CURRENT pending queue under the same
+   * policy/cooldown/attempt rules as the perpetual learner — it does not bypass
+   * them — and reports pending / eligible / cooling / retired / failed counts
+   * honestly. `limit` caps the number of NEW reviews in one pass (0 = unbounded).
+   */
+  async startReview({ mode = "drain", limit = 0 } = {}) {
+    const m = mode === "continuous" ? "continuous" : "drain";
+    return this.#start("review", {
+      mode: m,
+      params: { limit: Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : 0 },
     });
   }
 
@@ -388,6 +403,7 @@ export class JobSupervisor {
     };
     if (job.kind === "learning") return this.#runLearning(job, params, base);
     if (job.kind === "training") return this.#runTraining(job, params, base);
+    if (job.kind === "review") return this.#runReview(job, params, base);
     if (job.kind === "fresh-brain") return this.#runFreshBrain(job, params, base);
     throw new Error(`unknown job kind ${job.kind}`);
   }
@@ -415,6 +431,7 @@ export class JobSupervisor {
     let outcome = "stopped";
     let noProgressStreak = 0;
     let prevTrainable = null;
+    let targetMilestoneLogged = false;
     const startedAt = this.clock();
     const continuous = job.mode === "continuous";
     for (;;) {
@@ -468,7 +485,11 @@ export class JobSupervisor {
       const trainableGrew = prevTrainable === null ? true : (last?.trainable ?? 0) > prevTrainable;
       prevTrainable = last?.trainable ?? prevTrainable;
       if (acquired || trainableGrew) noProgressStreak = 0;
-      else noProgressStreak++;
+      else if (last?.reviewWaiting) {
+        // The pass made no acquisition only because the review backlog is in
+        // cooldown (or another worker holds REVIEW.lock). That is a TEMPORARY
+        // wait, not a stall: it must never consume the no-progress budget.
+      } else noProgressStreak++;
       try {
         await this.#progress(jobId, { cycle, noProgressStreak, ...summarizeLearning(last) }, { force: true });
       } catch (_e) {
@@ -494,9 +515,25 @@ export class JobSupervisor {
         cycle--; // retry the same cycle once connectivity is restored
         continue;
       }
-      if (last.trainable >= target) {
+      // The target is a BOUNDED notion. A continuous learning job never stops on
+      // it — reaching it is reported once as a milestone, then acquisition keeps
+      // running until the operator stops it, the sources are exhausted, or it
+      // genuinely stalls.
+      if (!continuous && last.trainable >= target) {
         outcome = "target-reached";
         break;
+      }
+      if (continuous && last.trainable >= target) {
+        if (!targetMilestoneLogged) {
+          targetMilestoneLogged = true;
+          await this.#safeEvent(jobId, {
+            status: JOB_STATUS.RUNNING,
+            phase: "target-milestone",
+            note: `trainable ${last.trainable} reached target ${target}; continuous learning continues (targets apply to bounded runs)`,
+          });
+        }
+      } else if (continuous) {
+        targetMilestoneLogged = false; // allow a re-milestone after a dip
       }
       // No discovery source is configured at all (no seeds, no eligible
       // registered domains, no usable adapter). This is NOT "sources exhausted":
@@ -541,7 +578,11 @@ export class JobSupervisor {
       outcome,
       cycles: cycle,
       target,
-      targetReached: Boolean(last && last.trainable >= target),
+      // `targetReached` is meaningful for a BOUNDED job (it stopped because the
+      // target was met). A continuous job ignores the target, so it reports the
+      // milestone separately rather than claiming it finished.
+      targetReached: !continuous && Boolean(last && last.trainable >= target),
+      targetMilestone: continuous && Boolean(last && last.trainable >= target),
       ...summarizeLearning(last),
     };
   }
@@ -552,6 +593,7 @@ export class JobSupervisor {
     let last = null;
     let runs = 0;
     let consecutiveRejections = 0;
+    let lastLockNote = null;
     const startedAt = this.clock();
     for (;;) {
       if (this.#shouldStop(jobId)) break;
@@ -588,6 +630,23 @@ export class JobSupervisor {
         await this.#gate(jobId, config.jobs.pollIntervalMs);
         continue;
       }
+      // Continuous training checks RUN.lock BEFORE announcing a training phase,
+      // so a contended job parks visibly at waiting-for-lock instead of
+      // flickering between "training" and a wait on every poll. One-shot keeps
+      // its existing semantics and lets executeFullRun raise the typed failure.
+      if (job.mode !== "one-shot") {
+        const info = typeof this.registry?.runLockInfo === "function" ? this.registry.runLockInfo() : null;
+        if (info?.held) {
+          const note = `waiting: RUN.lock held by pid ${info.pid ?? "?"} on ${info.host ?? "?"}${info.runId ? ` (run ${info.runId})` : ""}`;
+          if (note !== lastLockNote) {
+            lastLockNote = note;
+            await this.#safeEvent(jobId, { status: JOB_STATUS.WAITING, phase: "waiting-for-lock", note });
+          }
+          await this.#gate(jobId, config.jobs.pollIntervalMs);
+          continue;
+        }
+      }
+      lastLockNote = null;
       await this.#event(jobId, { status: JOB_STATUS.RUNNING, phase: "training" });
       // Each cycle publishes a NEW immutable version (vNNN) from the parent; the
       // Python side allocates the next number, so continuous runs never collide.
@@ -617,10 +676,26 @@ export class JobSupervisor {
           await this.#gate(jobId, config.jobs.pollIntervalMs);
           continue;
         }
+        // A held RUN.lock is legitimate contention with a co-operating process
+        // (e.g. `npm run perpetual`), not a training fault. A CONTINUOUS job
+        // waits for the lock to clear; a ONE-SHOT job keeps the honest failure.
+        if (err?.code === "RUN_LOCK_HELD") {
+          if (job.mode === "one-shot") throw err;
+          const note = `waiting: ${err.message}`;
+          // Emit only when the holder (or the message) changes, so a 60s poll
+          // does not append the same "waiting for lock" line forever.
+          if (note !== lastLockNote) {
+            lastLockNote = note;
+            await this.#safeEvent(jobId, { status: JOB_STATUS.WAITING, phase: "waiting-for-lock", note });
+          }
+          await this.#gate(jobId, config.jobs.pollIntervalMs);
+          continue;
+        }
         throw err;
       }
       runs++;
       last = summarizeRun(out, this.registry);
+      lastLockNote = null; // a successful run clears the wait-dedupe
       // A promoted run proves forward progress; a rejected (or unevaluated) run
       // does not. Count streaks so continuous training cannot silently retrain
       // the same corpus forever (run-46..run-52 all staged v035 and were
@@ -662,6 +737,68 @@ export class JobSupervisor {
       await this.#gate(jobId, config.jobs.pollIntervalMs);
     }
     return { outcome: this.#shouldStop(jobId) ? "stopped" : "completed", runs, consecutiveRejections, ...(last ?? {}) };
+  }
+
+  async #runReview(job, params, base) {
+    const { jobId } = job;
+    const startedAt = this.clock();
+    const total = { selected: 0, reviewed: 0, retired: 0, failed: 0, skippedCooldown: 0, skippedCap: 0, skippedTechnicalCap: 0 };
+    let passes = 0;
+    let outcome = "stopped";
+    for (;;) {
+      if (this.#shouldStop(jobId)) { outcome = "stopped"; break; }
+      if (this.#runtimeExceeded(startedAt)) {
+        await this.#safeEvent(jobId, {
+          status: JOB_STATUS.RUNNING,
+          phase: "max-runtime",
+          note: `stopping: job runtime exceeded JOBS_MAX_RUNTIME_MS (${config.jobs.maxRuntimeMs} ms)`,
+        });
+        outcome = "max-runtime";
+        break;
+      }
+      if (this.#shouldPause(jobId)) {
+        await this.#holdPause(jobId);
+        if (this.#shouldStop(jobId)) { outcome = "stopped"; break; }
+        continue;
+      }
+      passes++;
+      const result = await reviewPendingArticles(this.store, this.scorer, {
+        config,
+        log: base.log,
+        signal: base.signal,
+        limit: params.limit,
+        onProgress: (p) => this.#progress(jobId, { pass: passes, ...total, ...p }, { force: true }),
+      });
+      for (const k of Object.keys(total)) total[k] += result[k] ?? 0;
+      const stats = this.store.getStats();
+      await this.#progress(
+        jobId,
+        { passes, ...total, pending: result.pendingAfter ?? stats.pendingReview, cooling: result.skippedCooldown, eligibleRemaining: result.eligibleRemaining ?? 0 },
+        { force: true },
+      );
+      if (result.locked) {
+        await this.#safeEvent(jobId, {
+          status: JOB_STATUS.WAITING,
+          phase: "waiting-for-review-lock",
+          note: "another review worker holds REVIEW.lock; retrying",
+        });
+        await this.#gate(jobId, config.jobs.pollIntervalMs);
+        continue;
+      }
+      outcome = "drained";
+      break;
+    }
+    const stats = this.store.getStats();
+    return {
+      outcome,
+      passes,
+      ...total,
+      pending: stats.pendingReview,
+      trainable: stats.trainable,
+      note: outcome === "drained"
+        ? `reviewed ${total.reviewed}, retired ${total.retired}, ${total.skippedCooldown} cooling, ${total.failed} failed, ${stats.pendingReview} still pending`
+        : undefined,
+    };
   }
 
   async #runFreshBrain(job, params, base) {
@@ -900,6 +1037,10 @@ function summarizeLearning(r) {
     ingested: r.ingested,
     deduped: r.deduped,
     reviewed: r.reviewed,
+    reviewRetired: r.reviewRetired ?? 0,
+    reviewFailed: r.reviewFailed ?? 0,
+    reviewSkippedCooldown: r.reviewSkippedCooldown ?? 0,
+    reviewWaiting: Boolean(r.reviewWaiting),
     trainable: r.trainable,
     corpusCeiling: r.corpusCeiling ?? null,
     failures: r.failures?.length ?? 0,

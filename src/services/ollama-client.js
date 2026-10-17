@@ -45,10 +45,18 @@ export class OllamaClient {
   }
 
   /** Non-streaming chat. Returns final text with any CoT stripped. */
-  async chat({ messages, format, temperature, maxTokens }) {
+  async chat({ messages, format, temperature, maxTokens, repeatPenalty }) {
     if (this.fixture) return { text: this.#fixtureReply(messages) };
     const options = { ...this.defaultOptions, temperature: temperature ?? this.defaultOptions.temperature };
+    // A hard cap bounds a runaway reasoning model. deepseek-r1 counts hidden
+    // chain-of-thought against num_predict, so an uncapped call can burn the
+    // server's repeat limit and return an empty final answer.
     if (maxTokens) options.num_predict = maxTokens;
+    // Repeat penalty discourages the degenerate token loop that trips the
+    // server's repeat limit in the first place.
+    if (Number.isFinite(Number(repeatPenalty)) && Number(repeatPenalty) > 0) {
+      options.repeat_penalty = Number(repeatPenalty);
+    }
     const body = await this.#request("/api/chat", {
       model: this.model,
       messages,

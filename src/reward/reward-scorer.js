@@ -55,6 +55,52 @@ export function scoreToVerdict(score, { minScore = config.review.minScore, uncer
   return VERDICT.UNCERTAIN;
 }
 
+/** Extract the first JSON object from a critic response, or null. */
+function extractJsonObject(out) {
+  const s = String(out ?? "");
+  const start = s.indexOf("{");
+  const end = s.lastIndexOf("}");
+  if (start < 0 || end <= start) return null;
+  try {
+    return JSON.parse(s.slice(start, end + 1));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * A response that degenerates into a repeated token sequence ("the the the…")
+ * is worth exactly one retry with a repeat penalty. A merely malformed response
+ * is deterministic and is NOT retried.
+ */
+function looksDegenerate(text) {
+  const s = String(text ?? "").trim();
+  if (!s) return true;
+  const words = s.toLowerCase().match(/[a-z0-9']+/g) ?? [];
+  if (words.length < 20) return false;
+  const uniqueRatio = new Set(words).size / words.length;
+  if (uniqueRatio < 0.2) return true;
+  let run = 1;
+  let maxRun = 1;
+  for (let i = 1; i < words.length; i++) {
+    if (words[i] === words[i - 1]) {
+      if (++run > maxRun) maxRun = run;
+    } else run = 1;
+  }
+  return maxRun >= 8;
+}
+
+/**
+ * Classify a critic failure BEFORE retrying. Only genuine transient conditions
+ * (timeout, network, 5xx, server repeat-limit) are retried; a deterministic
+ * request error (400/404/422) is never retried — retrying it just wastes time.
+ */
+function isRetryableCriticError(err) {
+  const msg = String(err?.message ?? "");
+  if (/\b(400|401|403|404|405|422)\b/.test(msg)) return false;
+  return /(timed out|timeout|abort|econn|enotfound|eai_again|etimedout|socket|fetch failed|network|refused|5\d\d|repeat limit)/i.test(msg);
+}
+
 /**
  * ReviewScorer — the teacher critic (formerly RewardScorer).
  *
@@ -74,29 +120,39 @@ export class ReviewScorer {
   /** Judge WITHOUT touching GraphQL — returns the raw record. */
   async scoreOffline({ text, domain = "general" }) {
     const penalty = heuristicPenalty(text);
+    const cfgMaxTokens = Number(config.criticMaxTokens);
+    const maxTokens = Number.isFinite(cfgMaxTokens) && cfgMaxTokens > 0 ? cfgMaxTokens : null;
+    const maxAttempts = Math.max(1, Number(config.criticMaxAttempts) || 1);
     let llm = null;
     let criticError = null;
-    try {
-      const { text: out } = await this.ollama.chat({
-        format: "json",
-        messages: [
-          { role: "system", content: CRITIC_PROMPT },
-          { role: "user", content: JSON.stringify({ domain, article: text }) },
-        ],
-      });
-      const start = out.indexOf("{");
-      const end = out.lastIndexOf("}");
-      if (start >= 0 && end > start) {
-        try {
-          llm = JSON.parse(out.slice(start, end + 1));
-        } catch (parseErr) {
-          criticError = `critic response was not valid JSON: ${parseErr.message.slice(0, 80)}`;
+    let criticAttempts = 0;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      criticAttempts = attempt;
+      try {
+        const { text: out } = await this.ollama.chat({
+          format: "json",
+          maxTokens,
+          // The retry after a degenerate loop nudges the model away from it.
+          repeatPenalty: attempt > 1 ? config.criticRepeatPenalty : undefined,
+          messages: [
+            { role: "system", content: CRITIC_PROMPT },
+            { role: "user", content: JSON.stringify({ domain, article: text }) },
+          ],
+        });
+        const parsed = extractJsonObject(out);
+        if (parsed) {
+          llm = parsed;
+          criticError = null;
+          break;
         }
-      } else {
         criticError = "critic response contained no JSON object";
+        // Only a degenerate response earns the one penalty retry; a merely
+        // malformed one is deterministic.
+        if (attempt >= maxAttempts || !looksDegenerate(out)) break;
+      } catch (err) {
+        criticError = `critic unavailable: ${err.message.slice(0, 80)}`;
+        if (attempt >= maxAttempts || !isRetryableCriticError(err)) break;
       }
-    } catch (err) {
-      criticError = `critic unavailable: ${err.message.slice(0, 80)}`;
     }
 
     // Missing STAYS missing: an unparseable or absent critic score is NOT a
@@ -132,6 +188,8 @@ export class ReviewScorer {
       criticResponded: llm != null,
       criticScoreMissing,
       criticError,
+      criticAttempts,
+      criticMaxTokens: maxTokens,
       criticPromptVersion: config.criticPromptVersion,
       criticVersion: this.criticVersion,
       rubricVersion: this.rubricVersion,

@@ -5,6 +5,7 @@ import path from "node:path";
 import {
   AUTHORITY,
   STATUS,
+  VERDICT,
   contentHash,
   isImportance,
   isStatus,
@@ -522,6 +523,105 @@ const rec = {
     await this.#event({ type: "review-requested", articleId, actor, reason });
     article.updatedAt = new Date().toISOString();
     return { ...article };
+  }
+
+  /**
+   * Attempt accounting for bounded autonomous review.
+   *
+   * Everything is derived from the immutable REVIEW HISTORY + the review-request
+   * event log, so a restart reconstructs exactly the same counters (no
+   * in-memory-only state). Semantics, stated once:
+   *
+   *   - Only TEACHER reviews count as autonomous attempts. A human review is a
+   *     final decision and is never re-attempted.
+   *   - `inconclusiveAttempts` counts teacher verdicts that did NOT change the
+   *     article's status (uncertain, or an approve below the score gate).
+   *   - `technicalAttempts` counts reviews whose critic failed technically
+   *     (no JSON / transport error). Technical failures never consume the
+   *     inconclusive allowance — the text was never actually judged.
+   *   - A `review-requested` event is an explicit human/operator OVERRIDE: it
+   *     bypasses the cooldown and resets the attempt baseline, so a human can
+   *     force a re-review of an article that was about to be (or already is)
+   *     retired. Overrides are consumed naturally once a teacher review lands
+   *     after them.
+   */
+  reviewAttempts(articleId, { cooldownMs = 0, maxAttempts = 0, maxTechnicalAttempts = 0, now = Date.now() } = {}) {
+    const article = this.articles.get(articleId);
+    if (!article) return null;
+    const teacher = (this.reviews.get(articleId) ?? []).filter((r) => r.authority === AUTHORITY.TEACHER);
+
+    let lastOverrideAt = Number.NEGATIVE_INFINITY;
+    for (const e of this.events) {
+      if (e.articleId !== articleId || e.type !== "review-requested") continue;
+      const t = Date.parse(e.at);
+      if (Number.isFinite(t) && t > lastOverrideAt) lastOverrideAt = t;
+    }
+    const overridePending =
+      Number.isFinite(lastOverrideAt) && !teacher.some((r) => Date.parse(r.at) > lastOverrideAt);
+
+    // Attempts are counted since the most recent human override (baseline reset).
+    const considered = overridePending ? [] : teacher.filter((r) => Date.parse(r.at) > lastOverrideAt);
+    const inconclusiveAttempts = considered.filter((r) => !r.criticError && r.verdict === VERDICT.UNCERTAIN).length;
+    const technicalAttempts = considered.filter((r) => Boolean(r.criticError)).length;
+    const conclusiveAttempts = considered.filter((r) => r.applied === true).length;
+
+    let lastTeacherAt = Number.NEGATIVE_INFINITY;
+    for (const r of teacher) {
+      const t = Date.parse(r.at);
+      if (Number.isFinite(t) && t > lastTeacherAt) lastTeacherAt = t;
+    }
+
+    const cooldownRemainingMs =
+      !overridePending && Number.isFinite(lastTeacherAt) && cooldownMs > 0
+        ? Math.max(0, cooldownMs - (now - lastTeacherAt))
+        : 0;
+    const inCooldown = cooldownRemainingMs > 0;
+    const capReached = maxAttempts > 0 && inconclusiveAttempts >= maxAttempts;
+    const technicalCapReached = maxTechnicalAttempts > 0 && technicalAttempts >= maxTechnicalAttempts;
+    const pending = article.status === STATUS.PENDING_REVIEW;
+    const eligible = pending && !inCooldown && !capReached && !technicalCapReached;
+
+    return {
+      status: article.status,
+      pending,
+      overridePending,
+      inconclusiveAttempts,
+      technicalAttempts,
+      conclusiveAttempts,
+      lastTeacherAt: Number.isFinite(lastTeacherAt) ? new Date(lastTeacherAt).toISOString() : null,
+      lastOverrideAt: Number.isFinite(lastOverrideAt) ? new Date(lastOverrideAt).toISOString() : null,
+      inCooldown,
+      cooldownRemainingMs,
+      capReached,
+      technicalCapReached,
+      eligible,
+    };
+  }
+
+  /**
+   * Deliberately retire an article after bounded inconclusive review. This is a
+   * real, auditable state transition (two appended events: the explicit
+   * `review-retired` marker carrying the attempt count, then the `status` change)
+   * — never a silent count manipulation. Review history is preserved untouched;
+   * a retired article can still be reopened by an explicit human override
+   * (`requestReview`), which records its own audit event.
+   */
+  async retireArticle(articleId, { reason = null, attempts = null, actor = AUTHORITY.AUTOMATION } = {}) {
+    this.#assertWritable();
+    const article = this.articles.get(articleId);
+    if (!article) throw new Error(`unknown article: ${articleId}`);
+    if (article.status === STATUS.RETIRED) return { ...article, retired: false, alreadyRetired: true };
+    await this.#event({ type: "review-retired", articleId, attempts, reason, actor });
+    await this.#event({
+      type: "status",
+      articleId,
+      from: article.status,
+      to: STATUS.RETIRED,
+      actor,
+      reason: reason ?? "review: inconclusive attempts exhausted",
+    });
+    article.updatedAt = new Date().toISOString();
+    return { ...article, retired: true };
   }
 
   // --------------------------------------------------------- consumption

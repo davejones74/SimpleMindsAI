@@ -666,6 +666,24 @@ export function attachAdmin({ app, store, registry, governance, chat, conversati
     ok(res, { job });
   }));
 
+  // Explicit backlog drain: review the current pending queue under the same
+  // policy/cooldown/attempt rules as the perpetual learner (never a bypass).
+  router.post("/review/start", blockWrites, asyncRoute(async (req, res) => {
+    const sup = requireSupervisor(res);
+    if (!sup) return;
+    const job = await sup.startReview({ mode: req.body?.mode, limit: req.body?.limit });
+    ok(res, { job });
+  }));
+
+  router.post("/review/stop", blockWrites, asyncRoute(async (req, res) => {
+    const sup = requireSupervisor(res);
+    if (!sup) return;
+    const active = sup.activeJobOfKind("review");
+    if (!active) return ok(res, { job: null, note: "no active review job" });
+    const job = await sup.stop(active.jobId);
+    ok(res, { job });
+  }));
+
   router.get("/training/eligibility", asyncRoute(async (req, res) => {
     const stats = req.workspace.services.store.getStats();
     const minEligible = Number(req.query.minEligible) || config.jobs.training.minEligible;

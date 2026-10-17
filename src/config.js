@@ -200,6 +200,17 @@ export const config = {
   // ---- Reward (teacher review signal; NEVER part of the training loss) ----
   minReward: num("MIN_REWARD", 6), // below this, teacher approval is not sufficient
   criticTemperature: num("CRITIC_TEMPERATURE", 0.1),
+  // Hard cap on tokens the critic may generate. deepseek-r1 counts hidden
+  // chain-of-thought against num_predict, so an UNCAPPED critic can loop until
+  // the server returns "token repeat limit reached" and the review is lost.
+  // This reaches the actual Ollama request (num_predict). 0 disables the cap.
+  criticMaxTokens: num("CRITIC_MAX_TOKENS", 512),
+  // Bounded retry for a TRANSIENT critic failure (timeout/network/5xx). Bounded
+  // timeout is the OllamaClient's own request timeout; this is the attempt count.
+  criticMaxAttempts: num("CRITIC_MAX_ATTEMPTS", 2),
+  // Repeat penalty applied on the retry that follows a degenerate/repetitive
+  // critic response (1.0 = off).
+  criticRepeatPenalty: num("CRITIC_REPEAT_PENALTY", 1.3),
 
   // ---- Review policy (autonomous selection + teacher/human transitions) ----
   review: {
@@ -209,6 +220,18 @@ export const config = {
     missionRelevanceThreshold: num("REVIEW_MISSION_RELEVANCE", 0.6),
     uncertaintyThreshold: num("REVIEW_UNCERTAINTY", 0.5),
     salt: env("REVIEW_SALT", "sma/review@1"),
+    // Bounded autonomous re-review. An INCONCLUSIVE teacher verdict (uncertain,
+    // or an approve below the score gate) leaves the article PENDING_REVIEW; it
+    // is retried only after `cooldownMs`, and after `maxAttempts` inconclusive
+    // attempts it is deliberately RETIRED (an auditable terminal transition).
+    // Technical critic failures have their own allowance and never count here.
+    cooldownMs: num("REVIEW_COOLDOWN_MS", 21_600_000), // 6h between attempts
+    maxAttempts: num("REVIEW_MAX_ATTEMPTS", 3), // inconclusive attempts before retire
+    maxTechnicalAttempts: num("REVIEW_MAX_TECHNICAL_ATTEMPTS", 5), // transient critic failures
+    // A shared REVIEW.lock serialises teacher review across processes (the
+    // perpetual CLI, a learning job, and an explicit drain) so two workers
+    // cannot review the same backlog simultaneously.
+    lockStaleMs: num("REVIEW_LOCK_STALE_MS", 10 * 60 * 1000),
   },
 
   // ---- Review cycles (every N consumed articles; a checkpoint, not a cap) ----

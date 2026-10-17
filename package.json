@@ -13,6 +13,7 @@
     "crawl": "node src/harness/crawler.js",
     "curate": "node src/services/curator.js --file data/raw/sample.ndjson",
     "score": "node src/reward/reward-scorer.js",
+    "review": "node src/cli/review.js",
     "plan": "node src/services/planner.js",
     "init:brain": "node src/cli/init-brain.js",
     "train": "node src/cli/train.js",

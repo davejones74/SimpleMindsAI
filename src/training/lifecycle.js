@@ -113,7 +113,19 @@ export async function executeFullRun({
   // Recovery is lock-driven: acquiring the lock reclaims a dead owner's run
   // (see RegistryStore.acquireRunLock) without blanket-failing unrelated runs.
   if (!(await registry.acquireRunLock(config.runLockStaleMs))) {
-    throw new Error("another training run is already in progress (RUN.lock held)");
+    // A held RUN.lock is a NORMAL, expected condition when several processes
+    // train (the Observatory's jobs and `npm run perpetual` share this lock).
+    // Throw a TYPED error so callers can distinguish "wait and retry" from a
+    // genuine training fault; the best-effort holder diagnostics are attached
+    // for operators, but the lock token is never included.
+    const info = typeof registry.runLockInfo === "function" ? registry.runLockInfo() : null;
+    const who = info
+      ? `pid ${info.pid ?? "?"} on ${info.host ?? "?"}${info.runId ? ` (run ${info.runId})` : ""}`
+      : "another process";
+    const err = new Error(`another training run is already in progress (RUN.lock held by ${who})`);
+    err.code = "RUN_LOCK_HELD";
+    if (info) err.lock = info;
+    throw err;
   }
 
   // Finish any promotion a previous process left uncommitted BEFORE starting new

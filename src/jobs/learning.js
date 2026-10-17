@@ -1,6 +1,7 @@
 import { collectDocuments } from "../harness/crawler.js";
 import { config } from "../config.js";
 import { throwIfAborted } from "./cancel.js";
+import { reviewPendingArticles } from "./review-pass.js";
 
 /**
  * One acquisition cycle: harvest configured sources → curate (teacher) →
@@ -109,31 +110,17 @@ export async function runLearningCycle(ctx) {
   }
 
   onPhase("review");
-  await store.selectForReview({ limit: 1000 });
-  const { items } = store.reviewQueue({ limit: 1000 });
-  let reviewed = 0;
-  for (const article of items) {
-    throwIfAborted(signal);
-    const r = await scorer.scoreOffline({ text: article.text, domain: article.domain });
-    await store.recordReview({
-      articleId: article.articleId,
-      verdict: r.verdict,
-      score: r.score,
-      rationale: r.rationale,
-      authority: "teacher",
-      reviewerModel: r.criticModel,
-      reviewerVersion: r.criticVersion,
-      rubricVersion: r.rubricVersion,
-      guardrailResult: r.guardrailResult,
-      suggestedImportance: r.suggestedImportance,
-      criticTemperature: r.criticTemperature,
-      criticPromptVersion: r.criticPromptVersion,
-      criticScoreMissing: r.criticScoreMissing,
-      criticError: r.criticError,
-    });
-    reviewed++;
-    onProgress({ phase: "review", reviewed });
-  }
+  // Autonomously queue anything the policy selects, then run the SHARED bounded
+  // review pass: cooldowns, attempt caps, auditable retires and cross-process
+  // locking all live in one place (see jobs/review-pass.js).
+  const reviewResult = await reviewPendingArticles(store, scorer, {
+    config: ctx.reviewConfig ?? config,
+    log,
+    onProgress: (p) => onProgress(p),
+    signal,
+  });
+  const reviewed = reviewResult.reviewed;
+  const reviewWaiting = reviewResult.locked || reviewResult.waiting;
 
   const stats = store.getStats();
   // Exhaustion is detected, never assumed: a pass that ingests nothing (all
@@ -152,6 +139,12 @@ export async function runLearningCycle(ctx) {
     ingested,
     deduped,
     reviewed,
+    reviewRetired: reviewResult.retired,
+    reviewFailed: reviewResult.failed,
+    reviewSkippedCooldown: reviewResult.skippedCooldown,
+    reviewPendingBefore: reviewResult.pendingBefore,
+    reviewPendingAfter: reviewResult.pendingAfter,
+    reviewWaiting,
     trainable: stats.trainable,
     corpusCeiling,
     failures: result.failures ?? [],

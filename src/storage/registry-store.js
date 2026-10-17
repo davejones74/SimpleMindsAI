@@ -1,4 +1,4 @@
-import { createWriteStream, createReadStream, existsSync, mkdirSync, writeFileSync, unlinkSync, readFileSync, appendFileSync } from "node:fs";
+import { createWriteStream, createReadStream, existsSync, mkdirSync, writeFileSync, unlinkSync, renameSync, readFileSync, appendFileSync } from "node:fs";
 import { createHash, randomUUID } from "node:crypto";
 import readline from "node:readline";
 import os from "node:os";
@@ -278,9 +278,9 @@ export class RegistryStore {
    */
   lockPath() { return path.join(this.dir, "RUN.lock"); }
 
-  #readLock() {
+  #readLockFile(file = this.lockPath()) {
     try {
-      const raw = readFileSync(this.lockPath(), "utf8").trim();
+      const raw = readFileSync(file, "utf8").trim();
       if (!raw) return null;
       try {
         const parsed = JSON.parse(raw);
@@ -294,6 +294,34 @@ export class RegistryStore {
         ? { pid: null, host: null, token: null, runId: null, acquiredAt: new Date(legacy).toISOString(), heartbeatAt: new Date(legacy).toISOString() }
         : null;
     } catch { return null; }
+  }
+
+  #readLock() {
+    return this.#readLockFile(this.lockPath());
+  }
+
+  /**
+   * A sanitized view of the current RUN.lock for operators/admins. The lock
+   * TOKEN is deliberately omitted: it is the secret that proves ownership, and
+   * exposing it over an admin API would let a caller forge a release. Returns
+   * `null` when no lock is held.
+   */
+  runLockInfo() {
+    const lock = this.#readLock();
+    if (!lock) return null;
+    const acquired = Date.parse(lock.acquiredAt ?? "");
+    const heartbeat = Date.parse(lock.heartbeatAt ?? "");
+    return {
+      held: true,
+      pid: lock.pid ?? null,
+      host: lock.host ?? null,
+      runId: lock.runId ?? null,
+      acquiredAt: Number.isFinite(acquired) ? new Date(acquired).toISOString() : null,
+      heartbeatAt: Number.isFinite(heartbeat) ? new Date(heartbeat).toISOString() : null,
+      ageMs: Number.isFinite(acquired) ? Date.now() - acquired : null,
+      heartbeatAgeMs: Number.isFinite(heartbeat) ? Date.now() - heartbeat : null,
+      ownerAlive: this.#isLockOwnerAlive(lock),
+    };
   }
 
   #heartbeatAgeMs(lock) {
@@ -312,9 +340,14 @@ export class RegistryStore {
     catch (err) { return err.code === "EPERM"; }
   }
 
-  #startLockHeartbeat(staleMs) {
+  #startLockHeartbeat(staleMs, record = this.#lockRecord) {
     this.#stopLockHeartbeat();
-    const interval = Math.max(1000, Math.floor(staleMs / 3));
+    // #stopLockHeartbeat clears the record; reinstall the owner we are now
+    // heart-beating. (Previously acquire set #lockRecord and then called this,
+    // which immediately cleared it — so the heartbeat timer no-op'd forever and
+    // every lock's heartbeatAt froze at acquiredAt.)
+    this.#lockRecord = record;
+    const interval = Math.max(1000, Math.min(Math.floor(staleMs / 3), 60_000));
     this.#lockTimer = setInterval(() => {
       if (!this.#lockRecord) return;
       try {
@@ -359,8 +392,7 @@ export class RegistryStore {
     };
     try {
       writeFileSync(this.lockPath(), JSON.stringify(owner), { flag: "wx" });
-      this.#lockRecord = owner;
-      this.#startLockHeartbeat(staleMs);
+      this.#startLockHeartbeat(staleMs, owner);
       return true;
     } catch (err) {
       if (err.code !== "EEXIST") throw err;
@@ -375,7 +407,7 @@ export class RegistryStore {
       // Owner is gone or unverifiable ⇒ reclaim, and recover ONLY its run.
       await this.#recordRecovery({ action: "reclaimed", reason: "lock heartbeat expired and owner is gone/unverifiable", held });
       const abandonedRunId = held?.runId ?? null;
-      this.breakRunLock();
+      this.#removeLockIfOwned(held?.token ?? null);
       if (abandonedRunId) {
         const run = this.getRun(abandonedRunId);
         const terminal = run && (run.status === "promoted" || run.status === "rejected" || run.status === "failed");
@@ -395,11 +427,59 @@ export class RegistryStore {
     try { writeFileSync(this.lockPath(), JSON.stringify(this.#lockRecord)); } catch { /* ignore */ }
   }
 
-  breakRunLock() {
-    this.#assertWritable();
-    this.#stopLockHeartbeat();
-    if (existsSync(this.lockPath())) unlinkSync(this.lockPath());
+  /**
+   * Ownership-safe lock removal.
+   *
+   * A token check followed by an unprotected `unlink` is NOT sufficient: another
+   * process can acquire the lock in the gap between reading it and unlinking it,
+   * so the unlink would delete the NEW owner's lock. We instead move the lock
+   * file ASIDE with an atomic `rename` and only then verify its token:
+   *
+   *   - token matches (or no token was required) ⇒ unlink the file we moved; the
+   *     name is already gone, so a concurrent acquirer's `wx` create wins and we
+   *     never touch its content.
+   *   - token does NOT match ⇒ someone replaced the lock between our read and
+   *     the rename; we put the file back (or drop our orphaned copy if a fresh
+   *     lock already reappeared). Another owner's lock is never discarded.
+   *
+   * Returns `{ removed, reason }` for callers that want to know the outcome.
+   */
+  #removeLockIfOwned(expectedToken = null) {
+    const lockPath = this.lockPath();
+    if (!existsSync(lockPath)) return { removed: false, reason: "absent" };
+    const mustMatch = expectedToken ?? this.#lockRecord?.token ?? null;
+    const current = this.#readLock();
+    // Fast path: a foreign token is parked here — leave it completely alone.
+    if (mustMatch && current?.token && current.token !== mustMatch) {
+      return { removed: false, reason: "not-owner" };
+    }
+    const aside = `${lockPath}.release-${process.pid}-${randomUUID().slice(0, 8)}`;
+    try {
+      renameSync(lockPath, aside);
+    } catch (err) {
+      if (err.code === "ENOENT") return { removed: false, reason: "absent" };
+      throw err;
+    }
+    const moved = this.#readLockFile(aside);
+    if (mustMatch && moved?.token && moved.token !== mustMatch) {
+      try {
+        if (!existsSync(lockPath)) renameSync(aside, lockPath);
+        else unlinkSync(aside);
+      } catch { /* best-effort restore */ }
+      return { removed: false, reason: "raced" };
+    }
+    try { unlinkSync(aside); } catch { /* already gone */ }
+    return { removed: true, reason: "removed" };
   }
 
-  releaseRunLock() { this.breakRunLock(); }
+  breakRunLock() {
+    this.#assertWritable();
+    // Capture our token BEFORE stopping the heartbeat (which clears the record),
+    // so release only ever removes the lock WE hold.
+    const token = this.#lockRecord?.token ?? null;
+    this.#stopLockHeartbeat();
+    return this.#removeLockIfOwned(token);
+  }
+
+  releaseRunLock() { return this.breakRunLock(); }
 }

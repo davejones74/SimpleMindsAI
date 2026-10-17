@@ -143,6 +143,13 @@ for (let cycle = 1; cycle <= maxCycles; cycle++) {
     const stats = store.getStats();
     console.log(`[perpetual] consumed ${stats.uniqueConsumed}/${stats.totalArticles} articles | trainable ${stats.trainable}`);
   } catch (err) {
+    // A held RUN.lock is normal contention with the Observatory's training job,
+    // not a failure: skip the cycle quietly instead of logging "cycle failed".
+    if (err?.code === "RUN_LOCK_HELD") {
+      console.log("[perpetual] another training run holds RUN.lock — skipping training this cycle");
+      if (process.env.PERPETUAL_DEBUG === "1") console.error(`[debug] ${err.message}`);
+      continue;
+    }
     console.error(`[perpetual] cycle ${cycle} failed: ${err.message}`);
     if (process.env.PERPETUAL_STRICT === "1") {
       await store.close();

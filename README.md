@@ -157,8 +157,14 @@ The **autonomous workflow** and the **individual step** are different commands:
   admin portal at `http://localhost:4000/admin`.
 
 Server-free one-shot CLI runners are also available: `npm run evaluate`, `npm run
-promote`, `npm run reject`, `npm run perpetual` (see
-[Development](docs/DEVELOPMENT.md)).
+promote`, `npm run reject`, `npm run perpetual`, and `npm run review`. The last
+one drains the review backlog in bounded pages without starting the server
+(honouring cooldowns and attempt caps by default). `npm run review -- --force=<id>`
+requests a fresh human re-review of a specific article — reopening a retired
+article and bypassing its cooldown — the same override the Observatory exposes
+via `POST /articles/:id/request-review`. The drain is also exposed as
+`POST /review/start` (`POST /review/stop` to halt it). See
+[Development](docs/DEVELOPMENT.md).
 
 **Fixture caveat.** `OLLAMA_FIXTURE=true` stubs the curator and most Ollama round
 trips. The critic fixture now detects the critic prompt and returns a real scored

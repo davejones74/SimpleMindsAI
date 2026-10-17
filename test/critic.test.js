@@ -65,3 +65,64 @@ test("a JSON object without a numeric score is treated as missing, not a default
   assert.equal(r.verdict, "uncertain");
   assert.match(r.rationale, /no finite score/);
 });
+
+test("the critic token cap reaches the actual Ollama request", async () => {
+  let seen = null;
+  const ollama = {
+    model: "x",
+    defaultOptions: { temperature: 0.1 },
+    chat: async (args) => { seen = args; return { text: JSON.stringify({ score: 7 }) }; },
+  };
+  const r = await new ReviewScorer({ ollama }).scoreOffline({ text: ARTICLE, domain: "history" });
+  assert.equal(seen.maxTokens, config.criticMaxTokens, "num_predict must be capped, not unlimited");
+  assert.equal(seen.format, "json");
+  assert.equal(r.rawScore, 7);
+});
+
+test("a transient critic failure is retried; a deterministic request error is not", async () => {
+  let calls = 0;
+  const flaky = {
+    model: "x",
+    defaultOptions: {},
+    chat: async () => {
+      calls++;
+      if (calls === 1) throw new Error("fetch failed: ECONNREFUSED");
+      return { text: JSON.stringify({ score: 8 }) };
+    },
+  };
+  const r = await new ReviewScorer({ ollama: flaky }).scoreOffline({ text: ARTICLE });
+  assert.equal(calls, 2, "a network failure must be retried once");
+  assert.equal(r.criticScoreMissing, false);
+
+  let badCalls = 0;
+  const deterministic = {
+    model: "x",
+    defaultOptions: {},
+    chat: async () => {
+      badCalls++;
+      throw new Error("ollama /api/chat 400: invalid request");
+    },
+  };
+  const r2 = await new ReviewScorer({ ollama: deterministic }).scoreOffline({ text: ARTICLE });
+  assert.equal(badCalls, 1, "an invalid-request error is deterministic and must not be retried");
+  assert.equal(r2.criticScoreMissing, true);
+});
+
+test("a degenerate/repetitive critic response is retried once with a repeat penalty", async () => {
+  let calls = 0;
+  let secondArgs = null;
+  const ollama = {
+    model: "x",
+    defaultOptions: {},
+    chat: async (args) => {
+      calls++;
+      if (calls === 1) return { text: "the ".repeat(40) }; // degenerate loop, no JSON
+      secondArgs = args;
+      return { text: JSON.stringify({ score: 6 }) };
+    },
+  };
+  const r = await new ReviewScorer({ ollama }).scoreOffline({ text: ARTICLE });
+  assert.equal(calls, 2, "a degenerate response earns exactly one retry");
+  assert.equal(secondArgs.repeatPenalty, config.criticRepeatPenalty);
+  assert.equal(r.rawScore, 6);
+});

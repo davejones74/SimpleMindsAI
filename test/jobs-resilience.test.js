@@ -6,6 +6,7 @@ import path from "node:path";
 import { ArticleStore } from "../src/storage/article-store.js";
 import { RegistryStore } from "../src/storage/registry-store.js";
 import { JobSupervisor } from "../src/jobs/supervisor.js";
+import { JOB_STATUS } from "../src/jobs/job-store.js";
 import { config } from "../src/config.js";
 
 /**
@@ -239,6 +240,173 @@ test("continuous learning stops when it acquires nothing new for the configured 
     await store.close();
   } finally {
     config.jobs.learning.noProgressCycles = prevNoProgress;
+    config.jobs.pollIntervalMs = prevPoll;
+  }
+});
+
+test("continuous learning treats the article target as a milestone, not a stop", async () => {
+  const prevPoll = config.jobs.pollIntervalMs;
+  config.jobs.pollIntervalMs = 5;
+  try {
+    const store = await seededStore(3); // 3 trainable (human-reviewed, unconsumed)
+    const registry = await RegistryStore.open(tmp());
+    const sup = new JobSupervisor({
+      store,
+      registry,
+      dir: tmp(),
+      ollama: { model: "x", clean: async () => [] },
+      scorer: { scoreOffline: async () => ({ verdict: "approve", score: 9 }) },
+      learningDeps: {
+        collectDocuments: async () => ({ mode: "fixture", capability: "fixture-harvest", documents: [], failures: [] }),
+      },
+    });
+    await sup.init({ reconcile: false });
+
+    // target 1 is already exceeded by the 3 trainable articles.
+    const job = await sup.startLearning({ mode: "continuous", targetArticles: 1 });
+    const done = await waitTerminal(sup, job.jobId);
+    assert.notEqual(done.result.outcome, "target-reached", "a continuous job ignores the target");
+    assert.equal(done.result.targetReached, false);
+
+    const events = readFileSync(path.join(sup.dir, "job-events.ndjson"), "utf8")
+      .split(/\r?\n/)
+      .filter(Boolean)
+      .map((l) => JSON.parse(l));
+    assert.ok(events.some((e) => e.phase === "target-milestone"), "reaching the target is still reported as a milestone");
+
+    await sup.close();
+    await registry.close();
+    await store.close();
+  } finally {
+    config.jobs.pollIntervalMs = prevPoll;
+  }
+});
+
+test("continuous training WAITS on a held RUN.lock; one-shot keeps the honest failure", async () => {
+  const prevPoll = config.jobs.pollIntervalMs;
+  config.jobs.pollIntervalMs = 5;
+  try {
+    const store = reusableStore(await seededStore(3), 3);
+    const registry = await RegistryStore.open(tmp());
+    // Another co-operating process holds the run lock.
+    assert.equal(await registry.acquireRunLock(10 * 60 * 1000), true);
+
+    const sup = new JobSupervisor({
+      store,
+      registry,
+      dir: tmp(),
+      trainerFactory: () => ({
+        kind: "python",
+        train: async () => {
+          throw new Error("must not train while RUN.lock is held");
+        },
+      }),
+      trainingDeps: { paths: { snapshots: tmp(), models: tmp(), plans: tmp(), evaluation: tmp() } },
+    });
+    await sup.init({ reconcile: false });
+
+    const cont = await sup.startTraining({ mode: "continuous", minEligible: 1 });
+    for (let i = 0; i < 400 && sup.getJob(cont.jobId).phase !== "waiting-for-lock"; i++) {
+      await new Promise((r) => setTimeout(r, 10));
+    }
+    const waiting = sup.getJob(cont.jobId);
+    assert.equal(waiting.status, JOB_STATUS.WAITING);
+    assert.equal(waiting.phase, "waiting-for-lock");
+    assert.equal(waiting.terminal, false, "lock contention must never fail a continuous job");
+
+    await sup.stop(cont.jobId);
+    const stopped = await waitTerminal(sup, cont.jobId);
+    assert.equal(stopped.result.outcome, "stopped");
+
+    const one = await sup.startTraining({ mode: "one-shot", minEligible: 1 });
+    const failed = await waitTerminal(sup, one.jobId);
+    assert.equal(failed.status, JOB_STATUS.FAILED);
+    assert.match(failed.error, /RUN\.lock/);
+
+    registry.releaseRunLock();
+    await sup.close();
+    await registry.close();
+    await store.close();
+  } finally {
+    config.jobs.pollIntervalMs = prevPoll;
+  }
+});
+
+test("continuous learning does not exhaust its no-progress budget while reviews are merely cooling down", async () => {
+  const prevNoProgress = config.jobs.learning.noProgressCycles;
+  const prevPoll = config.jobs.pollIntervalMs;
+  config.jobs.learning.noProgressCycles = 2;
+  config.jobs.pollIntervalMs = 5;
+  try {
+    const store = await ArticleStore.open(tmp());
+    const pending = await store.ingestArticle({ text: "A pending article dwelling in review cooldown.", domain: "reasoning", reviewRequested: true });
+    await store.recordReview({ articleId: pending.articleId, verdict: "uncertain", authority: "teacher", score: 0 });
+
+    const registry = await RegistryStore.open(tmp());
+    const sup = new JobSupervisor({
+      store,
+      registry,
+      dir: tmp(),
+      ollama: { model: "x", clean: async () => [{ text: "" }] }, // nothing ingestable
+      scorer: { scoreOffline: async () => ({ verdict: "uncertain", score: 0 }) },
+      learningDeps: {
+        collectDocuments: async () => ({
+          mode: "fixture",
+          capability: "fixture-harvest",
+          documents: [{ text: "A doc yielding no ingestable unit.", domain: "reasoning" }],
+          failures: [],
+        }),
+      },
+    });
+    await sup.init({ reconcile: false });
+
+    const job = await sup.startLearning({ mode: "continuous", targetArticles: 5 });
+    // Well past the (tiny) no-progress cap: a cooldown wait must not be counted.
+    await new Promise((r) => setTimeout(r, 400));
+    assert.equal(sup.getJob(job.jobId).terminal, false, "a cooling backlog is a wait, not a stall");
+
+    await sup.stop(job.jobId);
+    const done = await waitTerminal(sup, job.jobId);
+    assert.equal(done.result.outcome, "stopped");
+    assert.ok(done.result.reviewSkippedCooldown >= 1, "the pass must report the cooling backlog it deferred");
+
+    await sup.close();
+    await registry.close();
+    await store.close();
+  } finally {
+    config.jobs.learning.noProgressCycles = prevNoProgress;
+    config.jobs.pollIntervalMs = prevPoll;
+  }
+});
+
+test("review drain job: processes the whole pending backlog and reports it drained", async () => {
+  const prevPoll = config.jobs.pollIntervalMs;
+  config.jobs.pollIntervalMs = 5;
+  try {
+    const store = await ArticleStore.open(tmp());
+    for (let i = 0; i < 3; i++) {
+      await store.ingestArticle({ text: `Drainable pending article number ${i}.`, domain: "reasoning", reviewRequested: true });
+    }
+    const registry = await RegistryStore.open(tmp());
+    const sup = new JobSupervisor({
+      store,
+      registry,
+      dir: tmp(),
+      scorer: { scoreOffline: async () => ({ verdict: "approve", score: 9, rationale: "fine" }) },
+    });
+    await sup.init({ reconcile: false });
+
+    const job = await sup.startReview({ mode: "drain" });
+    const done = await waitTerminal(sup, job.jobId);
+    assert.equal(done.result.outcome, "drained");
+    assert.equal(done.result.reviewed, 3);
+    assert.equal(store.getStats().reviewed, 3);
+    assert.equal(store.getStats().pendingReview, 0);
+
+    await sup.close();
+    await registry.close();
+    await store.close();
+  } finally {
     config.jobs.pollIntervalMs = prevPoll;
   }
 });
