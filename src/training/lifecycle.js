@@ -470,7 +470,7 @@ export async function executeFullRun({
         status: "promoted",
       });
       consumption = await commitConsumption(
-        snapshot.manifest.articleIds ?? snapshot.rows.map((r) => r.articleId),
+        snapshot.manifest.freshArticleIds ?? snapshot.manifest.articleIds ?? snapshot.rows.map((r) => r.articleId),
         runId
       );
       manifest = await updateManifest(manifestPath, manifest, { consumed: true, activated: true });
@@ -485,7 +485,12 @@ export async function executeFullRun({
     // after a restart. A `not_evaluated` run changes nothing — training or
     // evaluation never produced a verdict about the material.
     // -------------------------------------------------------------------
-    const bookkeepingIds = snapshot.manifest.articleIds ?? snapshot.rows.map((r) => r.articleId);
+    // Bookkeeping targets only the newly-collected (previously unconsumed)
+    // articles. When a snapshot backfills already-consumed material (see
+    // `snapshotIncludeConsumed`), those retained rows are trained on but must
+    // NOT be re-deferred or re-consumed: they are owned by the active version.
+    const bookkeepingIds =
+      snapshot.manifest.freshArticleIds ?? snapshot.manifest.articleIds ?? snapshot.rows.map((r) => r.articleId);
     if (decision.decision === "rejected" && typeof store.deferArticles === "function") {
       // Increment the deferral retry count for every article in the rejected
       // run; the store retires those whose limit is exhausted so future runs

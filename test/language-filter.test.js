@@ -8,6 +8,7 @@ import { Frontier } from "../src/frontier.js";
 import { runCrawlBatches, collectDocuments } from "../src/harness/crawler.js";
 import { extractHtmlLang, fetchDocument } from "../src/harness/fetcher.js";
 import { ArticleStore } from "../src/storage/article-store.js";
+import { config } from "../src/config.js";
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -280,6 +281,24 @@ test("backstop is a no-op when the filter is disabled or absent", async () => {
     assert.ok(r.articleId, `disabled filter (${JSON.stringify(languageFilter)}) must ingest`);
     assert.equal(store.getStats().totalArticles, 1);
     await store.close();
+  }
+});
+
+test("store opened without options inherits the configured backstop (wiring guard)", async () => {
+  // Regression guard: server.js / cli/perpetual.js open the store with no
+  // languageFilter argument, so the backstop must resolve from config. If a
+  // future caller forgets to thread the policy through, this catches it.
+  const prior = { ...config.languageFilter };
+  Object.assign(config.languageFilter, ENFORCED);
+  try {
+    const store = await ArticleStore.open(tmp());
+    const r = await store.ingestArticle({ text: FRENCH_HTML_BODY, domain: "general" });
+    assert.equal(r.skipped, true, "configured-but-unpassed filter must still exclude");
+    assert.equal(r.reason, "non-english");
+    assert.equal(store.getStats().totalArticles, 0);
+    await store.close();
+  } finally {
+    Object.assign(config.languageFilter, prior);
   }
 });
 

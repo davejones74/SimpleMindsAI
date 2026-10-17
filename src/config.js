@@ -292,6 +292,14 @@ export const config = {
   // ---- Training run ----
   batchSize: num("BATCH_SIZE", 64),
   snapshotLimit: num("SNAPSHOT_LIMIT", 256),
+  // Snapshot corpus policy. false (default, proven): a snapshot contains only
+  // REVIEWED-and-unconsumed articles, i.e. the DELTA produced since the last
+  // run. true: the snapshot also backfills already-consumed REVIEWED articles
+  // up to `snapshotLimit`, so the trainer keeps seeing the accumulated corpus
+  // instead of a tiny handful of new rows. Consumption stays pure bookkeeping
+  // (see `freshArticleIds` in the manifest); the leak guard and hash-sealing
+  // are unchanged.
+  snapshotIncludeConsumed: bool("SNAPSHOT_INCLUDE_CONSUMED", false),
   workers: num("WORKERS", 2),
   runLockStaleMs: num("RUN_LOCK_STALE_MS", 10 * 60 * 1000),
 

@@ -45,25 +45,53 @@ export function rowForArticle(article) {
   };
 }
 
-/** Pull up to `limit` REVIEWED, unconsumed articles out of the live store. */
-export function collectRowsFromArticles(store, { limit = config.snapshotLimit } = {}) {
+/** Pull up to `limit` REVIEWED articles out of the live store.
+ *
+ * Default (`includeConsumed: false`) preserves the historical behaviour: only
+ * unconsumed material is collected, so each run trains on the delta. With
+ * `includeConsumed: true` we page the WHOLE REVIEWED corpus (newest first) and
+ * backfill `limit - fresh` already-consumed articles, so a run trains on the
+ * accumulated corpus rather than a handful of rows. The two groups are kept
+ * apart: `freshArticleIds` are the previously-unconsumed ids (the ones that
+ * still drive consumption/deferral bookkeeping), while every returned row is
+ * part of the immutable dataset. Dedupe is by construction: the consumed and
+ * unconsumed pages never overlap.
+ */
+export function collectRowsFromArticles(
+  store,
+  { limit = config.snapshotLimit, includeConsumed = config.snapshotIncludeConsumed } = {},
+) {
   const rows = [];
-  let cursor = null;
-  let guard = 0;
-  while (rows.length < limit && guard++ < 200) {
-    const { items, nextCursor } = store.articlesPage({ after: cursor, limit: 200, status: "REVIEWED", consumed: false });
-    for (const a of items) {
-      // Trainable: reviewed, not consumed, not retired. A deferred article is
-      // still REVIEWED and unconsumed, so it remains eligible here and is
-      // picked up again by a later run; a RETIRED one never reaches this page.
-      if (!isTrainable(a)) continue;
-      rows.push(rowForArticle(a));
-      if (rows.length >= limit) break;
+  const freshArticleIds = [];
+  let fresh = 0;
+  let retained = 0;
+
+  const drain = (consumed) => {
+    let cursor = null;
+    let guard = 0;
+    while (rows.length < limit && guard++ < 200) {
+      const { items, nextCursor } = store.articlesPage({ after: cursor, limit: 200, status: "REVIEWED", consumed });
+      for (const a of items) {
+        // For the unconsumed group, `isTrainable` also excludes RETIRED/deferred
+        // edges; a consumed row is REVIEWED by the status filter above.
+        if (!consumed && !isTrainable(a)) continue;
+        rows.push(rowForArticle(a));
+        if (!consumed) {
+          fresh += 1;
+          freshArticleIds.push(a.articleId);
+        } else {
+          retained += 1;
+        }
+        if (rows.length >= limit) break;
+      }
+      if (!nextCursor) break;
+      cursor = nextCursor;
     }
-    if (!nextCursor) break;
-    cursor = nextCursor;
-  }
-  return { rows, stats: { collected: rows.length } };
+  };
+
+  drain(false); // new material first
+  if (includeConsumed) drain(true); // then backfill the accumulated corpus
+  return { rows, freshArticleIds, stats: { collected: rows.length, fresh, retained } };
 }
 
 function writeChunk(ws, chunk) {
@@ -94,6 +122,7 @@ export async function buildSnapshot({
   source = "store",
   dir = config.paths.snapshots,
   evalGuard = null,
+  freshArticleIds = null,
 }) {
   await mkdir(dir, { recursive: true });
 
@@ -140,6 +169,15 @@ export async function buildSnapshot({
   if (existsSync(file)) unlinkSync(tmpFile);
   else renameSync(tmpFile, file);
 
+  // Which rows were newly-collected (previously unconsumed) at bake time. These
+  // alone drive consumption/deferral bookkeeping; every `articleId` is still
+  // part of the trained corpus. Absent (e.g. an injected rowsRaw), the whole
+  // set is treated as fresh, matching the historical delta-only behaviour.
+  const keptIds = new Set(articleIds);
+  const freshIds = freshArticleIds
+    ? freshArticleIds.filter((id) => keptIds.has(id))
+    : articleIds;
+
   const manifest = await registry.createSnapshot({
     datasetId,
     datasetVersion,
@@ -153,6 +191,7 @@ export async function buildSnapshot({
     hash: digest,
     categories: Object.fromEntries([...byDomain.entries()]),
     articleIds,
+    freshArticleIds: freshIds,
     leakExcluded: excluded.map((r) => r.contentHash),
     builderVersion: "snapshot-article-v1",
   });

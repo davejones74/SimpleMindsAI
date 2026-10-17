@@ -15,6 +15,7 @@ import {
 import { canonicalDomain } from "../storage/domain-registry.js";
 import { DEFAULT_POLICY, evaluateVerdict, selectionDecision } from "../domain/review-policy.js";
 import { assess } from "../domain/language.js";
+import { config } from "../config.js";
 
 /**
  * ArticleStore — the authoritative article ledger (append-only NDJSON).
@@ -51,7 +52,7 @@ const COLLECTIONS = {
 const LEGACY_FILES = ["prompts.ndjson", "completions.ndjson", "rewards.ndjson", "state.ndjson", "runs.ndjson"];
 
 export class ArticleStore {
-  static async open(dir = process.env.ARTICLE_DIR ?? process.env.BUFFER_DIR ?? path.resolve("data", "articles"), { readOnly = false, domainRegistry = null, languageFilter = null } = {}) {
+  static async open(dir = process.env.ARTICLE_DIR ?? process.env.BUFFER_DIR ?? path.resolve("data", "articles"), { readOnly = false, domainRegistry = null, languageFilter = config.languageFilter } = {}) {
     const s = new ArticleStore(dir, { readOnly, domainRegistry, languageFilter });
     await s.#loadFromDisk();
     return s;
@@ -67,15 +68,19 @@ export class ArticleStore {
    * workspace's completed trial) can never create or mutate a file. Every
    * mutating method throws.
    */
-  constructor(dir, { policy = DEFAULT_POLICY, readOnly = false, domainRegistry = null, languageFilter = null } = {}) {
+  constructor(dir, { policy = DEFAULT_POLICY, readOnly = false, domainRegistry = null, languageFilter = config.languageFilter } = {}) {
     this.dir = dir;
     this.policy = policy;
     this.readOnly = readOnly;
     this.domainRegistry = domainRegistry;
-    // Ingest-time language backstop. `null` (the default) and
-    // `{ enabled: false }` are both no-ops, so every existing caller and test
-    // keeps its current behaviour. Enforcement only ever EXCLUDES: an English
-    // verdict, or an unknown verdict under the fail-open policy, always ingests.
+    // Ingest-time language backstop. When no filter is supplied it is resolved
+    // from `config.languageFilter`, so every entry point (server, CLI,
+    // chat-server, future callers) enforces the same policy without having to
+    // remember to thread it through. Passing `null` explicitly disables the
+    // backstop; `{ enabled: false }` is also a no-op. Enforcement only ever
+    // EXCLUDES: an English verdict, or an unknown verdict under the fail-open
+    // policy, always ingests. With the default config the filter is disabled,
+    // so existing callers and tests keep their current behaviour.
     this.languageFilter = languageFilter;
     this.languageSkipped = 0;
     if (!readOnly) mkdirSync(dir, { recursive: true });
