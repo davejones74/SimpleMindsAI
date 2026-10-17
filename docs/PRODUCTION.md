@@ -738,7 +738,21 @@ the `POST /api/ingest` shunt) and `simpleminds-perpetual.service` (which curates
 trains). Both open `BufferStore` and `RegistryStore` on the same directories.
 
 - `[CURRENT]` `RegistryStore` serialises the training step with an atomic `RUN.lock`
-  (`openSync(..., 'wx')`), with a 10-minute stale break.
+  (`openSync(..., 'wx')`), with a 10-minute stale break. The lock is durable and auditable:
+  release is token-checked (a replaced owner's lock is never unlinked), `runLockInfo()` reports
+  the holder (pid/host/runId/ages) without ever exposing the token, and the heartbeat runs at
+  `min(RUN_LOCK_STALE_MS/3, 60s)`.
+- `[CURRENT]` A held `RUN.lock` is **legitimate mutual exclusion, not a failure**. The training
+  step raises a typed `RUN_LOCK_HELD` error; a *continuous* supervised job parks at
+  `waiting-for-lock` and retries, while a *one-shot* run (and `npm run perpetual`) still reports
+  the failure/skip honestly. So the minute-timer and an Observatory job can share the lock
+  without either dying.
+- `[CURRENT]` A separate `REVIEW.lock` serialises teacher review across the perpetual timer,
+  supervised review jobs and `npm run review`, so two workers never score the same pending
+  article concurrently. Review is bounded by `REVIEW_COOLDOWN_MS` between attempts and
+  `REVIEW_MAX_ATTEMPTS` inconclusive attempts before an article is RETIRED via an auditable
+  `review-retired` + `status→RETIRED` pair (history is preserved; a human `requestReview`/`--force`
+  reopens it). Transient critic failures use their own `REVIEW_MAX_TECHNICAL_ATTEMPTS` allowance.
 - `[CURRENT]` `BufferStore` is append-only NDJSON. Concurrent append from a serving request and a
   perpetual run is the thing to verify, not assume, under load.
 
