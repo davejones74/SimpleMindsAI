@@ -11,6 +11,7 @@ import { decidePromotionByLoss, evaluateVersionLoss } from "./loss-evaluator.js"
 import { setActiveVersion } from "./python-promotion.js";
 import { assertTrainer } from "./trainer-interface.js";
 import { modelHandle } from "./model-handle.js";
+import { baselineCacheKey, loadEvalCache, saveEvalCache } from "./eval-cache.js";
 
 /**
  * Perpetual Training lifecycle — ONE TrainingRun from cradle to grave
@@ -296,20 +297,44 @@ export async function executeFullRun({
     manifest = await updateManifest(manifestPath, manifest, { status: "running" });
 
     // ---- BASELINE evaluation (before training) ----
-    baselineResult = pythonMode
-      ? await evaluateLoss({
+    // The parent (active) version is immutable, so its loss on the frozen eval set
+    // is immutable for a given eval configuration. Cache it so a run only ever
+    // evaluates the CANDIDATE; a miss (or a changed config / re-frozen set) just
+    // re-evaluates. The key includes the eval-set content hash + hyperparameters.
+    const baselineKey = pythonMode
+      ? baselineCacheKey({
           version: pythonBaseline.version,
-          evalSetFile: evalSet.file,
-          store: config.pythonStore ?? undefined,
-          bin: config.pythonBin ?? undefined,
+          evalSetHash: computeFileHash(evalSet.file),
+          seqLen: config.promoteEvalSeqLen,
+          microBatch: config.promoteEvalMicroBatch,
           device: config.studentDevice,
         })
-      : await evaluator.evaluate({
-          modelId: baselineModel.modelId,
-          kind: "baseline",
-          evalSet,
-          statusLog: () => registry.runEvent(runId, { status: "running", note: "baseline evaluation complete" }),
-        });
+      : null;
+    if (pythonMode && baselineKey) {
+      const cached = loadEvalCache(registry.dir)[baselineKey];
+      if (cached?.ok) baselineResult = cached;
+    }
+    if (!baselineResult) {
+      baselineResult = pythonMode
+        ? await evaluateLoss({
+            version: pythonBaseline.version,
+            evalSetFile: evalSet.file,
+            store: config.pythonStore ?? undefined,
+            bin: config.pythonBin ?? undefined,
+            device: config.studentDevice,
+          })
+        : await evaluator.evaluate({
+            modelId: baselineModel.modelId,
+            kind: "baseline",
+            evalSet,
+            statusLog: () => registry.runEvent(runId, { status: "running", note: "baseline evaluation complete" }),
+          });
+      if (pythonMode && baselineKey && baselineResult?.ok) {
+        const cache = loadEvalCache(registry.dir);
+        cache[baselineKey] = baselineResult;
+        saveEvalCache(registry.dir, cache);
+      }
+    }
     if (pythonMode) {
       await recordPythonEvaluation(registry, {
         runId,
