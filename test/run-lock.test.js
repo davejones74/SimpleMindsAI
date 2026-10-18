@@ -33,6 +33,33 @@ test("runLockInfo exposes holder diagnostics but never the lock token", async ()
   await r.close();
 });
 
+test("runLockInfo reports ownerAlive=false for a dead owner (fresh heartbeat)", async () => {
+  const dir = tmpDir();
+  const r = await RegistryStore.open(dir);
+  const now = new Date().toISOString();
+  // Dead pid, same host, brand-new heartbeat — the exact stale-lock shape that
+  // used to block training: the file exists but the owner is gone.
+  writeFileSync(
+    lockFile(dir),
+    JSON.stringify({ pid: 999_999, host: hostname(), token: "dead", runId: "run-x", acquiredAt: now, heartbeatAt: now }),
+  );
+
+  const info = r.runLockInfo();
+  assert.equal(info.held, true, "the lock file still exists");
+  assert.equal(info.ownerAlive, false, "a dead owner must not count as holding the lock");
+
+  await r.close();
+});
+
+test("runLockInfo reports ownerAlive=true for our own live lock", async () => {
+  const dir = tmpDir();
+  const r = await RegistryStore.open(dir);
+  await r.acquireRunLock(60_000, { runId: "run-live" });
+  assert.equal(r.runLockInfo().ownerAlive, true);
+  r.releaseRunLock();
+  await r.close();
+});
+
 test("releaseRunLock removes only the lock we hold", async () => {
   const dir = tmpDir();
   const r = await RegistryStore.open(dir);

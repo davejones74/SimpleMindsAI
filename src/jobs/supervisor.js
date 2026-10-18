@@ -636,7 +636,12 @@ export class JobSupervisor {
       // its existing semantics and lets executeFullRun raise the typed failure.
       if (job.mode !== "one-shot") {
         const info = typeof this.registry?.runLockInfo === "function" ? this.registry.runLockInfo() : null;
-        if (info?.held) {
+        // Park only on a GENUINELY held lock — the owner must still be alive (or on
+        // a foreign host we cannot verify). A stale lock (owner gone) is reclaimable
+        // and must NOT park the job: it proceeds so `acquireRunLock` can reclaim it.
+        // (`info.held` is true for any existing lock file, so gating on it blocked
+        // training forever on a dead owner's stale lock.)
+        if (info?.ownerAlive) {
           const note = `waiting: RUN.lock held by pid ${info.pid ?? "?"} on ${info.host ?? "?"}${info.runId ? ` (run ${info.runId})` : ""}`;
           if (note !== lastLockNote) {
             lastLockNote = note;
