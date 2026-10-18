@@ -30,6 +30,28 @@ test("mostly-Latin text with a few accented characters stays on the Latin path",
   assert.notEqual(r.reason, "non-latin-script");
 });
 
+test("Japanese text (Han + kana) is non-Latin script and rejected, never claimed as a CJK language", () => {
+  const jp = "蒸気機関は蒸気の圧力を利用してピストンを動かす熱機関です。これは産業革命を支えました。";
+  const d = detectLanguage(jp);
+  assert.equal(d.reason, "non-latin-script");
+  // Han is shared by Chinese/Japanese/Korean, so the script stage deliberately
+  // leaves the ISO language "und" rather than mislabel it zh/ja/ko.
+  assert.equal(d.language, "und");
+  assert.equal(d.script, "Hani");
+  assert.equal(assess(jp).verdict, "non-english");
+});
+
+test("English text with an embedded CJK term stays Latin and is never rejected by script alone", () => {
+  const mixed =
+    "The steam engine is a heat engine that performs mechanical work using steam as its working fluid. " +
+    "In Chinese it is called 蒸汽机, and it pushed the piston with steam pressure inside a cylinder to turn a wheel.";
+  const d = detectLanguage(mixed);
+  assert.equal(d.script, "Latin", "a few Han characters must not flip the script classification");
+  assert.equal(d.language, "en");
+  assert.equal(d.reason, "english");
+  assert.notEqual(assess(mixed).verdict, "non-english", "embedded CJK must never reject English prose");
+});
+
 test("empty and digit-only text is insufficient evidence, never a language", () => {
   for (const input of ["", "   ", "12345 67890 !!! ???", "🙂🙂🙂"]) {
     const r = detectLanguage(input);
