@@ -14,7 +14,7 @@ export function modelHandle(model, { kind = "base", checkpointPath = null } = {}
   return {
     modelId: m.modelId ?? null,
     kind: m.kind ?? kind,
-    baseModel: m.baseModel ?? m.baseModel ?? config.baseModel,
+    baseModel: m.baseModel ?? config.ollamaModel,
     parentModelId: m.parentModelId ?? null,
     trainingRunId: m.trainingRunId ?? null,
     datasetId: m.datasetId ?? null,

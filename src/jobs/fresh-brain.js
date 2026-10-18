@@ -60,7 +60,7 @@ export async function createFreshBrain(ctx) {
   if (!model) {
     model = await registry.registerModel({
       kind: "python",
-      baseModel: config.baseModel,
+      baseModel: config.ollamaModel,
       checkpointPath: path.join(root, out.version),
       meta: { pythonVersion: out.version, fresh: true, seed, adopted: false },
     });

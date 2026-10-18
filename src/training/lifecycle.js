@@ -354,7 +354,7 @@ export async function executeFullRun({
     // ---- candidate model registered ----
     const candidate = await registry.registerModel({
       kind: trainer?.kind ?? config.trainerKind,
-      baseModel: config.baseModel,
+      baseModel: config.ollamaModel,
       parentModelId: baselineModel.modelId,
       trainingRunId: runId,
       datasetId: snapshot.manifest.datasetId,
@@ -683,7 +683,7 @@ async function ensureBaselineModel(registry) {
   if (active) return modelHandle(active);
   // First promotion ladder: nothing exists yet, so the base model itself is the
   // baseline — registered so the run and evaluations reference a real modelId.
-  const base = await registry.registerModel({ kind: "base", baseModel: config.baseModel });
+  const base = await registry.registerModel({ kind: "base", baseModel: config.ollamaModel });
   return modelHandle(base);
 }
 
@@ -699,7 +699,7 @@ async function ensurePythonBaselineModel(registry, baseline) {
   if (existing) return modelHandle(existing);
   const base = await registry.registerModel({
     kind: "python",
-    baseModel: config.baseModel,
+    baseModel: config.ollamaModel,
     checkpointPath: baseline.path,
     meta: { pythonVersion: baseline.version, adopted: true },
   });

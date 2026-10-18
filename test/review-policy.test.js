@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { DEFAULT_POLICY, selectionDecision, evaluateVerdict, sampleUnit, policyFromConfig, isTrainable, nearDuplicateSimilarity } from "../src/domain/review-policy.js";
 import { STATUS, VERDICT, AUTHORITY } from "../src/domain/article.js";
 import { config } from "../src/config.js";
+import { modelHandle } from "../src/training/model-handle.js";
 
 test("policy values are sourced from config.review (single source of truth)", () => {
   const p = policyFromConfig();
@@ -286,6 +287,11 @@ test("baseModel configuration entry has been removed", () => {
   // a config key prevents silent regressions from typo'd references.
   // In the ESM test environment we verify via the config object itself.
   assert.ok(!("baseModel" in config), "baseModel should not be a config key");
+  // The callers that used config.baseModel now use config.ollamaModel, so a
+  // handle built from an empty record must never yield an undefined baseModel
+  // (which would violate the non-null GraphQL ModelRecord.baseModel field).
+  assert.equal(modelHandle({}).baseModel, config.ollamaModel);
+  assert.equal(typeof modelHandle({}).baseModel, "string");
 });
 
 /** 4. Fixture mode and critic temperature remain unchanged. */

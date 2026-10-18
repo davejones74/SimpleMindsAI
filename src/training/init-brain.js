@@ -81,7 +81,7 @@ async function registerAdopted({ registry, version, root, note }) {
   if (!existing) {
     existing = await registry.registerModel({
       kind: "python",
-      baseModel: config.baseModel,
+      baseModel: config.ollamaModel,
       checkpointPath: path.join(root, version),
       meta: { pythonVersion: version, adopted: true },
     });
