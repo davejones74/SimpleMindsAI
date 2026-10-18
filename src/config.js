@@ -16,6 +16,26 @@ const num = (name, dflt) => Number(env(name, dflt));
 const bool = (name, dflt) => /^(1|true|yes)$/i.test(env(name, String(dflt)));
 
 /**
+ * Parse a JSON-object env var (e.g. {"format":"json"}). Malformed JSON yields
+ * `dflt` rather than crashing startup, but a value that parses to a non-object
+ * throws so a mistyped env is caught loudly.
+ */
+function jsonEnv(name, dflt = {}) {
+  const raw = env(name, "");
+  if (!raw) return dflt;
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return dflt;
+  }
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error(`${name} must be a JSON object, got ${JSON.stringify(raw)}`);
+  }
+  return parsed;
+}
+
+/**
  * Validate a 0..1 confidence value. Throws on out-of-range or non-finite input
  * so a malformed env var can never silently disable or over-enable a filter.
  */
@@ -410,6 +430,14 @@ export const config = {
   // Safety checks (scheme, private-address SSRF guard, robots, byte/redirect
   // limits, budgets, cooldown, per-host concurrency) apply in every mode.
   crawlDiscoveryPolicy: env("CRAWL_DISCOVERY_POLICY", "seeds-only"),
+  // Discovery-time language prior (P4). A candidate URL whose HOST declares a
+  // non-English language (e.g. ca.wikipedia.org) is classified up front.
+  //   off    : never consider the declared language at discovery
+  //   warn   : DEFAULT — enqueue but count (visible in discovery reports)
+  //   reject : refuse to enqueue foreign-language-host candidates
+  // Advisory/optional: the ingest-time language filter (above) still inspects the
+  // actual document text and remains the authoritative, independent backstop.
+  discoveryLanguagePrior: oneOf("DISCOVERY_LANGUAGE_PRIOR", "warn", ["off", "warn", "reject"]),
   // Always-prohibited destinations (comma-separated suffixes), any mode.
   crawlDeniedDomains: env("CRAWL_DENIED_DOMAINS", "").split(",").map((s) => s.trim()).filter(Boolean),
   // Cap links enqueued from a single fetched page (prevents link-farm blowups).
@@ -456,6 +484,10 @@ export const config = {
   crawlSearchEndpoint: env("CRAWL_SEARCH_ENDPOINT", null),
   crawlSearchQueryParam: env("CRAWL_SEARCH_QUERY_PARAM", "q"),
   crawlSearchQueries: env("CRAWL_SEARCH_QUERIES", "").split(",").map((s) => s.trim()).filter(Boolean),
+  // Extra query params merged into every search request, as a JSON object.
+  // For SearXNG: {"format":"json","safesearch":"1","language":"en"} — `format=json`
+  // is required for the JSON API, and `language=en` biases results to English.
+  crawlSearchExtraParams: jsonEnv("CRAWL_SEARCH_EXTRA_PARAMS", {}),
 
   // ---- Mission-driven acquisition (P4) ----
   // Deterministic templates first: when enabled, the active mission statement(s)
@@ -466,6 +498,11 @@ export const config = {
   // reports `unavailable` without a configured provider. OFF by default.
   missionQueriesEnabled: bool("MISSION_QUERIES_ENABLED", false),
   missionQueryMax: num("MISSION_QUERY_MAX", 8),
+  // Advisory mission relevance (P4): compute a lexical overlap score between an
+  // ingested article and the active mission(s) and persist it as an advisory
+  // field. NEVER a rejection rule — a low score only deprives the article of a
+  // positive review-selection hint. OFF by default.
+  missionRelevanceEnabled: bool("MISSION_RELEVANCE_ENABLED", false),
 
   // ---- Language filter (deterministic, ON by default) ----
   // A document-level English-language gate. This is NOT a domain blacklist and

@@ -5,6 +5,7 @@ import { createDiscoveryPolicy, hostOf } from "./discovery-policy.js";
 import { createDomainRegistry, canonicalDomain } from "../storage/domain-registry.js";
 import { buildAdapters, createAdapterFetchText } from "./adapters/index.js";
 import { resolveSearchQueries } from "./mission-queries.js";
+import { classifyDiscoveryLanguage, DISCOVERY_LANGUAGE_PRIORS } from "./language-prior.js";
 
 /**
  * DiscoveryService — the acquisition front end for the learning job.
@@ -47,6 +48,7 @@ export class DiscoveryService {
     missionTexts = [],
     missionQueriesEnabled = config.missionQueriesEnabled,
     missionQueryMax = config.missionQueryMax,
+    languagePrior = config.discoveryLanguagePrior,
   } = {}) {
     this.frontier = frontier ?? new Frontier({ dir: config.paths.frontier });
     this.seeds = (seeds ?? []).filter(Boolean);
@@ -80,6 +82,9 @@ export class DiscoveryService {
     // is off (default) `searchQueries` is exactly CRAWL_SEARCH_QUERIES.
     this.missionTexts = missionTexts;
     this.missionQueriesEnabled = Boolean(missionQueriesEnabled);
+    // Discovery language prior (P4): advisory classification of foreign-language
+    // hosts, independent of the ingest filter. Default `warn` (count only).
+    this.languagePrior = DISCOVERY_LANGUAGE_PRIORS.includes(languagePrior) ? languagePrior : "warn";
     this.searchQueries = resolveSearchQueries({
       configured: config.crawlSearchQueries,
       missionTexts: this.missionTexts,
@@ -99,6 +104,7 @@ export class DiscoveryService {
       adapters: this.adapters.map((a) => a.name),
       searchQueries: this.searchQueries.length,
       missionQueriesEnabled: this.missionQueriesEnabled,
+      languagePrior: this.languagePrior,
     };
   }
 
@@ -132,6 +138,7 @@ export class DiscoveryService {
       registryRoots: 0,
       defaultSeeds: 0,
       adapters: [],
+      languagePrior: { mode: this.languagePrior, warned: 0, rejected: 0 },
     };
     const roots = [];
 
@@ -236,6 +243,19 @@ export class DiscoveryService {
         if (!decision.allowed) {
           report.rejected++;
           continue;
+        }
+        // Discovery language prior: a URL whose HOST declares a non-English
+        // language is classified before it is fetched. `warn` counts it and keeps
+        // the candidate; `reject` refuses it. The ingest filter still inspects the
+        // actual text later and remains the authoritative gate.
+        const langPrior = classifyDiscoveryLanguage(url, this.languagePrior);
+        if (langPrior.action === "reject") {
+          report.rejected++;
+          bootstrap.languagePrior.rejected++;
+          continue;
+        }
+        if (langPrior.action === "warn") {
+          bootstrap.languagePrior.warned++;
         }
         const dom = canonicalDomain(url);
         if (dom && this.domainRegistry?.get?.(dom)?.policy === "blocked") {

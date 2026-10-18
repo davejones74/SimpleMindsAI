@@ -25,10 +25,15 @@ export function createSearchAdapter({
   endpoint = null,
   queryParam = "q",
   queries = [],
+  extraParams = null,
   fetchJson,
   maxCandidates = 200,
 } = {}) {
   const configured = Boolean(endpoint && typeof fetchJson === "function");
+  // SearXNG's JSON API needs `format=json`; default it so a bare SearXNG endpoint
+  // "just works", while remaining overridable via explicit `extraParams`.
+  const isSearxng = /searxng/i.test(String(provider ?? ""));
+  const params = extraParams ?? (isSearxng ? { format: "json" } : {});
   return {
     name: "search",
     kind: "independent",
@@ -49,6 +54,7 @@ export function createSearchAdapter({
         try {
           const url = new URL(endpoint);
           url.searchParams.set(queryParam, String(q));
+          for (const [k, v] of Object.entries(params)) url.searchParams.set(k, String(v));
           data = await fetchJson(url.href);
         } catch {
           diagnostics.errors++;

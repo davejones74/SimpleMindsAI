@@ -17,6 +17,7 @@ import {
 import { canonicalDomain } from "../storage/domain-registry.js";
 import { DEFAULT_POLICY, evaluateVerdict, selectionDecision } from "../domain/review-policy.js";
 import { assess } from "../domain/language.js";
+import { scoreMissionRelevance } from "../domain/mission-relevance.js";
 import { config } from "../config.js";
 
 /**
@@ -54,8 +55,8 @@ const COLLECTIONS = {
 const LEGACY_FILES = ["prompts.ndjson", "completions.ndjson", "rewards.ndjson", "state.ndjson", "runs.ndjson"];
 
 export class ArticleStore {
-  static async open(dir = process.env.ARTICLE_DIR ?? process.env.BUFFER_DIR ?? path.resolve("data", "articles"), { readOnly = false, domainRegistry = null, languageFilter = config.languageFilter } = {}) {
-    const s = new ArticleStore(dir, { readOnly, domainRegistry, languageFilter });
+  static async open(dir = process.env.ARTICLE_DIR ?? process.env.BUFFER_DIR ?? path.resolve("data", "articles"), { readOnly = false, domainRegistry = null, languageFilter = config.languageFilter, missionTexts = [], missionRelevanceEnabled = config.missionRelevanceEnabled } = {}) {
+    const s = new ArticleStore(dir, { readOnly, domainRegistry, languageFilter, missionTexts, missionRelevanceEnabled });
     await s.#loadFromDisk();
     return s;
   }
@@ -70,7 +71,7 @@ export class ArticleStore {
    * workspace's completed trial) can never create or mutate a file. Every
    * mutating method throws.
    */
-  constructor(dir, { policy = DEFAULT_POLICY, readOnly = false, domainRegistry = null, languageFilter = config.languageFilter } = {}) {
+  constructor(dir, { policy = DEFAULT_POLICY, readOnly = false, domainRegistry = null, languageFilter = config.languageFilter, missionTexts = [], missionRelevanceEnabled = config.missionRelevanceEnabled } = {}) {
     this.dir = dir;
     this.policy = policy;
     this.readOnly = readOnly;
@@ -85,6 +86,10 @@ export class ArticleStore {
     // so existing callers and tests keep their current behaviour.
     this.languageFilter = languageFilter;
     this.languageSkipped = 0;
+    // Advisory mission relevance: computed at ingest when enabled and a mission
+    // reference is present. Never a rejection rule.
+    this.missionTexts = Array.isArray(missionTexts) ? missionTexts : [];
+    this.missionRelevanceEnabled = Boolean(missionRelevanceEnabled);
     if (!readOnly) mkdirSync(dir, { recursive: true });
 
     this.articles = new Map();
@@ -107,6 +112,17 @@ export class ArticleStore {
 
   #assertWritable() {
     if (this.readOnly) throw new Error("ArticleStore is read-only (inspection workspace)");
+  }
+
+  /**
+   * Supply the active mission reference for advisory relevance scoring. The
+   * server calls this after governance is loaded, because the store is opened
+   * before the mission service has seeded (or is able to read) the missions.
+   * Idempotent and cheap; passing no args changes nothing.
+   */
+  setMissionContext({ missionTexts = null, enabled = undefined } = {}) {
+    if (Array.isArray(missionTexts)) this.missionTexts = missionTexts;
+    if (enabled !== undefined) this.missionRelevanceEnabled = Boolean(enabled);
   }
 
   async #loadFromDisk() {
@@ -318,6 +334,12 @@ export class ArticleStore {
     const articleId = `art_${randomUUID().slice(0, 12)}`;
     const imp = normalizeImportance(importance);
     const now = new Date().toISOString();
+    // Advisory mission relevance: compute only when the caller did NOT already
+    // supply a score, the feature is enabled, and a mission reference exists.
+    // A low (or null) score NEVER rejects — it only (de)selects for review.
+    if (missionRelevance == null && this.missionRelevanceEnabled && this.missionTexts.length) {
+      missionRelevance = scoreMissionRelevance(text, this.missionTexts);
+    }
     const draft = {
       articleId,
       importance: imp,

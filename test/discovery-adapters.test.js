@@ -148,3 +148,38 @@ test("search adapter: unavailable without a provider; candidates with one", asyn
   assert.deepEqual(res.candidates.map((c) => c.url).sort(), ["https://x.test/a", "https://x.test/b"]);
   assert.equal(res.candidates[0].provenance.type, "search");
 });
+
+test("search adapter: SearXNG provider defaults format=json and merges extra params", async () => {
+  const adapter = createSearchAdapter({
+    provider: "searxng",
+    endpoint: "http://localhost:8888/search",
+    queryParam: "q",
+    queries: ["human language"],
+    extraParams: { format: "json", safesearch: "1", language: "en" },
+    fetchJson: async (url) => {
+      const u = new URL(url);
+      assert.equal(u.searchParams.get("q"), "human language");
+      assert.equal(u.searchParams.get("format"), "json");
+      assert.equal(u.searchParams.get("safesearch"), "1");
+      assert.equal(u.searchParams.get("language"), "en");
+      return { results: [{ url: "https://x.test/searxng-result" }] };
+    },
+  });
+  const res = await adapter.discover();
+  assert.equal(res.status, "ok");
+  assert.deepEqual(res.candidates.map((c) => c.url), ["https://x.test/searxng-result"]);
+});
+
+test("search adapter: SearXNG provider without explicit params still sends format=json", async () => {
+  const adapter = createSearchAdapter({
+    provider: "searxng",
+    endpoint: "http://localhost:8888/search",
+    queries: ["topic"],
+    fetchJson: async (url) => {
+      assert.equal(new URL(url).searchParams.get("format"), "json");
+      return { results: [{ url: "https://x.test/y" }] };
+    },
+  });
+  const res = await adapter.discover();
+  assert.equal(res.status, "ok");
+});

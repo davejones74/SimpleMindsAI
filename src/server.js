@@ -97,6 +97,9 @@ const frontier = new Frontier({ dir: config.paths.frontier });
       }
     })
     .filter(Boolean);
+  // Advisory mission relevance: feed the active mission(s) to the store so
+  // ingested articles get a lexical relevance score when MISSION_RELEVANCE_ENABLED.
+  store.setMissionContext({ missionTexts: activeMissionTexts });
   const discovery = config.crawlMode === "real" ? new DiscoveryService({ frontier, missionTexts: activeMissionTexts }) : null;
 
   const supervisor = new JobSupervisor({

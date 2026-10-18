@@ -105,6 +105,7 @@ export function buildAdapters({ fetchText, opts = {} } = {}) {
         endpoint: opts.searchEndpoint ?? config.crawlSearchEndpoint,
         queryParam: opts.searchQueryParam ?? config.crawlSearchQueryParam,
         queries: opts.searchQueries ?? config.crawlSearchQueries,
+        extraParams: opts.searchExtraParams ?? config.crawlSearchExtraParams,
         fetchJson: opts.fetchJson ?? defaultFetchJson,
         maxCandidates: opts.maxCandidates ?? config.crawlDiscoveryMaxCandidates,
       }),
