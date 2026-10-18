@@ -261,9 +261,13 @@ Real, unfixed, and listed so they are not mistaken for intended behavior.
    `evaluator.js:111` path still exists but is **supplementary only** and is no
    longer the gate for a real brain version. Regression tests cover reject /
    promote / unevaluable.
-2. **`RUN.lock` goes stale after 10 minutes.** Unsuitable for multi-day training.
-   The Python `store.py` already provides a heartbeat; the Node side does not use
-   it yet.
+2. **A live-but-hung owner's `RUN.lock` is never stolen.** A dead owner's lock is
+   reclaimed immediately regardless of heartbeat freshness (`acquireRunLock` in
+   `registry-store.js`), so an unclean exit no longer stalls training for the
+   10-minute stale window. What remains: a *live* owner whose heartbeat goes stale
+   (a hung trainer) is deferred rather than stolen, so a genuinely hung multi-day
+   run still needs operator intervention. The Python `store.py` heartbeat is not
+   yet consumed by the Node side for a watchdog.
 3. **`dataset/snapshot.js` materializes entire datasets in memory.** Fine for
    thousands of rows, fatal for a million-article corpus. Must become a descriptor
    handoff to the Python worker.

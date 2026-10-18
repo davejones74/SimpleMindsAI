@@ -117,9 +117,12 @@ material counts as progress; deduped events do not.
 
 ### F5 — the run-lock is not the recovery mechanism
 
-The Node `RUN.lock` still goes stale after 10 minutes (a known defect, unchanged
-here). Recovery is driven by re-reading the registry and manifests, not by the
-lock, so a stale lock cannot cause a double promotion.
+The Node `RUN.lock` is reclaimed as soon as its owner is gone (dead pid, or a
+legacy record with no pid/host) — heartbeat freshness no longer delays it, so an
+unclean exit can't stall training for the stale window. A *live-but-hung* owner
+is still deferred rather than stolen (a watchdog remains future work). Recovery
+is driven by re-reading the registry and manifests, not by the lock, so a stale
+lock cannot cause a double promotion.
 
 ### F6 — the critic fixture could not score, and a missing score became a 5
 
@@ -257,8 +260,9 @@ Stated plainly so it is not mistaken for evidence:
 - **The critic experiment is small** (six articles, three temperatures, one
   borderline control). It supports verdict stability, not a precise variance
   model.
-- **The Node `RUN.lock` staleness is unchanged** (known defect). Recovery does
-  not rely on it.
+- **The Node `RUN.lock` is reclaimed when its owner is gone** (dead pid / legacy
+  record), regardless of heartbeat freshness; a live-but-hung owner is deferred.
+  Recovery does not rely on the lock.
 - The Python `-q` summary line is suppressed in this environment; the pass count
   is reported from exit code and dot count.
 

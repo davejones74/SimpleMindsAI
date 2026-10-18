@@ -758,10 +758,13 @@ the `POST /api/ingest` shunt) and `simpleminds-perpetual.service` (which curates
 trains). Both open `BufferStore` and `RegistryStore` on the same directories.
 
 - `[CURRENT]` `RegistryStore` serialises the training step with an atomic `RUN.lock`
-  (`openSync(..., 'wx')`), with a 10-minute stale break. The lock is durable and auditable:
-  release is token-checked (a replaced owner's lock is never unlinked), `runLockInfo()` reports
-  the holder (pid/host/runId/ages) without ever exposing the token, and the heartbeat runs at
-  `min(RUN_LOCK_STALE_MS/3, 60s)`.
+  (`writeFileSync(..., { flag: "wx" })`). Reclamation is owner-driven: a dead owner
+  (dead pid, or a legacy record with no pid/host) is reclaimed immediately regardless
+  of heartbeat freshness; a live owner — or a foreign host we cannot verify — is never
+  stolen, and a live-but-stale heartbeat is deferred rather than broken. The lock is
+  durable and auditable: release is token-checked (a replaced owner's lock is never
+  unlinked), `runLockInfo()` reports the holder (pid/host/runId/ages) without ever
+  exposing the token, and the heartbeat runs at `min(RUN_LOCK_STALE_MS/3, 60s)`.
 - `[CURRENT]` A held `RUN.lock` is **legitimate mutual exclusion, not a failure**. The training
   step raises a typed `RUN_LOCK_HELD` error; a *continuous* supervised job parks at
   `waiting-for-lock` and retries, while a *one-shot* run (and `npm run perpetual`) still reports
