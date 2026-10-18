@@ -83,7 +83,21 @@ app.post("/api/ingest", async (req, res) => {
 // static URL list, so cycles keep finding new material. Only wired in real mode;
 // fixture mode keeps the deterministic built-in documents.
 const frontier = new Frontier({ dir: config.paths.frontier });
-  const discovery = config.crawlMode === "real" ? new DiscoveryService({ frontier }) : null;
+  // Active mission statements (primary + secondary) feed deterministic query
+  // derivation when MISSION_QUERIES_ENABLED. Read defensively: on a virgin store
+  // the missions may not be seeded yet, in which case derived queries are simply
+  // absent — never an error.
+  const activeMissionTexts = ["primary", "secondary"]
+    .map((kind) => {
+      try {
+        const versions = governance.list("missions").filter((m) => m.kind === kind);
+        return versions.length ? versions[versions.length - 1].text : null;
+      } catch {
+        return null;
+      }
+    })
+    .filter(Boolean);
+  const discovery = config.crawlMode === "real" ? new DiscoveryService({ frontier, missionTexts: activeMissionTexts }) : null;
 
   const supervisor = new JobSupervisor({
     store,

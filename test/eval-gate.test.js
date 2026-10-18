@@ -82,3 +82,40 @@ test("decidePromotionByLoss: non-finite / failed evaluation fails closed", () =>
   assert.equal(decidePromotionByLoss(ok(2.0), { ok: false, error: "boom" }).decision, "not_evaluated");
   assert.equal(decidePromotionByLoss({ ok: true, loss: NaN, datasetHash: "abc123" }, ok(1.0)).decision, "not_evaluated");
 });
+
+// A loss on a one-block (or few-token) set is dominated by sampling noise, so
+// promoting on it is a coin flip. The gate must refuse — not decide — on it.
+const sized = (loss, blocks, tokens = null) => ({
+  ...ok(loss),
+  blockCount: blocks,
+  tokensSeen: tokens,
+  evaluationSet: { datasetHash: "abc123", blockCount: blocks, tokensSeen: tokens },
+});
+
+test("decidePromotionByLoss: refuses to compare an undersized (noise-dominated) evaluation", () => {
+  const d = decidePromotionByLoss(sized(2.0, 1), sized(1.0, 1), { minImprovement: 0.1, minBlocks: 8 });
+  assert.equal(d.decision, "not_evaluated");
+  assert.equal(d.evalFitness.enforced, true);
+  assert.equal(d.evalFitness.ok, false);
+  assert.match(d.reason, /too small/);
+});
+
+test("decidePromotionByLoss: evaluates normally when the set is adequate", () => {
+  const d = decidePromotionByLoss(sized(2.0, 459), sized(1.0, 459), { minImprovement: 0.1, minBlocks: 8 });
+  assert.equal(d.decision, "promoted");
+  assert.equal(d.evalFitness.ok, true);
+});
+
+test("decidePromotionByLoss: the token floor is enforced when configured", () => {
+  const d = decidePromotionByLoss(sized(2.0, 459, 100), sized(1.0, 459, 100), { minImprovement: 0.1, minBlocks: 8, minTokens: 1024 });
+  assert.equal(d.decision, "not_evaluated");
+  assert.match(d.reason, /token/);
+});
+
+test("decidePromotionByLoss: records with no size metadata keep the legacy behaviour", () => {
+  // No blockCount/evaluationSet => fitness is not enforced, so the historical
+  // dataset-hash decision stands (this is the pre-Python / synthetic case).
+  const d = decidePromotionByLoss(ok(2.0), ok(1.5), { minImprovement: 0.1, minBlocks: 8 });
+  assert.equal(d.evalFitness.enforced, false);
+  assert.equal(d.decision, "promoted");
+});

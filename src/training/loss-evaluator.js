@@ -101,6 +101,12 @@ export async function evaluateVersionLoss({
       loss: ok ? loss : null,
       datasetHash: evaluationSet?.datasetHash ?? null,
       evaluationSet,
+      // The measured size of the evaluation, surfaced so the gate can refuse to
+      // compare an undersized (noise-dominated) measurement and so a decision is
+      // explainable after the fact.
+      blockCount: evaluationSet?.blockCount ?? null,
+      tokensSeen: evaluationSet?.tokensSeen ?? null,
+      documentCount: evaluationSet?.documentCount ?? null,
       metricSignature: metricSignature(evaluationSet, { seqLen, microBatch }),
       lossSignature: out.lossSignature ?? null,
       trainedSteps: out.trainedSteps ?? null,
@@ -120,12 +126,22 @@ export async function evaluateVersionLoss({
  *
  * @returns {{decision, reason, parentLoss, candidateLoss, improvement, datasetHash, metricSignature, comparable, evaluated}}
  */
+/** Measured size of an evaluation, or null when the record carries none. */
+function evaluationSize(result) {
+  const ev = result?.evaluationSet ?? null;
+  const blocks = Number.isFinite(result?.blockCount) ? result.blockCount : Number.isFinite(ev?.blockCount) ? ev.blockCount : null;
+  const tokens = Number.isFinite(result?.tokensSeen) ? result.tokensSeen : Number.isFinite(ev?.tokensSeen) ? ev.tokensSeen : null;
+  return { blocks, tokens };
+}
+
 export function decidePromotionByLoss(parent, candidate, {
   minImprovement = config.promoteMinLossDelta,
   maxLoss = config.promoteMaxLoss,
   requireFinite = config.promoteRequireFinite,
   requireSameEvalSet = true,
   requireSameMetric = true,
+  minBlocks = config.promoteEvalMinBlocks,
+  minTokens = config.promoteEvalMinTokens,
 } = {}) {
   const base = {
     parentLoss: parent?.loss ?? null,
@@ -135,7 +151,7 @@ export function decidePromotionByLoss(parent, candidate, {
     metricSignature: null,
     comparable: false,
     evaluated: false,
-    criterion: { minImprovement, maxLoss, requireFinite, requireSameEvalSet, requireSameMetric },
+    criterion: { minImprovement, maxLoss, requireFinite, requireSameEvalSet, requireSameMetric, minBlocks, minTokens },
   };
 
   if (!parent?.ok || !candidate?.ok) {
@@ -144,6 +160,38 @@ export function decidePromotionByLoss(parent, candidate, {
   if (requireFinite && (!Number.isFinite(parent.loss) || !Number.isFinite(candidate.loss))) {
     return { ...base, decision: "not_evaluated", reason: "non-finite loss" };
   }
+
+  // Evaluation fitness: a loss on a one-block (or few-token) set is dominated by
+  // sampling noise, so a "promotion" or "rejection" on it is a coin flip. This
+  // is enforced only when BOTH sides report a measured size, so legacy or
+  // synthetic records (no size metadata) keep today's behaviour.
+  const pSize = evaluationSize(parent);
+  const cSize = evaluationSize(candidate);
+  const sizesPresent = pSize.blocks != null && cSize.blocks != null;
+  const fitness = {
+    parent: pSize,
+    candidate: cSize,
+    minBlocks,
+    minTokens,
+    enforced: sizesPresent,
+    ok: true,
+    reason: null,
+  };
+  if (sizesPresent) {
+    const minSeenBlocks = Math.min(pSize.blocks, cSize.blocks);
+    const minSeenTokens = [pSize.tokens, cSize.tokens].filter((t) => t != null).length ? Math.min(...[pSize.tokens, cSize.tokens].filter((t) => t != null)) : null;
+    if (minBlocks > 0 && minSeenBlocks < minBlocks) {
+      fitness.ok = false;
+      fitness.reason = `evaluation set too small: ${minSeenBlocks} block(s) < required ${minBlocks}; loss on so few blocks is sampling noise, not evidence`;
+    } else if (minTokens > 0 && minSeenTokens != null && minSeenTokens < minTokens) {
+      fitness.ok = false;
+      fitness.reason = `evaluation set too small: ${minSeenTokens} token(s) < required ${minTokens}; loss on so few tokens is sampling noise, not evidence`;
+    }
+  }
+  if (!fitness.ok) {
+    return { ...base, evalFitness: fitness, decision: "not_evaluated", reason: fitness.reason };
+  }
+
   const sameHash = parent.datasetHash != null && parent.datasetHash === candidate.datasetHash;
   // A signature is only enforceable when BOTH sides carry one. When neither does
   // (legacy records), fall back to the dataset-hash comparison so historical
@@ -159,6 +207,7 @@ export function decidePromotionByLoss(parent, candidate, {
     improvement,
     datasetHash: parent.datasetHash,
     metricSignature: parentSig,
+    evalFitness: fitness,
     comparable,
     evaluated: true,
   };

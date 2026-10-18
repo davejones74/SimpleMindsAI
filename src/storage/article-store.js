@@ -450,11 +450,13 @@ const rec = {
     criticPromptVersion = null,
     criticScoreMissing = false,
     criticError = null,
+    gate = null,
+    reason = null,
   } = {}) {
     this.#assertWritable();
     const article = this.articles.get(articleId);
     if (!article) throw new Error(`unknown article: ${articleId}`);
-    const decision = evaluateVerdict(article, { verdict, score, authority }, this.policy);
+    const decision = evaluateVerdict(article, { verdict, score, authority, reason }, this.policy);
 
     const review = {
       reviewId: `rv_${randomUUID().slice(0, 12)}`,
@@ -473,6 +475,9 @@ const rec = {
       criticPromptVersion,
       criticScoreMissing: Boolean(criticScoreMissing),
       criticError: criticError ?? null,
+      // Which deterministic review-time gate (if any) produced this review —
+      // null for an LLM/teacher or human review.
+      gate: gate ?? null,
       applied: decision.apply,
       resultingStatus: decision.status,
       reason: decision.reason,

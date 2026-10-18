@@ -1,5 +1,7 @@
 import { lookup } from "node:dns/promises";
 import { createHash } from "node:crypto";
+import { config } from "../config.js";
+import { extractDocument } from "./extract.js";
 
 /**
  * Bounded, SSRF-aware single-document fetcher.
@@ -256,7 +258,9 @@ export async function fetchDocument(url, {
       const buf = await readCapped(res.body, maxBytes);
       const raw = new TextDecoder("utf-8", { fatal: false }).decode(buf);
       const isHtml = HTML_TYPE.test(contentType);
-      const { title, text } = isHtml ? htmlToText(raw) : { title: null, text: collapse(raw) };
+      const { title, text } = isHtml
+        ? await extractDocument(raw, { mode: config.extractionMode })
+        : { title: null, text: collapse(raw) };
       return {
         url: current,
         status: res.status,

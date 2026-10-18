@@ -2,6 +2,7 @@ import { OllamaClient } from "../services/ollama-client.js";
 import { config } from "../config.js";
 import { VERDICT } from "../domain/article.js";
 import { authHeaders } from "../auth/simple-auth.js";
+import { heuristicPenalty } from "../domain/review-gates.js";
 
 const GRAPHQL_URL = process.env.GRAPHQL_URL ?? "http://localhost:4000/graphql";
 const REVIEW_M = `
@@ -21,30 +22,32 @@ async function gql(query, variables) {
   return json.data;
 }
 
-const CRITIC_PROMPT = [
+/**
+ * The teacher critic prompt.
+ *
+ * It is deliberately LANGUAGE- AND CORRUPTION-AWARE (defect D6): the critic used
+ * to be blind to language and encoding, so it could score foreign-language prose
+ * or mojibake as "useful" on content alone. It now hard-rules those to 0 while
+ * still accepting a valid ENGLISH TRANSLATION — the training text is judged on
+ * its own merits, never on the source's declared language.
+ *
+ * The marker phrases ("harsh but fair teacher", "reviewing a single ARTICLE",
+ * "suggestedImportance") are relied on by the fixture critic in ollama-client.js;
+ * keep them if this text changes.
+ */
+export const CRITIC_PROMPT = [
   "You are a harsh but fair teacher reviewing a single ARTICLE for a tiny text-generation student.",
   "Score the ARTICLE 0-10 (float) for how useful it is as training material, and give 1-2 sentences of rationale.",
   "Hard rules:",
   "  - 0 if the text is empty, degenerate repetition, incoherent, unsafe, or pure boilerplate.",
+  "  - 0 if the ARTICLE is NOT fluent English (foreign-language prose, or text that reads as machine translation).",
+  "  - 0 if the ARTICLE is encoding-corrupted (mojibake, stray replacement characters) or truncated to fragments.",
+  "  - A correct ENGLISH TRANSLATION of a foreign-language source IS valid material: judge the English text on its own merits.",
   "  - Penalize padding and low information density: verbose is NOT valuable.",
-  "  - Prefer: correct, specific, well-structured, information-dense prose.",
+  "  - Prefer: correct, specific, well-structured, information-dense English prose.",
   "You MAY suggest an importance of Normal, Important, or Critical, but the operator decides importance.",
   'Return strict JSON: { "score": number, "rationale": string, "suggestedImportance": "Normal"|"Important"|"Critical" }',
 ].join("\n");
-
-/**
- * Deterministic guardrail applied before any LLM judgement: a cheap repetition
- * density heuristic. It stops the two worst failure modes for LLM-as-a-judge —
- * length-gaming and echo collapse — from ever producing a high score.
- */
-export function heuristicPenalty(text) {
-  const words = String(text ?? "").toLowerCase().match(/[a-z0-9']+/g) ?? [];
-  if (words.length < 3) return 0.0;
-  const bigrams = new Set();
-  for (let i = 0; i < words.length - 1; i++) bigrams.add(words[i] + " " + words[i + 1]);
-  const ratio = bigrams.size / Math.max(1, words.length - 1); // 1 = fully diverse
-  return Math.max(0, Math.min(1, ratio));
-}
 
 /** Map a critic score to a verdict using the review policy thresholds. */
 export function scoreToVerdict(score, { minScore = config.review.minScore, uncertainScore = config.review.uncertainScore } = {}) {
@@ -218,6 +221,11 @@ export class ReviewScorer {
 
 /** Backwards-compatible alias while the last call sites migrate. */
 export const RewardScorer = ReviewScorer;
+
+// The repetition guardrail primitive lives in the shared gates module (so the
+// review gate and this scorer can never disagree about "degenerate"); it is
+// re-exported here to keep the historical public import path stable.
+export { heuristicPenalty };
 
 // CLI: review every pending article currently in the queue.
 if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split(/[\\/]/).pop())) {

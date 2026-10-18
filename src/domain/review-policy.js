@@ -99,7 +99,7 @@ export function nearDuplicateSimilarity(textA, textB, shingleSize = 6) {
  * Compute the target review state for a verdict WITHOUT mutating anything.
  * @returns {{apply: boolean, status: string, decidedBy: string|null, reason: string, deferralReason?: string}}
  */
-export function evaluateVerdict(article, { verdict, score, authority = AUTHORITY.TEACHER }, policy = DEFAULT_POLICY) {
+export function evaluateVerdict(article, { verdict, score, authority = AUTHORITY.TEACHER, reason = null }, policy = DEFAULT_POLICY) {
   const current = article?.status;
   const decidedBy = article?.decidedBy ?? null;
 
@@ -117,7 +117,11 @@ export function evaluateVerdict(article, { verdict, score, authority = AUTHORITY
   }
 
   if (verdict === VERDICT.REJECT) {
-    return { apply: true, status: STATUS.REJECTED, decidedBy: AUTHORITY.TEACHER, reason: "teacher rejected", deferralReason: "explicit_reject" };
+    // The authority that rejected is preserved so a deterministic pre-screen
+    // (`automation`) is never conflated with an LLM teacher verdict in the
+    // ledger, and the caller may supply the precise reason.
+    const rejectReason = reason ?? (authority === AUTHORITY.AUTOMATION ? "pre-screen rejected" : "teacher rejected");
+    return { apply: true, status: STATUS.REJECTED, decidedBy: authority, reason: rejectReason, deferralReason: "explicit_reject" };
   }
   if (verdict === VERDICT.APPROVE) {
     const s = Number(score);

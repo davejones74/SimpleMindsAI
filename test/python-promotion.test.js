@@ -8,7 +8,10 @@ import { evaluateVersionLoss, decidePromotionByLoss } from "../src/training/loss
 import { promotePythonCandidate, setActiveVersion } from "../src/training/python-promotion.js";
 import { committedVersions, makeIsolatedStore, pythonReady, removeIsolatedStore } from "../test-support/python.js";
 
-const EVAL_SET = path.join(REPO_ROOT, "data", "evaluation", "eval-001.jsonl");
+// The frozen, ADEQUATE baseline. eval-001 (the legacy 5-row seed) cannot form a
+// single 128-token block, so a loss measured on it is sampling noise — the
+// promotion gate refuses it. eval-002 is the bundled domain-stratified corpus.
+const EVAL_SET = path.join(REPO_ROOT, "data", "evaluation", "eval-002.jsonl");
 const versions = committedVersions();
 const ready = await pythonReady();
 const haveBoth = versions.includes("v001") && versions.includes("v002");
@@ -33,10 +36,13 @@ test("parent and candidate are scored on the same frozen evaluation set", { skip
   assert.equal(candidate.ok, true, candidate.error);
   assert.equal(parent.datasetHash, candidate.datasetHash, "both versions must be comparable");
   assert.ok(Number.isFinite(parent.loss) && Number.isFinite(candidate.loss));
+  assert.ok(parent.blockCount >= 8, `the frozen set must yield a meaningful number of blocks, got ${parent.blockCount}`);
 
   const decision = decidePromotionByLoss(parent, candidate, { minImprovement: 0 });
   assert.equal(decision.comparable, true);
   assert.equal(decision.evaluated, true);
+  assert.equal(decision.evalFitness.enforced, true);
+  assert.equal(decision.evalFitness.ok, true, decision.evalFitness.reason);
   assert.equal(decision.decision, "promoted");
   assert.ok(decision.improvement > 0);
 });

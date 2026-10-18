@@ -232,6 +232,20 @@ export const config = {
     // perpetual CLI, a learning job, and an explicit drain) so two workers
     // cannot review the same backlog simultaneously.
     lockStaleMs: num("REVIEW_LOCK_STALE_MS", 10 * 60 * 1000),
+    // Deterministic review-time gates, run BEFORE the language-blind critic.
+    //   gatesEnabled : master switch for both gates (default true).
+    //   gateLanguage : reuse the language filter as a review-time DECISION.
+    //   gateQuality  : reject encoding corruption / degenerate repetition.
+    // Mission relevance is deliberately NOT a gate — it is advisory only and
+    // must never reject an otherwise valid article (see domain/review-gates.js).
+    gatesEnabled: bool("REVIEW_GATES_ENABLED", true),
+    gateLanguage: bool("REVIEW_GATE_LANGUAGE", true),
+    gateQuality: bool("REVIEW_GATE_QUALITY", true),
+    // Fraction of characters that may be encoding-corruption indicators before
+    // the text is judged mojibake, and the minimum unique-bigram ratio for text
+    // to be considered non-degenerate. Heuristic starting values, not guarantees.
+    qualityMaxMojibakeRatio: num("REVIEW_QUALITY_MAX_MOJIBAKE_RATIO", 0.02),
+    qualityMinBigramRatio: num("REVIEW_QUALITY_MIN_BIGRAM_RATIO", 0.15),
   },
 
   // ---- Review cycles (every N consumed articles; a checkpoint, not a cap) ----
@@ -287,6 +301,16 @@ export const config = {
   promoteEvalSeqLen: num("PROMOTE_EVAL_SEQ_LEN", 128),
   promoteEvalMicroBatch: num("PROMOTE_EVAL_MICRO_BATCH", 2),
   promoteEvalSet: env("PROMOTE_EVAL_SET", null), // frozen eval-set .jsonl path (required to compare)
+  // Fitness floor for the promotion gate. A loss measured on a set too small to
+  // form more than a block or two is dominated by sampling noise, so a
+  // "promotion" on it is a coin flip, not evidence. When a measured evaluation
+  // reports its size (blockCount/tokensSeen), the gate REQUIRES at least this
+  // many blocks (and tokens, if configured) and otherwise refuses to compare
+  // (not_evaluated) rather than promote or reject on noise. The bundled
+  // `eval-002` (~459 blocks) passes; the legacy 5-row `eval-001` (1 block) is
+  // refused. Records with no size metadata (legacy/unit) are unaffected.
+  promoteEvalMinBlocks: num("PROMOTE_EVAL_MIN_BLOCKS", 8),
+  promoteEvalMinTokens: num("PROMOTE_EVAL_MIN_TOKENS", 0), // 0 disables the token floor
 
   // ---- Trends & Metrics (Observatory) — deterministic, threshold-based ----
   // Classification is a pure function of finite validation observations; the
@@ -350,6 +374,13 @@ export const config = {
   crawlMaxRedirects: num("CRAWL_MAX_REDIRECTS", 5),
   crawlRespectRobots: bool("CRAWL_RESPECT_ROBOTS", true),
   crawlUserAgent: env("CRAWL_USER_AGENT", "SimpleMindsAI/0.2 (+https://github.com/davejones74/SimpleMindsAI)"),
+  // HTML extraction strategy for fetched pages.
+  //   legacy      : the original dependency-free tag-stripper (default; no new deps)
+  //   readability : @mozilla/readability over jsdom (Apache-2.0 / MIT), which
+  //                 isolates the main article and drops nav/footer boilerplate.
+  // Reversible: readability falls back to legacy on any load/parse failure, and
+  // unset reverts to legacy exactly.
+  extractionMode: oneOf("EXTRACTION_MODE", "legacy", ["legacy", "readability"]),
 
   // ---- Phase 3: bounded crawling discovery ----
   // Domain allow-list: comma-separated; empty defaults to CRAWL_URLS hosts only.
@@ -425,6 +456,16 @@ export const config = {
   crawlSearchEndpoint: env("CRAWL_SEARCH_ENDPOINT", null),
   crawlSearchQueryParam: env("CRAWL_SEARCH_QUERY_PARAM", "q"),
   crawlSearchQueries: env("CRAWL_SEARCH_QUERIES", "").split(",").map((s) => s.trim()).filter(Boolean),
+
+  // ---- Mission-driven acquisition (P4) ----
+  // Deterministic templates first: when enabled, the active mission statement(s)
+  // are turned into bounded search queries by src/discovery/mission-queries.js
+  // (no LLM) and appended to any configured CRAWL_SEARCH_QUERIES. Derived queries
+  // are only candidates — they pass the discovery policy and the domain registry
+  // exactly like every other adapter candidate, and the search adapter still
+  // reports `unavailable` without a configured provider. OFF by default.
+  missionQueriesEnabled: bool("MISSION_QUERIES_ENABLED", false),
+  missionQueryMax: num("MISSION_QUERY_MAX", 8),
 
   // ---- Language filter (deterministic, ON by default) ----
   // A document-level English-language gate. This is NOT a domain blacklist and

@@ -4,6 +4,7 @@ import { CAPABILITY, runCrawlBatches, seedFrontierFromConfig } from "../harness/
 import { createDiscoveryPolicy, hostOf } from "./discovery-policy.js";
 import { createDomainRegistry, canonicalDomain } from "../storage/domain-registry.js";
 import { buildAdapters, createAdapterFetchText } from "./adapters/index.js";
+import { resolveSearchQueries } from "./mission-queries.js";
 
 /**
  * DiscoveryService — the acquisition front end for the learning job.
@@ -43,6 +44,9 @@ export class DiscoveryService {
     domainRegistry = null,
     fetchText = null,
     maxRoots = config.crawlDiscoveryMaxRoots,
+    missionTexts = [],
+    missionQueriesEnabled = config.missionQueriesEnabled,
+    missionQueryMax = config.missionQueryMax,
   } = {}) {
     this.frontier = frontier ?? new Frontier({ dir: config.paths.frontier });
     this.seeds = (seeds ?? []).filter(Boolean);
@@ -69,7 +73,20 @@ export class DiscoveryService {
     // Adapters and their network access are injectable so tests can drive the
     // whole pipeline deterministically without touching the network.
     this.fetchText = fetchText ?? createAdapterFetchText();
-    this.adapters = adapters ?? buildAdapters({ fetchText: this.fetchText });
+    // Mission-driven acquisition (P4): when enabled, deterministic queries derived
+    // from the mission(s) are appended to the configured search queries. They are
+    // only candidates — the search adapter proposes them and this service still
+    // subjects them to the discovery policy and the domain registry. When the flag
+    // is off (default) `searchQueries` is exactly CRAWL_SEARCH_QUERIES.
+    this.missionTexts = missionTexts;
+    this.missionQueriesEnabled = Boolean(missionQueriesEnabled);
+    this.searchQueries = resolveSearchQueries({
+      configured: config.crawlSearchQueries,
+      missionTexts: this.missionTexts,
+      enabled: this.missionQueriesEnabled,
+      max: missionQueryMax,
+    });
+    this.adapters = adapters ?? buildAdapters({ fetchText: this.fetchText, opts: { searchQueries: this.searchQueries } });
   }
 
   /** Reporting descriptor — must match what `collect` actually does. */
@@ -80,6 +97,8 @@ export class DiscoveryService {
       source: "discovery",
       policy: this.policy.mode,
       adapters: this.adapters.map((a) => a.name),
+      searchQueries: this.searchQueries.length,
+      missionQueriesEnabled: this.missionQueriesEnabled,
     };
   }
 

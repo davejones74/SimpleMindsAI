@@ -117,7 +117,15 @@ export class OllamaClient {
     }
   }
 
-  /** Shorthand for the "clean raw text into prompt/completion pairs" job. */
+  /**
+   * Shorthand for the "clean raw text into ARTICLE UNITS" job.
+   *
+   * The training unit is a single continuous prose ARTICLE, never a
+   * {prompt, completion} pair. The legacy pair shape was the curator's original
+   * contract and is still ACCEPTED on input for backward compatibility, but it
+   * is normalised to `{ text, domain }` so the whole pipeline sees one schema
+   * (defect D11).
+   */
   async clean(rawText, { maxTokens = 4096 } = {}) {
     const { text } = await this.chat({
       format: "json",
@@ -130,49 +138,56 @@ export class OllamaClient {
             "You are a text curation pipeline stage.",
             "Clean, filter and structure the user's raw scraped text into JSON.",
             "Rules:",
-            "  - Return ONLY a JSON array of objects: [{ \"prompt\": string, \"completion\": string, \"domain\": string }]",
+            '  - Return ONLY a JSON array of ARTICLE UNITS: [{ "text": string, "domain": string }]',
+            "  - Each unit is ONE self-contained, continuous prose passage worth learning from.",
             "  - Drop boilerplate, nav menus, ads, markup, and anything unsafe/PII.",
             "  - If the text is unusable (junk/garbage), return [].",
-            "  - prompt = a crisp instruction/question the text answers; completion = the factual answer, max 200 words.",
             "  - domain = one of: science, tech, history, general, fiction, howto.",
           ].join("\n"),
         },
         { role: "user", content: rawText.slice(0, 14_000) },
       ],
     });
-    return this.#parsePairs(text);
+    return this.#parseUnits(text);
   }
 
-  #parsePairs(text) {
-    // deepseek-r1 is loose with JSON "spec": sometimes a plain array, sometimes
-    // a single object, sometimes wrapped { "results": [...] }. Normalize all.
-    const same = (t) => t && typeof t === "object" && typeof t.prompt === "string" && typeof t.completion === "string";
+  /**
+   * Normalise a loose critic/curator JSON response into `[{ text, domain }]`.
+   * Accepts both the article-unit shape and the legacy `{prompt, completion}`.
+   */
+  #parseUnits(text) {
+    const isUnit = (t) => t && typeof t === "object" && typeof t.text === "string";
+    const isLegacyPair = (t) => t && typeof t === "object" && typeof t.prompt === "string" && typeof t.completion === "string";
+    const normalize = (t) =>
+      isUnit(t)
+        ? { text: t.text, domain: t.domain }
+        : { text: `${t.prompt}\n\n${t.completion ?? ""}`.trim(), domain: t.domain };
+
     const trimmed = String(text).trim();
-    const raw = trimmed.startsWith("[") ? trimmed : trimmed;
-    const firstArr = raw.indexOf("[");
-    const lastArr = raw.lastIndexOf("]");
+    const firstArr = trimmed.indexOf("[");
+    const lastArr = trimmed.lastIndexOf("]");
     if (firstArr !== -1 && lastArr > firstArr) {
       try {
-        const arr = JSON.parse(raw.slice(firstArr, lastArr + 1));
+        const arr = JSON.parse(trimmed.slice(firstArr, lastArr + 1));
         if (Array.isArray(arr)) {
-          const out = arr.filter(same);
-          if (out.length) return out;
+          const out = arr.filter((t) => isUnit(t) || isLegacyPair(t));
+          if (out.length) return out.map(normalize);
         }
       } catch {
         /* fall through to object form */
       }
     }
-    const firstBrace = raw.indexOf("{");
-    const lastBrace = raw.lastIndexOf("}");
+    const firstBrace = trimmed.indexOf("{");
+    const lastBrace = trimmed.lastIndexOf("}");
     if (firstBrace === -1 || lastBrace <= firstBrace) return [];
     let root;
     try {
-      root = JSON.parse(raw.slice(firstBrace, lastBrace + 1));
+      root = JSON.parse(trimmed.slice(firstBrace, lastBrace + 1));
     } catch {
       return [];
     }
-    let arr = Array.isArray(root) ? root : root && Array.isArray(root.results) ? root.results : Array.isArray(root.pairs) ? root.pairs : [root];
-    return arr.filter(same);
+    const arr = Array.isArray(root) ? root : root && Array.isArray(root.results) ? root.results : Array.isArray(root.units) ? root.units : [root];
+    return arr.filter((t) => isUnit(t) || isLegacyPair(t)).map(normalize);
   }
 
   #stripReasoning(content) {
@@ -213,10 +228,10 @@ export class OllamaClient {
     }
     if (isCurator) {
       const first = raw.split("\n").find((l) => l.trim() && !l.trim().startsWith("||"));
-      const completion = (first ?? raw).replace(/[|]+/g, "").trim().slice(0, 160);
+      const body = (first ?? raw).replace(/[|]+/g, "").trim().slice(0, 160);
       return JSON.stringify([
-        { prompt: "Summarize the following text: " + completion.slice(0, 60), completion, domain: completion.length ? "general" : "junk" },
-        { prompt: "Fact-check: " + completion.slice(0, 60), completion: "Fixture answer: insufficient evidence in source.", domain: "factcheck" },
+        { text: body, domain: body.length ? "general" : "junk" },
+        { text: `Fact-check: ${body}`, domain: "factcheck" },
       ]);
     }
     return `{ "fixture": true, "echo": ${JSON.stringify(raw.slice(0, 120))} }`;

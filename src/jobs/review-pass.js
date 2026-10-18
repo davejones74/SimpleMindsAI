@@ -1,6 +1,8 @@
 import { config as defaultConfig } from "../config.js";
 import { throwIfAborted } from "./cancel.js";
 import { acquireReviewLock } from "./review-lock.js";
+import { preScreen } from "../domain/review-gates.js";
+import { AUTHORITY } from "../domain/article.js";
 
 /**
  * The ONE teacher-review pass shared by the learning job, the perpetual CLI and
@@ -28,6 +30,7 @@ const EMPTY = {
   reviewed: 0,
   retired: 0,
   failed: 0,
+  gatesRejected: 0,
   skippedCooldown: 0,
   skippedCap: 0,
   skippedTechnicalCap: 0,
@@ -120,6 +123,44 @@ export async function reviewPendingArticles(store, scorer, opts = {}) {
           else if (before.technicalCapReached) counters.skippedTechnicalCap++;
           else counters.skippedCap++;
           continue;
+        }
+
+        // Deterministic review-time gates run BEFORE the language-blind critic:
+        // a foreign-language or encoding-corrupted text must not be approvable
+        // merely because the LLM scored its content well. The gate decision is a
+        // real, auditable verdict (authority=automation) recorded through the
+        // SAME review path, so the ledger keeps one source of truth.
+        if (review.gatesEnabled !== false) {
+          const gate = preScreen(article.text, {
+            sourceUrl: article.sourceUrl ?? null,
+            htmlLang: article.htmlLang ?? null,
+            languageFilter: review.gateLanguage === false ? null : cfg.languageFilter ?? null,
+            quality: {
+              enabled: review.gateQuality !== false,
+              minBigramRatio: review.qualityMinBigramRatio,
+              maxMojibakeRatio: review.qualityMaxMojibakeRatio,
+            },
+          });
+          if (gate.decision === "reject") {
+            try {
+              await store.recordReview({
+                articleId: article.articleId,
+                verdict: "reject",
+                score: 0,
+                rationale: gate.reason,
+                authority: AUTHORITY.AUTOMATION,
+                gate: gate.gate,
+                reason: gate.reason,
+              });
+              counters.gatesRejected++;
+              counters.reviewed++;
+              onProgress({ phase: "review", reviewed: counters.reviewed, retired: counters.retired, gatesRejected: counters.gatesRejected });
+            } catch (err) {
+              counters.failed++;
+              log("err", `review gate record failed for ${article.articleId}: ${err.message}`);
+            }
+            continue;
+          }
         }
 
         let r;
