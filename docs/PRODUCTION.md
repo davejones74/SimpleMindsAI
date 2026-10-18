@@ -182,6 +182,41 @@ sudo systemctl restart ollama
 Verify with `ollama list` (model loads without falling back to CPU) and
 `journalctl -u ollama --no-pager | grep -i gpu` (confirms GPU device selection).
 
+### 2.3 The service account needs `render` for ROCm `[CURRENT]`
+
+**Symptom**: student evaluation (and training) ran orders of magnitude slower than
+expected — an `eval-002` loss that completes in ~12 s took over 20 minutes and hit
+the 600 s evaluation deadline, failing the promotion gate closed (`not_evaluated`).
+The "2000% CPU" observed during a staged eval was thread thrash, not compute.
+
+**Root cause**: the `simpleminds` service user was not in the `render` group, so the
+ROCm device node was not accessible to the service account. PyTorch could not use the
+Radeon 890M and silently fell back to slow CPU evaluation. (A manual eval run as a
+privileged user succeeded because *that* user could see the GPU, which is why the
+slowdown looked intermittent.)
+
+**Fix** — one-time, and it takes effect only after the account re-establishes its
+groups (restart the services):
+
+```bash
+sudo usermod -aG render simpleminds     # add `video` too if the device lives under it
+sudo systemctl restart simpleminds simpleminds-perpetual
+```
+
+**Verify** the *service account* (not just your shell) can see the GPU:
+
+```bash
+sudo -u simpleminds /opt/simpleminds/python/.venv/bin/python -m sma.brain preflight
+#    -> backend=rocm, device=AMD Radeon 890M Graphics  (NOT cpu)
+```
+
+After the fix, an `eval-002` evaluation reports `device: "cuda"` (ROCm masquerades
+as CUDA) and completes in ~12 s on the 62M student. The Node-side mitigations that
+were added while diagnosing this — configurable `PROMOTE_EVAL_TIMEOUT_MS`, opt-in
+`SMA_THREADS` pinning, and the immutable parent-loss cache (`eval-cache.json`) — all
+remain correct, but the GPU group membership was the actual bottleneck. The residual
+`libnuma` / experimental-attention warnings from ROCm are warnings, not failures.
+
 ---
 
 ## 3. Architecture
