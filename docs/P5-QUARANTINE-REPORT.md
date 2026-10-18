@@ -4,6 +4,12 @@ Date: 2026-10-18 · Scope: analysis of the x1pro production export only. No
 quarantine was executed, no production configuration changed, no service touched.
 All article IDs are traceable to `E:\Development\X1Pro\{articles,reviews,article-events}.ndjson`.
 
+> **CORRECTION (2026-10-18):** the first export omitted the durable
+> `consumption.ndjson` ledger, so the "0 consumed" claims below were wrong. A
+> re-analysis against the full live export (§0, §5) shows **875 articles were
+> already consumed into training — 581 of them non-English**. The existing model
+> is already contaminated; the decision is a full model re-init.
+
 Companion files (this directory `docs/p5/`, one `articleId<TAB>detail` per line):
 
 | File | Count | Meaning |
@@ -11,6 +17,8 @@ Companion files (this directory `docs/p5/`, one `articleId<TAB>detail` per line)
 | `quarantine_non_english.txt` | 1792 | **Proposed auto-quarantine** — confidently non-English text |
 | `quarantine_corrupted.txt` | 1 | **Proposed auto-quarantine** — degenerate repetition (no mojibake found) |
 | `quarantine_proposed_set.txt` | 1792 | **Exact proposed quarantine set** (deduplicated union) |
+| `contamination_consumed_non_english.txt` | 581 | **Already trained** — non-English articles in past snapshots (irreversible) |
+| `quarantine_non_english_not_consumed.txt` | 1211 | Non-English not yet trained — the urgent quarantine subset |
 | `manual_review_machine_translation.txt` | 260 | Manual review — possible machine translation |
 | `manual_review_lean_english_foreign.txt` | 223 | Manual review — lean-English text on a foreign host |
 | `manual_review_repeat_failures.txt` | 895 | Manual review — repeated review failures / retired |
@@ -19,10 +27,12 @@ Companion files (this directory `docs/p5/`, one `articleId<TAB>detail` per line)
 
 ## 0. Headline findings
 
-- **2,214 unique articles**; **51,445 reviews**; all 2,214 currently `PENDING_REVIEW`.
-- **0 articles consumed** (`consumedAt`/`consumedRef` null for every article) and
-  **0 trainable**. **No x1pro article has ever entered a training snapshot.** This
-  is decisive for the contamination question (§5).
+- **2,215 unique articles** (2,214 original + 1 test). The initial export showed
+  all `PENDING_REVIEW`; the live store now shows **REVIEWED 860 / RETIRED 887 /
+  PENDING 467** — the old service kept reviewing after the export was taken.
+- **875 articles were consumed into training snapshots — 581 of them non-English**
+  (plus 294 clean). The `consumption.ndjson` ledger was missing from the first
+  export, so this was missed; see the correction banner and §5.
 - **91% of the corpus is non-English** (2,015/2,214 assessed `non-english`;
   735 are non-Latin script). Root cause: the ingest language filter was **unset**
   in the deployed environment and discovery ran with `CRAWL_DISCOVERY_POLICY=open`,
@@ -47,7 +57,9 @@ and `repetitionPenalty`. A foreign source/host alone is **not** a rejection reas
   (`englishRatio < 0.5`). Highest-confidence sub-set: 735 non-Latin script.
 - Overlap with category B: 1 (the single corrupted article is also non-English).
 - Overlap with category C (translation): 165; with category D (repeat failure): 802.
-- Status: all `PENDING_REVIEW`. Trainable: **no** (none consumed, none `REVIEWED`).
+- Status at export time: `PENDING_REVIEW`. Now: 574 `REVIEWED` (573 already
+  consumed) and 1,218 `RETIRED`. Of the 1,792, **581 have already been consumed
+  into training**; only 1 remains `REVIEWED` and unconsumed.
 - These are the articles that would poison an English-only student.
 
 ### Category B — corrupted text (proposed quarantine) — **1**
@@ -72,7 +84,8 @@ and `repetitionPenalty`. A foreign source/host alone is **not** a rejection reas
   translation cases that must **not** be auto-quarantined.
 
 **Proposed quarantine set (deduplicated) = 1,792** (`quarantine_proposed_set.txt`).
-All are `PENDING_REVIEW` and none have contributed to training.
+581 of these have already contributed to training (see §5); quarantine prevents
+future reuse and covers the 1,211 not yet consumed.
 
 ---
 
@@ -86,9 +99,10 @@ All are `PENDING_REVIEW` and none have contributed to training.
   non-quarantined status, or `setStatus(articleId, previousStatus)` with a reason.
   The pre-quarantine status is recoverable from `article-events.ndjson`
   (`type:"status"`, ordered by `at`).
-- Because **0 articles are consumed**, article-level restoration is complete for
-  the current store: there are no derived snapshots, datasets, or model artefacts
-  that reference these articles yet (§5).
+- 875 articles **are** consumed (see §5): article-level restoration reverses the
+  status only — it cannot reverse the snapshots/datasets/weights those 875 already
+  fed. Quarantine's reversibility applies to the *status transition*, not to
+  already-trained weights.
 - Demonstration of reversibility against a disposable copy is recommended before
   the live run: copy `articles.ndjson`/`reviews.ndjson`/`article-events.ndjson` to
   a temp `ARTICLE_DIR`, open a throwaway store, quarantine + release a sample ID,
@@ -111,8 +125,8 @@ All are `PENDING_REVIEW` and none have contributed to training.
 | Review retry limits / gates | unset (code defaults) | 51,445 reviews, 98% `uncertain` | **Made explicit** (`REVIEW_*`, `REVIEW_GATE_*`). |
 
 Verified runtime values (from the ledger): model `llama3.2:latest`, critic
-temperature `0.7`, verdict mix, `origin=curated`, zero consumption, and the
-absence of language filtering. Everything else in the env is **configured only**
+temperature `0.7`, verdict mix, `origin=curated`, **875 consumed** (581
+non-English), and the absence of language filtering. Everything else in the env is **configured only**
 and must be confirmed on the host (e.g. `systemctl cat simpleminds` +
 `systemctl show -p Environment` or the running process environment) before rollout.
 
@@ -126,13 +140,13 @@ total (dedup) **1,792**.
 **Overlaps:** non-English ∩ translation = 165 · non-English ∩ repeat-failure = 802
 · translation ∩ repeat-failure = 141 · corrupted ∩ non-English = 1.
 
-**Effect on trainable material:** none today (0 trainable). After quarantine, the
-1,792 would be excluded from any future snapshot; the remaining 422 articles
-(2,214 − 1,792) remain eligible for review.
+**Effect on trainable material:** 574 non-English are currently `REVIEWED`
+(trainable); 573 of them were already consumed. Quarantine removes them from any
+future snapshot; the remaining ~423 clean articles remain eligible.
 
-**Effect on next training/eval cycle:** none in the immediate term — the pipeline
-is blocked on the review loop (§0), not on the quarantine set. The quarantine
-prevents *future* contamination once reviews start resolving.
+**Effect on next training/eval cycle:** none meaningful — the damage is done
+(581 non-English already trained). Quarantine + the language gate prevent
+*re*-contamination on the fresh re-init.
 
 **Staged rollout (all reversible, nothing here is executed by this report):**
 1. Rehearse quarantine+rollback on a disposable copy (§2); verify.
@@ -160,12 +174,14 @@ snapshots. It **cannot** undo contamination of an **existing** model: if an
 article was already consumed into a snapshot and trained on, restoring or
 removing the article record does **not** un-train the weights.
 
-For the x1pro store specifically, **consumed = 0**, so **no model contamination
-exists from these 1,792 articles** — they were never included in any snapshot.
-This is the one scenario where quarantine is *fully* effective, because there is
-nothing already-trained to un-train. Any future training run must therefore have
-the language gate enabled **before** consumption begins, or the same non-English
-corpus will contaminate the first real checkpoint.
+For the x1pro store specifically, **875 articles were consumed — 581 non-English
+(66%)**. So the existing v001/v002 model is **already contaminated**; this was
+missed in the first version of this report because the `consumption.ndjson`
+ledger was absent from the export. Quarantine is now **not** sufficient: it
+cannot un-train the 581 non-English articles already in the weights. The only
+clean remedy is a **full model re-init from random initialisation**, then keep
+the language gate enabled so the fresh lineage never ingests the same corpus
+again.
 
 ---
 
