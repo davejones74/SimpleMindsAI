@@ -165,15 +165,18 @@ export class Frontier {
   async markFailed(canonical, { reason = null, error = null, incrementRetries = true, maxRetries = 2 } = {}) {
     const record = this.state.get(canonical);
     if (!record) return false;
-    record.state = URL_STATE.FAILED;
     record.lastError = error ?? reason ?? "fetch_failed";
     record.lastErrorAt = new Date().toISOString();
     if (incrementRetries) {
       record.retries = (record.retries ?? 0) + 1;
-      // If retries exhausted, automatically defer
-      if (record.retries >= maxRetries) {
-        record.state = URL_STATE.DEFERRED;
-      }
+      // Retries remaining => DEFERRED (claimable again on a later pass). Only
+      // once retries are exhausted is the URL terminal FAILED. The previous
+      // logic assigned FAILED on the FIRST failure, which `claimNext` never
+      // returns — so a single transient fetch error (e.g. a DNS blip) would
+      // strand the URL and the whole frontier would report "no sources".
+      record.state = record.retries >= maxRetries ? URL_STATE.FAILED : URL_STATE.DEFERRED;
+    } else {
+      record.state = URL_STATE.FAILED;
     }
     await this.persist();
     return true;
