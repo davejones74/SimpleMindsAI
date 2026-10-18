@@ -84,6 +84,7 @@ export async function runLearningCycle(ctx) {
         sourceUrl: doc.url ?? null,
         fetchedContentHash: doc.contentHash ?? null,
         fetchedAt: doc.fetchedAt ?? null,
+        htmlLang: doc.htmlLang ?? null,
         reviewRequested: true,
       });
       if (rec.skipped) {

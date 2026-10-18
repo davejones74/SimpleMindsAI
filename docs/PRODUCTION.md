@@ -503,12 +503,15 @@ SMA_STORE=/var/lib/simpleminds/store
 PERPETUAL_CYCLES=1
 PERPETUAL_IDLE_MS=10000
 
-# --- Language filter (opt-in; off by default) -------------------------------------
+# --- Language filter (ON by default) ----------------------------------------------
 # Deterministic, dependency-free English gate shared by the harvest seam and the
-# ingest backstop. NOT a domain allow/deny list. Run with SHADOW=true first to
-# evaluate on a representative crawl sample before enforcing; thresholds are
-# heuristic starting values, not calibrated accuracy guarantees.
-LANGUAGE_FILTER_ENABLED=false
+# ingest backstop. NOT a domain allow/deny list. A source that declares a
+# non-English language (<html lang>, or a multilingual host such as
+# ca.wikipedia.org) is decisive unless the body text is confidently English.
+# To roll out cautiously, set SHADOW=true first and inspect the would-be
+# exclusions before enforcing; thresholds are heuristic starting values, not
+# calibrated accuracy guarantees.
+LANGUAGE_FILTER_ENABLED=true
 LANGUAGE_FILTER_SHADOW=false
 LANGUAGE_FILTER_MIN_CONFIDENCE=0.8
 LANGUAGE_FILTER_UNKNOWN_POLICY=allow   # allow (fail-open) | reject

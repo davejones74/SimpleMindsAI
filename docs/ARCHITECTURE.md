@@ -117,10 +117,10 @@ observability layer over the same validated Node services.
 ### Language filter
 
 `src/domain/language.js` is a deterministic, dependency-free detector used to
-keep the corpus English. It is **opt-in and off by default**
-(`LANGUAGE_FILTER_ENABLED=false`); when disabled it is a strict no-op.
+keep the corpus English. It is **on by default** (`LANGUAGE_FILTER_ENABLED=true`);
+set it to `false` for a strict no-op.
 
-Three stages, in order:
+Four signals, in order:
 
 1. **Script** — by Unicode code-point range. If more than 30% of alphabetic
    characters are non-Latin (Cyrillic, Arabic, Han, …) the text is non-English
@@ -129,28 +129,46 @@ Three stages, in order:
    en/fr/de/es/nl/it/pt. Words shared across languages are used only for a
    *raw* evidence tally; the English *ratio* and the plurality language are
    computed from *exclusive* (single-language) counts so a shared word cannot
-   inflate the English share of a foreign page.
-3. **`<html lang>`** — supplementary only. It never overrides strong textual
-   evidence and can only break a tie inside the ambiguous band. It is read from
-   `<html lang>` (falling back to `<meta http-equiv="content-language">`) by
-   `extractHtmlLang` in `src/harness/fetcher.js`.
+   inflate the English share of a foreign page. Confidence also scores how
+   decisively the plurality language leads English, because a foreign page
+   legitimately contains English words (titles, references, an "English"
+   interlanguage link) that would otherwise cap the ratio-based score below the
+   gate and demote a clearly-foreign page to `unknown`.
+3. **`<html lang>`** — read from `<html lang>` (falling back to
+   `<meta http-equiv="content-language">`) by `extractHtmlLang` in
+   `src/harness/fetcher.js`. A **declared non-English** language is decisive
+   (it is the source's own declaration), *unless* the body text is confidently
+   English. A wrong declaration can never override strong prose, and a
+   declaration never turns insufficient or ambiguous text into English.
+4. **Source host** — `languageFromUrl` reads the language a multilingual source
+   declares in its subdomain (`ca.wikipedia.org` is Catalan, `de.wikipedia.org`
+   is German, `simple.wikipedia.org` is English). This reads a declaration the
+   source makes about itself — it is deliberately **not** a hostname
+   allow/deny list: the English variant of the same site is still accepted.
 
 The verdict is one of `english`, `non-english`, or `unknown`. Only `non-english`
 (and `unknown` when `LANGUAGE_FILTER_UNKNOWN_POLICY=reject`) is excluded. This is
 **not** a domain allow/deny list — an English article on any domain passes, and a
-foreign article is excluded regardless of domain.
+foreign article is excluded regardless of domain. Genuinely ambiguous or
+insufficient text remains `unknown` and **passes** (fail-open), which is the
+documented default.
 
 Two seams share the identical `assess()` rule, so the gate cannot be bypassed:
 
 - **Harvest** (`src/harness/crawler.js`) runs the check *after* link extraction
-  and frontier updates, so a foreign page still yields its English links. A
-  language skip is recorded in the summary (`languageFiltered`, `skipped[]`,
+  and frontier updates, so a foreign page still yields its English links. It
+  passes the document's `htmlLang` and its `url` to `assess()`. A language skip
+  is recorded in the summary (`languageFiltered`, `skipped[]`,
   `shadowRejected[]`) and is **not** counted as a fetch failure.
 - **Ingest backstop** (`src/storage/article-store.js`) re-checks every text
   before it becomes an article, covering teacher-emitted units and callers that
-  bypass the crawler. A skipped ingest returns `{ skipped: true, reason, ... }`
-  and writes no record; the GraphQL `ingestArticle` mutation returns `null` for
-  it.
+  bypass the crawler. Every store is opened with `config.languageFilter` by
+  default, so `POST /api/ingest`, the GraphQL `ingestArticle` mutation, the
+  learning job, and the CLIs all enforce the same policy. The backstop also
+  accepts `htmlLang` and `sourceUrl` so a declared-language source is caught even
+  when a curator emitted only a short, otherwise-ambiguous unit. A skipped
+  ingest returns `{ skipped: true, reason, ... }` and writes no record; the
+  GraphQL `ingestArticle` mutation returns `null` for it.
 
 `LANGUAGE_FILTER_SHADOW=true` runs the detector, records would-be exclusions in
 telemetry, and changes nothing — the evaluation mode used before enabling
@@ -385,6 +403,26 @@ and their content hashes are retained. This is a storage design constraint, not
 a replay feature: it keeps the [replay option](ROADMAP.md#1-catastrophic-forgetting)
 open without implementing any part of it, and it is cheap now and impossible to
 retrofit later.
+
+### Snapshot corpus policy: fresh input vs retained corpus
+
+By default (`SNAPSHOT_INCLUDE_CONSUMED=false`) a snapshot contains only
+`REVIEWED`-and-**unconsumed** articles — the *delta* since the last run. With
+`SNAPSHOT_INCLUDE_CONSUMED=true`, `collectRowsFromArticles` backfills
+already-consumed `REVIEWED` articles up to `SNAPSHOT_LIMIT`, so the trainer sees
+the *accumulated corpus* rather than a handful of new rows. Ordering is
+deterministic (fresh rows first, then retained in ascending insertion order).
+
+The manifest records both sets: `articleIds` is everything baked into the
+artifact (the trained corpus), and `freshArticleIds` is the subset that was
+unconsumed at bake time. Only `freshArticleIds` drive consumption and
+deferral/retirement bookkeeping, so retained rows contribute training text but
+are never re-consumed, re-deferred, or retired by a later run. An incremental
+run with **no** fresh rows is refused with `NO_ELIGIBLE_MATERIAL` rather than
+implicitly re-training on the corpus; corpus-only retraining is a separate,
+explicit workflow. `RETIRED` articles are never collected, and the
+evaluation-set leak guard removes a leaked row from `articleIds` and
+`freshArticleIds` alike.
 
 ---
 

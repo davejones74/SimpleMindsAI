@@ -412,13 +412,14 @@ export const config = {
   crawlSearchQueryParam: env("CRAWL_SEARCH_QUERY_PARAM", "q"),
   crawlSearchQueries: env("CRAWL_SEARCH_QUERIES", "").split(",").map((s) => s.trim()).filter(Boolean),
 
-  // ---- Language filter (deterministic, opt-in, off by default) ----
+  // ---- Language filter (deterministic, ON by default) ----
   // A document-level English-language gate. This is NOT a domain blacklist and
   // NOT an English-only domain allowlist: an English article on any domain is
   // accepted, and a foreign-language article is excluded regardless of domain.
   // The detector is deterministic and dependency-free (src/domain/language.js).
   //
-  //   enabled       : master switch. false = detector never runs.
+  //   enabled       : master switch. Default true. Set LANGUAGE_FILTER_ENABLED=0
+  //                   to disable entirely (detector never runs).
   //   shadow        : run the detector, report would-be exclusions in telemetry,
   //                   but do NOT change ingestion behaviour. Evaluation mode.
   //   minConfidence : heuristic starting value, NOT a calibrated accuracy
@@ -426,8 +427,11 @@ export const config = {
   //   unknownPolicy : what to do with text the detector cannot classify.
   //                   "allow" = pass through (conservative; default).
   //                   "reject" = exclude.
+  // A source that declares a non-English language (`<html lang>` or a
+  // multilingual host such as `ca.wikipedia.org`) is decisive unless the body
+  // text is confidently English.
   languageFilter: {
-    enabled: bool("LANGUAGE_FILTER_ENABLED", false),
+    enabled: bool("LANGUAGE_FILTER_ENABLED", true),
     shadow: bool("LANGUAGE_FILTER_SHADOW", false),
     minConfidence: confidence("LANGUAGE_FILTER_MIN_CONFIDENCE", 0.8),
     unknownPolicy: oneOf("LANGUAGE_FILTER_UNKNOWN_POLICY", "allow", ["allow", "reject"]),

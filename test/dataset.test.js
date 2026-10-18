@@ -87,10 +87,92 @@ test("collectRowsFromArticles returns only REVIEWED, unconsumed articles", async
   const pending = await store.ingestArticle({ text: "An article still awaiting review.", domain: "reasoning" });
   await store.requestReview(pending.articleId);
 
-  const { rows } = collectRowsFromArticles(store, { limit: 10 });
+  const { rows, freshArticleIds, stats } = collectRowsFromArticles(store, { limit: 10 });
   assert.equal(rows.length, 3);
   assert.deepEqual(rows.map((r) => r.articleId).sort(), [...ids].sort());
+  // With the default policy every collected row is fresh (the delta).
+  assert.deepEqual(freshArticleIds.sort(), [...ids].sort());
+  assert.deepEqual(stats, { collected: 3, fresh: 3, retained: 0 });
   await store.close();
+});
+
+test("corpus backfill adds consumed REVIEWED rows but marks only new rows fresh", async () => {
+  const store = await ArticleStore.open(tmpDir());
+  const ids = [];
+  for (let i = 0; i < 4; i++) {
+    const a = await store.ingestArticle({ text: `Backfill article number ${i} about steam engines.`, domain: "tecnologia" });
+    await store.recordReview({ articleId: a.articleId, verdict: "approve", authority: "human" });
+    ids.push(a.articleId);
+  }
+  // Consume the first three; the fourth stays fresh.
+  await store.markConsumed(ids.slice(0, 3), { runId: "run_old" });
+
+  // Default: delta only.
+  const delta = collectRowsFromArticles(store, { limit: 10 });
+  assert.deepEqual(delta.rows.map((r) => r.articleId), [ids[3]]);
+  assert.deepEqual(delta.freshArticleIds, [ids[3]]);
+
+  // Backfill: the accumulated corpus, fresh rows first, then retained oldest-first.
+  const all = collectRowsFromArticles(store, { limit: 10, includeConsumed: true });
+  assert.equal(all.rows.length, 4);
+  assert.deepEqual(all.rows.map((r) => r.articleId), [ids[3], ids[0], ids[1], ids[2]], "deterministic, fresh first then retained");
+  assert.deepEqual(all.freshArticleIds, [ids[3]], "only previously-unconsumed rows are fresh");
+  assert.deepEqual(all.stats, { collected: 4, fresh: 1, retained: 3 });
+
+  // The backfill respects the limit: fresh rows always win the budget.
+  const capped = collectRowsFromArticles(store, { limit: 2, includeConsumed: true });
+  assert.deepEqual(capped.rows.map((r) => r.articleId), [ids[3], ids[0]]);
+  await store.close();
+});
+
+test("RETIRED articles are never collected, even with corpus backfill", async () => {
+  const store = await ArticleStore.open(tmpDir());
+  const a = await store.ingestArticle({ text: "An article that will be retired by review.", domain: "general" });
+  await store.recordReview({ articleId: a.articleId, verdict: "approve", authority: "human" });
+  await store.setStatus(a.articleId, "RETIRED", { reason: "test" });
+  const res = collectRowsFromArticles(store, { limit: 10, includeConsumed: true });
+  assert.equal(res.rows.length, 0);
+  await store.close();
+});
+
+test("buildSnapshot records freshArticleIds and defaults to the whole set", async () => {
+  const reg = await RegistryStore.open(tmpDir());
+  const rows = [articleRow(1), articleRow(2), articleRow(3)];
+
+  const explicit = await buildSnapshot({
+    registry: reg,
+    rowsRaw: rows,
+    freshArticleIds: ["art_1"],
+    dir: tmpDir(),
+  });
+  assert.deepEqual(explicit.manifest.articleIds, ["art_1", "art_2", "art_3"]);
+  assert.deepEqual(explicit.manifest.freshArticleIds, ["art_1"]);
+
+  const implicit = await buildSnapshot({ registry: reg, rowsRaw: rows, dir: tmpDir() });
+  assert.deepEqual(implicit.manifest.freshArticleIds, implicit.manifest.articleIds);
+  await reg.close();
+});
+
+test("the eval guard removes a leaked fresh id from both articleIds and freshArticleIds", async () => {
+  const evalDir = tmpDir();
+  const evalSet = await loadEvaluationSet({
+    dir: evalDir,
+    seed: () => [{ text: "LEAKED EVAL DOCUMENT", domain: "general" }],
+  });
+  const reg = await RegistryStore.open(tmpDir());
+  const leaked = { ...articleRow(9), text: "LEAKED EVAL DOCUMENT", contentHash: [...evalSet.hashes][0] };
+  const kept = articleRow(10);
+
+  const snap = await buildSnapshot({
+    registry: reg,
+    rowsRaw: [leaked, kept],
+    freshArticleIds: [leaked.articleId, kept.articleId],
+    evalGuard: makeEvalGuard(evalSet),
+    dir: tmpDir(),
+  });
+  assert.deepEqual(snap.manifest.articleIds, [kept.articleId]);
+  assert.deepEqual(snap.manifest.freshArticleIds, [kept.articleId]);
+  await reg.close();
 });
 
 test("evaluation leak guard: content-hash excludes eval rows from a snapshot", async () => {

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { detectLanguage, assess, isEnglish, normalizeLangTag } from "../src/domain/language.js";
+import { detectLanguage, assess, isEnglish, normalizeLangTag, languageFromUrl } from "../src/domain/language.js";
 
 // ---------------------------------------------------------------------------
 // Script detection (Stage A)
@@ -217,4 +217,49 @@ test("isEnglish is conservative: unknown is never English", () => {
   assert.equal(isEnglish("только кириллица здесь для проверки"), false);
   assert.equal(isEnglish(""), false);
   assert.equal(isEnglish(ENGLISH_PROSE), true);
+});
+
+// ---------------------------------------------------------------------------
+// Source-declared language: multilingual host subdomains
+// ---------------------------------------------------------------------------
+
+test("languageFromUrl reads the language a multilingual source declares in its host", () => {
+  assert.equal(languageFromUrl("https://ca.wikipedia.org/wiki/Rellotge"), "ca");
+  assert.equal(languageFromUrl("https://de.wikipedia.org/wiki/Wasserrad"), "de");
+  assert.equal(languageFromUrl("https://en.wikipedia.org/wiki/1986"), "en");
+  assert.equal(languageFromUrl("fr.wiktionary.org/wiki/mot"), "fr");
+  assert.equal(languageFromUrl("https://zh-min-nan.wikipedia.org/wiki/"), "zh");
+  // The English alias used by Wikipedia.
+  assert.equal(languageFromUrl("https://simple.wikipedia.org/wiki/Engine"), "en");
+});
+
+test("languageFromUrl returns null when the host encodes no content language", () => {
+  for (const url of [
+    null,
+    "",
+    "not a url",
+    "https://example.com/article",
+    "https://www.wikipedia.org/",
+    "https://commons.wikimedia.org/wiki/File:X",
+    "https://meta.wikimedia.org/",
+    "https://en.wikipedia.org.evil.example/x",
+  ]) {
+    assert.equal(languageFromUrl(url), null, `expected null for ${JSON.stringify(url)}`);
+  }
+});
+
+test("assess treats a declared non-English source as decisive for otherwise-unknown text", () => {
+  const short = "Qués el premi Nobel de Literatura de 1986?\n\nWole Soyinka";
+  assert.equal(assess(short).verdict, "unknown");
+  assert.equal(assess(short, { sourceUrl: "https://ca.wikipedia.org/wiki/1986" }).verdict, "non-english");
+  assert.equal(assess(short, { htmlLang: "de" }).verdict, "non-english");
+});
+
+test("a wrong non-English declaration cannot override confidently English prose", () => {
+  const d = assess(ENGLISH_PROSE, { sourceUrl: "https://ru.wikipedia.org/wiki/Engine" });
+  assert.equal(d.verdict, "english");
+});
+
+test("a declaration never turns insufficient or ambiguous text into English", () => {
+  assert.equal(assess("404 — not found. 12345", { sourceUrl: "https://en.wikipedia.org/"}).verdict, "unknown");
 });

@@ -343,6 +343,58 @@ export function normalizeLangTag(tag) {
   return primary;
 }
 
+// Multilingual sources that encode their content language in a URL subdomain
+// (ca.wikipedia.org is Catalan, de.wikipedia.org is German, ...). Reading that
+// declared variant is a deterministic language signal, NOT a domain blocklist:
+// the English variant of the same site is still accepted.
+const LANG_SUBDOMAIN_SUFFIXES = Object.freeze([
+  "wikipedia.org",
+  "wiktionary.org",
+  "wikisource.org",
+  "wikibooks.org",
+  "wikinews.org",
+  "wikiquote.org",
+  "wikiversity.org",
+  "wikivoyage.org",
+]);
+// Subdomains that are NOT a content language (portal/infra labels).
+const NON_LANG_SUBDOMAINS = new Set([
+  "www", "m", "mobile", "commons", "meta", "species", "outreach", "donate",
+  "wikimedia", "foundation", "sources", "beta", "test", "login", "stats",
+]);
+
+function hostnameOf(url) {
+  const raw = String(url ?? "").trim();
+  if (!raw) return null;
+  try {
+    return new URL(raw.includes("://") ? raw : `https://${raw}`).hostname.toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Derive the content language of a URL when the host encodes one, e.g.
+ * `ca.wikipedia.org` => "ca", `en.wikipedia.org` => "en", `simple.wikipedia.org`
+ * => "en". Returns null when the host carries no language signal (either an
+ * ordinary single-language site or a non-language Wikimedia subdomain).
+ *
+ * This reads a DECLARATION the source makes about itself; it is deliberately not
+ * a hostname allow/deny list.
+ */
+export function languageFromUrl(url) {
+  const host = hostnameOf(url);
+  if (!host) return null;
+  for (const suffix of LANG_SUBDOMAIN_SUFFIXES) {
+    if (host === suffix || !host.endsWith(`.${suffix}`)) continue;
+    const label = host.slice(0, host.length - suffix.length - 1).split(".")[0]?.toLowerCase();
+    if (!label || NON_LANG_SUBDOMAINS.has(label)) return null;
+    if (label === "simple") return LANG.EN;
+    return normalizeLangTag(label);
+  }
+  return null;
+}
+
 function detectLatinLanguage(tokens, htmlLang) {
   const { raw, rawTotal, exclusive, exclusiveTotal } = countStopwordHits(tokens);
   const wordCount = tokens.length;
@@ -395,9 +447,19 @@ function detectLatinLanguage(tokens, htmlLang) {
   }
 
   if (englishRatio <= ENGLISH_LOWER && bestLang !== LANG.UND) {
+    // Confidence must not be capped at (1 - englishRatio): a foreign page can
+    // legitimately contain English function words (titles, references, an
+    // "English" interlanguage link), which caps the ratio-based score below the
+    // gate and wrongly demotes a clearly-foreign page to "unknown". We also
+    // score the DOMINANCE of the top language over English using exclusive
+    // (single-language) evidence, which is robust to that contamination.
+    const bestExclusive = exclusive[bestLang] ?? 0;
+    const enExclusive = exclusive[LANG.EN] ?? 0;
+    const lead = bestExclusive + enExclusive > 0 ? bestExclusive / (bestExclusive + enExclusive) : 0;
+    const confidence = Math.max((1 - englishRatio) * pluralityEvidence, lead * pluralityEvidence);
     return {
       language: bestLang,
-      confidence: (1 - englishRatio) * pluralityEvidence,
+      confidence,
       reason: "non-english",
       englishRatio,
     };
@@ -504,11 +566,37 @@ export function isEnglish(text, { minConfidence = 0.80, htmlLang = null } = {}) 
  * Assess a text for the language filter. Shared by both the harvest and
  * ingestion seams so they apply identical rules.
  *
+ * A source that DECLARES a non-English language — via `<html lang>` or a
+ * multilingual host subdomain (`ca.wikipedia.org`) — is treated as decisive
+ * UNLESS the body text is confidently English. Text still wins over a wrong
+ * declaration, and a declaration never turns insufficient text into English.
+ *
+ * @param {object} [options]
+ * @param {number} [options.minConfidence]
+ * @param {string|null} [options.htmlLang]
+ * @param {string|null} [options.sourceUrl]
  * @returns {{verdict: "english"|"non-english"|"unknown", detection: object}}
  */
-export function assess(text, { minConfidence = 0.80, htmlLang = null } = {}) {
+export function assess(text, { minConfidence = 0.80, htmlLang = null, sourceUrl = null } = {}) {
   const detection = detectLanguage(text, { htmlLang });
-  if (detection.language === LANG.EN && detection.confidence >= minConfidence) {
+  const textEnglish = detection.language === LANG.EN && detection.confidence >= minConfidence;
+
+  // Declared language wins for a NON-ENGLISH verdict unless the text itself is
+  // confidently English (a wrong declaration must not override strong prose).
+  const declaredLang = normalizeLangTag(htmlLang) ?? languageFromUrl(sourceUrl);
+  if (declaredLang && declaredLang !== LANG.EN && !textEnglish) {
+    return {
+      verdict: "non-english",
+      detection: {
+        ...detection,
+        reason: "declared-language",
+        declaredLanguage: declaredLang,
+        htmlLang: detection.htmlLang ?? declaredLang,
+      },
+    };
+  }
+
+  if (textEnglish) {
     return { verdict: "english", detection };
   }
   // Stage-A script evidence is decisive: a page that is >30% non-Latin script

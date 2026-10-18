@@ -314,3 +314,77 @@ test("the advisory floor is off by default, so a small eval set warns about noth
   await store.close();
   await registry.close();
 });
+
+// ---------------------------------------------------------------------------
+// Corpus backfill (SNAPSHOT_INCLUDE_CONSUMED): retained rows are trained on but
+// are never treated as fresh input.
+// ---------------------------------------------------------------------------
+
+test("a rejected run defers only fresh rows when the snapshot backfills consumed ones", async () => {
+  const registry = await RegistryStore.open(tmp());
+  const store = await ArticleStore.open(tmp());
+  const ids = [];
+  for (let i = 0; i < 4; i++) {
+    const a = await store.ingestArticle({ text: `Retained corpus article number ${i} with enough prose to review.`, domain: "reasoning" });
+    await store.recordReview({ articleId: a.articleId, verdict: "approve", authority: "human" });
+    ids.push(a.articleId);
+  }
+  const retained = ids.slice(0, 3);
+  const freshId = ids[3];
+  await store.markConsumed(retained, { runId: "run_old" });
+
+  const prevInclude = config.snapshotIncludeConsumed;
+  config.snapshotIncludeConsumed = true;
+  try {
+    const out = await executeFullRun({
+      registry,
+      options: { paths: { snapshots: tmp(), models: tmp(), plans: tmp(), evaluation: tmp() } },
+      deps: { store, trainer: stubTrainer(), complete: regressingComplete(), evalSeed: async () => EVAL_SEED },
+    });
+
+    assert.equal(out.decision.decision, "rejected");
+    // The fresh article absorbed the deferral...
+    assert.ok((store.getArticle(freshId).deferralRetries ?? 0) >= 1, "fresh row must be deferred");
+    // ...the retained, already-consumed articles must be untouched.
+    for (const id of retained) {
+      const a = store.getArticle(id);
+      assert.equal(a.deferralRetries ?? 0, 0, `retained ${id} must not be re-deferred`);
+      assert.equal(a.consumedRef, "run_old", `retained ${id} consumption must be unchanged`);
+      assert.equal(a.status, "REVIEWED", `retained ${id} must not be retired`);
+    }
+  } finally {
+    config.snapshotIncludeConsumed = prevInclude;
+    await store.close();
+    await registry.close();
+  }
+});
+
+test("an incremental run is refused when backfill yields no fresh material", async () => {
+  const registry = await RegistryStore.open(tmp());
+  const store = await ArticleStore.open(tmp());
+  const ids = [];
+  for (let i = 0; i < 3; i++) {
+    const a = await store.ingestArticle({ text: `Only-retained corpus article number ${i} with enough prose.`, domain: "reasoning" });
+    await store.recordReview({ articleId: a.articleId, verdict: "approve", authority: "human" });
+    ids.push(a.articleId);
+  }
+  // Consume everything so only retained rows remain.
+  await store.markConsumed(ids, { runId: "run_old" });
+
+  const prevInclude = config.snapshotIncludeConsumed;
+  config.snapshotIncludeConsumed = true;
+  try {
+    await assert.rejects(
+      executeFullRun({
+        registry,
+        options: { paths: { snapshots: tmp(), models: tmp(), plans: tmp(), evaluation: tmp() } },
+        deps: { store, trainer: stubTrainer(), complete: exactComplete, evalSeed: async () => EVAL_SEED },
+      }),
+      (err) => err.code === "NO_ELIGIBLE_MATERIAL",
+    );
+  } finally {
+    config.snapshotIncludeConsumed = prevInclude;
+    await store.close();
+    await registry.close();
+  }
+});

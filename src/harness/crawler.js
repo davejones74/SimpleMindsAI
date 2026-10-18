@@ -42,6 +42,7 @@ function applyLanguageFilter(doc, languageFilter, summary, url) {
   const decision = assess(doc.text, {
     minConfidence: languageFilter.minConfidence,
     htmlLang: doc.htmlLang ?? null,
+    sourceUrl: url ?? doc.url ?? null,
   });
   // Shadow mode observes but never changes ingestion behaviour.
   const enforcing = !languageFilter.shadow;

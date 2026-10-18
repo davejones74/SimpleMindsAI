@@ -249,6 +249,7 @@ export class ArticleStore {
     sourceUrl = null,
     fetchedContentHash = null,
     fetchedAt = null,
+    htmlLang = null,
     uncertainty = null,
     missionRelevance = null,
     reviewRequested = false,
@@ -268,7 +269,11 @@ export class ArticleStore {
     // An English verdict, or unknown under the fail-open policy, always ingests.
     let languageVerdict = null;
     if (this.languageFilter?.enabled) {
-      const decision = assess(text, { minConfidence: this.languageFilter.minConfidence });
+      const decision = assess(text, {
+        minConfidence: this.languageFilter.minConfidence,
+        htmlLang,
+        sourceUrl,
+      });
       const wouldSkip =
         decision.verdict === "non-english" ||
         (decision.verdict === "unknown" && this.languageFilter.unknownPolicy === "reject");

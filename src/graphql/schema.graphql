@@ -258,6 +258,8 @@ input ArticleInput {
   importance: ArticleImportance
   source: String
   rawText: String
+  sourceUrl: String
+  htmlLang: String
   uncertainty: Float
   missionRelevance: Float
 }

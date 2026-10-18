@@ -169,15 +169,21 @@ export async function executeFullRun({
     });
 
     // ---- immutable, capped, leak-guarded snapshot ----
-    const { rows } = collectRowsFromArticles(store, { limit });
+    const { rows, freshArticleIds } = collectRowsFromArticles(store, { limit });
     // Refuse BEFORE baking an artifact when there is nothing to collect: a
     // continuous job treats this as a wait condition and polls, so an empty
     // snapshot manifest must not be appended on every cycle.
     if (!rows.length) throw noEligibleMaterial();
+    // Corpus backfill (SNAPSHOT_INCLUDE_CONSUMED) may pad the snapshot with
+    // already-consumed articles, but an incremental run must still be driven by
+    // NEW material. With no fresh rows this is corpus-only retraining, which is
+    // a separate, explicit workflow — never an implicit side effect here.
+    if (!freshArticleIds.length) throw noEligibleMaterial();
 
     snapshot = await buildSnapshot({
       registry,
       rowsRaw: rows,
+      freshArticleIds,
       dir: options.paths?.snapshots,
       evalGuard: makeEvalGuard(evalSet),
     });

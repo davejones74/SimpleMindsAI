@@ -71,6 +71,8 @@ export const resolvers = {
         importance: input.importance ? impToDomain(input.importance) : undefined,
         source: input.source,
         rawText: input.rawText,
+        sourceUrl: input.sourceUrl,
+        htmlLang: input.htmlLang,
         uncertainty: input.uncertainty,
         missionRelevance: input.missionRelevance,
       });
@@ -104,10 +106,11 @@ export const resolvers = {
     // ---- registry writes ----
     createDatasetSnapshot: async (_, { input }, { store, registry }) => {
       const evalSet = await loadEvaluationSet({});
-      const { rows } = collectRowsFromArticles(store);
+      const { rows, freshArticleIds } = collectRowsFromArticles(store);
       const { manifest } = await buildSnapshot({
         registry,
         rowsRaw: rows,
+        freshArticleIds,
         source: input.source,
         evalGuard: makeEvalGuard(evalSet),
       });

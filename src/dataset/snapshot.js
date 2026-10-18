@@ -49,13 +49,24 @@ export function rowForArticle(article) {
  *
  * Default (`includeConsumed: false`) preserves the historical behaviour: only
  * unconsumed material is collected, so each run trains on the delta. With
- * `includeConsumed: true` we page the WHOLE REVIEWED corpus (newest first) and
- * backfill `limit - fresh` already-consumed articles, so a run trains on the
- * accumulated corpus rather than a handful of rows. The two groups are kept
- * apart: `freshArticleIds` are the previously-unconsumed ids (the ones that
- * still drive consumption/deferral bookkeeping), while every returned row is
- * part of the immutable dataset. Dedupe is by construction: the consumed and
- * unconsumed pages never overlap.
+ * `includeConsumed: true` we page the WHOLE REVIEWED corpus and backfill
+ * `limit - fresh` already-consumed articles, so a run trains on the accumulated
+ * corpus rather than a handful of rows.
+ *
+ * Ordering is deterministic and stable: within each group `articlesPage` walks
+ * in ascending insertion order (the store's articleOrder, i.e. oldest first),
+ * and fresh (previously unconsumed) rows always precede retained ones, so the
+ * same store state always yields the same snapshot bytes.
+ *
+ * The two groups are kept explicitly apart:
+ *   - `freshArticleIds` — articles that were UNCONSUMED at bake time. Only these
+ *     may be newly consumed or deferred by the run (see lifecycle bookkeeping);
+ *     they are the run's real input.
+ *   - retained rows — already consumed, owned by an earlier promoted version.
+ *     They contribute training text but are NOT re-consumed or re-deferred.
+ *
+ * Dedupe is by construction: the consumed and unconsumed pages never overlap
+ * (the `consumed` filter is exclusive).
  */
 export function collectRowsFromArticles(
   store,
