@@ -179,6 +179,10 @@ function normalizeRawDoc(doc, record = {}) {
     domain: "general",
     source: hostOfUrl(doc.url) ?? "harvest",
     url: doc.url,
+    // The declared <html lang> is part of the document's provenance: the
+    // deterministic language backstop reads it, and the ledger must be able to
+    // audit why a document was or was not admitted.
+    htmlLang: doc.htmlLang ?? null,
     title: doc.title ?? null,
     status: doc.status ?? null,
     contentType: doc.contentType ?? null,

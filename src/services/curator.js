@@ -35,16 +35,16 @@ export class Curator {
     return this.ollama.clean(rawText);
   }
 
-  async ingestArticleText({ text, domain, source, rawText }) {
+  async ingestArticleText({ text, domain, source, rawText, sourceUrl = null, htmlLang = null }) {
     if (!text) return null;
     const data = await gql(ARTICLE_M, {
-      input: { text, domain: domain ?? "general", source, rawText },
+      input: { text, domain: domain ?? "general", source, rawText, sourceUrl, htmlLang },
     });
     return data.ingestArticle ?? null;
   }
 
   /** One raw blob in -> N articles out (cleaned by the teacher model). */
-  async processRaw(rawText, { source = "harvest", concurrency = 2, domain = "general" } = {}) {
+  async processRaw(rawText, { source = "harvest", concurrency = 2, domain = "general", sourceUrl = null, htmlLang = null } = {}) {
     const cleaned = await this.clean(rawText);
     const results = [];
     let i = 0;
@@ -59,6 +59,8 @@ export class Curator {
           domain: unit.domain ?? domain,
           source,
           rawText,
+          sourceUrl,
+          htmlLang,
         });
         results.push({ ...unit, articleId: res?.articleId ?? null, ingested: !!res });
       }
@@ -87,7 +89,12 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split(/[\\/]/).p
       continue; // tolerate non-JSONL raw files
     }
     const text = doc?.text ?? line;
-    const results = await curator.processRaw(String(text), { source, domain: doc?.domain });
+    const results = await curator.processRaw(String(text), {
+      source: doc?.source ?? source,
+      domain: doc?.domain,
+      sourceUrl: doc?.url ?? doc?.sourceUrl ?? null,
+      htmlLang: doc?.htmlLang ?? null,
+    });
     total += results.filter((r) => r.ingested).length;
   }
   console.log(`curated ${total} articles -> ${GRAPHQL_URL}`);

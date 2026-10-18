@@ -332,6 +332,7 @@ const rec = {
       // Only present when the caller supplied them, so records from the
       // GraphQL/curator path (and every existing test) stay byte-identical.
       ...(sourceUrl ? { sourceUrl } : {}),
+      ...(htmlLang ? { htmlLang } : {}),
       ...(fetchedContentHash ? { fetchedContentHash } : {}),
       ...(fetchedAt ? { fetchedAt } : {}),
       uncertainty,
