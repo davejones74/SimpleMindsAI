@@ -284,6 +284,11 @@ export const config = {
   pythonBin: env("SMA_PYTHON", null), // null => resolvePythonBin() picks the venv / PATH
   pythonStore: env("SMA_STORE", null), // null => ~/.sma/store
   studentDevice: env("SMA_DEVICE", "auto"), // auto | cpu | cuda
+  // Pin the student worker's CPU thread count (OMP/MKL/OpenBLAS/VecLib/NumExpr).
+  // 0 (default) => PyTorch's own default (24 intra-op + 24 inter-op on a 24-thread
+  // box, which oversubscribes). Set to the physical core count to reduce thread
+  // thrash during train/eval.
+  studentThreads: num("SMA_THREADS", 0),
 
   // ---- Evaluation ----
   // The bundled default baseline is `eval-002` (a broad, domain-stratified
@@ -331,6 +336,12 @@ export const config = {
   // refused. Records with no size metadata (legacy/unit) are unaffected.
   promoteEvalMinBlocks: num("PROMOTE_EVAL_MIN_BLOCKS", 8),
   promoteEvalMinTokens: num("PROMOTE_EVAL_MIN_TOKENS", 0), // 0 disables the token floor
+  // Hard deadline for ONE version loss evaluation (parent OR candidate). Unlike
+  // training (TRAIN_TIMEOUT_MS), this was previously fixed at 600s and could be
+  // exceeded on slow hardware (e.g. fp32 eval + --verify-weights on an iGPU),
+  // failing the gate closed (not_evaluated). Configurable so an operator can
+  // match it to the box's throughput.
+  promoteEvalTimeoutMs: num("PROMOTE_EVAL_TIMEOUT_MS", 600_000),
 
   // ---- Trends & Metrics (Observatory) — deterministic, threshold-based ----
   // Classification is a pure function of finite validation observations; the

@@ -72,11 +72,26 @@ export function isCommittedVersion(store, version) {
 }
 
 export function pythonEnv(store = resolveStoreRoot(), extra = {}) {
+  // Thread pinning for the student worker. SMA_THREADS>0 sets the common numeric
+  // BLAS/runtime thread env vars so PyTorch does not oversubscribe a many-thread
+  // box. 0/unset leaves PyTorch's defaults untouched.
+  const threads = Number(process.env.SMA_THREADS);
+  const pinned =
+    Number.isFinite(threads) && threads > 0
+      ? {
+          OMP_NUM_THREADS: String(threads),
+          MKL_NUM_THREADS: String(threads),
+          OPENBLAS_NUM_THREADS: String(threads),
+          VECLIB_MAXIMUM_THREADS: String(threads),
+          NUMEXPR_NUM_THREADS: String(threads),
+        }
+      : {};
   return {
     ...process.env,
     SMA_STORE: store,
     PYTHONUNBUFFERED: "1",
     PYTHONIOENCODING: "utf-8",
+    ...pinned,
     ...extra,
   };
 }

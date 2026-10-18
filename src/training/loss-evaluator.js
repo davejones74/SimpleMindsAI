@@ -66,7 +66,7 @@ export async function evaluateVersionLoss({
   device = config.studentDevice,
   seqLen = config.promoteEvalSeqLen,
   microBatch = config.promoteEvalMicroBatch,
-  timeoutMs = 600_000,
+  timeoutMs = config.promoteEvalTimeoutMs,
   error = null,
 } = {}) {
   if (error) {
