@@ -252,15 +252,25 @@ export const config = {
   studentDevice: env("SMA_DEVICE", "auto"), // auto | cpu | cuda
 
   // ---- Evaluation ----
-  evalDatasetId: env("EVAL_DATASET_ID", "eval-001"),
-  // Advisory floor on the number of held-out documents a frozen evaluation set
-  // must contain. 0 (the default) does NOT enforce it: the eval set is loaded
-  // and its size is recorded, and any shortfall is surfaced as a `warnings`
-  // entry on the run record and in the Observatory, but promotion is never
-  // blocked — the causal-LM loss gate remains the only promotion gate. Set > 0
-  // to make a too-small set warn loudly. The system ships a 5-document seed set
-  // (eval-001); a broader 19-document set (eval-002) is provided operator-side.
+  // The bundled default baseline is `eval-002` (a broad, domain-stratified
+  // English Wikipedia corpus committed under data/evaluation/). `eval-001` is
+  // the legacy 5-row seed: it is retained for backward compatibility but loss
+  // measured on it is dominated by sampling noise (~3 blocks) and must not gate
+  // promotion.
+  evalDatasetId: env("EVAL_DATASET_ID", "eval-002"),
+  // Advisory floors on a frozen evaluation set. A set smaller than the operator
+  // expects is recorded and surfaced as a `warnings` entry on the run record and
+  // in the Observatory, but promotion is never blocked — the causal-LM loss gate
+  // remains the only promotion gate. `documents` counts rows; `tokens` uses a
+  // ~4-chars/token estimate (the authoritative count is the trainer's
+  // `tokensSeen`). 0 disables a floor.
   evalMinDocuments: num("EVAL_MIN_DOCUMENTS", 0),
+  evalMinTokens: num("EVAL_MIN_TOKENS", 0),
+  // Assumed per-token cross-entropy standard deviation, used ONLY to print an
+  // ESTIMATED standard error of the mean loss (sigma / sqrt(tokensSeen)) and a
+  // 95% noise band next to each loss. It never affects the promotion decision;
+  // it exists so an operator can see when a loss difference is inside the noise.
+  evalLossTokenStd: num("EVAL_LOSS_TOKEN_STD", 3.0),
   promoteMinDelta: num("PROMOTE_MIN_DELTA", 0), // legacy token-F1 delta (supplementary only)
   promoteMinScore: num("PROMOTE_MIN_SCORE", 0), // legacy token-F1 floor (supplementary only)
 
@@ -270,7 +280,11 @@ export const config = {
   promoteMinLossDelta: num("PROMOTE_MIN_LOSS_DELTA", 0),
   promoteMaxLoss: num("PROMOTE_MAX_LOSS", Number.POSITIVE_INFINITY),
   promoteRequireFinite: bool("PROMOTE_REQUIRE_FINITE", true),
-  promoteEvalSeqLen: num("PROMOTE_EVAL_SEQ_LEN", 32),
+  // Evaluation sequence length, pinned to the training context so the eval
+  // measures the same per-token objective the model is optimised on. Changing
+  // this changes the metric signature and therefore starts a new, incomparable
+  // promotion ladder (the gate refuses cross-signature comparisons).
+  promoteEvalSeqLen: num("PROMOTE_EVAL_SEQ_LEN", 128),
   promoteEvalMicroBatch: num("PROMOTE_EVAL_MICRO_BATCH", 2),
   promoteEvalSet: env("PROMOTE_EVAL_SET", null), // frozen eval-set .jsonl path (required to compare)
 

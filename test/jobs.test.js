@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -11,6 +11,16 @@ import { runLearningCycle } from "../src/jobs/learning.js";
 import { probeTeacher } from "../src/admin/teacher.js";
 
 const tmp = () => path.join(mkdtempSync(path.join(tmpdir(), "sma-jobs-")));
+
+// The supervisor's pause/wait gates (src/jobs/supervisor.js #holdGate/#gate)
+// schedule with `unref()`'d timers, so a test that awaits a paused boundary can
+// leave the event loop empty — node:test then treats the still-pending subtest as
+// `cancelledByParent` instead of letting it finish. Hold a referenced timer for
+// the lifetime of this file so the loop never drains mid-test; it is cleared when
+// the file's tests complete, so the runner still exits normally.
+let keepAlive;
+before(() => { keepAlive = setInterval(() => {}, 1000); });
+after(() => { clearInterval(keepAlive); });
 
 const EVAL_SEED = [
   { promptId: "q1", prompt: "Capital of France?", completion: "Paris is the capital of France." },

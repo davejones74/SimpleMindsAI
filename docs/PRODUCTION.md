@@ -499,6 +499,23 @@ OLLAMA_FIXTURE=false
 # --- Python compute plane store ---------------------------------------------------
 SMA_STORE=/var/lib/simpleminds/store
 
+# --- Evaluation baseline (the frozen promotion gate) ------------------------------
+# eval-002 is the bundled, domain-stratified English Wikipedia corpus committed at
+# data/evaluation/eval-002.jsonl (~60 docs, tens of thousands of tokens). It ships
+# with the checkout; on first load the Node plane copies it into EVALUATION_DIR and
+# freezes a manifest. The legacy eval-001 seed (5 Q/A rows, ~105 tokens) is noise-
+# dominated and must not gate promotion. PROMOTE_EVAL_SEQ_LEN is pinned to
+# TRAIN_SEQ_LEN so eval measures the same objective training optimises.
+EVAL_DATASET_ID=eval-002
+PROMOTE_EVAL_SET=/var/lib/simpleminds/data/evaluation/eval-002.jsonl
+PROMOTE_EVAL_SEQ_LEN=128
+PROMOTE_EVAL_MICRO_BATCH=1
+PROMOTE_MIN_LOSS_DELTA=0
+# Advisory only; never blocks promotion. Recommended: set EVAL_MIN_TOKENS=20000 so
+# a return to a tiny evaluation set warns loudly on the run record and in the UI.
+EVAL_MIN_DOCUMENTS=0
+EVAL_MIN_TOKENS=20000
+
 # --- Perpetual loop ---------------------------------------------------------------
 PERPETUAL_CYCLES=1
 PERPETUAL_IDLE_MS=10000

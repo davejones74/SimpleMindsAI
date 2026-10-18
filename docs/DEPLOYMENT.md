@@ -283,7 +283,10 @@ most relevant to deployment:
 | `CRAWL_SEARCH_ENDPOINT` / `CRAWL_SEARCH_PROVIDER` / `CRAWL_SEARCH_QUERY_PARAM` / `CRAWL_SEARCH_QUERIES` | (empty) | Optional search-provider adapter; active only when an endpoint is set. No credentialed provider is required. |
 | `CRITIC_TEMPERATURE` | `0.1` | Critic sampling temperature; recorded with every review. The Phase 7 experiment retained `0.5` in `.env` (verdicts stable; see [PHASE7_REPORT.md](PHASE7_REPORT.md#critic-temperature-experiment)). |
 | `CRITIC_PROMPT_VERSION` | `critic-prompt-v1` | Operator-managed label for the critic prompt wording; recorded with every review. Bump it when the prompt changes. |
-| `EVAL_MIN_DOCUMENTS` | `0` | Advisory floor on frozen-eval-set size. Non-enforcing by default. |
+| `EVAL_DATASET_ID` | `eval-002` | Frozen evaluation set id. `eval-002` is the bundled, domain-stratified Wikipedia baseline; `eval-001` is the legacy 5-row seed. |
+| `EVAL_MIN_DOCUMENTS` | `0` | Advisory floor on frozen-eval-set size (documents). Non-enforcing by default. |
+| `EVAL_MIN_TOKENS` | `0` | Advisory floor on frozen-eval-set size, by a ~4-chars/token estimate. Non-enforcing; recommended `20000` so a return to a tiny set warns loudly. |
+| `PROMOTE_EVAL_SEQ_LEN` | `128` | Eval block length, pinned to `TRAIN_SEQ_LEN`. Changing it changes the metric signature and starts a new, incomparable promotion ladder. |
 | `JOBS_MAX_RUNTIME_MS` | `0` | Wall-clock bound for a job; `0` is unbounded. A job past it ends `max-runtime`. |
 | `LEARNING_NO_PROGRESS_CYCLES` | `5` | Consecutive no-progress learning cycles before the job ends `no-progress`. |
 | `TRAIN_MAX_CONSECUTIVE_REJECTIONS` | `5` | Consecutive rejected training candidates before the supervisor logs the `repeated-rejection` phase and keeps waiting for new material (continuous training never stops on rejections). `0` disables the guard. |

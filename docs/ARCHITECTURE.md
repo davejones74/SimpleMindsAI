@@ -103,7 +103,7 @@ following groups:
 | Teacher client | `src/services/ollama-client.js` | Talks to Ollama. Teacher/critic only. |
 | Domain | `src/domain/article.js`, `src/domain/review-policy.js` | Authoritative article lifecycle and importance, and the review-policy rules for autonomous selection and teacher/human transitions. |
 | Storage | `src/storage/article-store.js`, `src/storage/registry-store.js` | The authoritative `Article` ledger, and the append-only registry (ledger + `RUN.lock`). A legacy pair-buffer is detect-only. |
-| Dataset | `src/dataset/snapshot.js`, `src/dataset/evaluation-set.js` | Immutable, hash-sealed snapshots, and the frozen, leak-guarded evaluation set. |
+| Dataset | `src/dataset/snapshot.js`, `src/dataset/evaluation-set.js` | Immutable, hash-sealed snapshots, and the frozen, leak-guarded evaluation set (bundled baseline `data/evaluation/eval-002.jsonl`). See [Evaluation baseline](#evaluation-baseline-the-frozen-gate). |
 | Training orchestration | `src/training/lifecycle.js`, `src/training/trainer-interface.js`, `src/training/evaluator.js`, `src/training/model-handle.js`, `src/training/loss-evaluator.js`, `src/training/python-promotion.js`, `src/training/python-trainer.js` | Lifecycle, the trainer selector (real Python CausalLM trainer by default; the stub is a legacy, explicitly opt-in path via `TRAINER_KIND=stub`), the legacy evaluator, and the authoritative causal-LM loss gate that drives promotion. |
 | Brain / chat / reward | `src/brain/brain.js`, `src/brain/python-cli.js`, `src/brain/student-worker.js`, `src/chat/`, `src/reward/` | The Python CLI bridge, the student worker owner, the chat server, and the advisory reward scorer. |
 | Curriculum | `src/curriculum/validation.js` | The deterministic gate every LLM-proposed curriculum must pass. |
@@ -234,6 +234,43 @@ Key boundary rules:
   final say.
 - A committed version is immutable and append-only. `active.json` is the only
   mutable pointer, and it is a deployment concept, never part of a manifest.
+
+### Evaluation baseline (the frozen gate)
+
+The causal-LM loss gate is the *only* promotion gate, so the frozen evaluation
+set decides whether a promotion is signal or noise. The set is packed into
+`PROMOTE_EVAL_SEQ_LEN`-token blocks and scored by `mean_cross_entropy`
+(`python/sma/train.py`), which drops the trailing partial block — so a set of
+`N` tokens yields `floor(N / seqLen)` scored blocks.
+
+The shipped baseline is **`eval-002`**: a broad, domain-stratified English
+Wikipedia corpus committed at `data/evaluation/eval-002.jsonl` (~60 documents,
+tens of thousands of tokens). It exists because the legacy `eval-001` seed (5
+short Q/A rows, ~105 tokens → 3 blocks) makes the standard error of the mean
+loss comparable to the differences being measured, so promotions there turn on
+sampling noise. `EVAL_DATASET_ID=eval-002` is the default; an explicit in-process
+seed still wins over the bundled file (tests use this), and `eval-001` remains
+available for backward compatibility.
+
+Three things keep the ladder comparable:
+
+- **`PROMOTE_EVAL_SEQ_LEN` is pinned to `TRAIN_SEQ_LEN` (128)**, so evaluation
+  measures the same per-token objective training optimises. `metricSignature`
+  (`src/training/loss-evaluator.js`) folds the dataset hash, tokenizer hash,
+  packing strategy, sequence length, micro-batch and dtype into the comparison;
+  a candidate whose signature differs from its parent is **incomparable** and
+  cannot be promoted.
+- **A freeze manifest** (`<datasetId>.manifest.json`) records the set's version,
+  size, token estimate, domain mix, article ids/hashes and metric parameters on
+  first load. A later load that finds the file drifted (or the metric parameters
+  changed) emits an advisory `eval-set-drifted` / `eval-metric-changed` warning.
+- **Advisory floors** (`EVAL_MIN_DOCUMENTS`, `EVAL_MIN_TOKENS`) surface a set
+  that is too small as a run-record warning and in the Observatory. They never
+  block loading, evaluation or promotion.
+
+The bundled corpus is generated deterministically by
+`scripts/build-eval-set.mjs`. Never edit a frozen set in place: that invalidates
+the comparability of every score recorded against it.
 
 ---
 

@@ -1,10 +1,18 @@
 import { existsSync, createReadStream } from "node:fs";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, writeFile, readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import readline from "node:readline";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { config } from "../config.js";
 import { contentHash } from "../domain/article.js";
+
+const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
+// The bundled, immutable corpora committed under data/evaluation/ (e.g.
+// eval-002). When the configured evaluation directory has no copy of the
+// requested dataset, the loader seeds from here and freezes the local copy, so
+// every deployment evaluates against the exact same, reviewable documents.
+const BUNDLED_EVAL_DIR = path.join(REPO_ROOT, "data", "evaluation");
 
 /**
  * Immutable evaluation set.
@@ -45,13 +53,19 @@ async function readLines(file) {
 /**
  * Load (or first-time seed and freeze) the evaluation set.
  * `seed` returns rows [{articleId?, text?, prompt?, completion?, domain}]; it is
- * consulted only when the file is absent — afterwards the file is authoritative.
+ * consulted only when neither the local file nor the bundled copy exists —
+ * afterwards the file is authoritative.
  */
-export async function loadEvaluationSet({ dir = config.paths.evaluation, datasetId = config.evalDatasetId, seed = null, minDocuments = config.evalMinDocuments } = {}) {
+export async function loadEvaluationSet({ dir = config.paths.evaluation, datasetId = config.evalDatasetId, seed = null, minDocuments = config.evalMinDocuments, minTokens = config.evalMinTokens } = {}) {
   await mkdir(dir, { recursive: true });
   const file = path.join(dir, `${datasetId}.jsonl`);
   let items = await readLines(file);
+  let source = "local";
+  // Precedence: the local frozen file, then an explicit in-process seed (tests,
+  // and the legacy eval-001 Q/A seed), then the bundled corpus committed in the
+  // repo. The bundled corpus is only reached when the caller supplies no seed.
   if (!items.length && seed) {
+    source = "seed";
     items = (await seed()).map((r, i) => ({
       articleId: r.articleId ?? `ev_${datasetId}_${i + 1}`,
       promptId: r.promptId ?? r.articleId ?? `ev_${datasetId}_${i + 1}`,
@@ -63,26 +77,101 @@ export async function loadEvaluationSet({ dir = config.paths.evaluation, dataset
     }));
     await writeFile(file, items.map((r) => JSON.stringify(r)).join("\n") + "\n", "utf8");
   }
+  if (!items.length) {
+    const bundled = await readLines(path.join(BUNDLED_EVAL_DIR, `${datasetId}.jsonl`));
+    if (bundled.length) {
+      items = bundled;
+      source = "bundled";
+      await writeFile(file, items.map((r) => JSON.stringify(r)).join("\n") + "\n", "utf8");
+    }
+  }
   const content = items.map((r) => evalText(r)).join("\n");
   const datasetVersion = createHash("sha256").update(content, "utf8").digest("hex").slice(0, 12);
   const hashes = new Set(items.map((r) => contentHash(evalText(r))));
-  // Advisory ONLY. `EVAL_MIN_DOCUMENTS` records that a frozen set is smaller
-  // than the operator expects; it never blocks loading, evaluation or
-  // promotion (the loss gate is the only promotion gate). 0 disables it.
-  const configured = Number(minDocuments);
-  const floor = Number.isFinite(configured) && configured > 0 ? configured : 0;
+  const charCount = items.reduce((n, r) => n + evalText(r).length, 0);
+  // ~4 chars/token is an ESTIMATE for the advisory floor; the authoritative
+  // token count is the trainer's `tokensSeen`, recorded on the evaluation.
+  const estimatedTokens = Math.round(charCount / 4);
+  const domains = items.reduce((m, r) => ((m[r.domain ?? "general"] = (m[r.domain ?? "general"] ?? 0) + 1), m), {});
+
   const warnings = [];
-  if (floor > 0 && items.length < floor) {
+  const docFloor = Number.isFinite(Number(minDocuments)) && Number(minDocuments) > 0 ? Number(minDocuments) : 0;
+  const tokenFloor = Number.isFinite(Number(minTokens)) && Number(minTokens) > 0 ? Number(minTokens) : 0;
+  if (docFloor > 0 && items.length < docFloor) {
     warnings.push({
       code: "eval-set-undersized",
       severity: "advisory",
       datasetId,
       size: items.length,
-      minDocuments: floor,
-      message: `frozen evaluation set '${datasetId}' holds ${items.length} document(s), below the advisory minimum of ${floor}; evaluation and promotion are unaffected`,
+      minDocuments: docFloor,
+      message: `frozen evaluation set '${datasetId}' holds ${items.length} document(s), below the advisory minimum of ${docFloor}; evaluation and promotion are unaffected`,
     });
   }
-  return { datasetId, datasetVersion, file, items, hashes, size: items.length, evalText, minDocuments: floor, warnings };
+  if (tokenFloor > 0 && estimatedTokens < tokenFloor) {
+    warnings.push({
+      code: "eval-set-undertokens",
+      severity: "advisory",
+      datasetId,
+      estimatedTokens,
+      minTokens: tokenFloor,
+      message: `frozen evaluation set '${datasetId}' is ~${estimatedTokens} tokens (est.), below the advisory minimum of ${tokenFloor}; loss on a small set is dominated by sampling noise — use the bundled 'eval-002' baseline`,
+    });
+  }
+
+  // Freeze manifest: the identity that makes the whole promotion ladder
+  // comparable. Written once; a later load that observes drift warns loudly.
+  const metric = {
+    metric: "causal-cross-entropy",
+    strategy: config.packStrategy ?? "concatenate-chunk-v1",
+    sequenceLength: config.promoteEvalSeqLen,
+    microBatch: config.promoteEvalMicroBatch,
+    computeDtype: "float32",
+  };
+  const manifest = {
+    datasetId,
+    datasetVersion,
+    size: items.length,
+    charCount,
+    estimatedTokens,
+    domains,
+    articleIds: items.map((r) => r.articleId ?? null),
+    contentHashes: items.map((r) => contentHash(evalText(r))),
+    metric,
+    source,
+    createdAt: new Date().toISOString(),
+  };
+  const manifestFile = path.join(dir, `${datasetId}.manifest.json`);
+  if (!existsSync(manifestFile)) {
+    await writeFile(manifestFile, JSON.stringify(manifest, null, 2) + "\n", "utf8");
+  } else {
+    try {
+      const prior = JSON.parse(await readFile(manifestFile, "utf8"));
+      if (prior.datasetVersion && prior.datasetVersion !== datasetVersion) {
+        warnings.push({
+          code: "eval-set-drifted",
+          severity: "advisory",
+          datasetId,
+          expectedVersion: prior.datasetVersion,
+          actualVersion: datasetVersion,
+          message: `frozen evaluation set '${datasetId}' no longer matches its manifest (${prior.datasetVersion} -> ${datasetVersion}); scores before and after this change are not comparable`,
+        });
+      }
+      if (prior.metric && JSON.stringify(prior.metric) !== JSON.stringify(metric)) {
+        warnings.push({
+          code: "eval-metric-changed",
+          severity: "advisory",
+          datasetId,
+          expected: prior.metric,
+          actual: metric,
+          message: `evaluation metric parameters for '${datasetId}' changed; the promotion gate treats cross-signature comparisons as incomparable`,
+        });
+      }
+    } catch {
+      /* unreadable manifest: fall through without warning */
+    }
+  }
+
+  return { datasetId, datasetVersion, file, items, hashes, size: items.length, charCount, estimatedTokens, domains, evalText, minDocuments: docFloor, minTokens: tokenFloor, manifest, warnings };
 }
 
 /** Guard that keeps the evaluation set OUT of anything else. */

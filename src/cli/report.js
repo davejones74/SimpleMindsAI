@@ -27,7 +27,10 @@ export function renderRunReport(run, { registry = null } = {}) {
 
   const evalCell = (er) => {
     if (!er) return "—";
-    if (er.loss != null) return `loss ${er.loss.toFixed(2)} (${er.version ?? "?"})`;
+    if (er.loss != null) {
+      const se = er.lossStdErr != null ? ` ±${er.lossStdErr.toFixed(4)}` : "";
+      return `loss ${er.loss.toFixed(2)}${se} (${er.version ?? "?"})`;
+    }
     const score = er.score100 ?? er.score;
     return score == null ? "—" : `${er.evalRunId ?? "?"}  ${score.toFixed(1)}`;
   };
@@ -36,6 +39,9 @@ export function renderRunReport(run, { registry = null } = {}) {
   push("baseline", evalCell(base));
   push("trained", evalCell(trained));
   push("delta", run.evaluationDelta == null ? "—" : `${run.evaluationDelta > 0 ? "+" : ""}${run.evaluationDelta.toFixed(2)}`);
+  if (run.promotionNoiseBand != null) {
+    push("noise ±95%", run.promotionNoiseBand.toFixed(4) + (Math.abs(run.evaluationDelta ?? 0) < run.promotionNoiseBand ? "  (delta within noise)" : ""));
+  }
   L.push(`  decision      ${run.promotionStatus === "promoted" ? "PROMOTED" : run.promotionStatus === "rejected" ? "REJECTED" : run.promotionStatus}`);
 
   const notes = run.trainerNotes;

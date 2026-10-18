@@ -1,8 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, existsSync } from "node:fs";
+import { writeFile, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { config } from "../src/config.js";
 import { RegistryStore } from "../src/storage/registry-store.js";
 import { ArticleStore } from "../src/storage/article-store.js";
 import { buildSnapshot, collectRowsFromArticles, snapshotRowReader, rowForArticle } from "../src/dataset/snapshot.js";
@@ -221,4 +223,65 @@ test("evaluation set: the minimum-documents floor is advisory and off by default
   // A set that meets the floor warns about nothing.
   const ok = await loadEvaluationSet({ dir: tmpDir(), seed, minDocuments: 1 });
   assert.deepEqual(ok.warnings, []);
+});
+
+test("evaluation set: the bundled corpus seeds an empty directory when no seed is given", async () => {
+  const dir = tmpDir();
+  const set = await loadEvaluationSet({ dir, datasetId: "eval-002" });
+  assert.equal(set.manifest.source, "bundled");
+  assert.ok(set.size >= 50, `expected the bundled baseline to be broad, got ${set.size}`);
+  assert.ok(set.estimatedTokens >= 20000, `expected a large token estimate, got ${set.estimatedTokens}`);
+  // A local, frozen copy is written so this deployment stays on the shipped hash.
+  assert.ok(existsSync(path.join(dir, "eval-002.jsonl")));
+  assert.ok(existsSync(path.join(dir, "eval-002.manifest.json")));
+  assert.equal(set.domains.history > 0, true);
+
+  // Reloading the SAME directory is byte-stable: same version, no warnings.
+  const again = await loadEvaluationSet({ dir, datasetId: "eval-002" });
+  assert.equal(again.datasetVersion, set.datasetVersion);
+  assert.deepEqual(again.warnings, []);
+});
+
+test("evaluation set: an explicit seed wins over the bundled corpus", async () => {
+  const set = await loadEvaluationSet({ dir: tmpDir(), datasetId: "eval-002", seed: () => [{ text: "SEEDED ROW" }] });
+  assert.equal(set.size, 1);
+  assert.equal(set.manifest.source, "seed");
+});
+
+test("evaluation set: the token floor is advisory and never fails closed", async () => {
+  const seed = () => [{ text: "A SHORT EVAL DOCUMENT", domain: "general" }];
+  const warned = await loadEvaluationSet({ dir: tmpDir(), seed, minTokens: 1000 });
+  assert.equal(warned.size, 1);
+  const codes = warned.warnings.map((w) => w.code);
+  assert.deepEqual(codes, ["eval-set-undertokens"]);
+  assert.equal(warned.warnings[0].severity, "advisory");
+  assert.match(warned.warnings[0].message, /sampling noise/);
+
+  const quiet = await loadEvaluationSet({ dir: tmpDir(), seed, minTokens: 0 });
+  assert.deepEqual(quiet.warnings, []);
+});
+
+test("evaluation set: a frozen set that drifts from its manifest warns", async () => {
+  const dir = tmpDir();
+  const first = await loadEvaluationSet({ dir, datasetId: "eval-002" });
+  // Corrupt the frozen file (append a row) and reload: the identity no longer
+  // matches the manifest, so the change is surfaced rather than silently scored.
+  const file = path.join(dir, "eval-002.jsonl");
+  await writeFile(file, (await readFile(file, "utf8")) + JSON.stringify({ articleId: "drift", text: "DRIFTED", domain: "general" }) + "\n", "utf8");
+  const drifted = await loadEvaluationSet({ dir, datasetId: "eval-002" });
+  assert.notEqual(drifted.datasetVersion, first.datasetVersion);
+  assert.ok(drifted.warnings.some((w) => w.code === "eval-set-drifted"));
+});
+
+test("evaluation set: a metric-parameter change is surfaced against the manifest", async () => {
+  const dir = tmpDir();
+  await loadEvaluationSet({ dir, datasetId: "eval-002" });
+  const prev = config.promoteEvalSeqLen;
+  config.promoteEvalSeqLen = prev + 64;
+  try {
+    const changed = await loadEvaluationSet({ dir, datasetId: "eval-002" });
+    assert.ok(changed.warnings.some((w) => w.code === "eval-metric-changed"));
+  } finally {
+    config.promoteEvalSeqLen = prev;
+  }
 });

@@ -533,12 +533,31 @@ export async function executeFullRun({
       examplesProcessed: trainingResult.recordsProcessed ?? snapshot.manifest.recordCount,
       examplesSkipped: Math.max(0, rows.length - snapshot.manifest.recordCount),
       baselineEvaluation: pythonMode
-        ? { loss: baselineResult.loss, datasetHash: baselineResult.datasetHash, version: pythonBaseline.version }
+        ? {
+            loss: baselineResult.loss,
+            datasetHash: baselineResult.datasetHash,
+            version: pythonBaseline.version,
+            lossStdErr: estimatedLossStdErr(baselineResult.evaluationSet?.tokensSeen),
+          }
         : { evalRunId: baselineResult.evalRunId, score: baselineResult.score, score100: baselineResult.score100 },
       trainedEvaluation: pythonMode
-        ? { loss: candidateResult.loss, datasetHash: candidateResult.datasetHash, version: trainingResult.version }
+        ? {
+            loss: candidateResult.loss,
+            datasetHash: candidateResult.datasetHash,
+            version: trainingResult.version,
+            lossStdErr: estimatedLossStdErr(candidateResult.evaluationSet?.tokensSeen),
+          }
         : { evalRunId: candidateResult.evalRunId, score: candidateResult.score, score100: candidateResult.score100 },
       evaluationDelta: pythonMode ? decision.improvement : decision.delta,
+      // A conservative 95% band for the loss DIFFERENCE (independent estimates):
+      // ~1.96 * sqrt(SE_base^2 + SE_cand^2). Reported only; the gate ignores it.
+      promotionNoiseBand: pythonMode
+        ? (() => {
+            const sb = estimatedLossStdErr(baselineResult.evaluationSet?.tokensSeen);
+            const sc = estimatedLossStdErr(candidateResult.evaluationSet?.tokensSeen);
+            return sb != null && sc != null ? 1.96 * Math.sqrt(sb * sb + sc * sc) : null;
+          })()
+        : null,
       evaluationWarnings: evalSet.warnings ?? [],
       activatedVersion: pythonMode && decision.decision === "promoted" ? trainingResult.version : null,
       // Run linkage: Node run -> frozen dataset -> Python execution -> committed
@@ -781,6 +800,21 @@ async function completePromotion({
  * a record-writing failure must never fail an otherwise valid run — the run's
  * own manifest and model event remain the authoritative evidence.
  */
+/**
+ * ESTIMATED standard error of the mean per-token loss: sigma / sqrt(tokens).
+ *
+ * The frozen eval set packs into whole `seqLen` blocks and only the token count
+ * is recorded, so a true per-block standard error is not available here. This is
+ * a deliberately conservative estimate that makes the noise floor visible in the
+ * run record and the report; it NEVER changes the promotion decision.
+ */
+export function estimatedLossStdErr(tokensSeen, sigma = config.evalLossTokenStd) {
+  const n = Number(tokensSeen);
+  const s = Number(sigma);
+  if (!Number.isFinite(n) || n <= 0 || !Number.isFinite(s) || s <= 0) return null;
+  return s / Math.sqrt(n);
+}
+
 async function recordPythonEvaluation(registry, { runId, kind, version, modelId = null, result, evalSet }) {
   if (!registry || typeof registry.recordEvaluation !== "function") return null;
   const evaluationSet = result?.evaluationSet ?? null;
@@ -808,6 +842,7 @@ async function recordPythonEvaluation(registry, { runId, kind, version, modelId 
       documentCount: evaluationSet?.documentCount ?? null,
       blockCount: evaluationSet?.blockCount ?? null,
       tokensSeen: evaluationSet?.tokensSeen ?? null,
+      lossStdErr: estimatedLossStdErr(evaluationSet?.tokensSeen),
       evaluationSetId: evalSet?.datasetId ?? null,
       evaluationSetVersion: evalSet?.datasetVersion ?? null,
       evaluationSetHash: evalSet?.contentHash ?? null,

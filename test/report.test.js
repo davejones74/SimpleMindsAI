@@ -55,3 +55,15 @@ test("renderRunReport shows em-dashes when evaluations are absent", () => {
   assert.match(text, /trained\s+—/);
   assert.match(text, /delta\s+—/);
 });
+test("renderRunReport shows the estimated standard error and the 95% noise band", () => {
+  const run = baseRun({
+    baselineEvaluation: { loss: 8.14, datasetHash: "h1", version: "v046", lossStdErr: 0.0125 },
+    trainedEvaluation: { loss: 8.20, datasetHash: "h1", version: "v053", lossStdErr: 0.0125 },
+    evaluationDelta: -0.06,
+    promotionNoiseBand: 0.0700,
+  });
+  const text = renderRunReport(run);
+  assert.match(text, /baseline\s+loss 8\.14 ±0\.0125 \(v046\)/);
+  assert.match(text, /trained\s+loss 8\.20 ±0\.0125 \(v053\)/);
+  assert.match(text, /noise ±95%\s+0\.0700\s+\(delta within noise\)/);
+});

@@ -6,7 +6,7 @@ import path from "node:path";
 import { RegistryStore } from "../src/storage/registry-store.js";
 import { ArticleStore } from "../src/storage/article-store.js";
 import { stubTrainer } from "../src/training/trainer-interface.js";
-import { executeFullRun } from "../src/training/lifecycle.js";
+import { executeFullRun, estimatedLossStdErr } from "../src/training/lifecycle.js";
 import { config } from "../src/config.js";
 
 const tmp = () => path.join(mkdtempSync(path.join(tmpdir(), "sma-")));
@@ -387,4 +387,16 @@ test("an incremental run is refused when backfill yields no fresh material", asy
     await store.close();
     await registry.close();
   }
+});
+
+test("estimatedLossStdErr shrinks with more tokens and is null without them", () => {
+  // sigma / sqrt(tokens)
+  assert.equal(estimatedLossStdErr(40000, 3), 3 / 200);
+  assert.ok(estimatedLossStdErr(58776, 3) < 0.015);
+  // A 105-token set is noise-dominated: the estimate is large.
+  assert.ok(estimatedLossStdErr(105, 3) > 0.25);
+  // Missing / invalid inputs yield no estimate rather than NaN.
+  assert.equal(estimatedLossStdErr(null, 3), null);
+  assert.equal(estimatedLossStdErr(0, 3), null);
+  assert.equal(estimatedLossStdErr(1000, 0), null);
 });

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import express from "express";
 import { createDomainRegistry } from "../src/storage/domain-registry.js";
 import { attachAdmin } from "../src/admin/routes.js";
@@ -181,9 +182,9 @@ test("domains API: 503 when no registry is wired (not a fabricated empty list)",
  * reachable only through `loadSources()`, which always passes an object.
  */
 test("sources UI: the tab is rendered only from loaded API state", async () => {
-  const html = await import("node:fs/promises").then((fs) =>
-    fs.readFile("E:/Development/Repositories/SimpleMindsAI/src/admin/public/app.js", "utf8"),
-  );
+  // Resolve the shipped SPA from the repo, not a machine-specific absolute path.
+  const appJs = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "src", "admin", "public", "app.js");
+  const html = await import("node:fs/promises").then((fs) => fs.readFile(appJs, "utf8"));
 
   // `render()` must NOT call renderSources: it runs before any state exists.
   assert.ok(

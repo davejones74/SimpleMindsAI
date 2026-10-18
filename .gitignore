@@ -54,7 +54,12 @@ models/**/*.pt
 models/**/tokenizer.json
 
 ### Runtime data ###
-data/
+data/**
+# ...except the bundled, immutable evaluation corpora: they are the frozen
+# promotion baseline and must ship with the code so every deployment scores
+# candidates on the identical documents.
+!data/evaluation/
+!data/evaluation/*.jsonl
 .env
 *.log
 
