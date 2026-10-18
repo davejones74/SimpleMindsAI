@@ -14,6 +14,9 @@
  * unsafe fetch.
  */
 
+import { STOPWORDS } from "./tokens.js";
+import { deriveCorpusQueries } from "./keyphrases.js";
+
 /** Query shapes applied to each extracted topic, most specific first. */
 export const MISSION_QUERY_TEMPLATES = Object.freeze([
   "{topic}",
@@ -21,22 +24,6 @@ export const MISSION_QUERY_TEMPLATES = Object.freeze([
   "{topic} history",
   "how {topic} works",
 ]);
-
-// Standard English function words, plus mission-boilerplate adverbs/adjectives
-// that describe HOW the mission is pursued rather than WHAT it is about. Filtering
-// the boilerplate keeps derived topics on-subject (e.g. "human language" rather
-// than "accurately"). All lowercase.
-const STOPWORDS = new Set(
-  (
-    "a an the to of in on for and or nor but if then than that this these those is are was were be been being am do does did doing have has had having " +
-    "it its as at by from into over under with without within about against between during before after above below up down out off again further once here there " +
-    "all any both each few more most other some such no not only own same so too very can could may might must shall should will would i you he she they we me him her them us who whom which what when where why how " +
-    "accurately seamlessly continually meaningfully ethically objectively culturally adaptively securely safely clearly simply fully truly deeply widely " +
-    "aligned enable enables enabling enabled ensure ensures ensuring ensuring remain remains remaining through across toward towards based"
-  )
-    .split(/\s+/)
-    .filter(Boolean),
-);
 
 /** Content words (lowercased, length >= 3, not stopwords/numbers) in order. */
 function contentWords(text) {
@@ -106,21 +93,40 @@ export function deriveMissionQueries(missionTexts, { max = 8, templates = MISSIO
 
 /**
  * The EFFECTIVE search-query list. Configured queries come first and are never
- * dropped; when mission queries are enabled, derived queries are appended
- * (de-duplicated) up to `max` derived entries. Flag OFF ⇒ configured list only.
+ * dropped; when mission queries are enabled, mission-derived queries are
+ * appended; when corpus queries are enabled, reviewed-corpus keyphrases are
+ * appended. All de-duplicated, in that order. Flags OFF ⇒ only what is configured.
  *
- * @param {{configured?: string[], missionTexts?: string|string[], enabled?: boolean, max?: number}} [opts]
+ * @param {object} [opts]
+ * @param {string[]} [opts.configured]
+ * @param {string|string[]} [opts.missionTexts]
+ * @param {boolean} [opts.enabled]
+ * @param {number} [opts.max]
+ * @param {string|string[]} [opts.corpusTexts]
+ * @param {boolean} [opts.corpusQueriesEnabled]
+ * @param {number} [opts.corpusQueryMax]
+ * @param {number} [opts.corpusQueryMinFreq]
  * @returns {string[]}
  */
-export function resolveSearchQueries({ configured = [], missionTexts = [], enabled = false, max } = {}) {
+export function resolveSearchQueries({
+  configured = [],
+  missionTexts = [],
+  enabled = false,
+  max,
+  corpusTexts = [],
+  corpusQueriesEnabled = false,
+  corpusQueryMax = 20,
+  corpusQueryMinFreq = 2,
+} = {}) {
   const base = [...configured];
-  if (!enabled) return base;
   const seen = new Set(base);
-  for (const q of deriveMissionQueries(missionTexts, { max })) {
-    if (!seen.has(q)) {
+  const push = (q) => {
+    if (q && !seen.has(q)) {
       seen.add(q);
       base.push(q);
     }
-  }
+  };
+  if (enabled) for (const q of deriveMissionQueries(missionTexts, { max })) push(q);
+  if (corpusQueriesEnabled) for (const q of deriveCorpusQueries(corpusTexts, { max: corpusQueryMax, minFreq: corpusQueryMinFreq })) push(q);
   return base;
 }

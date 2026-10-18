@@ -503,6 +503,13 @@ export const config = {
   // field. NEVER a rejection rule — a low score only deprives the article of a
   // positive review-selection hint. OFF by default.
   missionRelevanceEnabled: bool("MISSION_RELEVANCE_ENABLED", false),
+  // Corpus keyphrase queries (P4 keyphrase generator): mine the REVIEWED corpus
+  // for recurring multi-word phrases (src/discovery/keyphrases.js) and append
+  // them as additional search queries. Advisory only — same policy/registry path
+  // as every other adapter candidate. OFF by default.
+  corpusQueriesEnabled: bool("CORPUS_QUERIES_ENABLED", false),
+  corpusQueryMax: num("CORPUS_QUERY_MAX", 20),
+  corpusQueryMinFreq: num("CORPUS_QUERY_MIN_FREQ", 2),
 
   // ---- Language filter (deterministic, ON by default) ----
   // A document-level English-language gate. This is NOT a domain blacklist and

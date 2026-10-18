@@ -48,6 +48,10 @@ export class DiscoveryService {
     missionTexts = [],
     missionQueriesEnabled = config.missionQueriesEnabled,
     missionQueryMax = config.missionQueryMax,
+    corpusTexts = [],
+    corpusQueriesEnabled = config.corpusQueriesEnabled,
+    corpusQueryMax = config.corpusQueryMax,
+    corpusQueryMinFreq = config.corpusQueryMinFreq,
     languagePrior = config.discoveryLanguagePrior,
   } = {}) {
     this.frontier = frontier ?? new Frontier({ dir: config.paths.frontier });
@@ -82,6 +86,10 @@ export class DiscoveryService {
     // is off (default) `searchQueries` is exactly CRAWL_SEARCH_QUERIES.
     this.missionTexts = missionTexts;
     this.missionQueriesEnabled = Boolean(missionQueriesEnabled);
+    // Corpus keyphrase queries (P4 keyphrase generator): mine the REVIEWED corpus
+    // for recurring phrases. Advisory, appended after mission queries.
+    this.corpusTexts = (corpusTexts ?? []).filter((t) => typeof t === "string" && t.trim());
+    this.corpusQueriesEnabled = Boolean(corpusQueriesEnabled);
     // Discovery language prior (P4): advisory classification of foreign-language
     // hosts, independent of the ingest filter. Default `warn` (count only).
     this.languagePrior = DISCOVERY_LANGUAGE_PRIORS.includes(languagePrior) ? languagePrior : "warn";
@@ -90,6 +98,10 @@ export class DiscoveryService {
       missionTexts: this.missionTexts,
       enabled: this.missionQueriesEnabled,
       max: missionQueryMax,
+      corpusTexts: this.corpusTexts,
+      corpusQueriesEnabled: this.corpusQueriesEnabled,
+      corpusQueryMax,
+      corpusQueryMinFreq,
     });
     this.adapters = adapters ?? buildAdapters({ fetchText: this.fetchText, opts: { searchQueries: this.searchQueries } });
   }
@@ -104,6 +116,7 @@ export class DiscoveryService {
       adapters: this.adapters.map((a) => a.name),
       searchQueries: this.searchQueries.length,
       missionQueriesEnabled: this.missionQueriesEnabled,
+      corpusQueriesEnabled: this.corpusQueriesEnabled,
       languagePrior: this.languagePrior,
     };
   }

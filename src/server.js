@@ -100,7 +100,22 @@ const frontier = new Frontier({ dir: config.paths.frontier });
   // Advisory mission relevance: feed the active mission(s) to the store so
   // ingested articles get a lexical relevance score when MISSION_RELEVANCE_ENABLED.
   store.setMissionContext({ missionTexts: activeMissionTexts });
-  const discovery = config.crawlMode === "real" ? new DiscoveryService({ frontier, missionTexts: activeMissionTexts }) : null;
+  // Reviewed corpus → keyphrase queries (CORPUS_QUERIES_ENABLED). A bounded sweep
+  // of REVIEWED articles; empty on a fresh store, so derivation just yields none.
+  const reviewedCorpusTexts = [];
+  {
+    let after = null;
+    for (let page = 0; page < 50; page++) {
+      const p = store.articlesPage({ after, status: "REVIEWED", limit: 200 });
+      for (const a of p.items) if (a.text) reviewedCorpusTexts.push(a.text);
+      if (!p.nextCursor) break;
+      after = p.nextCursor;
+    }
+  }
+  const discovery =
+    config.crawlMode === "real"
+      ? new DiscoveryService({ frontier, missionTexts: activeMissionTexts, corpusTexts: reviewedCorpusTexts })
+      : null;
 
   const supervisor = new JobSupervisor({
     store,
