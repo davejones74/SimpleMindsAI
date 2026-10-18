@@ -398,24 +398,30 @@ export class RegistryStore {
       if (err.code !== "EEXIST") throw err;
       if (attempt >= 3) return false; // pathological churn — give up this round
       const held = this.#readLock();
-      const age = this.#heartbeatAgeMs(held);
-      if (age <= staleMs) return false; // fresh enough: an active trainer holds it
-      if (this.#isLockOwnerAlive(held)) {
-        await this.#recordRecovery({ action: "deferred", reason: "lock heartbeat expired but owner is still alive", held });
-        return false; // never steal a live owner's lock
-      }
-      // Owner is gone or unverifiable ⇒ reclaim, and recover ONLY its run.
-      await this.#recordRecovery({ action: "reclaimed", reason: "lock heartbeat expired and owner is gone/unverifiable", held });
-      const abandonedRunId = held?.runId ?? null;
-      this.#removeLockIfOwned(held?.token ?? null);
-      if (abandonedRunId) {
-        const run = this.getRun(abandonedRunId);
-        const terminal = run && (run.status === "promoted" || run.status === "rejected" || run.status === "failed");
-        if (run && !terminal) {
-          await this.runEvent(abandonedRunId, { status: "failed", note: "interrupted: lock owner gone — recovered during lock acquisition" });
+      // Decide on the OWNER first. A dead owner (or a legacy record with no
+      // pid/host) means the lock is abandoned and must be reclaimed NOW, no
+      // matter how fresh its last heartbeat is — otherwise a process that exits
+      // without releasing its lock stalls training for the whole stale window.
+      if (!this.#isLockOwnerAlive(held)) {
+        await this.#recordRecovery({ action: "reclaimed", reason: "lock owner is gone", held });
+        const abandonedRunId = held?.runId ?? null;
+        this.#removeLockIfOwned(held?.token ?? null);
+        if (abandonedRunId) {
+          const run = this.getRun(abandonedRunId);
+          const terminal = run && (run.status === "promoted" || run.status === "rejected" || run.status === "failed");
+          if (run && !terminal) {
+            await this.runEvent(abandonedRunId, { status: "failed", note: "interrupted: lock owner gone — recovered during lock acquisition" });
+          }
         }
+        return this.acquireRunLock(staleMs, { runId, attempt: attempt + 1 });
       }
-      return this.acquireRunLock(staleMs, { runId, attempt: attempt + 1 });
+      // Owner is alive (or on a foreign host we cannot verify): never steal. A
+      // fresh heartbeat means it is actively training; a stale one means it is
+      // hung — in both cases the safe answer is to wait.
+      const age = this.#heartbeatAgeMs(held);
+      if (age <= staleMs) return false;
+      await this.#recordRecovery({ action: "deferred", reason: "lock heartbeat expired but owner is still alive", held });
+      return false;
     }
   }
 

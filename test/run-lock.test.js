@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync, existsSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { tmpdir, hostname } from "node:os";
 import path from "node:path";
 import { RegistryStore } from "../src/storage/registry-store.js";
 
@@ -72,6 +72,28 @@ test("a dead owner's lock is still reclaimed and only its run is recovered", asy
   writeFileSync(lockFile(dir), JSON.stringify({ token: "dead", runId: held.runId, acquiredAt: ancient, heartbeatAt: ancient }));
 
   assert.equal(await r.acquireRunLock(1_000), true);
+  assert.equal(r.getRun(held.runId).status, "failed");
+  assert.equal(r.listLockRecoveries().some((x) => x.action === "reclaimed"), true);
+  r.releaseRunLock();
+  await r.close();
+});
+
+test("a dead owner's lock is reclaimed even with a FRESH heartbeat", async () => {
+  const dir = tmpDir();
+  const r = await RegistryStore.open(dir);
+  const held = await r.createRun({ datasetId: "d" });
+  await r.runEvent(held.runId, { status: "running" });
+
+  // Owner pid is dead (999999), but the heartbeat is brand-new. The old logic
+  // treated a fresh heartbeat as "active" and waited the whole stale window
+  // even though the owner was gone; it must reclaim immediately.
+  const now = new Date().toISOString();
+  writeFileSync(
+    lockFile(dir),
+    JSON.stringify({ pid: 999_999, host: hostname(), token: "dead", runId: held.runId, acquiredAt: now, heartbeatAt: now }),
+  );
+
+  assert.equal(await r.acquireRunLock(60_000), true, "a dead owner's fresh lock must be reclaimed, not waited on");
   assert.equal(r.getRun(held.runId).status, "failed");
   assert.equal(r.listLockRecoveries().some((x) => x.action === "reclaimed"), true);
   r.releaseRunLock();
