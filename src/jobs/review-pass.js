@@ -36,8 +36,18 @@ const EMPTY = {
   eligibleRemaining: 0,
 };
 
-function isRetirable(summary) {
-  return Boolean(summary && summary.pending && summary.capReached);
+/**
+ * Decide whether a pending article has exhausted its bounded review allowance.
+ * BOTH allowances are terminal: repeatedly failing to judge a text (unreadable
+ * critic) is as much a reason to stop as repeatedly failing to decide it. The
+ * cause is returned so the retirement is auditable and the two are never
+ * conflated in the ledger.
+ */
+function retirementCause(summary) {
+  if (!summary || !summary.pending) return null;
+  if (summary.capReached) return { kind: "inconclusive", attempts: summary.inconclusiveAttempts };
+  if (summary.technicalCapReached) return { kind: "technical", attempts: summary.technicalAttempts };
+  return null;
 }
 
 export async function reviewPendingArticles(store, scorer, opts = {}) {
@@ -75,12 +85,15 @@ export async function reviewPendingArticles(store, scorer, opts = {}) {
       }
     }
 
-    const retire = async (articleId, summary) => {
-      const reason = `review: ${summary.inconclusiveAttempts} inconclusive teacher attempt(s) (maxAttempts=${policyOpts.maxAttempts})`;
+    const retire = async (articleId, cause) => {
+      const reason =
+        cause.kind === "technical"
+          ? `review: ${cause.attempts} technical critic failure(s) (maxTechnicalAttempts=${policyOpts.maxTechnicalAttempts})`
+          : `review: ${cause.attempts} inconclusive teacher attempt(s) (maxAttempts=${policyOpts.maxAttempts})`;
       try {
-        await store.retireArticle(articleId, { reason, attempts: summary.inconclusiveAttempts });
+        await store.retireArticle(articleId, { reason, attempts: cause.attempts });
         counters.retired++;
-        log("out", `retired ${articleId} after ${summary.inconclusiveAttempts} inconclusive review(s)`);
+        log("out", `retired ${articleId} after ${cause.attempts} ${cause.kind} review(s)`);
       } catch (err) {
         counters.failed++;
         log("err", `retire failed for ${articleId}: ${err.message}`);
@@ -97,8 +110,9 @@ export async function reviewPendingArticles(store, scorer, opts = {}) {
         throwIfAborted(signal);
         if (counters.reviewed >= maxReview) break;
         const before = store.reviewAttempts(article.articleId, policyOpts);
-        if (isRetirable(before)) {
-          await retire(article.articleId, before);
+        const beforeCause = retirementCause(before);
+        if (beforeCause) {
+          await retire(article.articleId, beforeCause);
           continue;
         }
         if (before && !before.eligible) {
@@ -112,8 +126,30 @@ export async function reviewPendingArticles(store, scorer, opts = {}) {
         try {
           r = await scorer.scoreOffline({ text: article.text, domain: article.domain });
         } catch (err) {
-          counters.failed++;
-          log("err", `review failed for ${article.articleId}: ${err.message}`);
+          // The critic faulted without returning a record (e.g. an unexpected
+          // transport error from a scorer that does not self-classify). Record
+          // it as a TECHNICAL failure so it consumes the bounded technical
+          // allowance and can eventually retire — never an unbounded retry and
+          // never miscounted as an inconclusive teacher verdict.
+          try {
+            await store.recordReview({
+              articleId: article.articleId,
+              verdict: "uncertain",
+              score: null,
+              rationale: `[critic error: ${err.message.slice(0, 80)}]`,
+              authority: "teacher",
+              criticScoreMissing: true,
+              criticError: `critic unavailable: ${err.message.slice(0, 80)}`,
+            });
+            counters.failed++;
+            log("err", `review failed (recorded technical) for ${article.articleId}: ${err.message}`);
+            const postThrow = store.reviewAttempts(article.articleId, policyOpts);
+            const cause = retirementCause(postThrow);
+            if (cause) await retire(article.articleId, cause);
+          } catch (recErr) {
+            counters.failed++;
+            log("err", `review failed and could not be recorded for ${article.articleId}: ${recErr.message}`);
+          }
           continue;
         }
 
@@ -145,7 +181,8 @@ export async function reviewPendingArticles(store, scorer, opts = {}) {
         onProgress({ phase: "review", reviewed: counters.reviewed, retired: counters.retired });
 
         const post = store.reviewAttempts(article.articleId, policyOpts);
-        if (isRetirable(post)) await retire(article.articleId, post);
+        const cause = retirementCause(post);
+        if (cause) await retire(article.articleId, cause);
       }
       if (!nextCursor || nextCursor === after) break;
       after = nextCursor;

@@ -8,6 +8,7 @@ import { ReviewScorer } from "../reward/reward-scorer.js";
 import { selectTrainer } from "../training/trainer-interface.js";
 import { executeFullRun } from "../training/lifecycle.js";
 import { defaultEvalSeed, renderRunReport } from "./report.js";
+import { reviewPendingArticles } from "../jobs/review-pass.js";
 import { config } from "../config.js";
 
 /**
@@ -74,31 +75,19 @@ async function curateAndIngest(store, docs, ollama) {
 }
 
 async function reviewPending(store, scorer) {
-  let reviewed = 0;
-  const { items } = store.reviewQueue({ limit: 500 });
-  for (const a of items) {
-    const r = await scorer.scoreOffline({ text: a.text, domain: a.domain });
-    await store.recordReview({
-      articleId: a.articleId,
-      verdict: r.verdict,
-      score: r.score,
-      rationale: r.rationale,
-      authority: "teacher",
-      reviewerModel: r.criticModel,
-      reviewerVersion: r.criticVersion,
-      rubricVersion: r.rubricVersion,
-      guardrailResult: r.guardrailResult,
-      suggestedImportance: r.suggestedImportance,
-      criticTemperature: r.criticTemperature,
-      criticPromptVersion: r.criticPromptVersion,
-      criticScoreMissing: r.criticScoreMissing,
-      criticError: r.criticError,
-    });
-    reviewed++;
-  }
-  // Autonomous selection pass: queue any INGESTED article the policy selects.
-  await store.selectForReview({ limit: 500 });
-  return reviewed;
+  // Delegate to the ONE shared review pass. The perpetual CLI used to run its
+  // OWN inline score loop that ignored the cooldown, attempt cap and retirement
+  // rules — which is exactly how a 331-article backlog hot-looped a single
+  // article 20+ times without ever leaving the queue. Centralising here is what
+  // makes bounded review, the audit trail, and restart-safe counters apply to
+  // the server-free loop too. The shared pass also performs the INGESTED ->
+  // PENDING_REVIEW selection, so no separate selection call is needed.
+  const result = await reviewPendingArticles(store, scorer, {
+    config,
+    log: (_level, message) => console.log(`[perpetual] ${message}`),
+  });
+  if (result.locked) console.log("[perpetual] another worker holds REVIEW.lock — skipping review this cycle");
+  return result.reviewed;
 }
 
 const maxCycles = Math.max(1, Number(process.env.PERPETUAL_CYCLES ?? 1));
@@ -115,11 +104,8 @@ for (let cycle = 1; cycle <= maxCycles; cycle++) {
     const docs = await rawDocs();
     if (process.env.PERPETUAL_DEBUG === "1") console.error(`[debug] rawDocs -> ${docs.length} docs, cwd=${process.cwd()}`);
     const ingested = docs.length ? await curateAndIngest(store, docs, ollama) : 0;
-    // Queue INGESTED articles for review before reviewing pending ones.
-    // This ensures articles already in the store (from prior cycles or the
-    // crawler/harvest) are processed through teacher scoring, not just those
-    // pre-existing in PENDING_REVIEW status.
-    await store.selectForReview({ limit: 500 });
+    // The shared review pass selects INGESTED articles the policy chooses and
+    // then reviews the PENDING backlog under the bounded cooldown/attempt rules.
     const reviewed = await reviewPending(store, scorer);
     const stats0 = store.getStats();
     console.log(`[perpetual] ingested=${ingested} reviewed=${reviewed} trainable=${stats0.trainable}`);

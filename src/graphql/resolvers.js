@@ -28,8 +28,26 @@ export const resolvers = {
     decidedBy: (a) => (a.decidedBy ? authToEnum(a.decidedBy) : null),
     reviewCount: (a, _, { store }) => (typeof a.reviewCount === "number" ? a.reviewCount : store.reviewsFor(a.articleId).length),
     trainable: (a) => isTrainable(a),
+    quarantined: (a) => a.status === "QUARANTINED",
     reviews: (a, _, { store }) => store.reviewsFor(a.articleId),
     events: (a, _, { store }) => store.events.filter((e) => e.articleId === a.articleId),
+  },
+
+  ArticleStats: {
+    // `getStats().byStatus` is keyed by the domain's SCREAMING status names;
+    // map them to the GraphQL camelCase fields so the counts (including the
+    // retired and quarantined categories) are actually representable.
+    byStatus: (s) => {
+      const b = s.byStatus ?? {};
+      return {
+        ingested: b.INGESTED ?? 0,
+        pendingReview: b.PENDING_REVIEW ?? 0,
+        reviewed: b.REVIEWED ?? 0,
+        rejected: b.REJECTED ?? 0,
+        retired: b.RETIRED ?? 0,
+        quarantined: b.QUARANTINED ?? 0,
+      };
+    },
   },
 
   ReviewVerdict: {

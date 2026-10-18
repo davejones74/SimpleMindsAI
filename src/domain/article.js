@@ -34,8 +34,29 @@ export const STATUS = Object.freeze({
   REVIEWED: "REVIEWED",
   REJECTED: "REJECTED",
   RETIRED: "RETIRED",
+  // A reversible, NON-destructive holding state for material that must never
+  // reach training but is not a verdict on the text. Unlike RETIRED (a terminal
+  // outcome of bounded review) a quarantine is a separate, independently
+  // releasable action with an auditable REASON, so historical junk can be taken
+  // out of circulation without deleting it or pretending the teacher judged it.
+  QUARANTINED: "QUARANTINED",
 });
-export const STATUSES = Object.freeze([STATUS.INGESTED, STATUS.PENDING_REVIEW, STATUS.REVIEWED, STATUS.REJECTED, STATUS.RETIRED]);
+export const STATUSES = Object.freeze([STATUS.INGESTED, STATUS.PENDING_REVIEW, STATUS.REVIEWED, STATUS.REJECTED, STATUS.RETIRED, STATUS.QUARANTINED]);
+
+/**
+ * Why an article was quarantined. These are deliberately distinct, closed
+ * categories so a later audit can tell an untranslated foreign-prose record
+ * from corrupted text, machine-translated material, or a review hot-loop — the
+ * remediation differs per category, so collapsing them into one bucket would
+ * destroy the audit trail.
+ */
+export const QUARANTINE_REASON = Object.freeze({
+  FOREIGN_PROSE: "foreign-prose", // untranslated non-English text admitted before the language gate
+  CORRUPTED_TEXT: "corrupted-text", // encoding damage / mojibake / truncation that survived cleaning
+  MACHINE_TRANSLATED: "machine-translated", // low-quality translated material (not merely foreign-sourced)
+  REVIEW_HOT_LOOP: "review-hot-loop", // re-scored indefinitely before bounded review was enforced
+});
+export const QUARANTINE_REASONS = Object.freeze(Object.values(QUARANTINE_REASON));
 
 export const VERDICT = Object.freeze({
   APPROVE: "approve",
@@ -66,6 +87,9 @@ export function isVerdict(v) {
 }
 export function isAuthority(v) {
   return Object.values(AUTHORITY).includes(v);
+}
+export function isQuarantineReason(v) {
+  return QUARANTINE_REASONS.includes(v);
 }
 
 /**

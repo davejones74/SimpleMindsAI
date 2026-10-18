@@ -4,10 +4,12 @@ import readline from "node:readline";
 import path from "node:path";
 import {
   AUTHORITY,
+  QUARANTINE_REASON,
   STATUS,
   VERDICT,
   contentHash,
   isImportance,
+  isQuarantineReason,
   isStatus,
   isTrainable,
   normalizeImportance,
@@ -194,6 +196,18 @@ export class ArticleStore {
       a.deferralRetries = 0;
       a.deferredRunId = null;
       a.deferredReason = null;
+    } else if (rec.type === "quarantine") {
+      // Reversible holding state. The reason is carried ON the event so a
+      // replay reconstructs the audit trail without any in-memory-only field,
+      // and the PREVIOUS status is captured so a release can restore it.
+      a.quarantined = true;
+      a.quarantineReason = rec.reason ?? null;
+      a.quarantineDetail = rec.detail ?? null;
+      a.quarantinePrevStatus = rec.from ?? a.quarantinePrevStatus ?? null;
+      a.quarantineAt = rec.at ?? null;
+    } else if (rec.type === "quarantine-released") {
+      a.quarantined = false;
+      a.quarantineReleasedAt = rec.at ?? null;
     }
   }
 
@@ -635,6 +649,86 @@ const rec = {
     return { ...article, retired: true };
   }
 
+  // ------------------------------------------------------------- quarantine
+  /**
+   * Move an article into the reversible QUARANTINED holding state.
+   *
+   * This is deliberately SEPARATE from retirement: retirement is the terminal
+   * outcome of bounded teacher review, whereas quarantine is an out-of-band,
+   * independently RELEASABLE action that records WHY (a closed reason category
+   * plus free-text detail) so the historical junk can be audited. Nothing is
+   * deleted; the article body and its full review history are preserved.
+   *
+   * Idempotent: quarantining an already-quarantined article appends no events.
+   */
+  async quarantineArticle(articleId, { reason = null, detail = null, actor = AUTHORITY.AUTOMATION } = {}) {
+    this.#assertWritable();
+    const article = this.articles.get(articleId);
+    if (!article) throw new Error(`unknown article: ${articleId}`);
+    if (!isQuarantineReason(reason)) throw new Error(`invalid quarantine reason: ${reason}`);
+    if (article.status === STATUS.QUARANTINED) {
+      return { ...article, quarantined: true, alreadyQuarantined: true };
+    }
+    const from = article.status;
+    await this.#event({ type: "quarantine", articleId, from, reason, detail, actor });
+    await this.#event({
+      type: "status",
+      articleId,
+      from,
+      to: STATUS.QUARANTINED,
+      actor,
+      reason: detail ? `quarantine: ${reason} — ${detail}` : `quarantine: ${reason}`,
+    });
+    article.updatedAt = new Date().toISOString();
+    return { ...article, quarantined: true };
+  }
+
+  /**
+   * Release an article from quarantine, restoring the status it held before it
+   * was quarantined (PENDING_REVIEW when that is unknown). Reversible by design;
+   * appends its own audit event and is a no-op for a non-quarantined article.
+   */
+  async releaseQuarantine(articleId, { actor = AUTHORITY.HUMAN, reason = null } = {}) {
+    this.#assertWritable();
+    const article = this.articles.get(articleId);
+    if (!article) throw new Error(`unknown article: ${articleId}`);
+    if (article.status !== STATUS.QUARANTINED) return { ...article, released: false, notQuarantined: true };
+    const to = isStatus(article.quarantinePrevStatus) ? article.quarantinePrevStatus : STATUS.PENDING_REVIEW;
+    await this.#event({ type: "quarantine-released", articleId, to, actor, reason });
+    await this.#event({
+      type: "status",
+      articleId,
+      from: STATUS.QUARANTINED,
+      to,
+      actor,
+      reason: reason ?? "quarantine released",
+    });
+    article.updatedAt = new Date().toISOString();
+    return { ...article, released: true, status: to };
+  }
+
+  /** Audit report: the quarantined articles, grouped by reason, with detail. */
+  quarantineReport() {
+    const byReason = {};
+    const articles = [];
+    for (const id of this.articleOrder) {
+      const a = this.articles.get(id);
+      if (a.status !== STATUS.QUARANTINED) continue;
+      const reason = a.quarantineReason ?? "unspecified";
+      byReason[reason] = (byReason[reason] ?? 0) + 1;
+      articles.push({
+        articleId: a.articleId,
+        reason,
+        detail: a.quarantineDetail ?? null,
+        previousStatus: a.quarantinePrevStatus ?? null,
+        quarantinedAt: a.quarantineAt ?? null,
+        source: a.source ?? null,
+        sourceUrl: a.sourceUrl ?? null,
+      });
+    }
+    return { total: articles.length, byReason, articles };
+  }
+
   // --------------------------------------------------------- consumption
   /**
    * Exactly-once consumption. A repeat without `allowReuse` is skipped and
@@ -789,6 +883,8 @@ const rec = {
       // Retired material stays visible as its own historical category; it is
       // excluded from `trainable` by the single trainability predicate.
       retired: byStatus[STATUS.RETIRED] ?? 0,
+      // Quarantined material is likewise visible as its own reversible category.
+      quarantined: byStatus[STATUS.QUARANTINED] ?? 0,
       trainable,
       reviewCount: scores.length,
       avgReviewScore: scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : null,
