@@ -121,3 +121,13 @@ test("heuristicPenalty remains the shared repetition primitive", () => {
   assert.ok(heuristicPenalty(EN) > heuristicPenalty(JUNK));
   assert.ok(heuristicPenalty(EN) > 0.15);
 });
+
+test("repetitionPenalty is neutral for non-Latin text, 0 only for empty input", () => {
+  assert.equal(heuristicPenalty(""), 0);
+  assert.equal(heuristicPenalty("   "), 0);
+  // Non-empty text with no ASCII words must NOT read as "degenerate" (that zeroed
+  // a critic's score to 0 and sent non-Latin articles into the uncertain loop).
+  assert.equal(heuristicPenalty("دورة رانكين واحتراق خارجي"), 1);
+  assert.equal(heuristicPenalty("蒸汽机"), 1);
+  assert.equal(heuristicPenalty("γειά σου"), 1);
+});

@@ -1,0 +1,1 @@
+art_d40c5e4a-ccf	PENDING_REVIEW	lang=it	script=Latin	conf=1.00	src=az.wikipedia.org

@@ -49,11 +49,22 @@ export const CRITIC_PROMPT = [
   'Return strict JSON: { "score": number, "rationale": string, "suggestedImportance": "Normal"|"Important"|"Critical" }',
 ].join("\n");
 
-/** Map a critic score to a verdict using the review policy thresholds. */
-export function scoreToVerdict(score, { minScore = config.review.minScore, uncertainScore = config.review.uncertainScore } = {}) {
+/**
+ * Map a critic score to a verdict using the review policy thresholds.
+ *
+ *   score <= rejectScore => REJECT  (terminal: a clearly-bad article must never
+ *     be left "inconclusive" and re-reviewed forever — the defect that produced
+ *     a 98% `uncertain` backlog)
+ *   score >= minScore   => APPROVE
+ *   otherwise           => UNCERTAIN (retry, then retire after maxAttempts)
+ *
+ * A MISSING score never reaches this function: scoreOffline fails closed to
+ * UNCERTAIN there, so "no signal" is never confused with "reject".
+ */
+export function scoreToVerdict(score, { minScore = config.review.minScore, rejectScore = config.review.rejectScore } = {}) {
   const s = Number(score);
   if (!Number.isFinite(s)) return VERDICT.UNCERTAIN;
-  if (s <= uncertainScore) return VERDICT.UNCERTAIN;
+  if (s <= rejectScore) return VERDICT.REJECT;
   if (s >= minScore) return VERDICT.APPROVE;
   return VERDICT.UNCERTAIN;
 }

@@ -48,9 +48,16 @@ export function mojibakeRatio(text) {
  * repetition. This is the SHARED repetition primitive (the reward scorer's
  * `heuristicPenalty` is an alias of it) so the gate and the guardrail can never
  * disagree about what "repetitive" means.
+ *
+ * An EMPTY string is degenerate (0), but a non-empty string with NO ASCII words
+ * (e.g. non-Latin script) is NOT repetition: it returns neutral 1.0 so callers
+ * never spuriously zero a critic score — rejecting non-English text is the
+ * language gate's job, not the repetition metric's.
  */
 export function repetitionPenalty(text) {
-  const words = String(text ?? "").toLowerCase().match(/[a-z0-9']+/g) ?? [];
+  const s = String(text ?? "");
+  const words = s.toLowerCase().match(/[a-z0-9']+/g) ?? [];
+  if (words.length === 0) return s.trim().length === 0 ? 0 : 1;
   if (words.length < 3) return 0;
   const bigrams = new Set();
   for (let i = 0; i < words.length - 1; i++) bigrams.add(words[i] + " " + words[i + 1]);

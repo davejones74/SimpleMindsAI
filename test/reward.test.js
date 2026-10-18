@@ -4,7 +4,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { OllamaClient } from "../src/services/ollama-client.js";
-import { ReviewScorer, RewardScorer, heuristicPenalty } from "../src/reward/reward-scorer.js";
+import { ReviewScorer, RewardScorer, heuristicPenalty, scoreToVerdict } from "../src/reward/reward-scorer.js";
 import { ArticleStore } from "../src/storage/article-store.js";
 
 const tmp = () => path.join(mkdtempSync(path.join(tmpdir(), "sma-")));
@@ -14,6 +14,27 @@ test("heuristicPenalty guardrail catches degenerate repetition", () => {
   const degen = "yes yes yes yes yes".repeat(3);
   const healthy = "The steam engine was developed in Britain during the eighteenth century.";
   assert.ok(heuristicPenalty(healthy) > heuristicPenalty(degen));
+});
+
+test("scoreToVerdict maps a terminal reject, the uncertain band, and approve", () => {
+  assert.equal(scoreToVerdict(0), "reject");
+  assert.equal(scoreToVerdict(0.5), "uncertain");
+  assert.equal(scoreToVerdict(1), "uncertain");
+  assert.equal(scoreToVerdict(3), "uncertain");
+  assert.equal(scoreToVerdict(5.99), "uncertain");
+  assert.equal(scoreToVerdict(6), "approve");
+  assert.equal(scoreToVerdict(9), "approve");
+  assert.equal(scoreToVerdict(Number.NaN), "uncertain");
+  assert.equal(scoreToVerdict(undefined), "uncertain");
+});
+
+test("scoreOffline: a critic score of 0 is a terminal reject, not uncertain", async () => {
+  const zeroOllama = { model: "x", defaultOptions: { temperature: 0.1 }, chat: async () => ({ text: JSON.stringify({ score: 0, rationale: "not useful" }) }) };
+  const scorer = new ReviewScorer({ ollama: zeroOllama });
+  const r = await scorer.scoreOffline({ text: "The steam engine was developed in Britain during the eighteenth century.", domain: "history" });
+  assert.equal(r.criticScoreMissing, false);
+  assert.equal(r.score, 0);
+  assert.equal(r.verdict, "reject");
 });
 
 test("scoreOffline: deterministic guardrail + critic/rubric provenance (fixture critic)", async () => {

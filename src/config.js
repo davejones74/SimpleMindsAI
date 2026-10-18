@@ -236,7 +236,7 @@ export const config = {
   review: {
     sampleRate: num("REVIEW_SAMPLE_RATE", 0.1), // deterministic sample of reviewed-in articles
     minScore: num("REVIEW_MIN_SCORE", 6), // teacher approve needs score >= this
-    uncertainScore: num("REVIEW_UNCERTAIN_SCORE", 3), // score <= this => uncertain
+    rejectScore: num("REVIEW_REJECT_SCORE", 0), // critic score <= this => terminal reject
     missionRelevanceThreshold: num("REVIEW_MISSION_RELEVANCE", 0.6),
     uncertaintyThreshold: num("REVIEW_UNCERTAINTY", 0.5),
     salt: env("REVIEW_SALT", "sma/review@1"),
