@@ -246,7 +246,11 @@ test("continuous learning stops when it acquires nothing new for the configured 
 
 test("continuous learning treats the article target as a milestone, not a stop", async () => {
   const prevPoll = config.jobs.pollIntervalMs;
+  const prevBackoffBase = config.jobs.learning.waitBackoffBaseMs;
+  const prevBackoffMax = config.jobs.learning.waitBackoffMaxMs;
   config.jobs.pollIntervalMs = 5;
+  config.jobs.learning.waitBackoffBaseMs = 5;
+  config.jobs.learning.waitBackoffMaxMs = 20;
   try {
     const store = await seededStore(3); // 3 trainable (human-reviewed, unconsumed)
     const registry = await RegistryStore.open(tmp());
@@ -264,21 +268,32 @@ test("continuous learning treats the article target as a milestone, not a stop",
 
     // target 1 is already exceeded by the 3 trainable articles.
     const job = await sup.startLearning({ mode: "continuous", targetArticles: 1 });
-    const done = await waitTerminal(sup, job.jobId);
-    assert.notEqual(done.result.outcome, "target-reached", "a continuous job ignores the target");
-    assert.equal(done.result.targetReached, false);
 
-    const events = readFileSync(path.join(sup.dir, "job-events.ndjson"), "utf8")
-      .split(/\r?\n/)
-      .filter(Boolean)
-      .map((l) => JSON.parse(l));
-    assert.ok(events.some((e) => e.phase === "target-milestone"), "reaching the target is still reported as a milestone");
+    // The target is a MILESTONE, not a stop: an empty discovery pass must not
+    // terminate the job (it persists a non-terminal WAITING and keeps cycling).
+    let milestoneSeen = false;
+    for (let i = 0; i < 400 && !milestoneSeen; i++) {
+      await new Promise((r) => setTimeout(r, 10));
+      const events = readFileSync(path.join(sup.dir, "job-events.ndjson"), "utf8")
+        .split(/\r?\n/)
+        .filter(Boolean)
+        .map((l) => { try { return JSON.parse(l); } catch { return null; } })
+        .filter(Boolean);
+      milestoneSeen = events.some((e) => e.phase === "target-milestone");
+    }
+    assert.ok(milestoneSeen, "reaching the target is still reported as a milestone");
 
+    const live = sup.getJob(job.jobId);
+    assert.equal(live.terminal, false, "a continuous job must not stop on empty discovery");
+
+    await sup.stop(job.jobId);
     await sup.close();
     await registry.close();
     await store.close();
   } finally {
     config.jobs.pollIntervalMs = prevPoll;
+    config.jobs.learning.waitBackoffBaseMs = prevBackoffBase;
+    config.jobs.learning.waitBackoffMaxMs = prevBackoffMax;
   }
 });
 

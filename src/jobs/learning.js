@@ -2,6 +2,7 @@ import { collectDocuments } from "../harness/crawler.js";
 import { config } from "../config.js";
 import { throwIfAborted } from "./cancel.js";
 import { reviewPendingArticles } from "./review-pass.js";
+import { classifyAcquisition } from "../discovery/acquisition-state.js";
 
 /**
  * One acquisition cycle: harvest configured sources → curate (teacher) →
@@ -155,5 +156,10 @@ export async function runLearningCycle(ctx) {
     // Pass the discovery report through so the supervisor can tell an empty
     // queue from a genuinely unconfigured discovery source.
     discovery: result.discovery ?? null,
+    // The persistent frontier's state, and the authoritative acquisition
+    // classification derived from it — the single source of truth the supervisor
+    // and UI use to decide "work / wait / exhausted".
+    frontier: result.frontier ?? null,
+    acquisition: classifyAcquisition({ frontier: result.frontier ?? null, discovery: result.discovery ?? null, ingested }),
   };
 }

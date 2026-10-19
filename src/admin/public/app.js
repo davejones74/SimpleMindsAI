@@ -1722,7 +1722,7 @@ function renderControl() {
         </div>
         <div class="toolbar">
           <button id="learnStart" class="primary" ${roAttr()}>Start learning</button>
-          <button id="learnPause" ${roAttr()} ${learning && (learning.status === "running" || learning.status === "waiting-for-eligible") ? "" : "disabled"}>Pause</button>
+          <button id="learnPause" ${roAttr()} ${learning && (learning.status === "running" || learning.status === "waiting" || learning.status === "waiting-for-eligible") ? "" : "disabled"}>Pause</button>
           <button id="learnResume" ${roAttr()} ${learning && (learning.status === "paused" || learning.status === "pause-requested") ? "" : "disabled"}>Resume</button>
           <button id="learnStop" class="danger" ${roAttr()} ${learning ? "" : "disabled"}>Stop</button>
         </div>
@@ -1746,7 +1746,7 @@ function renderControl() {
         </div>
         <div class="toolbar">
           <button id="trainStart" class="primary" ${roAttr()}>Start training</button>
-          <button id="trainPause" ${roAttr()} ${training && (training.status === "running" || training.status === "waiting-for-eligible") ? "" : "disabled"}>Pause</button>
+          <button id="trainPause" ${roAttr()} ${training && (training.status === "running" || training.status === "waiting" || training.status === "waiting-for-eligible") ? "" : "disabled"}>Pause</button>
           <button id="trainResume" ${roAttr()} ${training && (training.status === "paused" || training.status === "pause-requested") ? "" : "disabled"}>Resume</button>
           <button id="trainStop" class="danger" ${roAttr()} ${training ? "" : "disabled"}>Stop</button>
         </div>
@@ -1791,7 +1791,7 @@ function renderControl() {
             <td class="small wrap">${progressText(j.progress)}</td>
             <td class="small">${when(j.createdAt)}</td>
             <td>${j.terminal ? "" : [
-              (j.status === "running" || j.status === "waiting-for-eligible") ? `<button data-pause="${esc(j.jobId)}" ${roAttr()}>Pause</button>` : "",
+              (j.status === "running" || j.status === "waiting" || j.status === "waiting-for-eligible") ? `<button data-pause="${esc(j.jobId)}" ${roAttr()}>Pause</button>` : "",
               (j.status === "paused" || j.status === "pause-requested") ? `<button data-resume="${esc(j.jobId)}" ${roAttr()}>Resume</button>` : "",
               `<button data-stop="${esc(j.jobId)}" class="danger" ${roAttr()}>Stop</button>`,
             ].filter(Boolean).join(" ")}</td>

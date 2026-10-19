@@ -9,6 +9,7 @@ import { OllamaClient } from "../services/ollama-client.js";
 import { ReviewScorer } from "../reward/reward-scorer.js";
 import { config } from "../config.js";
 import { abortError, isAbort } from "./cancel.js";
+import { ACQUISITION_STATE, backoffDeadline } from "../discovery/acquisition-state.js";
 
 export class JobConflictError extends Error {
   constructor(message) {
@@ -432,8 +433,19 @@ export class JobSupervisor {
     let noProgressStreak = 0;
     let prevTrainable = null;
     let targetMilestoneLogged = false;
+    let acquisitionWaitAttempt = 0;
+    let lastWaitReason = null;
     const startedAt = this.clock();
     const continuous = job.mode === "continuous";
+    // A recovered WAITING job resumes at its persisted deadline: the deadline is
+    // authoritative, the in-memory timer is only an optimisation. If the deadline
+    // is still in the future, wait (interruptibly) until it before cycling.
+    const savedMeta = this.getJob(jobId)?.meta ?? null;
+    const savedNextAt = savedMeta?.nextAttemptAt ? Date.parse(savedMeta.nextAttemptAt) : NaN;
+    if (Number.isFinite(savedNextAt)) {
+      const until = savedNextAt - this.clock();
+      if (until > 0) await this.#gate(jobId, until);
+    }
     for (;;) {
       if (this.#shouldStop(jobId)) break;
       if (this.#runtimeExceeded(startedAt)) {
@@ -549,8 +561,41 @@ export class JobSupervisor {
         break;
       }
       if (last.sourceExhausted) {
-        outcome = "sources-exhausted";
-        break;
+        // The authoritative acquisition classification decides whether a
+        // perpetual job keeps cycling, waits (bounded backoff, persisted), or —
+        // for a bounded job — reports a terminal `sources-exhausted` with the
+        // reason attached. A continuous job must NEVER terminate merely because
+        // no immediate work is available.
+        const acq = last.acquisition ?? { state: ACQUISITION_STATE.EXHAUSTED, reason: "no acquisition report" };
+        if (acq.state !== ACQUISITION_STATE.WORK) {
+          if (continuous) {
+            lastWaitReason = acq.reason;
+            const deadline = backoffDeadline(acquisitionWaitAttempt, {
+              baseMs: config.jobs.learning.waitBackoffBaseMs,
+              maxMs: config.jobs.learning.waitBackoffMaxMs,
+              now: this.clock(),
+            });
+            await this.#safeEvent(jobId, {
+              status: JOB_STATUS.WAITING,
+              phase: `waiting-for-acquisition:${acq.state}`,
+              note: `waiting: ${acq.reason}`,
+              meta: {
+                waitingReason: acq.reason,
+                acquisitionState: acq.state,
+                nextAttemptAt: new Date(deadline.nextAttemptAt).toISOString(),
+                diagnostics: { frontier: last?.frontier ?? null, discovery: last?.discovery ?? null },
+              },
+            });
+            acquisitionWaitAttempt++;
+            noProgressStreak = 0; // a scheduled wait is not a stall
+            await this.#gate(jobId, deadline.delayMs);
+            continue;
+          }
+          outcome = "sources-exhausted";
+          lastWaitReason = acq.reason;
+          break;
+        }
+        acquisitionWaitAttempt = 0; // made claimable work => reset the backoff
       }
       if (params.maxCycles > 0 && cycle >= params.maxCycles) {
         outcome = "max-cycles";
@@ -583,6 +628,7 @@ export class JobSupervisor {
       // milestone separately rather than claiming it finished.
       targetReached: !continuous && Boolean(last && last.trainable >= target),
       targetMilestone: continuous && Boolean(last && last.trainable >= target),
+      exhaustionReason: lastWaitReason,
       ...summarizeLearning(last),
     };
   }
@@ -958,13 +1004,19 @@ export class JobSupervisor {
 
   // ------------------------------------------------------------ reconcile
   /**
-   * Resolve jobs the previous process left non-terminal. Never auto-resumes;
-   * reports `interrupted` with diagnostics, or `completed` when the work had
-   * actually finished (e.g. a promotion committed) before the crash.
+   * Resolve jobs the previous process left non-terminal. A WAITING learning job
+   * is RECOVERED — it resumes at its persisted `nextAttemptAt` deadline rather
+   * than being reported interrupted. Everything else is reported `interrupted`
+   * (or `completed` when the underlying work actually finished before the crash).
    */
   async reconcile() {
     const active = this.jobStore.activeJobs();
     for (const job of active) {
+      if (job.kind === "learning" && job.status === JOB_STATUS.WAITING) {
+        this.#respawnLearning(job);
+        this.changeFeed?.emit("job.status", { jobId: job.jobId, status: JOB_STATUS.WAITING, recovered: true });
+        continue;
+      }
       let diag = { outcome: JOB_STATUS.INTERRUPTED, note: "process restarted while job was active" };
       try {
         if (job.kind === "training") diag = await this.#diagnoseTraining(job);
@@ -981,6 +1033,25 @@ export class JobSupervisor {
       this.changeFeed?.emit("job.status", { jobId: job.jobId, status: diag.outcome, recovered: true });
     }
     return active.map((j) => j.jobId);
+  }
+
+  /**
+   * Re-spawn the worker for a WAITING learning job so it resumes at its persisted
+   * deadline. The job remains cancellable (a fresh control), holds no execution
+   * resource while it is simply waiting (the loop sleeps in `#gate`), and never
+   * busy-loops because the deadline + backoff gate the next cycle.
+   */
+  #respawnLearning(job) {
+    const control = {
+      controller: new AbortController(),
+      shouldStop: false,
+      shouldPause: false,
+      networkPaused: false,
+      promise: null,
+    };
+    this.controls.set(job.jobId, control);
+    control.promise = this.#run(job, job.params, control).finally(() => this.controls.delete(job.jobId));
+    this.changeFeed?.emit("job.started", { jobId: job.jobId, kind: job.kind, mode: job.mode, recovered: true });
   }
 
   async #diagnoseTraining(job) {
@@ -1050,6 +1121,10 @@ function summarizeLearning(r) {
     corpusCeiling: r.corpusCeiling ?? null,
     failures: r.failures?.length ?? 0,
     sourceExhausted: r.sourceExhausted,
+    // Authoritative acquisition classification + frontier state, so the UI and
+    // the supervisor agree on "work / wait / exhausted" from one source.
+    acquisition: r.acquisition ?? null,
+    frontier: r.frontier ?? null,
     // Adapter/bootstrap observability: which sources ran, what they found, and
     // whether discovery was actually reachable this cycle.
     discovery: r.discovery ?? null,

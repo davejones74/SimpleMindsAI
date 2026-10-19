@@ -21,7 +21,8 @@ import path from "node:path";
 export const JOB_STATUS = Object.freeze({
   QUEUED: "queued",
   RUNNING: "running",
-  WAITING: "waiting-for-eligible",
+  WAITING: "waiting",
+  WAITING_FOR_ELIGIBLE: "waiting-for-eligible", // legacy alias, still accepted on read
   PAUSE_REQUESTED: "pause-requested",
   PAUSED: "paused",
   STOP_REQUESTED: "stop-requested",
@@ -72,7 +73,8 @@ export function isTerminal(status) {
 const LEGAL_TRANSITIONS = Object.freeze({
   // FROM    TO
   "queued":    new Set(["running", "stop-requested", "stopped", "failed"]),
-  "running":   new Set(["completed", "failed", "interrupted", "pause-requested", "cancel-requested", "stop-requested", "stopped"]),
+  "running":   new Set(["completed", "failed", "interrupted", "pause-requested", "cancel-requested", "stop-requested", "stopped", "waiting"]),
+  "waiting":   new Set(["running", "completed", "failed", "interrupted", "pause-requested", "stop-requested", "stopped"]),
   "waiting-for-eligible": new Set(["running", "completed", "failed", "interrupted", "pause-requested", "stop-requested", "stopped"]),
   "pause-requested": new Set(["paused", "running", "stop-requested", "stopped", "failed", "interrupted"]),
   "paused":    new Set(["running", "stop-requested", "stopped", "failed", "interrupted"]),
@@ -202,7 +204,7 @@ export class JobStore {
     return rec;
   }
 
-  async jobEvent(jobId, { status = null, phase = null, progress = null, note = null, result = null, error = null } = {}) {
+  async jobEvent(jobId, { status = null, phase = null, progress = null, note = null, result = null, error = null, meta = null } = {}) {
     this.#assertWritable();
     if (!this.jobs.has(jobId)) throw new Error(`unknown job ${jobId}`);
     const rec = { jobId, at: new Date().toISOString() };
@@ -212,6 +214,7 @@ export class JobStore {
     if (note !== null) rec.note = note;
     if (result !== null) rec.result = result;
     if (error !== null) rec.error = error;
+    if (meta !== null) rec.meta = meta;
     const arr = this.events.get(jobId) ?? [];
     arr.push(rec);
     this.events.set(jobId, arr);
@@ -241,6 +244,7 @@ export class JobStore {
     let note = null;
     let result = null;
     let error = null;
+    let meta = null;
     let updatedAt = base.createdAt;
     for (const e of events) {
       if (e.status) status = e.status;
@@ -249,9 +253,10 @@ export class JobStore {
       if (e.note !== undefined) note = e.note;
       if (e.result !== undefined) result = e.result;
       if (e.error !== undefined) error = e.error;
+      if (e.meta !== undefined) meta = e.meta;
       updatedAt = e.at;
     }
-    return { ...base, status, phase, progress, note, result, error, updatedAt, terminal: isTerminal(status) };
+    return { ...base, status, phase, progress, note, result, error, meta, updatedAt, terminal: isTerminal(status) };
   }
 
   listJobs() {

@@ -577,6 +577,14 @@ export const config = {
       // nothing new (ingested=deduped=0 and trainable unchanged), stop with
       // outcome `no-progress` instead of polling forever. 0 disables the guard.
       noProgressCycles: num("LEARNING_NO_PROGRESS_CYCLES", 5),
+      // Acquisition waiting / backoff. When a continuous job has no claimable or
+      // retryable frontier work and no immediately viable provider, it persists a
+      // non-terminal WAITING state with `nextAttemptAt` (authoritative) and backs
+      // off exponentially up to `waitBackoffMaxMs`, with jitter, instead of
+      // declaring `sources-exhausted`. The persisted deadline is recovered on
+      // restart; the in-memory timer is only an optimisation.
+      waitBackoffBaseMs: num("LEARNING_WAIT_BACKOFF_BASE_MS", 60_000),
+      waitBackoffMaxMs: num("LEARNING_WAIT_BACKOFF_MAX_MS", 3_600_000),
     },
     training: {
       // A one-shot run refuses to start below this many eligible articles
