@@ -54,7 +54,16 @@ function makeFrontierRecord(url, state, depth, parent, seed, metadata = {}) {
     claimedAt: metadata.claimedAt ?? null,
     completedAt: metadata.completedAt ?? null,
     discoveryProvenance: metadata.discoveryProvenance ?? null, // { type: "link_extraction", parentUrl, depth }
-    contentHash: null, // populated after fetch; separate from URL dedup
+    contentHash: metadata.contentHash ?? null, // populated after fetch; separate from URL dedup
+    // Conditional-HTTP validators captured on the last successful fetch.
+    etag: metadata.etag ?? null,
+    lastModified: metadata.lastModified ?? null,
+    // Scheduling metadata (resilient acquisition):
+    lastFetchedAt: metadata.lastFetchedAt ?? null,
+    nextCrawlAt: metadata.nextCrawlAt ?? null, // rediscovery TTL deadline (VISITED)
+    nextAttemptAt: metadata.nextAttemptAt ?? null, // independent retry backoff (DEFERRED)
+    rediscoveries: metadata.rediscoveries ?? 0,
+    rediscovery: metadata.rediscovery ?? false, // true when the current claim is a re-visit
   };
 }
 
@@ -114,7 +123,15 @@ export class Frontier {
       if (existing.state === URL_STATE.DEFERRED && !force) return null;
     }
 
-    const record = makeFrontierRecord(url, URL_STATE.QUEUED, depth, parent, seed, { discoveryProvenance });
+    const record = makeFrontierRecord(url, URL_STATE.QUEUED, depth, parent, seed, {
+      discoveryProvenance,
+      // Preserve validators/hash across an explicit forced re-enqueue so the
+      // refetch can still be conditional (and return 304 when unchanged).
+      etag: existing?.etag ?? null,
+      lastModified: existing?.lastModified ?? null,
+      lastFetchedAt: existing?.lastFetchedAt ?? null,
+      contentHash: existing?.contentHash ?? null,
+    });
     this.state.set(canonical, record);
     await this.persist();
     return canonical;
@@ -126,63 +143,121 @@ export class Frontier {
     return canonical ? this.state.has(canonical) : false;
   }
 
-  // Claim next URL: mark in-progress, return the record, advance state
-  async claimNext({ maxRetries = 2 } = {}) {
+  // Claim next URL: mark in-progress, return the record, advance state.
+  //
+  // Ordering matters for resilience: brand-new QUEUED work is always claimed
+  // BEFORE due retries, which are claimed BEFORE due rediscoveries. Revisiting a
+  // VISITED URL (rediscovery TTL) can therefore never starve newly discovered
+  // URLs. A retry is only claimable once its independent `nextAttemptAt` has
+  // elapsed; a rediscovery only once `nextCrawlAt` has elapsed.
+  async claimNext({ maxRetries = 2, now = Date.now(), rediscoveryEnabled = false } = {}) {
     if (!this.initialized) await this.init();
-    // Find first queued URL
+
+    const claim = async (canonical, record, rediscovery) => {
+      record.state = URL_STATE.IN_PROGRESS;
+      record.claimedAt = new Date(now).toISOString();
+      record.rediscovery = rediscovery;
+      await this.persist();
+      return { canonical, record, rediscovery };
+    };
+
+    // 1) Brand-new work.
     for (const [canonical, record] of this.state.entries()) {
-      if (record.state === URL_STATE.QUEUED) {
-        // Mark in-progress
-        record.state = URL_STATE.IN_PROGRESS;
-        record.claimedAt = new Date().toISOString();
-        await this.persist();
-        return { canonical, record };
+      if (record.state === URL_STATE.QUEUED) return claim(canonical, record, false);
+    }
+    // 2) Due retries with retries remaining.
+    for (const [canonical, record] of this.state.entries()) {
+      if (record.state === URL_STATE.DEFERRED && (record.retries ?? 0) < maxRetries) {
+        const due = record.nextAttemptAt ? new Date(record.nextAttemptAt).getTime() <= now : true;
+        if (due) return claim(canonical, record, false);
       }
     }
-    // Find first deferred with retries remaining
-    for (const [canonical, record] of this.state.entries()) {
-      if (
-        record.state === URL_STATE.DEFERRED &&
-        (record.retries ?? 0) < maxRetries
-      ) {
-        record.state = URL_STATE.IN_PROGRESS;
-        record.claimedAt = new Date().toISOString();
-        await this.persist();
-        return { canonical, record };
+    // 3) Due rediscoveries (TTL elapsed) — only after new work.
+    if (rediscoveryEnabled) {
+      for (const [canonical, record] of this.state.entries()) {
+        if (record.state === URL_STATE.VISITED && record.nextCrawlAt) {
+          if (new Date(record.nextCrawlAt).getTime() <= now) return claim(canonical, record, true);
+        }
       }
     }
     return null; // nothing available
   }
 
-  // Mark URL as visited (completed fetch)
-  async markVisited(canonical, { contentHash = null, fetchOutcome = "ok" } = {}) {
+  // Mark URL as visited (completed fetch). `nextCrawlAt` schedules the next
+  // rediscovery; `etag`/`lastModified` are the validators for a conditional
+  // refetch. A 304 (notModified) keeps the existing contentHash.
+  async markVisited(canonical, {
+    contentHash = null,
+    etag = undefined,
+    lastModified = undefined,
+    nextCrawlAt = undefined,
+    // Accepted for call-site clarity; the visit is fully described by
+    // lastFetchedAt + validators + nextCrawlAt.
+    notModified = false,
+    rediscovery = false,
+    fetchOutcome = "ok",
+  } = {}) {
     const record = this.state.get(canonical);
     if (!record) return false;
+    const now = new Date().toISOString();
     record.state = URL_STATE.VISITED;
-    record.completedAt = new Date().toISOString();
+    record.completedAt = now;
+    record.lastFetchedAt = now;
     if (contentHash) record.contentHash = contentHash;
+    if (etag !== undefined) record.etag = etag;
+    if (lastModified !== undefined) record.lastModified = lastModified;
+    if (nextCrawlAt !== undefined) record.nextCrawlAt = nextCrawlAt;
+    if (rediscovery) record.rediscoveries = (record.rediscoveries ?? 0) + 1;
     record.retries = 0; // reset on successful visit
     record.lastError = null;
+    record.nextAttemptAt = null;
+    record.claimedAt = null;
+    record.rediscovery = false;
     await this.persist();
     return true;
   }
 
-  // Mark URL as failed with reason
-  async markFailed(canonical, { reason = null, error = null, incrementRetries = true, maxRetries = 2 } = {}) {
+  // Mark URL as failed with reason. A retryable failure schedules an independent
+  // exponential backoff (`nextAttemptAt`) so a failed URL never blocks other
+  // work; once retries are exhausted the URL is terminal FAILED.
+  async markFailed(canonical, {
+    reason = null,
+    error = null,
+    incrementRetries = true,
+    maxRetries = 2,
+    backoffBaseMs = null,
+    backoffMaxMs = null,
+    now = Date.now(),
+  } = {}) {
     const record = this.state.get(canonical);
     if (!record) return false;
     record.lastError = error ?? reason ?? "fetch_failed";
-    record.lastErrorAt = new Date().toISOString();
+    record.lastErrorAt = new Date(now).toISOString();
+    record.claimedAt = null;
+    record.rediscovery = false;
     if (incrementRetries) {
       record.retries = (record.retries ?? 0) + 1;
-      // Retries remaining => DEFERRED (claimable again on a later pass). Only
-      // once retries are exhausted is the URL terminal FAILED. The previous
+      // Retries remaining => DEFERRED (claimable again once backoff elapses).
+      // Only once retries are exhausted is the URL terminal FAILED. The previous
       // logic assigned FAILED on the FIRST failure, which `claimNext` never
       // returns — so a single transient fetch error (e.g. a DNS blip) would
       // strand the URL and the whole frontier would report "no sources".
-      record.state = record.retries >= maxRetries ? URL_STATE.FAILED : URL_STATE.DEFERRED;
+      if (record.retries >= maxRetries) {
+        record.state = URL_STATE.FAILED;
+        record.nextAttemptAt = null;
+      } else {
+        record.state = URL_STATE.DEFERRED;
+        if (Number.isFinite(backoffBaseMs) && backoffBaseMs > 0) {
+          const cap = Number.isFinite(backoffMaxMs) && backoffMaxMs > 0 ? backoffMaxMs : backoffBaseMs;
+          const delay = Math.min(backoffBaseMs * 2 ** (record.retries - 1), cap);
+          record.nextAttemptAt = new Date(now + delay).toISOString();
+        } else {
+          record.nextAttemptAt = null;
+        }
+      }
     } else {
       record.state = URL_STATE.FAILED;
+      record.nextAttemptAt = null;
     }
     await this.persist();
     return true;
@@ -227,6 +302,13 @@ export class Frontier {
         completedAt: record.completedAt,
         discoveryProvenance: record.discoveryProvenance,
         contentHash: record.contentHash,
+        etag: record.etag ?? null,
+        lastModified: record.lastModified ?? null,
+        lastFetchedAt: record.lastFetchedAt ?? null,
+        nextCrawlAt: record.nextCrawlAt ?? null,
+        nextAttemptAt: record.nextAttemptAt ?? null,
+        rediscoveries: record.rediscoveries ?? 0,
+        rediscovery: record.rediscovery ?? false,
       };
       lines.push(JSON.stringify(clean));
     }
@@ -273,6 +355,15 @@ export class Frontier {
       failed: 0,
     };
     const retryDist = { 0: 0, 1: 0, 2: 0, 3: 0 };
+    const now = Date.now();
+    let rediscoveryDue = 0;
+    let deferredDue = 0;
+    let nextDueAt = null;
+    const considerDue = (iso) => {
+      const t = iso ? new Date(iso).getTime() : NaN;
+      if (!Number.isFinite(t)) return;
+      if (nextDueAt == null || t < nextDueAt) nextDueAt = t;
+    };
     for (const record of this.state.values()) {
       switch (record.state) {
         case URL_STATE.QUEUED: counts.queued++; break;
@@ -284,12 +375,24 @@ export class Frontier {
       }
       const r = record.retries ?? 0;
       if (r in retryDist) retryDist[r]++;
+      if (record.state === URL_STATE.VISITED && record.nextCrawlAt) {
+        considerDue(record.nextCrawlAt);
+        if (new Date(record.nextCrawlAt).getTime() <= now) rediscoveryDue++;
+      } else if (record.state === URL_STATE.DEFERRED) {
+        const due = record.nextAttemptAt ? new Date(record.nextAttemptAt).getTime() <= now : true;
+        if (due) deferredDue++;
+        if (record.nextAttemptAt) considerDue(record.nextAttemptAt);
+      }
     }
     return {
       ...counts,
       total: this.state.size,
       // Distribution of retry counts for failed/deferred
       retryDist,
+      // Rediscovery / retry scheduling diagnostics.
+      deferredDue, // DEFERRED whose independent backoff has elapsed (claimable now)
+      rediscoveryDue, // VISITED whose TTL has elapsed (claimable now)
+      nextDueAt: nextDueAt == null ? null : new Date(nextDueAt).toISOString(),
     };
   }
 

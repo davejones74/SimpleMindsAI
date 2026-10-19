@@ -141,3 +141,46 @@ test("harvest: writes corpus + failures files with capability labels", async () 
   const fxLine = JSON.parse(readFileSync(fx.file, "utf8").trim().split("\n")[0]);
   assert.equal(fxLine.capability, CAPABILITY.fixture);
 });
+
+// ---- Conditional HTTP (rediscovery) ----
+function fakeFetch(handler) {
+  return async (url, opts) => handler(url, opts);
+}
+
+test("fetchDocument: sends validators and returns 304 without a body", async () => {
+  let seen = null;
+  const fetchImpl = fakeFetch((url, opts) => {
+    seen = opts.headers;
+    return {
+      ok: false,
+      status: 304,
+      headers: new Headers({ etag: "\"v1\"", "last-modified": "Wed, 01 Jan 2026 00:00:00 GMT" }),
+      body: null,
+    };
+  });
+  const doc = await fetchDocument("https://example.com/page", {
+    allowPrivate: true,
+    etag: "\"v1\"",
+    lastModified: "Wed, 01 Jan 2026 00:00:00 GMT",
+    fetchImpl,
+  });
+  assert.equal(seen["if-none-match"], "\"v1\"");
+  assert.equal(seen["if-modified-since"], "Wed, 01 Jan 2026 00:00:00 GMT");
+  assert.equal(doc.status, 304);
+  assert.equal(doc.notModified, true);
+  assert.equal(doc.etag, "\"v1\"");
+  assert.equal(doc.text, null);
+});
+
+test("fetchDocument: 200 exposes etag/last-modified for the next conditional fetch", async () => {
+  const fetchImpl = fakeFetch(() => ({
+    ok: true,
+    status: 200,
+    headers: new Headers({ "content-type": "text/html; charset=utf-8", etag: "\"v2\"", "last-modified": "Thu, 02 Jan 2026 00:00:00 GMT" }),
+    body: (async function* () { yield Buffer.from("<html><body>Hello world</body></html>"); })(),
+  }));
+  const doc = await fetchDocument("https://example.com/page2", { allowPrivate: true, fetchImpl });
+  assert.equal(doc.notModified, undefined);
+  assert.equal(doc.etag, "\"v2\"");
+  assert.equal(doc.lastModified, "Thu, 02 Jan 2026 00:00:00 GMT");
+});

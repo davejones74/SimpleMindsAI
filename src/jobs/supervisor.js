@@ -570,11 +570,23 @@ export class JobSupervisor {
         if (acq.state !== ACQUISITION_STATE.WORK) {
           if (continuous) {
             lastWaitReason = acq.reason;
+            const now = this.clock();
             const deadline = backoffDeadline(acquisitionWaitAttempt, {
               baseMs: config.jobs.learning.waitBackoffBaseMs,
               maxMs: config.jobs.learning.waitBackoffMaxMs,
-              now: this.clock(),
+              now,
             });
+            // Honor a frontier-scheduled retry/rediscovery deadline: wake when it
+            // is due, but never sleep longer than the configured maximum (so a
+            // stale far-future deadline cannot park the job indefinitely).
+            let waitDelayMs = deadline.delayMs;
+            let nextAttemptAt = deadline.nextAttemptAt;
+            const dueTs = acq.nextDueAt ? Date.parse(acq.nextDueAt) : NaN;
+            if (Number.isFinite(dueTs) && dueTs > now) {
+              const target = Math.min(dueTs, now + config.jobs.learning.waitBackoffMaxMs);
+              waitDelayMs = Math.max(waitDelayMs, target - now);
+              nextAttemptAt = now + waitDelayMs;
+            }
             await this.#safeEvent(jobId, {
               status: JOB_STATUS.WAITING,
               phase: `waiting-for-acquisition:${acq.state}`,
@@ -582,13 +594,13 @@ export class JobSupervisor {
               meta: {
                 waitingReason: acq.reason,
                 acquisitionState: acq.state,
-                nextAttemptAt: new Date(deadline.nextAttemptAt).toISOString(),
+                nextAttemptAt: new Date(nextAttemptAt).toISOString(),
                 diagnostics: { frontier: last?.frontier ?? null, discovery: last?.discovery ?? null },
               },
             });
             acquisitionWaitAttempt++;
             noProgressStreak = 0; // a scheduled wait is not a stall
-            await this.#gate(jobId, deadline.delayMs);
+            await this.#gate(jobId, waitDelayMs);
             continue;
           }
           outcome = "sources-exhausted";

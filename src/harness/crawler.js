@@ -224,6 +224,8 @@ export async function runCrawlCycle(ctx = {}) {
     maxLinksPerPage = config.crawlMaxLinksPerPage,
     languageFilter = null,
     discoveryLanguagePrior = null,
+    rediscoveryEnabled = config.rediscoveryEnabled,
+    rediscoveryTtlMs = config.rediscoveryTtlMs,
   } = ctx;
 
   if (!frontier.initialized) await frontier.init();
@@ -239,6 +241,8 @@ export async function runCrawlCycle(ctx = {}) {
     languageFiltered: 0,
     languagePriorWarned: 0,
     languagePriorRejected: 0,
+    notModified: 0,
+    rediscoveries: 0,
     errors: 0,
     documents: [],
     failures: [],
@@ -261,8 +265,10 @@ export async function runCrawlCycle(ctx = {}) {
     }
   }
 
-  // Helper: fetch a URL with full guard set, returning result or reason
-  async function tryFetch(urlString) {
+  // Helper: fetch a URL with full guard set, returning result or reason.
+  // `conditional` carries the validators stored on the frontier record so a
+  // rediscovery fetch can answer 304 (unchanged) instead of re-delivering body.
+  async function tryFetch(urlString, conditional = {}) {
     try {
       // Revalidate URL at fetch time
       await assertUrlAllowed(urlString, { allowPrivate });
@@ -279,6 +285,8 @@ export async function runCrawlCycle(ctx = {}) {
         maxRedirects: config.crawlMaxRedirects,
         allowPrivate,
         userAgent,
+        etag: conditional.etag ?? null,
+        lastModified: conditional.lastModified ?? null,
       });
       return { ok: true, doc };
     } catch (err) {
@@ -287,8 +295,15 @@ export async function runCrawlCycle(ctx = {}) {
     }
   }
 
-  // Claim next URL from frontier
-  const claimed = await frontier.claimNext();
+  // Rediscovery deadline for a successfully fetched URL (null = disabled).
+  function computeNextCrawlAt() {
+    if (!rediscoveryEnabled || !(rediscoveryTtlMs > 0)) return null;
+    return new Date(Date.now() + rediscoveryTtlMs).toISOString();
+  }
+
+  // Claim next URL from frontier. Due rediscoveries are claimable only AFTER new
+  // queued work and due retries, so revisits never starve fresh URLs.
+  const claimed = await frontier.claimNext({ rediscoveryEnabled });
   if (!claimed) {
     summary.budgetRemaining = totalBudget; // no URLs available
     return summary;
@@ -296,11 +311,14 @@ export async function runCrawlCycle(ctx = {}) {
 
   const { canonical, record } = claimed;
   summary.pagesFetched = 1;
+  if (claimed.rediscovery) summary.rediscoveries++;
 
   // Depth check
   const urlDepth = record.depth ?? 0;
   if (urlDepth > maxDepth) {
-    await frontier.markVisited(canonical, { fetchOutcome: "depth-exceeded" });
+    // A depth-exceeded URL is intentionally not re-crawled: clear any rediscovery
+    // deadline so it can never be re-claimed in a loop.
+    await frontier.markVisited(canonical, { fetchOutcome: "depth-exceeded", nextCrawlAt: null });
     summary.depthReached = urlDepth;
     return summary;
   }
@@ -311,7 +329,8 @@ export async function runCrawlCycle(ctx = {}) {
   // Domain check - check both discovery policy and domain registry
   const claimDecision = decideUrl(record.url);
   if (!claimDecision.allowed) {
-    await frontier.markFailed(canonical, { reason: claimDecision.reason ?? "disallowed_domain" });
+    // A policy refusal is not a transient error: do not schedule a retry.
+    await frontier.markFailed(canonical, { reason: claimDecision.reason ?? "disallowed_domain", incrementRetries: false });
     summary.domainFiltered = 1;
     return summary;
   }
@@ -320,22 +339,47 @@ export async function runCrawlCycle(ctx = {}) {
   if (domainRegistry && domain) {
     const domainRecord = domainRegistry.get(domain);
     if (domainRecord && domainRecord.policy === "blocked") {
-      await frontier.markFailed(canonical, { reason: "domain_blocked" });
+      await frontier.markFailed(canonical, { reason: "domain_blocked", incrementRetries: false });
       summary.domainFiltered = 1;
       return summary;
     }
   }
 
-  // Fetch the URL
-  const fetchResult = await tryFetch(record.url);
+  // Fetch the URL, conditionally when we hold validators from a prior visit.
+  const fetchResult = await tryFetch(record.url, { etag: record.etag, lastModified: record.lastModified });
   summary.pagesFetched = 1;
 
   if (fetchResult.ok) {
     const doc = fetchResult.doc;
+
+    // 304 Not Modified — the content is unchanged. Do not re-emit the document
+    // (no duplicate article), do not re-extract links; just refresh validators
+    // and the rediscovery deadline so it is re-checked after the TTL again.
+    if (doc?.notModified) {
+      summary.notModified++;
+      await frontier.markVisited(canonical, {
+        etag: doc.etag ?? record.etag ?? null,
+        lastModified: doc.lastModified ?? record.lastModified ?? null,
+        nextCrawlAt: computeNextCrawlAt(),
+        notModified: true,
+        rediscovery: Boolean(record.rediscovery),
+      });
+      if (domainRegistry && domain) {
+        domainRegistry.recordFetchSuccess(domain, { url: record.url, contentHash: record.contentHash ?? undefined });
+      }
+      return summary;
+    }
+
     // Mark visited — this is a frontier state update, NOT a fetch failure.
     // A language-filtered document was fetched successfully; it just won't
     // enter the article corpus.
-    await frontier.markVisited(canonical, { contentHash: doc?.contentHash });
+    await frontier.markVisited(canonical, {
+      contentHash: doc?.contentHash,
+      etag: doc?.etag ?? null,
+      lastModified: doc?.lastModified ?? null,
+      nextCrawlAt: computeNextCrawlAt(),
+      rediscovery: Boolean(record.rediscovery),
+    });
 
     // Register domain in registry if provided
     if (domainRegistry && domain) {
@@ -426,7 +470,12 @@ export async function runCrawlCycle(ctx = {}) {
     if (domainRegistry && domain) {
       domainRegistry.recordFetchFailure(domain, { url: record.url, error: fetchResult.error });
     }
-    await frontier.markFailed(canonical, { reason: fetchResult.reason ?? "fetch-failed", error: fetchResult.error });
+    await frontier.markFailed(canonical, {
+      reason: fetchResult.reason ?? "fetch-failed",
+      error: fetchResult.error,
+      backoffBaseMs: config.frontierRetryBackoffBaseMs,
+      backoffMaxMs: config.frontierRetryBackoffMaxMs,
+    });
     summary.errors++;
     summary.failures.push({ url: record.url, ok: false, reason: fetchResult.reason ?? "fetch-failed" });
   }
@@ -454,6 +503,8 @@ export async function runCrawlBatches({
   maxLinksPerPage = config.crawlMaxLinksPerPage,
   languageFilter = null,
   discoveryLanguagePrior = null,
+  rediscoveryEnabled = config.rediscoveryEnabled,
+  rediscoveryTtlMs = config.rediscoveryTtlMs,
   onCycle = async (ctx) => ({ pagesFetched: 0, linksDiscovered: 0, urlsEnqueued: 0 }),
 } = {}) {
   if (!frontier.initialized) await frontier.init();
@@ -469,6 +520,8 @@ let totalPagesFetched = 0;
   let languageFiltered = 0;
   let languagePriorWarned = 0;
   let languagePriorRejected = 0;
+  let notModified = 0;
+  let rediscoveries = 0;
   const skipped = [];
   const shadowRejected = [];
 
@@ -492,6 +545,8 @@ let totalPagesFetched = 0;
       maxLinksPerPage,
       languageFilter,
       discoveryLanguagePrior,
+      rediscoveryEnabled,
+      rediscoveryTtlMs,
       totalBudget: config.crawlTotalBudget - totalPagesFetched,
     };
     const cycleResult = await runCrawlCycle(cycleCtx);
@@ -506,6 +561,8 @@ let totalPagesFetched = 0;
     languageFiltered += cycleResult.languageFiltered ?? 0;
     languagePriorWarned += cycleResult.languagePriorWarned ?? 0;
     languagePriorRejected += cycleResult.languagePriorRejected ?? 0;
+    notModified += cycleResult.notModified ?? 0;
+    rediscoveries += cycleResult.rediscoveries ?? 0;
     if (cycleResult.skipped?.length) skipped.push(...cycleResult.skipped);
     if (cycleResult.shadowRejected?.length) shadowRejected.push(...cycleResult.shadowRejected);
 
@@ -536,6 +593,8 @@ let totalPagesFetched = 0;
     languageFiltered,
     languagePriorWarned,
     languagePriorRejected,
+    notModified,
+    rediscoveries,
     skipped,
     shadowRejected,
     budgetRemaining: config.crawlTotalBudget - totalPagesFetched,

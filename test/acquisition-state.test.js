@@ -52,3 +52,22 @@ test("backoffDeadline grows exponentially, is bounded, and is monotonic", () => 
   assert.equal(backoffDeadline(99, { baseMs: 1000, maxMs: 8000, jitter: 0, now: 0 }).delayMs, 8000, "capped at max");
   assert.ok(Number.isFinite(a.nextAttemptAt));
 });
+
+test("a future retry/rediscovery deadline is SCHEDULED, not WORK (no tight loop)", () => {
+  const future = new Date(Date.now() + 60_000).toISOString();
+  const s1 = classifyAcquisition({ frontier: { deferred: 2, deferredDue: 0, nextDueAt: future }, discovery: null });
+  assert.equal(s1.state, ACQUISITION_STATE.SCHEDULED);
+  assert.equal(s1.nextDueAt, future);
+  const s2 = classifyAcquisition({ frontier: { visited: 5, rediscoveryDue: 0, nextDueAt: future }, discovery: null });
+  assert.equal(s2.state, ACQUISITION_STATE.SCHEDULED);
+});
+
+test("due retry/rediscovery work is WORK; backed-off work is SCHEDULED", () => {
+  assert.equal(classifyAcquisition({ frontier: { deferred: 2, deferredDue: 2 }, discovery: null }).state, ACQUISITION_STATE.WORK);
+  assert.equal(classifyAcquisition({ frontier: { visited: 5, rediscoveryDue: 3 }, discovery: null }).state, ACQUISITION_STATE.WORK);
+  const future = new Date(Date.now() + 60_000).toISOString();
+  assert.equal(
+    classifyAcquisition({ frontier: { deferred: 2, deferredDue: 0, nextDueAt: future }, discovery: null }).state,
+    ACQUISITION_STATE.SCHEDULED,
+  );
+});

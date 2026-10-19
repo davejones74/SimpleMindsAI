@@ -431,6 +431,20 @@ export const config = {
   // Retry limit per URL before deferral
   crawlRetryLimit: num("CRAWL_RETRY_LIMIT", "2"),
 
+  // ---- Rediscovery & retry scheduling (resilient acquisition) ----
+  // Re-crawl VISITED URLs once their rediscovery TTL elapses so a drained
+  // frontier does not permanently stop acquisition. Enabled by default (7 days);
+  // set REDISCOVERY_ENABLED=false to disable. Conditional HTTP (ETag /
+  // Last-Modified) is sent on every fetch so an unchanged page returns 304 and
+  // never produces a duplicate article.
+  rediscoveryEnabled: bool("REDISCOVERY_ENABLED", true),
+  rediscoveryTtlMs: num("REDISCOVERY_TTL_MS", 7 * 24 * 60 * 60 * 1000),
+  // Independent exponential backoff for failed URLs (base * 2^(retries-1),
+  // capped). A failed URL is retried on its own schedule and never blocks the
+  // queued new work.
+  frontierRetryBackoffBaseMs: num("FRONTIER_RETRY_BACKOFF_BASE_MS", 60 * 1000),
+  frontierRetryBackoffMaxMs: num("FRONTIER_RETRY_BACKOFF_MAX_MS", 60 * 60 * 1000),
+
   // ---- Discovery policy (bounded, configurable link-following) ----
   // CRAWL_URLS are BOOTSTRAP seeds, not a permanent boundary: the app may follow
   // useful references and explore adjacent sources. Expansion is explicit and

@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { Frontier } from "../src/frontier.js";
 import { createDiscoveryPolicy } from "../src/discovery/discovery-policy.js";
-import { DiscoveryService } from "../src/discovery/discovery-service.js";
+import { DiscoveryService, rotateRoots } from "../src/discovery/discovery-service.js";
 import { createDomainRegistry } from "../src/storage/domain-registry.js";
 
 // Each test gets its own registry on disk: discovery must never write into the
@@ -169,4 +169,23 @@ test("DiscoveryService: empty seeds resumes persisted frontier work instead of c
   assert.equal(res.discovery.status, "ok", "pending work is a real source, not a dead end");
   assert.ok(frontier.state.size >= 2, "entries are not discarded");
   assert.equal(frontier.summary().visited, 2);
+});
+
+test("rotateRoots: round-robins the adapter window over a larger root pool", () => {
+  const pool = ["https://a/", "https://b/", "https://c/", "https://d/", "https://e/"];
+  const r1 = rotateRoots(pool, 0, 2);
+  assert.deepEqual(r1.roots, ["https://a/", "https://b/"]);
+  assert.equal(r1.nextCursor, 2);
+  const r2 = rotateRoots(pool, r1.nextCursor, 2);
+  assert.deepEqual(r2.roots, ["https://c/", "https://d/"]);
+  const r3 = rotateRoots(pool, r2.nextCursor, 2);
+  assert.deepEqual(r3.roots, ["https://e/", "https://a/"]);
+  assert.equal(new Set([...r1.roots, ...r2.roots, ...r3.roots]).size, 5);
+  // A pool that fits the cap is returned whole with the cursor reset.
+  const small = rotateRoots(["https://a/", "https://b/"], 1, 2);
+  assert.deepEqual(small.roots, ["https://a/", "https://b/"]);
+  assert.equal(small.nextCursor, 0);
+  // Empty / disabled cap is safe.
+  assert.deepEqual(rotateRoots([], 0, 2), { roots: [], nextCursor: 0 });
+  assert.deepEqual(rotateRoots(pool, 0, 0).roots.sort(), [...pool].sort());
 });

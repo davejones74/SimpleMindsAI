@@ -8,6 +8,25 @@ import { resolveSearchQueries } from "./mission-queries.js";
 import { classifyDiscoveryLanguage, DISCOVERY_LANGUAGE_PRIORS } from "./language-prior.js";
 
 /**
+ * Round-robin window over a root pool. When there are more roots than the
+ * per-cycle adapter cap (`maxRoots`), successive cycles rotate the window so
+ * every root eventually gets its sitemap/feed probed instead of only the first
+ * `maxRoots` forever. Pure so it is directly testable.
+ *
+ * @returns {{roots: string[], nextCursor: number}}
+ */
+export function rotateRoots(roots, cursor = 0, maxRoots = 0) {
+  const list = [...new Set((roots ?? []).filter(Boolean))];
+  if (!Number.isFinite(maxRoots) || maxRoots <= 0 || list.length <= maxRoots) {
+    return { roots: list, nextCursor: 0 };
+  }
+  const start = ((cursor % list.length) + list.length) % list.length;
+  const window = [];
+  for (let i = 0; i < maxRoots; i++) window.push(list[(start + i) % list.length]);
+  return { roots: window, nextCursor: (start + maxRoots) % list.length };
+}
+
+/**
  * DiscoveryService — the acquisition front end for the learning job.
  *
  * Each cycle it resolves where URLs should come from, feeds candidate URLs into
@@ -76,6 +95,9 @@ export class DiscoveryService {
     // CRAWL_MODE=real. Its reported mode must therefore be `real`.
     this.mode = "real";
     this.maxRoots = maxRoots;
+    // Round-robin cursor so the adapter window advances across cycles when the
+    // root pool is larger than maxRoots (root rotation).
+    this.rootCursor = 0;
     // Adapters and their network access are injectable so tests can drive the
     // whole pipeline deterministically without touching the network.
     this.fetchText = fetchText ?? createAdapterFetchText();
@@ -184,12 +206,13 @@ export class DiscoveryService {
     }
 
     // Registry-first bootstrap: eligible registered domains become roots. This
-    // is what lets discovery run with an empty CRAWL_URLS.
-    const eligible = this.eligibleDomains().slice(0, this.maxRoots);
+    // is what lets discovery run with an empty CRAWL_URLS. Keep the full eligible
+    // pool here; the per-cycle adapter window is chosen by rotation below.
+    const eligible = this.eligibleDomains();
     bootstrap.registryRoots = eligible.length;
     for (const d of eligible) roots.push(`https://${d}/`);
 
-    let uniqueRoots = [...new Set(roots)].slice(0, this.maxRoots);
+    let uniqueRoots = [...new Set(roots)];
     if (bootstrap.via === "none" && uniqueRoots.length) {
       bootstrap.via = bootstrap.registryRoots > 0 ? "registry" : "bootstrap-seeds";
     }
@@ -216,9 +239,20 @@ export class DiscoveryService {
           bootstrap.defaultSeeds++;
         }
       }
-      uniqueRoots = [...new Set(uniqueRoots)].slice(0, this.maxRoots);
+      uniqueRoots = [...new Set(uniqueRoots)];
       if (uniqueRoots.length) bootstrap.via = "default-seeds";
     }
+
+    // Rotate the adapter window across cycles (root rotation). The policy trusts
+    // the ENTIRE pool; only the adapters see the rotating window.
+    const rotation = rotateRoots(uniqueRoots, this.rootCursor, this.maxRoots);
+    this.rootCursor = rotation.nextCursor;
+    const adapterRoots = rotation.roots;
+    bootstrap.rootRotation = {
+      pool: uniqueRoots.length,
+      window: adapterRoots.length,
+      nextCursor: rotation.nextCursor,
+    };
 
     // The roots we just chose (CRAWL_URLS + CRAWL_DISCOVERY_SEEDS + registered
     // domains + the default-seed fallback) are the bootstrap SOURCES for this
@@ -231,7 +265,7 @@ export class DiscoveryService {
     for (const adapter of this.adapters) {
       let res;
       try {
-        res = await adapter.discover({ roots: uniqueRoots, log: this.log });
+        res = await adapter.discover({ roots: adapterRoots, log: this.log });
       } catch (err) {
         res = { status: "error", reason: err?.message ?? "adapter-error", candidates: [], diagnostics: {} };
       }

@@ -222,6 +222,11 @@ export async function fetchDocument(url, {
   allowPrivate = false,
   userAgent = "SimpleMindsAI/0.2",
   accept = "text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.1",
+  // Conditional-HTTP validators from a previous fetch. When supplied, the
+  // request is conditional: an unchanged resource answers 304 and is reported as
+  // { notModified: true } instead of re-delivering the body (no duplicate doc).
+  etag = null,
+  lastModified = null,
   fetchImpl = globalThis.fetch,
 } = {}) {
   if (typeof fetchImpl !== "function") throw new FetchError("FETCH_UNAVAILABLE", "global fetch is unavailable");
@@ -231,12 +236,15 @@ export async function fetchDocument(url, {
     await assertUrlAllowed(current, { allowPrivate });
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const headers = { "user-agent": userAgent, accept };
+    if (etag) headers["if-none-match"] = etag;
+    if (lastModified) headers["if-modified-since"] = lastModified;
     let res;
     try {
       res = await fetchImpl(current, {
         redirect: "manual",
         signal: controller.signal,
-        headers: { "user-agent": userAgent, accept },
+        headers,
       });
     } catch (err) {
       clearTimeout(timer);
@@ -249,6 +257,27 @@ export async function fetchDocument(url, {
         current = new URL(res.headers.get("location"), current).href;
         redirects += 1;
         continue;
+      }
+      // Conditional fetch: the resource is unchanged since the validators we
+      // sent. Report it as such WITHOUT reading a body — the caller keeps the
+      // prior document and only refreshes its rediscovery deadline.
+      if (res.status === 304) {
+        return {
+          url: current,
+          status: 304,
+          notModified: true,
+          contentType: res.headers.get("content-type") ?? "",
+          bytes: 0,
+          title: null,
+          text: null,
+          html: null,
+          htmlLang: null,
+          contentHash: null,
+          redirects,
+          etag: res.headers.get("etag") ?? etag,
+          lastModified: res.headers.get("last-modified") ?? lastModified,
+          fetchedAt: new Date().toISOString(),
+        };
       }
       if (!res.ok) throw new FetchError("FETCH_STATUS", `HTTP ${res.status}`, { url: current, status: res.status });
       const contentType = res.headers.get("content-type") ?? "";
@@ -275,6 +304,9 @@ export async function fetchDocument(url, {
         // evidence for the language detector; null when absent.
         htmlLang: isHtml ? extractHtmlLang(raw) : null,
         contentHash: contentHashFor(text),
+        // Validators for a future conditional (rediscovery) fetch.
+        etag: res.headers.get("etag") ?? null,
+        lastModified: res.headers.get("last-modified") ?? null,
         redirects,
         fetchedAt: new Date().toISOString(),
       };
