@@ -981,8 +981,22 @@ export class JobSupervisor {
     await this.#holdGate(jobId);
   }
 
-  #event(jobId, payload) {
-    return this.jobStore.jobEvent(jobId, payload);
+  async #event(jobId, payload) {
+    const rec = await this.jobStore.jobEvent(jobId, payload);
+    // Surface every status transition over SSE (incl. WAITING + its reason), so
+    // the dashboard reflects acquisition/recovery waits without waiting for the
+    // next poll. Consumers debounce the resulting refresh.
+    if (payload?.status) {
+      this.changeFeed?.emit("job.status", {
+        jobId,
+        status: payload.status,
+        phase: payload.phase ?? null,
+        waitingReason: payload.meta?.waitingReason ?? null,
+        acquisitionState: payload.meta?.acquisitionState ?? null,
+        progress: payload.meta?.progress ?? null,
+      });
+    }
+    return rec;
   }
 
   /** Event write that must never abort the loop it is reporting on. */

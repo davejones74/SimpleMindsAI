@@ -10,6 +10,7 @@ import { GovernanceStore } from "../src/admin/governance-store.js";
 import { ChangeFeed } from "../src/admin/change-feed.js";
 import { attachAdmin } from "../src/admin/routes.js";
 import { JobSupervisor } from "../src/jobs/supervisor.js";
+import { Frontier } from "../src/frontier.js";
 
 const tmp = () => path.join(mkdtempSync(path.join(tmpdir(), "sma-admin-")));
 
@@ -24,6 +25,8 @@ async function harness() {
   const registry = await RegistryStore.open(tmp());
   const governance = await GovernanceStore.open(tmp());
   const changeFeed = new ChangeFeed();
+  const frontier = new Frontier({ dir: tmp() });
+  await frontier.init();
   const app = express();
   app.use(express.json());
   const supervisor = new JobSupervisor({ store, registry, governance, changeFeed, dir: tmp() });
@@ -37,13 +40,14 @@ async function harness() {
     changeFeed,
     pythonStorePath: path.join(tmp(), "empty-python-store"),
     supervisor,
+    frontier,
     logger: { log() {} },
   });
   const server = app.listen(0);
   await new Promise((r) => server.once("listening", r));
   const base = `http://127.0.0.1:${server.address().port}`;
   return {
-    base, store, registry, governance, changeFeed, supervisor,
+    base, store, registry, governance, changeFeed, supervisor, frontier,
     async close() {
       server.closeAllConnections?.();
       await new Promise((r) => server.close(r));
@@ -269,6 +273,45 @@ test("Observatory: training-history projects Python loss metrics + run linkage",
     assert.equal(projected.parentVersion, "v1");
     assert.equal(projected.runLinkage.pythonTrainingRunId, "tr-1");
     assert.equal(projected.evaluationDelta, 0.4);
+  } finally {
+    await h.close();
+  }
+});
+
+// ---------------------------------------------------------- Slice 7: observability
+
+test("observability: /overview exposes the live frontier summary", async () => {
+  const h = await harness();
+  try {
+    await h.frontier.enqueue("https://example.com/queued", { depth: 0 });
+    const visited = await h.frontier.enqueue("https://example.com/visited", { depth: 0 });
+    await h.frontier.markVisited(visited, { nextCrawlAt: new Date(Date.now() - 1000).toISOString() });
+
+    const res = await jget(`${h.base}/api/admin/overview`);
+    assert.equal(res.status, 200);
+    assert.ok(res.body.frontier, "overview includes the frontier summary");
+    assert.ok(res.body.frontier.queued >= 1);
+    assert.ok(res.body.frontier.visited >= 1);
+    assert.ok(res.body.frontier.rediscoveryDue >= 1);
+  } finally {
+    await h.close();
+  }
+});
+
+test("observability: a WAITING transition is emitted over the change feed with its reason", async () => {
+  const h = await harness();
+  try {
+    const events = [];
+    h.changeFeed.subscribe((e) => events.push(e));
+    const job = await h.supervisor.startTraining({ mode: "continuous", minEligible: 1 });
+    for (let i = 0; i < 300; i++) {
+      if (events.some((e) => e.type === "job.status" && e.data?.waitingReason)) break;
+      await sleep(10);
+    }
+    const waitEvent = events.find((e) => e.type === "job.status" && e.data?.waitingReason);
+    assert.ok(waitEvent, "a job.status event carrying the waiting reason is emitted");
+    assert.equal(waitEvent.data.waitingReason, "no-eligible-unconsumed-material");
+    await h.supervisor.stop(job.jobId);
   } finally {
     await h.close();
   }

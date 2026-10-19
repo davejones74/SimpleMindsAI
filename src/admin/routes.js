@@ -37,7 +37,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
  * `x-sma-workspace` header). Inspection-only workspaces refuse every mutation
  * with 403 and never run seeding writes on read endpoints.
  */
-export function attachAdmin({ app, store, registry, governance, chat, conversations = null, changeFeed = defaultFeed, pythonStorePath = null, workspaces = [], supervisor = null, domainRegistry = null, logger = console }) {
+export function attachAdmin({ app, store, registry, governance, chat, conversations = null, changeFeed = defaultFeed, pythonStorePath = null, workspaces = [], supervisor = null, domainRegistry = null, frontier = null, logger = console }) {
   const workspaceRegistry = createWorkspaceRegistry({
     store,
     registry,
@@ -155,6 +155,9 @@ export function attachAdmin({ app, store, registry, governance, chat, conversati
       reviewCycles: cycles,
       currentReviewCycle: w.reviewCycles.current(),
       reviewInterval: w.reviewCycles.interval(),
+      // Acquisition observability: the live frontier's authoritative counts,
+      // including due retries and due rediscoveries (Slice 7).
+      frontier: frontier ? frontier.summary() : null,
       changeSeq: changeFeed.currentSeq(),
     });
   }));

@@ -140,6 +140,7 @@ attachAdmin({
   pythonStorePath: config.pythonStore,
   supervisor,
   domainRegistry,
+  frontier,
 });
 
 const httpServer = app.listen(config.port, config.host, () =>

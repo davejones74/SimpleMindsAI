@@ -405,6 +405,10 @@ function renderDashboard() {
       </div>
     </div>
     <div class="panel">
+      <div class="k">Acquisition (frontier)</div>
+      ${renderFrontier(o.frontier)}
+    </div>
+    <div class="panel">
       <div class="k">Python brain store</div>
       ${renderPythonStore(o.pythonStore)}
     </div>
@@ -412,6 +416,53 @@ function renderDashboard() {
       <div class="small muted">Read-only, never a source of truth:</div>
       <ul class="small">${legacy.map((l) => `<li>${esc(l.file)} — ${l.count ?? "?"} line(s)</li>`).join("")}</ul></div>` : ""}
   `;
+}
+
+/** Acquisition observability: live frontier counts incl. due retries/rediscoveries. */
+function renderFrontier(f) {
+  if (!f) return `<div class="muted">frontier not wired</div>`;
+  const parts = [
+    `${fmt(f.queued)} queued`,
+    `${fmt(f.deferred)} deferred${f.deferredDue ? ` (${fmt(f.deferredDue)} due)` : ""}`,
+    `${fmt(f.visited)} visited`,
+    `${fmt(f.rediscoveryDue)} rediscovery due`,
+    `${fmt(f.failed)} failed`,
+  ];
+  return `<div>${parts.join(" · ")}</div>
+    <div class="small muted">next scheduled: ${f.nextDueAt ? when(f.nextDueAt) : "—"}</div>`;
+}
+
+/**
+ * Job-detail diagnostics for a waiting/running job: the machine-readable waiting
+ * reason, acquisition state, scheduled deadline, frontier counts and recovery
+ * pipeline. This is the "why is it waiting?" surface (Slice 7).
+ */
+function renderWaitDiagnostics(meta) {
+  if (!meta) return "";
+  const rows = [];
+  if (meta.waitingReason) rows.push(["waiting reason", meta.waitingReason]);
+  if (meta.acquisitionState) rows.push(["acquisition", meta.acquisitionState]);
+  if (meta.nextAttemptAt) rows.push(["next attempt", when(meta.nextAttemptAt)]);
+  const f = meta.diagnostics?.frontier;
+  if (f) {
+    rows.push([
+      "frontier",
+      `${fmt(f.queued)} queued · ${fmt(f.deferred)} deferred (${fmt(f.deferredDue)} due) · ${fmt(f.rediscoveryDue)} rediscovery due${f.nextDueAt ? ` · next ${when(f.nextDueAt)}` : ""}`,
+    ]);
+  }
+  const r = meta.recovery;
+  if (r) {
+    rows.push([
+      "recovery",
+      `${fmt(r.ingested)} ingested · ${fmt(r.pendingReview)} pending · ${fmt(r.quarantined)} quarantined · ${fmt(r.released)} released`,
+    ]);
+  }
+  const d = meta.diagnostics?.discovery;
+  if (d?.status) rows.push(["discovery", `${d.status}${d.providerAvailable ? " · provider available" : ""}`]);
+  if (!rows.length) return "";
+  return `<div class="small" style="margin-top:6px">${rows
+    .map(([k, v]) => `<div><span class="muted">${esc(k)}:</span> ${esc(String(v))}</div>`)
+    .join("")}</div>`;
 }
 
 function storeStatus() {
@@ -1979,6 +2030,7 @@ async function openJob(jobId, { silent = false } = {}) {
           <span style="flex:1"></span><button data-close-job>close</button></div>
         ${d.job.error ? `<div class="small bad">${esc(d.job.error)}</div>` : ""}
         ${d.job.note ? `<div class="small muted">${esc(d.job.note)}</div>` : ""}
+        ${renderWaitDiagnostics(d.job.meta)}
         ${d.job.result ? `<pre class="small">${esc(JSON.stringify(d.job.result, null, 2))}</pre>` : ""}
         <div class="k" style="margin-top:8px">Log</div>
         <div class="log-box small">${(d.log ?? []).map((l) => `<div><span class="muted">${when(l.at)}</span> [${esc(l.stream)}] ${esc(l.text)}</div>`).join("") || `<div class="muted">no log lines</div>`}</div>
