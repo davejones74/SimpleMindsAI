@@ -6,6 +6,7 @@ import { createDiscoveryPolicy } from "../discovery/discovery-policy.js";
 import { fetchDocument, parseRobots, robotsAllows, assertUrlAllowed, contentHashFor } from "./fetcher.js";
 import { canonicalDomain } from "../storage/domain-registry.js";
 import { assess } from "../domain/language.js";
+import { classifyDiscoveryLanguage } from "../discovery/language-prior.js";
 
 /**
  * Harvest — the ONLY entry point that produces raw docs.
@@ -222,6 +223,7 @@ export async function runCrawlCycle(ctx = {}) {
     policy = null,
     maxLinksPerPage = config.crawlMaxLinksPerPage,
     languageFilter = null,
+    discoveryLanguagePrior = null,
   } = ctx;
 
   if (!frontier.initialized) await frontier.init();
@@ -235,6 +237,8 @@ export async function runCrawlCycle(ctx = {}) {
     robotsDisallowed: 0,
     domainFiltered: 0,
     languageFiltered: 0,
+    languagePriorWarned: 0,
+    languagePriorRejected: 0,
     errors: 0,
     documents: [],
     failures: [],
@@ -358,6 +362,21 @@ export async function runCrawlCycle(ctx = {}) {
           continue;
         }
 
+        // Discovery language prior on EXTRACTED LINKS (not just adapter
+        // candidates): a link whose HOST declares a non-English language is
+        // refused at discovery under `reject`, or counted under `warn`, so
+        // foreign-wiki URLs never enter the frontier. The ingest filter remains
+        // the authoritative backstop on the actual text.
+        if (discoveryLanguagePrior && discoveryLanguagePrior !== "off") {
+          const prior = classifyDiscoveryLanguage(linkUrl, discoveryLanguagePrior);
+          if (prior.action === "reject") {
+            summary.languagePriorRejected++;
+            summary.discovered.push({ url: linkUrl, accepted: false, reason: "discovery-language-prior", declaredLang: prior.declaredLang });
+            continue;
+          }
+          if (prior.action === "warn") summary.languagePriorWarned++;
+        }
+
         // Check domain registry for discovered links
         const linkDomain = canonicalDomain(linkUrl);
         if (domainRegistry && linkDomain) {
@@ -434,6 +453,7 @@ export async function runCrawlBatches({
   policy = null,
   maxLinksPerPage = config.crawlMaxLinksPerPage,
   languageFilter = null,
+  discoveryLanguagePrior = null,
   onCycle = async (ctx) => ({ pagesFetched: 0, linksDiscovered: 0, urlsEnqueued: 0 }),
 } = {}) {
   if (!frontier.initialized) await frontier.init();
@@ -447,6 +467,8 @@ let totalPagesFetched = 0;
   const failures = [];
   const discovered = [];
   let languageFiltered = 0;
+  let languagePriorWarned = 0;
+  let languagePriorRejected = 0;
   const skipped = [];
   const shadowRejected = [];
 
@@ -469,6 +491,7 @@ let totalPagesFetched = 0;
       policy,
       maxLinksPerPage,
       languageFilter,
+      discoveryLanguagePrior,
       totalBudget: config.crawlTotalBudget - totalPagesFetched,
     };
     const cycleResult = await runCrawlCycle(cycleCtx);
@@ -481,6 +504,8 @@ let totalPagesFetched = 0;
     if (cycleResult.failures?.length) failures.push(...cycleResult.failures);
     if (cycleResult.discovered?.length) discovered.push(...cycleResult.discovered);
     languageFiltered += cycleResult.languageFiltered ?? 0;
+    languagePriorWarned += cycleResult.languagePriorWarned ?? 0;
+    languagePriorRejected += cycleResult.languagePriorRejected ?? 0;
     if (cycleResult.skipped?.length) skipped.push(...cycleResult.skipped);
     if (cycleResult.shadowRejected?.length) shadowRejected.push(...cycleResult.shadowRejected);
 
@@ -509,6 +534,8 @@ let totalPagesFetched = 0;
     failures,
     discovered,
     languageFiltered,
+    languagePriorWarned,
+    languagePriorRejected,
     skipped,
     shadowRejected,
     budgetRemaining: config.crawlTotalBudget - totalPagesFetched,

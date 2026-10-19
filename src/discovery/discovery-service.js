@@ -327,6 +327,9 @@ export class DiscoveryService {
       respectRobots: ctx.respectRobots ?? config.crawlRespectRobots,
       userAgent: ctx.userAgent ?? config.crawlUserAgent,
       languageFilter: ctx.languageFilter ?? config.languageFilter,
+      // Apply the discovery language prior to EXTRACTED LINKS too, not only to
+      // adapter candidates, so foreign hosts never enter the frontier.
+      discoveryLanguagePrior: this.languagePrior,
     });
 
     const frontierAfter = this.frontier.summary();
