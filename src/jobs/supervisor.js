@@ -673,17 +673,49 @@ export class JobSupervisor {
       }
       const stats = this.store.getStats();
       if (stats.trainable < minEligible) {
+        const recoverable = stats.recoverable ?? 0;
         if (job.mode === "one-shot") {
           const err = new Error(
-            `insufficient eligible material: ${stats.trainable} reviewed+unconsumed article(s), need ${minEligible}`,
+            stats.trainable === 0
+              ? `insufficient eligible material: no eligible unconsumed material (0 reviewed+unconsumed article(s))${recoverable > 0 ? `, ${recoverable} recoverable via review/quarantine` : ""}`
+              : `insufficient eligible material: ${stats.trainable} reviewed+unconsumed article(s), need ${minEligible}`,
           );
           err.code = "INSUFFICIENT_ELIGIBLE";
           throw err;
         }
+        // Continuous: wait (persisted) and report WHY. Distinguish "material is
+        // still coming (recovery)" from "genuinely nothing eligible" so operators
+        // can tell a cooling pipeline from a dry one, and never mark the job
+        // terminal merely because the delta is momentarily empty.
+        const reason =
+          stats.trainable === 0
+            ? recoverable > 0
+              ? "recovery-pending"
+              : "no-eligible-unconsumed-material"
+            : "insufficient-eligible-material";
+        const note =
+          stats.trainable === 0
+            ? recoverable > 0
+              ? `waiting: no eligible unconsumed material yet (${recoverable} recoverable: ${stats.ingested ?? 0} ingested, ${stats.pendingReview ?? 0} pending, ${stats.quarantined ?? 0} quarantined)`
+              : "waiting: no eligible unconsumed material (nothing ingested, pending, or quarantined)"
+            : `waiting: ${stats.trainable}/${minEligible} eligible article(s)`;
         await this.#event(jobId, {
           status: JOB_STATUS.WAITING,
           phase: "waiting-for-eligible",
-          note: `waiting: ${stats.trainable}/${minEligible} eligible article(s)`,
+          note,
+          meta: {
+            waitingReason: reason,
+            trainable: stats.trainable,
+            minEligible,
+            recoverable,
+            recovery: {
+              ingested: stats.ingested ?? 0,
+              pendingReview: stats.pendingReview ?? 0,
+              quarantined: stats.quarantined ?? 0,
+              released: stats.quarantineReleased ?? 0,
+              consumed: stats.uniqueConsumed ?? 0,
+            },
+          },
         });
         await this.#gate(jobId, config.jobs.pollIntervalMs);
         continue;
@@ -735,6 +767,9 @@ export class JobSupervisor {
             status: JOB_STATUS.WAITING,
             phase: err.code === "INSUFFICIENT_CORPUS" ? "waiting-for-corpus" : "waiting-for-eligible",
             note: err.message,
+            meta: {
+              waitingReason: err.code === "INSUFFICIENT_CORPUS" ? "corpus-too-small" : "insufficient-eligible-material",
+            },
           });
           await this.#gate(jobId, config.jobs.pollIntervalMs);
           continue;

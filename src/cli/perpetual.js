@@ -111,7 +111,17 @@ for (let cycle = 1; cycle <= maxCycles; cycle++) {
     console.log(`[perpetual] ingested=${ingested} reviewed=${reviewed} trainable=${stats0.trainable}`);
 
     if (stats0.trainable === 0) {
-      console.log("[perpetual] nothing reviewed+unconsumed to train on — waiting for data...");
+      // Recovery-driven progress: report whether the pipeline can still recover
+      // material (review/quarantine) or has genuinely run dry. Never replay the
+      // corpus to manufacture progress.
+      const recoverable = stats0.recoverable ?? 0;
+      if (recoverable > 0) {
+        console.log(
+          `[perpetual] no eligible unconsumed material yet — ${recoverable} recoverable (${stats0.ingested ?? 0} ingested, ${stats0.pendingReview ?? 0} pending, ${stats0.quarantined ?? 0} quarantined); waiting...`,
+        );
+      } else {
+        console.log("[perpetual] no eligible unconsumed material and nothing recoverable — waiting for acquisition/review...");
+      }
       await new Promise((r) => setTimeout(r, Math.min(idleMs, 30_000)));
       continue;
     }

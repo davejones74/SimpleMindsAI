@@ -55,8 +55,8 @@ const COLLECTIONS = {
 const LEGACY_FILES = ["prompts.ndjson", "completions.ndjson", "rewards.ndjson", "state.ndjson", "runs.ndjson"];
 
 export class ArticleStore {
-  static async open(dir = process.env.ARTICLE_DIR ?? process.env.BUFFER_DIR ?? path.resolve("data", "articles"), { readOnly = false, domainRegistry = null, languageFilter = config.languageFilter, missionTexts = [], missionRelevanceEnabled = config.missionRelevanceEnabled } = {}) {
-    const s = new ArticleStore(dir, { readOnly, domainRegistry, languageFilter, missionTexts, missionRelevanceEnabled });
+  static async open(dir = process.env.ARTICLE_DIR ?? process.env.BUFFER_DIR ?? path.resolve("data", "articles"), { readOnly = false, policy = DEFAULT_POLICY, domainRegistry = null, languageFilter = config.languageFilter, missionTexts = [], missionRelevanceEnabled = config.missionRelevanceEnabled } = {}) {
+    const s = new ArticleStore(dir, { readOnly, policy, domainRegistry, languageFilter, missionTexts, missionRelevanceEnabled });
     await s.#loadFromDisk();
     return s;
   }
@@ -888,11 +888,13 @@ const rec = {
     const byImportance = Object.fromEntries(["Normal", "Important", "Critical"].map((i) => [i, 0]));
     const byDomain = new Map();
     let trainable = 0;
+    let quarantineReleased = 0;
     for (const a of this.articles.values()) {
       byStatus[a.status] = (byStatus[a.status] ?? 0) + 1;
       byImportance[a.importance] = (byImportance[a.importance] ?? 0) + 1;
       byDomain.set(a.domain, (byDomain.get(a.domain) ?? 0) + 1);
       if (isTrainable(a)) trainable++;
+      if (a.quarantineReleasedAt) quarantineReleased++;
     }
     const scores = [];
     for (const arr of this.reviews.values()) for (const r of arr) if (Number.isFinite(r.score)) scores.push(r.score);
@@ -913,6 +915,18 @@ const rec = {
       // Quarantined material is likewise visible as its own reversible category.
       quarantined: byStatus[STATUS.QUARANTINED] ?? 0,
       trainable,
+      // Progress accounting (Slice 6). `trainable` is the ONLY source of training
+      // material (reviewed + unconsumed + not retired); the corpus is never
+      // replayed. `recoverable` is the size of the pipeline that can still become
+      // trainable without replay: ingested-but-unreviewed, pending review, and
+      // quarantined (releasable) material. `noEligibleUnconsumed` is the honest
+      // "there is nothing to train on right now" signal.
+      noEligibleUnconsumed: trainable === 0,
+      recoverable:
+        (byStatus[STATUS.INGESTED] ?? 0) +
+        (byStatus[STATUS.PENDING_REVIEW] ?? 0) +
+        (byStatus[STATUS.QUARANTINED] ?? 0),
+      quarantineReleased,
       reviewCount: scores.length,
       avgReviewScore: scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : null,
       uniqueConsumed,

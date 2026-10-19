@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { ArticleStore } from "../src/storage/article-store.js";
 import { RegistryStore } from "../src/storage/registry-store.js";
+import { DEFAULT_POLICY } from "../src/domain/review-policy.js";
 import { config } from "../src/config.js";
 
 const tmp = () => path.join(mkdtempSync(path.join(tmpdir(), "sma-perpetual-")));
@@ -32,7 +33,10 @@ const fakeScorer = {
 };
 
 async function setupStore(dir, articles = []) {
-  const store = await ArticleStore.open(dir);
+  // Disable review sampling so the INGESTED vs REVIEWED split the assertions
+  // rely on is deterministic (REVIEW_SAMPLE_RATE defaults to 0.1 and the article
+  // id is random, which made `ingested >= 1` flaky).
+  const store = await ArticleStore.open(dir, { policy: { ...DEFAULT_POLICY, sampleRate: 0 } });
   for (const a of articles) {
     const rec = await store.ingestArticle({
       text: a.text,

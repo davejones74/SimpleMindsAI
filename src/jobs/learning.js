@@ -133,6 +133,28 @@ export async function runLearningCycle(ctx) {
   // up front. Surfacing it lets the operator see that a multi-article target is
   // unreachable on fixtures instead of reading "completed" as "acquired".
   const corpusCeiling = result.mode === "fixture" && rawDocs > 0 ? rawDocs : null;
+
+  // Recovery-driven progress (Slice 6). Training material is ONLY reviewed,
+  // unconsumed, non-retired articles — the corpus is never replayed. When there
+  // is none, report honestly whether the pipeline can still RECOVER material
+  // (ingested/pending/quarantined) or has genuinely run dry.
+  const recovery = {
+    trainable: stats.trainable,
+    pendingReview: stats.pendingReview,
+    ingested: stats.ingested,
+    quarantined: stats.quarantined,
+    recoverable: stats.recoverable ?? 0,
+    released: stats.quarantineReleased ?? 0,
+    consumed: stats.uniqueConsumed,
+  };
+  const progress =
+    ingested > 0 || reviewed > 0
+      ? "acquisition"
+      : stats.trainable > 0
+        ? "eligible"
+        : recovery.recoverable > 0
+          ? "recovery"
+          : "no-eligible-unconsumed";
   return {
     mode: result.mode,
     capability: result.capability,
@@ -151,6 +173,10 @@ export async function runLearningCycle(ctx) {
     corpusCeiling,
     failures: result.failures ?? [],
     sourceExhausted,
+    // Recovery-driven progress: what can still become training material without
+    // replaying the corpus, and the honest "no eligible unconsumed" signal.
+    recovery,
+    progress,
     skippedUnchanged,
     languageSkipped,
     // Pass the discovery report through so the supervisor can tell an empty
