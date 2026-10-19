@@ -104,9 +104,12 @@ if (enabled.has("sitemap")) {
       createSearchAdapter({
         provider: opts.searchProvider ?? config.crawlSearchProvider,
         endpoint: opts.searchEndpoint ?? config.crawlSearchEndpoint,
+        fallbackEndpoints: opts.searchFallbackEndpoints ?? config.crawlSearchFallbackEndpoints,
         queryParam: opts.searchQueryParam ?? config.crawlSearchQueryParam,
         queries: opts.searchQueries ?? config.crawlSearchQueries,
         extraParams: opts.searchExtraParams ?? config.crawlSearchExtraParams,
+        maxRetries: opts.searchMaxRetries ?? config.crawlSearchMaxRetries,
+        retryDelayMs: opts.searchRetryDelayMs ?? config.crawlSearchRetryDelayMs,
         fetchJson: opts.fetchJson ?? defaultFetchJson,
         maxCandidates: opts.maxCandidates ?? config.crawlDiscoveryMaxCandidates,
       }),

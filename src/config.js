@@ -507,6 +507,13 @@ export const config = {
   // never silently requires paid credentials.
   crawlSearchProvider: env("CRAWL_SEARCH_PROVIDER", null),
   crawlSearchEndpoint: env("CRAWL_SEARCH_ENDPOINT", null),
+  // Optional fallback search endpoints (comma-separated), tried in order after the
+  // primary when a query fails — multi-provider resilience. A single SearXNG
+  // instance can be listed here too (e.g. a local + a remote mirror).
+  crawlSearchFallbackEndpoints: env("CRAWL_SEARCH_FALLBACK_ENDPOINTS", "").split(",").map((s) => s.trim()).filter(Boolean),
+  // Bounded retry per request before failing over to the next endpoint.
+  crawlSearchMaxRetries: num("CRAWL_SEARCH_MAX_RETRIES", 1),
+  crawlSearchRetryDelayMs: num("CRAWL_SEARCH_RETRY_DELAY_MS", 500),
   crawlSearchQueryParam: env("CRAWL_SEARCH_QUERY_PARAM", "q"),
   crawlSearchQueries: env("CRAWL_SEARCH_QUERIES", "").split(",").map((s) => s.trim()).filter(Boolean),
   // Extra query params merged into every search request, as a JSON object.

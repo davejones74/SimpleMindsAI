@@ -195,3 +195,81 @@ test("search adapter: SearXNG provider without explicit params still sends forma
   const res = await adapter.discover();
   assert.equal(res.status, "ok");
 });
+
+test("search adapter: fails over to a fallback endpoint when the primary fails", async () => {
+  const seen = [];
+  const adapter = createSearchAdapter({
+    provider: "searxng",
+    endpoint: "http://primary.test/search",
+    fallbackEndpoints: ["http://fallback.test/search"],
+    queries: ["topic"],
+    maxRetries: 0,
+    sleep: async () => {},
+    fetchJson: async (url) => {
+      seen.push(url);
+      if (url.startsWith("http://primary.test")) throw new Error("HTTP 502");
+      return { results: [{ url: "https://x.test/ok" }] };
+    },
+  });
+  const res = await adapter.discover();
+  assert.equal(res.status, "ok");
+  assert.deepEqual(res.candidates.map((c) => c.url), ["https://x.test/ok"]);
+  assert.equal(res.candidates[0].provenance.endpoint, "http://fallback.test/search");
+  assert.equal(res.diagnostics.health.failed, 1);
+  assert.equal(res.diagnostics.health.ok, 1);
+  assert.equal(seen.length, 2);
+});
+
+test("search adapter: retries a transient failure before giving up", async () => {
+  let calls = 0;
+  const adapter = createSearchAdapter({
+    endpoint: "http://r.test/search",
+    queries: ["q"],
+    maxRetries: 1,
+    sleep: async () => {},
+    fetchJson: async () => {
+      calls++;
+      if (calls === 1) throw new Error("transient");
+      return { results: [{ url: "https://x.test/retry" }] };
+    },
+  });
+  const res = await adapter.discover();
+  assert.equal(res.status, "ok");
+  assert.equal(calls, 2);
+});
+
+test("search adapter: reports error when every endpoint fails", async () => {
+  const adapter = createSearchAdapter({
+    endpoint: "http://a.test/search",
+    fallbackEndpoints: ["http://b.test/search"],
+    queries: ["q1", "q2"],
+    maxRetries: 0,
+    sleep: async () => {},
+    fetchJson: async () => {
+      throw new Error("down");
+    },
+  });
+  const res = await adapter.discover();
+  assert.equal(res.status, "error");
+  assert.equal(res.reason, "all-search-providers-failed");
+  assert.equal(res.candidates.length, 0);
+});
+
+test("search adapter: a partially failing pool reports degraded (not idle/error)", async () => {
+  const adapter = createSearchAdapter({
+    endpoint: "http://a.test/search",
+    fallbackEndpoints: ["http://b.test/search"],
+    queries: ["q"],
+    maxRetries: 0,
+    sleep: async () => {},
+    fetchJson: async (url) => {
+      if (url.startsWith("http://a.test")) throw new Error("down");
+      return { results: [] };
+    },
+  });
+  const res = await adapter.discover();
+  assert.equal(res.status, "degraded");
+  assert.equal(res.reason, "some-search-requests-failed");
+  assert.equal(res.diagnostics.health.failed, 1);
+  assert.equal(res.diagnostics.health.ok, 1);
+});

@@ -189,3 +189,33 @@ test("rotateRoots: round-robins the adapter window over a larger root pool", () 
   assert.deepEqual(rotateRoots([], 0, 2), { roots: [], nextCursor: 0 });
   assert.deepEqual(rotateRoots(pool, 0, 0).roots.sort(), [...pool].sort());
 });
+
+test("DiscoveryService: a degraded search provider counts as available (not no-source)", async () => {
+  const frontier = new Frontier({ dir: mkdtempSync(path.join(tmpdir(), "sma-degraded-")) });
+  await frontier.init();
+  const adapters = [
+    {
+      name: "search",
+      kind: "independent",
+      discover: async () => ({
+        status: "degraded",
+        reason: "some-search-requests-failed",
+        candidates: [],
+        diagnostics: { health: { ok: 1, failed: 1, endpoints: [] } },
+      }),
+    },
+  ];
+  const svc = new DiscoveryService({
+    frontier,
+    seeds: [],
+    discoverySeeds: [],
+    defaultSeeds: [],
+    adapters,
+    domainRegistry: null,
+    log: () => {},
+    maxRoots: 5,
+  });
+  const res = await svc.collect({ maxCycles: 1 });
+  assert.equal(res.discovery.providerAvailable, true);
+  assert.equal(res.discovery.bootstrap.adapters[0].status, "degraded");
+});

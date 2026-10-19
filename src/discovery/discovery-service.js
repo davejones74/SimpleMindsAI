@@ -367,7 +367,9 @@ export class DiscoveryService {
     });
 
     const frontierAfter = this.frontier.summary();
-    const providerAvailable = bootstrap.adapters.some((a) => a.status === "ok" || a.status === "idle");
+    const providerAvailable = bootstrap.adapters.some(
+      (a) => a.status === "ok" || a.status === "idle" || a.status === "degraded",
+    );
     const hadFrontierWork = frontierBefore.queued + frontierBefore.deferred > 0;
     const hasAnySource =
       this.seeds.length > 0 ||
