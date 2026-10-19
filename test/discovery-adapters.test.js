@@ -102,6 +102,18 @@ test("sitemap adapter: robots Sitemap: directive -> index -> pages", async () =>
   assert.ok(!res.candidates.some((c) => c.url.endsWith(".xml")));
 });
 
+test("sitemap adapter: deduplicates against knownUrls BEFORE the candidate cap", async () => {
+  const pages = [1, 2, 3, 4, 5, 6].map((n) => `https://site.test/p${n}`);
+  const fetchText = fakeFetch({
+    "https://site.test/robots.txt": "User-agent: *\nDisallow:\n",
+    "https://site.test/sitemap.xml": `<urlset>${pages.map((p) => `<url><loc>${p}</loc></url>`).join("")}</urlset>`,
+  });
+  const known = new Set(["https://site.test/p1", "https://site.test/p2", "https://site.test/p3"]);
+  const adapter = createSitemapAdapter({ fetchText, maxCandidates: 2, knownUrls: (url) => known.has(url) });
+  const res = await adapter.discover({ roots: ["https://site.test/"] });
+  assert.deepEqual(res.candidates.map((c) => c.url), ["https://site.test/p4", "https://site.test/p5"]);
+});
+
 test("sitemap adapter: falls back to /sitemap.xml; unreachable roots are non-fatal", async () => {
   const fetchText = fakeFetch({
     "https://site.test/robots.txt": "User-agent: *\nDisallow:\n",

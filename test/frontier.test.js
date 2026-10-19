@@ -60,3 +60,14 @@ test("a visited URL is never re-enqueued, a forced re-enqueue revives an exhaust
   assert.equal(await f2.enqueue("https://example.com/a", { depth: 0 }), null, "exhausted => not re-enqueued without force");
   assert.ok(await f2.enqueue("https://example.com/a", { depth: 0, force: true }), "force revives an exhausted URL");
 });
+
+test("has() reports whether a URL is already tracked (any state)", async () => {
+  const f = new Frontier({ dir: tmp() });
+  await f.init();
+  assert.equal(f.has("https://en.wikipedia.org/wiki/Example"), false);
+  await f.enqueue("https://en.wikipedia.org/wiki/Example", { depth: 0 });
+  assert.equal(f.has("https://en.wikipedia.org/wiki/Example"), true);
+  // Canonicalisation is applied, so an equivalent form also reports true.
+  assert.equal(f.has("https://EN.Wikipedia.org/wiki/Example"), true);
+  assert.equal(f.has("https://en.wikipedia.org/wiki/Other"), false);
+});

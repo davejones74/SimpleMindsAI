@@ -120,6 +120,12 @@ export class Frontier {
     return canonical;
   }
 
+  /** True when the URL is already tracked in the frontier (any state). */
+  has(url) {
+    const canonical = canonicalURL(url);
+    return canonical ? this.state.has(canonical) : false;
+  }
+
   // Claim next URL: mark in-progress, return the record, advance state
   async claimNext({ maxRetries = 2 } = {}) {
     if (!this.initialized) await this.init();

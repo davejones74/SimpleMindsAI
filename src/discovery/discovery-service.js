@@ -103,7 +103,7 @@ export class DiscoveryService {
       corpusQueryMax,
       corpusQueryMinFreq,
     });
-    this.adapters = adapters ?? buildAdapters({ fetchText: this.fetchText, opts: { searchQueries: this.searchQueries } });
+    this.adapters = adapters ?? buildAdapters({ fetchText: this.fetchText, opts: { searchQueries: this.searchQueries, knownUrls: (url) => this.frontier.has(url) } });
   }
 
   /** Reporting descriptor — must match what `collect` actually does. */

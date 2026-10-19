@@ -9,12 +9,19 @@ import { parseSitemap, sitemapsFromRobots, resolveHttpUrl } from "./parse.js";
  * as a document — and never enqueues anything itself: the DiscoveryService is
  * the single authority that filters candidates through the discovery policy and
  * the domain registry before they touch the persistent frontier.
+ *
+ * `knownUrls` (optional) is a predicate `(url) => boolean` for URLs already
+ * tracked in the persistent frontier. When supplied, the adapter skips those
+ * URLs BEFORE the `maxCandidates` cap, so the cap counts genuinely-new
+ * candidates and later sitemap entries are reached instead of replaying the
+ * same leading page every cycle.
  */
 export function createSitemapAdapter({
   fetchText,
   maxSitemaps = 50,
   maxSitemapDepth = 3,
   maxCandidates = 500,
+  knownUrls = null,
 } = {}) {
   return {
     name: "sitemap",
@@ -69,6 +76,11 @@ export function createSitemapAdapter({
             for (const page of parsed.urls) {
               if (candidates.length >= maxCandidates) break;
               if (seenPages.has(page)) continue;
+              // Deduplicate against the frontier BEFORE the cap: a URL already
+              // tracked (visited/queued/deferred/failed) is skipped so the cap
+              // counts genuinely-new candidates and later sitemap entries are
+              // reached instead of replaying the same leading page every cycle.
+              if (knownUrls && knownUrls(page)) continue;
               seenPages.add(page);
               candidates.push({ url: page, provenance: { type: "sitemap", sitemapUrl, root: rootUrl } });
             }

@@ -79,13 +79,14 @@ export function buildAdapters({ fetchText, opts = {} } = {}) {
   const enabled = new Set((opts.adapters ?? config.crawlDiscoveryAdapters).map((s) => String(s).trim().toLowerCase()).filter(Boolean));
   const adapters = [];
 
-  if (enabled.has("sitemap")) {
+if (enabled.has("sitemap")) {
     adapters.push(
       createSitemapAdapter({
         fetchText,
         maxSitemaps: opts.maxSitemaps ?? config.crawlDiscoveryMaxSitemaps,
         maxSitemapDepth: opts.sitemapMaxDepth ?? config.crawlDiscoverySitemapMaxDepth,
         maxCandidates: opts.maxCandidates ?? config.crawlDiscoveryMaxCandidates,
+        knownUrls: opts.knownUrls ?? null,
       }),
     );
   }
