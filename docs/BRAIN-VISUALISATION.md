@@ -33,8 +33,8 @@ Defaults:
 | Setting | Default |
 |---|---|
 | Store | `$SMA_STORE` or `~/.sma/store` |
-| Output | `data/visualisation/brain-blueprint.json` |
-| Server file path | `$SMA_BLUEPRINT` (optional override) |
+| Output | `$SMA_BLUEPRINT`, else `data/visualisation/brain-blueprint.json` |
+| Server file path | `$SMA_BLUEPRINT` (same default) |
 | API path | `/api/admin/brain/blueprint` |
 
 The exporter rejects an output path inside the model store. The output file is

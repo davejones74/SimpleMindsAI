@@ -15,7 +15,9 @@ import {
  * atomically replaced JSON file outside it. It never constructs a model, reads
  * tensor data, or touches a GPU.
  */
-const DEFAULT_OUT = path.join(REPO_ROOT, "data", "visualisation", "brain-blueprint.json");
+const DEFAULT_OUT = process.env.SMA_BLUEPRINT
+  ? path.resolve(process.env.SMA_BLUEPRINT)
+  : path.join(REPO_ROOT, "data", "visualisation", "brain-blueprint.json");
 const userArgs = process.argv.slice(2);
 const hasOut = userArgs.some((arg) => arg === "--out" || arg.startsWith("--out="));
 const args = ["-m", "sma.blueprint", ...(hasOut ? [] : ["--out", DEFAULT_OUT]), ...userArgs];

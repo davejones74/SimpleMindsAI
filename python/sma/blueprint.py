@@ -22,7 +22,10 @@ from . import store
 
 SCHEMA = "sma/brain-blueprint@1"
 VERSION_RE = re.compile(r"^v\d+$")
-DEFAULT_OUTPUT = Path(__file__).resolve().parents[2] / "data" / "visualisation" / "brain-blueprint.json"
+DEFAULT_OUTPUT = Path(
+    os.environ.get("SMA_BLUEPRINT")
+    or (Path(__file__).resolve().parents[2] / "data" / "visualisation" / "brain-blueprint.json")
+)
 MAX_HEADER_BYTES = 128 * 1024 * 1024
 BUFFER_MARKERS = ("rotary_emb", "inv_freq")
 

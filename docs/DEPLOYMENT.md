@@ -247,6 +247,47 @@ pointer write and the reload leaves a committed, valid version active, and the
 worker keeps serving the old one until its next reload — the safe direction to
 fail in.
 
+### Deploying this checkout (X1 Pro)
+
+A partial sync of only `src/` is not enough for the brain visualiser: the
+`blueprint` npm script is in `package.json`, and the exporter is
+`python/sma/blueprint.py`. Deploy all three areas plus the lockfile:
+
+```bash
+cd ~/Repositories/SimpleMindsAI && git pull
+
+sudo rsync -a --delete src/ /opt/simpleminds/src/
+sudo rsync -a package.json package-lock.json /opt/simpleminds/
+sudo rsync -a --delete python/sma/ /opt/simpleminds/python/sma/
+
+sudo cp deploy/etc/x1pro.simpleminds.env /etc/simpleminds/simpleminds.env
+cd /opt/simpleminds && sudo -u simpleminds npm install
+sudo systemctl restart simpleminds.service
+```
+
+`npm install` is required because the visualiser adds `three`. The deployment
+environment file sets:
+
+```dotenv
+SMA_BLUEPRINT=/var/lib/simpleminds/data/visualisation/brain-blueprint.json
+```
+
+Generate the runtime blueprint **on the target host**, as the service user:
+
+```bash
+sudo -u simpleminds env \
+  HOME=/var/lib/simpleminds \
+  SMA_STORE=/var/lib/simpleminds/store \
+  SMA_PYTHON=/opt/simpleminds/python/.venv/bin/python \
+  SMA_BLUEPRINT=/var/lib/simpleminds/data/visualisation/brain-blueprint.json \
+  bash -c 'cd /opt/simpleminds && npm run blueprint'
+```
+
+The exporter writes only that JSON file and never loads model weights. It must
+be re-run manually after a promotion if the visualiser should follow the new
+active version. A fresh deployment intentionally shows “No blueprint exported
+yet” until this command has run.
+
 ---
 
 ## Environment configuration
