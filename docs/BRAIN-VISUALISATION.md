@@ -38,7 +38,10 @@ Defaults:
 | API path | `/api/admin/brain/blueprint` |
 
 The exporter rejects an output path inside the model store. The output file is
-ignored by git (`data/**`).
+ignored by git (`data/**`), so a fresh checkout or deployment must run the
+exporter on the host that serves the page before the visualiser has data. This
+is deliberate: the blueprint is an artifact of the active model, not a source
+file, and must not be committed or silently replaced with a stale copy.
 
 Typical result for the current 62M prototype:
 

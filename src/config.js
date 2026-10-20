@@ -7,6 +7,10 @@
 
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const BLUEPRINT_PATH = path.join(REPO_ROOT, "data", "visualisation", "brain-blueprint.json");
 
 const env = (name, dflt) => {
   const v = process.env[name];
@@ -164,7 +168,9 @@ export const config = {
     raw: env("RAW_DIR", "data/raw"),
     chat: env("CHAT_DIR", "data/chat"), // durable conversation log (NDJSON)
     frontier: env("FRONTIER_DIR", "data/frontier"), // persistent URL frontier (discovery state)
-    blueprint: env("SMA_BLUEPRINT", "data/visualisation/brain-blueprint.json"),
+    blueprint: env("SMA_BLUEPRINT", null)
+      ? path.resolve(REPO_ROOT, env("SMA_BLUEPRINT", null))
+      : BLUEPRINT_PATH,
   },
 
   // ---- Server bind (admin portal is mounted on the existing server) ----

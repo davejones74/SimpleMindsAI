@@ -296,7 +296,7 @@ async function loadBlueprint() {
     if (response.status === 404 || /missing|not exported|no blueprint/i.test(reason)) {
       showError(
         "No blueprint exported yet",
-        `Generate one with <code>npm run blueprint</code>, then reload this page. The exporter reads the active model and writes one JSON file; it does not load weights or touch the model store.`,
+        `Run <code>npm run blueprint</code> on the machine serving this page, then choose Retry. The exporter reads the active model and writes one JSON file; it does not load weights or touch the model store.`,
       );
     } else {
       showError("The blueprint is unavailable", esc(reason));
