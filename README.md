@@ -322,6 +322,7 @@ The full index is at [docs/README.md](docs/README.md).
 | [Deployment](docs/DEPLOYMENT.md) | Store layout, git boundaries, artifact naming, export, `active.json`, environment configuration. |
 | [Roadmap](docs/ROADMAP.md) | Phases, priorities, known limitations, open questions. |
 | [Development](docs/DEVELOPMENT.md) | Setup, repository map, testing, subprocess contract. |
+| [Brain visualisation](docs/BRAIN-VISUALISATION.md) | Read-only blueprint export, schema, 3D renderer, isolation guarantees. |
 | [Verified empirical findings](docs/FINDINGS.md) | Measured behaviours that shaped the design. |
 
 ---

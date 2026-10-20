@@ -21,6 +21,20 @@ test("portal public assets are parseable modules", async () => {
   new vm.Script(app, { filename: "app.js" });
 });
 
+test("the brain visualiser is a separate page with locally served Three.js modules", async () => {
+  const html = await readFile(path.join(PUBLIC, "brain", "index.html"), "utf8");
+  const css = await readFile(path.join(PUBLIC, "brain", "brain.css"), "utf8");
+  const index = await readFile(path.join(PUBLIC, "index.html"), "utf8");
+
+  assert.match(html, /\/admin\/brain\/brain\.js/);
+  assert.match(html, /"three":\s*"\/admin\/vendor\/three\/three\.module\.js"/);
+  assert.match(html, /"three\/addons\/":\s*"\/admin\/vendor\/three-addons\/"/);
+  assert.match(html, /id="scene"/);
+  assert.match(html, /id="inspector"/);
+  assert.match(css, /\.brain-inspector/);
+  assert.match(index, /href="\/admin\/brain"/);
+});
+
 test("portal serves the chat conversation controls", async () => {
   const html = await readFile(path.join(PUBLIC, "index.html"), "utf8");
   const app = await readFile(path.join(PUBLIC, "app.js"), "utf8");

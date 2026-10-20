@@ -19,8 +19,11 @@ import {
   selectEffectiveVersion,
 } from "./metrics.js";
 import { config } from "../config.js";
+import { validateBlueprint } from "./public/brain/schema.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const REPO_ROOT = path.resolve(__dirname, "..", "..");
+const MAX_BLUEPRINT_BYTES = 50 * 1024 * 1024;
 
 /**
  * Admin portal backend — REST + SSE mounted onto the EXISTING server.
@@ -37,7 +40,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
  * `x-sma-workspace` header). Inspection-only workspaces refuse every mutation
  * with 403 and never run seeding writes on read endpoints.
  */
-export function attachAdmin({ app, store, registry, governance, chat, conversations = null, changeFeed = defaultFeed, pythonStorePath = null, workspaces = [], supervisor = null, domainRegistry = null, frontier = null, logger = console }) {
+export function attachAdmin({ app, store, registry, governance, chat, conversations = null, changeFeed = defaultFeed, pythonStorePath = null, workspaces = [], supervisor = null, domainRegistry = null, frontier = null, blueprintPath = config.paths.blueprint, logger = console }) {
   const workspaceRegistry = createWorkspaceRegistry({
     store,
     registry,
@@ -721,6 +724,55 @@ export function attachAdmin({ app, store, registry, governance, chat, conversati
     ok(res, result);
   }));
 
+  router.get("/brain/blueprint", asyncRoute(async (_req, res) => {
+    if (!blueprintPath || !existsSync(blueprintPath)) {
+      res.status(404).json({
+        available: false,
+        reason: "no blueprint exported; run `npm run blueprint` first",
+      });
+      return;
+    }
+    let size = 0;
+    try {
+      size = statSync(blueprintPath).size;
+    } catch (err) {
+      return fail(res, new Error(`cannot stat blueprint: ${err.message}`), 500);
+    }
+    if (size > MAX_BLUEPRINT_BYTES) {
+      return fail(res, new Error("blueprint is too large to serve safely"), 413);
+    }
+    let blueprint;
+    try {
+      blueprint = JSON.parse(readFileSync(blueprintPath, "utf8"));
+    } catch (err) {
+      res.status(422).json({
+        available: false,
+        error: "blueprint is not valid JSON",
+        errors: [err.message],
+      });
+      return;
+    }
+    const validation = validateBlueprint(blueprint);
+    if (!validation.ok) {
+      res.status(422).json({
+        available: false,
+        error: "blueprint failed schema validation",
+        errors: validation.errors,
+      });
+      return;
+    }
+    res.set("Cache-Control", "no-store");
+    ok(res, {
+      available: true,
+      bytes: size,
+      modifiedAt: new Date(statSync(blueprintPath).mtimeMs).toISOString(),
+      schema: blueprint.schema,
+      activeVersion: blueprint.source?.activeVersion ?? null,
+      warnings: validation.warnings,
+      blueprint,
+    });
+  }));
+
   router.get("/brain/versions", asyncRoute(async (req, res) => {
     const w = req.workspace;
     const py = readPythonStore(w.pythonStorePath);
@@ -853,7 +905,11 @@ export function attachAdmin({ app, store, registry, governance, chat, conversati
   }));
 
   app.use("/api/admin", router);
+  const threeRoot = path.join(REPO_ROOT, "node_modules", "three");
+  app.use("/admin/vendor/three", express.static(path.join(threeRoot, "build")));
+  app.use("/admin/vendor/three-addons", express.static(path.join(threeRoot, "examples", "jsm")));
   app.use("/admin", express.static(path.join(__dirname, "public")));
+  app.get("/admin/brain", (_req, res) => res.sendFile(path.join(__dirname, "public", "brain", "index.html")));
   app.get("/admin/*", (_req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
 
   logger.log?.(`admin portal mounted at /admin (api: /api/admin)`);

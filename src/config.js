@@ -164,6 +164,7 @@ export const config = {
     raw: env("RAW_DIR", "data/raw"),
     chat: env("CHAT_DIR", "data/chat"), // durable conversation log (NDJSON)
     frontier: env("FRONTIER_DIR", "data/frontier"), // persistent URL frontier (discovery state)
+    blueprint: env("SMA_BLUEPRINT", "data/visualisation/brain-blueprint.json"),
   },
 
   // ---- Server bind (admin portal is mounted on the existing server) ----

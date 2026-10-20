@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SimpleMindsAI — Brain Visualiser</title>
+  <link rel="stylesheet" href="/admin/styles.css" />
+  <link rel="stylesheet" href="/admin/brain/brain.css" />
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "/admin/vendor/three/three.module.js",
+        "three/addons/": "/admin/vendor/three-addons/"
+      }
+    }
+  </script>
+</head>
+<body class="brain-body">
+  <div class="brain-app">
+    <header class="brain-header">
+      <a class="brain-back" href="/admin" title="Back to the Learning Observatory">← Observatory</a>
+      <div class="brain-title">
+        <h1>Brain Visualiser</h1>
+        <span id="brainSubtitle" class="brain-subtitle">Loading structural blueprint…</span>
+      </div>
+      <div class="brain-metrics" id="brainMetrics"></div>
+      <div class="brain-actions">
+        <button id="resetView" type="button" title="Reset the camera (R)">Reset view</button>
+        <button id="overview" type="button" title="Clear selection and return to the whole brain (Esc)">Overview</button>
+      </div>
+    </header>
+
+    <main class="brain-stage">
+      <div id="scene" class="brain-scene" aria-label="Interactive 3D model of the active brain"></div>
+
+      <aside id="legend" class="brain-legend" aria-label="Component type legend">
+        <div class="brain-panel-title">Component types</div>
+        <div id="legendItems" class="legend-items"></div>
+      </aside>
+
+      <aside id="inspector" class="brain-inspector" aria-live="polite">
+        <div class="brain-panel-title">Inspector</div>
+        <div id="inspectorBody" class="inspector-body">
+          <p class="muted">Select a component or transformer block in the scene.</p>
+          <p class="small muted">Drag to orbit, scroll to zoom, right-drag or shift-drag to pan. Click a node to inspect it.</p>
+        </div>
+      </aside>
+
+      <div id="warnings" class="brain-warnings hidden" role="status"></div>
+      <div id="overlay" class="brain-overlay" role="status" aria-live="polite">
+        <div class="overlay-card">
+          <div class="spinner"></div>
+          <div class="overlay-title">Loading the brain</div>
+          <div class="overlay-detail">Reading the exported structural blueprint.</div>
+        </div>
+      </div>
+      <div class="brain-hint">R reset · Esc overview · click to inspect</div>
+    </main>
+  </div>
+
+  <script type="module" src="/admin/brain/brain.js"></script>
+</body>
+</html>

@@ -21,6 +21,7 @@
     "promote": "node src/cli/promote.js",
     "reject": "node src/cli/reject.js",
     "perpetual": "node src/cli/perpetual.js",
+    "blueprint": "node src/cli/blueprint.js",
     "test": "node --test"
   },
   "dependencies": {
@@ -28,6 +29,7 @@
     "@mozilla/readability": "^0.6.0",
     "express": "^4.19.2",
     "graphql": "^16.9.0",
-    "jsdom": "^30.1.3"
+    "jsdom": "^30.1.3",
+    "three": "^0.180.0"
   }
 }

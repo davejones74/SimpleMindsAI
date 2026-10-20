@@ -26,6 +26,8 @@ landing page and quickstart; the articles below go deeper.
   environment configuration.
 - [Safe pruning](PRUNING.md) — eligible and protected data, dry-run/confirmation
   contract, coordination safety and the systemd dry-run units.
+- [Brain visualisation](BRAIN-VISUALISATION.md) - the read-only structural
+  blueprint exporter, its schema, the standalone Three.js page, and isolation.
 - [Verified empirical findings](FINDINGS.md) — measured behaviours (bf16 masters
   freezing parameters, 220× bf16-on-CPU penalty, tensor-hash shape) that shaped
   the design.
