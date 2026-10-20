@@ -175,6 +175,55 @@ telemetry, and changes nothing — the evaluation mode used before enabling
 enforcement. All thresholds are heuristic starting values, **not** calibrated
 accuracy guarantees.
 
+### Resilient acquisition lifecycle
+
+Perpetual discovery must never mistake a momentarily empty frontier for "the web
+is empty". The Node plane therefore keeps four distinct concepts, and the
+acquisition classifier (`src/discovery/acquisition-state.js`) is the single
+source of truth the crawler, supervisor and portal share.
+
+| State | Meaning | Supervisor action |
+|---|---|---|
+| `work` | claimable frontier work now (queued, a retry whose backoff elapsed, a due rediscovery, or new candidates) | keep cycling |
+| `scheduled` | nothing claimable this instant, but a retry or rediscovery has a future deadline | `WAITING` until that deadline (bounded) |
+| `viable` / `degraded` | frontier empty but a discovery provider is configured (degraded = it is erroring) | `WAITING`, bounded backoff |
+| `exhausted` | no claimable work, no scheduled deadline, no viable provider | bounded jobs report `sources-exhausted`; continuous jobs still wait |
+
+The persistent frontier (`src/frontier.js`) carries the lifecycle:
+
+- **States:** `queued → in-progress → visited`, with `deferred`/`failed` for
+  errors (bounded retries) and `deferred`/`failed` recoverable on restart.
+  `claimNext` always prefers fresh `queued` work over due retries over due
+  rediscoveries, so revisiting never starves new URLs.
+- **Independent retry backoff:** a failed URL records `nextAttemptAt` (bounded
+  exponential, capped) and is only claimable once due; it never blocks other work.
+  Policy refusals (disallowed/blocked) are terminal, not retried.
+- **Rediscovery TTL:** `REDISCOVERY_ENABLED` (default `true`, 7 days via
+  `REDISCOVERY_TTL_MS`) makes a visited URL claimable again once its `nextCrawlAt`
+  elapses. Enabled by default so a drained frontier does not permanently stop
+  acquisition; set `REDISCOVERY_ENABLED=false` to disable.
+- **Conditional HTTP:** the fetcher stores `ETag`/`Last-Modified` and sends
+  `If-None-Match`/`If-Modified-Since` on a revisit. A `304` refreshes the deadline
+  and is **not** re-emitted as an article, so unchanged content never duplicates.
+- **Sitemap progress:** the sitemap adapter accepts a `knownUrls` predicate and
+  skips already-tracked URLs *before* the candidate cap, so a bounded window
+  advances through a static sitemap instead of replaying its first page forever
+  (the job-16 dead end). Adapter root selection also rotates round-robin when the
+  root pool exceeds the per-cycle cap.
+- **Language prior:** `DISCOVERY_LANGUAGE_PRIOR` (`off|warn|reject`, default
+  `warn`) classifies candidate URLs whose host declares a non-English language —
+  on adapter candidates *and* extracted links. `warn` counts and proceeds; the
+  ingest-time language filter remains the authoritative backstop.
+
+**Recovery-driven progress (training side).** Training material is only reviewed,
+unconsumed, non-retired articles — the corpus is never replayed by default
+(`SNAPSHOT_INCLUDE_CONSUMED=false`; replay is a reversible opt-in for later). When
+the delta is empty the job reports why: `recovery-pending` when ingested, pending
+or quarantined articles can still become eligible, or
+`no-eligible-unconsumed-material` when the pipeline is genuinely dry. The
+dashboard/API/SSE surface the waiting reason, acquisition state, frontier due
+counts and recovery pipeline.
+
 ---
 
 ## Python compute plane components

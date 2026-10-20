@@ -602,6 +602,32 @@ CRAWL_MAX_LINKS_PER_PAGE=50
 portal). Leave it blank to disable auth (dev/tests); set it in production so the published
 `/simpleminds/` surface is not reachable by anyone who can reach the hostname. See §10.
 
+### 7.1 Resilient acquisition knobs (verify after deploy)
+
+The 8-slice acquisition work added these keys (present in
+`deploy/etc/x1pro.simpleminds.env` and documented in `.env.example`). Verify the
+effective values on the host before declaring a deploy healthy:
+
+```bash
+sudo -u simpleminds SMA_ENV_FILE=/etc/simpleminds/simpleminds.env \
+  node -e 'import("/opt/simpleminds/src/config.js").then(({config})=>console.log(JSON.stringify({
+    rediscoveryEnabled: config.rediscoveryEnabled,
+    rediscoveryTtlMs: config.rediscoveryTtlMs,
+    retryBase: config.frontierRetryBackoffBaseMs,
+    retryMax: config.frontierRetryBackoffMaxMs,
+    languagePrior: config.discoveryLanguagePrior,
+    searchFallback: config.crawlSearchFallbackEndpoints,
+  }, null, 2)))'
+```
+
+Expected: `rediscoveryEnabled: true`, `rediscoveryTtlMs: 604800000` (7 days),
+`languagePrior: "warn"`, retry base/max `60000`/`3600000`. Then confirm the live
+frontier is observable at `GET /api/admin/overview` (a `frontier` block with
+`queued`, `deferredDue`, `rediscoveryDue`, `nextDueAt`) and that a waiting
+learning job's `/api/admin/jobs/:id` carries `meta.waitingReason`
+(`scheduled`/`recovery-pending`/`no-eligible-unconsumed-material`). No production
+mutation is performed by this verification.
+
 ---
 
 ## 8. systemd units
