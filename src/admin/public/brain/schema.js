@@ -219,6 +219,8 @@ export function highlightFor(blueprint, componentId) {
   if (!component) return { componentIds, connectionIds };
 
   const include = new Set([component.id]);
+  const block = parentBlock(blueprint, component);
+  if (block) include.add(block.id);
   if (component.type === "transformer_block") {
     const map = componentMap(blueprint);
     const stack = [component.id];

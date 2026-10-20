@@ -32,6 +32,9 @@ test("the brain visualiser is a separate page with locally served Three.js modul
   assert.match(html, /id="scene"/);
   assert.match(html, /id="inspector"/);
   assert.match(css, /\.brain-inspector/);
+  assert.match(css, /main\.brain-stage\s*\{[^}]*width:\s*100%/s, "brain stage does not override the global main width");
+  assert.match(css, /main\.brain-stage\s*\{[^}]*max-width:\s*none/s, "brain stage retains the global max-width");
+  assert.match(css, /main\.brain-stage\s*\{[^}]*margin:\s*0/s, "brain stage retains auto margins");
   assert.match(index, /href="\/admin\/brain"/);
 });
 

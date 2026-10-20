@@ -1,7 +1,9 @@
 import { COMPONENT_COLORS, CONNECTION_COLORS } from "./schema.js";
 
 export const DEFAULT_LAYOUT = {
-  blockSpacing: 8.6,
+  blockSpacing: 15.5,
+  rowSpacing: 16,
+  foldAfterLayers: 16,
   blockRadius: 6.6,
   maxNodes: 5000,
   maxEdges: 20000,
@@ -42,18 +44,18 @@ const GROUP = {
 
 const SCALE = {
   transformer_block: 1,
-  embedding: 0.9,
-  positional_encoding: 0.55,
-  attention: 0.7,
-  mlp: 0.65,
-  linear_projection: 0.42,
-  normalization: 0.3,
-  residual: 0.3,
-  activation: 0.34,
-  elementwise: 0.34,
-  output_head: 0.8,
+  embedding: 1.0,
+  positional_encoding: 0.62,
+  attention: 0.78,
+  mlp: 0.72,
+  linear_projection: 0.55,
+  normalization: 0.38,
+  residual: 0.34,
+  activation: 0.44,
+  elementwise: 0.44,
+  output_head: 0.92,
   model: 0.8,
-  buffer: 0.28,
+  buffer: 0.32,
 };
 
 function hashString(value) {
@@ -75,23 +77,23 @@ function localOffset(component, indexWithinBlock) {
   return [Math.cos(angle) * ring, Math.sin(angle) * ring, 0];
 }
 
-function globalPosition(component, layerCount, minZ, maxZ, config) {
+function globalPosition(component, layerCount, minZ, maxZ, firstY, lastY, config) {
   const zGap = config.blockSpacing;
   switch (component.id) {
     case "model.embed_tokens":
-      return [0, 0.8, minZ - zGap * 1.15];
+      return [0, firstY + 0.8, minZ - zGap * 1.15];
     case "model.rotary_emb":
-      return [-3.4, 2.0, minZ - zGap * 0.48];
+      return [-3.4, firstY + 2.0, minZ - zGap * 0.48];
     case "model.norm":
-      return [0, 0, maxZ + zGap * 0.6];
+      return [0, lastY, maxZ + zGap * 0.6];
     case "model.lm_head":
-      return [0, 0, maxZ + zGap * 1.12];
+      return [0, lastY, maxZ + zGap * 1.12];
     default:
       break;
   }
   if (!layerCount) return [0, 0, 0];
   const angle = (hashString(String(component.id ?? "")) % 360) * (Math.PI / 180);
-  return [Math.cos(angle) * 3.2, Math.sin(angle) * 3.2, maxZ + zGap * 1.5];
+  return [Math.cos(angle) * 3.2, lastY + Math.sin(angle) * 3.2, maxZ + zGap * 1.5];
 }
 
 function componentScale(component) {
@@ -114,9 +116,17 @@ export function buildRenderPlan(blueprint, options = {}) {
     || Number(blueprint?.model?.counts?.layers)
     || Number(blueprint?.counts?.layers)
     || 0;
-  const zForLayer = (index) => (index - (layerCount - 1) / 2) * config.blockSpacing;
+  const columns = layerCount <= config.foldAfterLayers
+    ? Math.max(layerCount, 1)
+    : Math.max(2, Math.ceil(Math.sqrt(layerCount * 1.8)));
+  const rows = layerCount ? Math.ceil(layerCount / columns) : 1;
+  const columnForLayer = (index) => index % columns;
+  const zForLayer = (index) => (columnForLayer(index) - (columns - 1) / 2) * config.blockSpacing;
+  const yForLayer = (index) => (Math.floor(index / columns) - (rows - 1) / 2) * config.rowSpacing;
   const minZ = layerCount ? zForLayer(0) : 0;
   const maxZ = layerCount ? zForLayer(layerCount - 1) : 0;
+  const firstY = layerCount ? yForLayer(0) : 0;
+  const lastY = layerCount ? yForLayer(layerCount - 1) : 0;
 
   const blockIndexById = new Map(blocks.map((block) => [block.id, block.blockIndex]));
   const componentsByBlock = new Map();
@@ -133,15 +143,15 @@ export function buildRenderPlan(blueprint, options = {}) {
     if (component.id === "model") continue;
     let position;
     if (component.type === "transformer_block" && Number.isInteger(component.blockIndex)) {
-      position = [0, 0, zForLayer(component.blockIndex)];
+      position = [0, yForLayer(component.blockIndex), zForLayer(component.blockIndex)];
     } else if (Number.isInteger(component.blockIndex) && componentsByBlock.has(component.blockIndex)) {
       const siblings = componentsByBlock.get(component.blockIndex);
       const offset = localOffset(component, siblings.indexOf(component));
       const block = blocks.find((item) => item.blockIndex === component.blockIndex);
       const anchor = block ? blockIndexById.get(block.id) : component.blockIndex;
-      position = [offset[0], offset[1], zForLayer(anchor) + offset[2]];
+      position = [offset[0], yForLayer(anchor) + offset[1], zForLayer(anchor) + offset[2]];
     } else {
-      position = globalPosition(component, layerCount, minZ, maxZ, config);
+      position = globalPosition(component, layerCount, minZ, maxZ, firstY, lastY, config);
     }
     const x = Number.isFinite(position[0]) ? position[0] : 0;
     const y = Number.isFinite(position[1]) ? position[1] : 0;
@@ -233,7 +243,7 @@ export function buildRenderPlan(blueprint, options = {}) {
     layerRings: blocks.map((block) => ({
       id: block.id,
       blockIndex: block.blockIndex,
-      position: positions.get(block.id) ?? [0, 0, zForLayer(block.blockIndex)],
+      position: positions.get(block.id) ?? [0, yForLayer(block.blockIndex), zForLayer(block.blockIndex)],
       radius: config.blockRadius,
       color: COMPONENT_COLORS.transformer_block,
     })),

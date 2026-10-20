@@ -24,7 +24,7 @@ body.brain-body {
   font: 13px/1.5 "Segoe UI", system-ui, -apple-system, sans-serif;
 }
 
-.brain-app { height: 100%; display: flex; flex-direction: column; }
+.brain-app { width: 100%; height: 100%; display: flex; flex-direction: column; }
 
 .brain-header {
   position: relative;
@@ -76,7 +76,18 @@ body.brain-body {
 }
 .brain-actions button:hover { border-color: var(--brain-accent); color: var(--brain-accent); }
 
-.brain-stage { position: relative; flex: 1; min-height: 0; overflow: hidden; }
+main.brain-stage {
+  position: relative;
+  flex: 1 1 auto;
+  align-self: stretch;
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
 .brain-scene { position: absolute; inset: 0; }
 .brain-scene canvas { display: block; width: 100%; height: 100%; outline: none; }
 
@@ -136,10 +147,17 @@ body.brain-body {
   color: var(--brain-muted);
   font-weight: 600;
 }
-.tensor-table { width: 100%; border-collapse: collapse; font-size: 10px; }
-.tensor-table th, .tensor-table td { padding: 4px 5px; border-bottom: 1px solid rgba(120, 153, 190, 0.14); text-align: left; vertical-align: top; }
-.tensor-table th { color: var(--brain-muted); font-weight: 500; }
-.tensor-table td { color: var(--brain-text); overflow-wrap: anywhere; }
+.tensor-list { display: grid; gap: 7px; }
+.tensor-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(120, 153, 190, 0.14);
+}
+.tensor-name { grid-column: 1; color: var(--brain-text); overflow-wrap: anywhere; font-size: 10px; }
+.tensor-meta { grid-column: 1; color: var(--brain-muted); font-size: 10px; }
+.tensor-elements { grid-column: 2; grid-row: 1 / span 2; color: var(--brain-text); font-variant-numeric: tabular-nums; font-size: 10px; align-self: center; }
 .meta-list { display: grid; gap: 3px; }
 .meta-row { display: flex; justify-content: space-between; gap: 10px; }
 .meta-row span:first-child { color: var(--brain-muted); }

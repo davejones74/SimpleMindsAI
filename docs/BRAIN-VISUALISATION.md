@@ -68,8 +68,11 @@ configured store's active model, which is why the export must be generated
 against that same store.
 
 If no export exists, the page says so and gives the command; it does not
-fabricate a scene. The API returns the blueprint and file metadata only; it does
-not expose store paths or weight-file filesystem locations.
+fabricate a scene. The request has a 15-second timeout so the loading state can
+never remain indefinitely. Invalid JSON/schema, a failed module import, or a
+WebGL initialisation failure each produce a clear overlay with a retry action.
+The API returns the blueprint and file metadata only; it does not expose store
+paths or weight-file filesystem locations.
 
 ## Blueprint schema: `sma/brain-blueprint@1`
 
@@ -269,13 +272,17 @@ evidence, and even then the exporter does not read tensor data.
 The layout is derived from the blueprint, not from a hard-coded eight-layer
 model:
 
-- Transformer blocks are placed along a central Z axis.
+- Transformer blocks are placed along a central axis.
+- Short models use one row; long models fold into deterministic rows (the
+  36-layer target becomes a readable 9 × 4 grid instead of a thin line).
 - Global embeddings and RoPE sit before the first block; the final norm and
   LM head sit after the last.
 - Each block's norms, Q/K/V/O, attention, SwiGLU MLP, activation, product and
   residual joins use a deterministic local arrangement.
 - Changing `numHiddenLayers`, widths or head counts changes the scene without
   a renderer redesign.
+- Block halos are camera-facing, so they remain circular at every orbit angle
+  instead of collapsing into edge-on slivers.
 
 Performance is independent of parameter count:
 
@@ -285,10 +292,12 @@ Performance is independent of parameter count:
 - Background particles are a fixed budget.
 - Render plans cap nodes and edges and report any omitted geometry rather than
   freezing the browser.
-- Camera fitting uses the blueprint bounding sphere, so the same code frames
-  the 62M prototype and the planned 36-layer, ~3.075B model.
+- Camera fitting projects the actual blueprint bounding box, then derives near
+  and far planes from that fit, so the same code frames the 62M prototype and
+  the planned 36-layer, ~3.075B model. The stage fills the viewport below the
+  header; it does not inherit the portal's global `main` max-width/margins.
 
-The synthetic 3B test builds a 36-layer blueprint with 581 components and 761
+The synthetic 3B test builds a 36-layer blueprint with 581 components and 768
 connections and verifies the render plan stays bounded. It does not load the
 real 3B model.
 
@@ -315,4 +324,5 @@ real 3B model.
 | `active version ... not committed` | Pointer names an incomplete version | Fix the active pointer from the CLI |
 | `no safetensors header was found` | Metadata-only store | Export is `unverified` by design |
 | `blueprint failed schema validation` | Corrupt/edited export | Re-run the exporter |
+| Scene squeezed into a narrow central strip | The portal's global `main` max-width/margins leaked into the standalone page | The visualiser overrides `main.brain-stage` with full width, no max-width, and zero margins |
 | Blank scene / WebGL error | Browser or GPU WebGL unavailable | Use a WebGL-capable browser; the blueprint remains valid |

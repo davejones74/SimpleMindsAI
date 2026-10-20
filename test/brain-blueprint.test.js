@@ -7,6 +7,7 @@ import {
   validateBlueprint,
 } from "../src/admin/public/brain/schema.js";
 import { buildRenderPlan } from "../src/admin/public/brain/layout.js";
+import { fitCamera } from "../src/admin/public/brain/framing.js";
 
 function component(id, type, parentId, blockIndex, extra = {}) {
   return {
@@ -197,8 +198,27 @@ test("a synthetic 36-layer 3B-scale blueprint stays bounded", () => {
   assert.ok(plan.edges.length < 2000);
   assert.equal(plan.counts.nodes, plan.counts.totalNodes);
   assert.equal(plan.counts.edges, plan.counts.totalEdges);
-  assert.ok(plan.bounds.radius > 100);
+  assert.ok(plan.bounds.radius > 50);
+  const blockRows = new Set(plan.nodes.filter((node) => node.type === "transformer_block").map((node) => node.position[1]));
+  assert.ok(blockRows.size > 1, "a long model should fold into multiple rows");
   assert.equal(validateBlueprint(blueprint).ok, true);
+});
+
+test("camera framing fits both the small and synthetic 36-layer architecture", () => {
+  const smallPlan = buildRenderPlan(syntheticBlueprint(2));
+  const largePlan = buildRenderPlan(syntheticBlueprint(36, { totalParameters: 3075098624 }));
+  const small = fitCamera(smallPlan.bounds, { aspect: 1408 / 718 });
+  const large = fitCamera(largePlan.bounds, { aspect: 1408 / 718 });
+  for (const fit of [small, large]) {
+    assert.ok(fit.distance > 0 && Number.isFinite(fit.distance));
+    assert.ok(fit.position.every(Number.isFinite));
+    assert.ok(fit.center.every(Number.isFinite));
+    assert.ok(fit.near > 0 && fit.near < fit.far);
+    assert.ok(fit.projected.halfWidth > 0 && fit.projected.halfHeight > 0);
+  }
+  assert.ok(large.distance > small.distance);
+  const portrait = fitCamera(smallPlan.bounds, { aspect: 0.6 });
+  assert.ok(portrait.distance > small.distance, "a narrow viewport must back the camera up");
 });
 
 test("render safeguards cap a pathologically large blueprint", () => {

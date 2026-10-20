@@ -51,10 +51,14 @@ function setOverlay(html) {
 }
 
 function hideOverlay() {
-  document.getElementById("overlay").classList.add("hidden");
+  const overlay = document.getElementById("overlay");
+  overlay.classList.add("hidden");
+  overlay.innerHTML = "";
 }
 
 function showError(title, detail, errors = []) {
+  const subtitle = document.getElementById("brainSubtitle");
+  if (subtitle) subtitle.textContent = title;
   const list = errors.length
     ? `<ul class="overlay-errors">${errors.slice(0, 12).map((error) => `<li>${esc(error)}</li>`).join("")}</ul>`
     : "";
@@ -195,17 +199,16 @@ function renderInspector(componentId) {
   const derivedLabel = detail.labels.derived
     ? `<span class="type-badge derived">derived structural node</span>`
     : "";
-  const tensorSource = detail.tensors.length ? detail.tensors : detail.descendantTensors;
-  const showTensorComponent = !detail.tensors.length && detail.descendantTensors.length > 0;
+  const tensorSource = (detail.tensors.length ? detail.tensors : detail.descendantTensors)
+    .slice()
+    .sort((a, b) => String(a.name).localeCompare(String(b.name)));
   const tensorRows = tensorSource
     .map((tensor) => `
-        <tr>
-          ${showTensorComponent ? `<td>${esc(tensor.componentName ?? tensor.componentId ?? "—")}</td>` : ""}
-          <td>${esc(tensor.name)}</td>
-          <td>${esc(formatShape(tensor.shape))}</td>
-          <td>${esc(tensor.dtype ?? "—")}</td>
-          <td>${formatInt(tensor.elements ?? tensor.numel)}</td>
-        </tr>
+        <div class="tensor-row">
+          <div class="tensor-name">${esc(tensor.name)}</div>
+          <div class="tensor-meta">${esc(formatShape(tensor.shape))} · ${esc(tensor.dtype ?? "—")}</div>
+          <div class="tensor-elements">${formatInt(tensor.elements ?? tensor.numel)}</div>
+        </div>
       `).join("");
   const aggregate = detail.aggregate ?? { components: 0 };
   const hasAggregate = aggregate.components > 0;
@@ -238,10 +241,7 @@ function renderInspector(componentId) {
     ${tensorSource.length ? `
       <div class="inspector-section">
         <h3>Tensors${hasAggregate ? " (contained)" : ""}</h3>
-        <table class="tensor-table">
-          <thead><tr>${showTensorComponent ? "<th>Component</th>" : ""}<th>Name</th><th>Shape</th><th>Dtype</th><th>Elements</th></tr></thead>
-          <tbody>${tensorRows}</tbody>
-        </table>
+        <div class="tensor-list">${tensorRows}</div>
       </div>
     ` : ""}
     ${metadataRows ? `
@@ -271,11 +271,19 @@ async function loadBlueprint() {
     </div>
   `);
   let response;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15000);
   try {
-    response = await fetch(API, { headers: { Accept: "application/json" } });
+    response = await fetch(API, { headers: { Accept: "application/json" }, signal: controller.signal });
   } catch (err) {
-    showError("Cannot reach the blueprint endpoint", esc(err.message ?? "network error"));
+    const message = err?.name === "AbortError"
+      ? "The blueprint request timed out after 15 seconds."
+      : (err.message ?? "network error");
+    document.getElementById("brainSubtitle").textContent = "Blueprint unavailable";
+    showError("Cannot reach the blueprint endpoint", esc(message));
     return;
+  } finally {
+    clearTimeout(timer);
   }
   let payload = null;
   try {

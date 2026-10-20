@@ -2,13 +2,37 @@ import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { highlightFor } from "./schema.js";
 import { buildRenderPlan } from "./layout.js";
+import { fitCamera } from "./framing.js";
 
 const GEOMETRY_BUILDERS = {
-  ring: () => new THREE.TorusGeometry(1, 0.045, 8, 80),
   sphere: () => new THREE.IcosahedronGeometry(1, 2),
   octa: () => new THREE.OctahedronGeometry(1, 0),
   box: () => new THREE.BoxGeometry(1, 1, 1),
 };
+
+function makeRingTexture() {
+  const canvas = document.createElement("canvas");
+  canvas.width = 256;
+  canvas.height = 256;
+  const context = canvas.getContext("2d");
+  context.translate(128, 128);
+  context.strokeStyle = "rgba(255,255,255,1)";
+  context.shadowColor = "rgba(255,255,255,0.85)";
+  context.shadowBlur = 8;
+  context.lineWidth = 3.5;
+  context.beginPath();
+  context.arc(0, 0, 102, 0, Math.PI * 2);
+  context.stroke();
+  context.shadowBlur = 0;
+  context.globalAlpha = 0.34;
+  context.lineWidth = 1.5;
+  context.beginPath();
+  context.arc(0, 0, 84, 0, Math.PI * 2);
+  context.stroke();
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
 
 function makeGlowTexture() {
   const canvas = document.createElement("canvas");
@@ -44,6 +68,13 @@ function colorToRgb(hex) {
 export function createBrainScene(container, blueprint, options = {}) {
   if (!window.WebGLRenderingContext) throw new Error("WebGL is not available in this browser");
   const plan = buildRenderPlan(blueprint, options);
+  console.info("[brain] render plan", {
+    nodes: plan.counts.nodes,
+    edges: plan.counts.edges,
+    layers: plan.counts.layers,
+    bounds: plan.bounds,
+    warnings: plan.warnings,
+  });
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x05080d);
   scene.fog = new THREE.FogExp2(0x05080d, 0.0016);
@@ -65,11 +96,57 @@ export function createBrainScene(container, blueprint, options = {}) {
   controls.maxDistance = Math.max(80, plan.bounds.radius * 7);
   controls.target.set(...plan.bounds.center);
 
-  const overviewDirection = new THREE.Vector3(1.35, 0.9, 1).normalize();
-  const overviewTarget = new THREE.Vector3(...plan.bounds.center);
-  const overviewPosition = overviewTarget.clone().addScaledVector(overviewDirection, plan.bounds.radius * 2.15);
-  camera.position.copy(overviewPosition);
-  camera.lookAt(overviewTarget);
+  const overviewDirection = new THREE.Vector3(1.3, 0.65, 1.0).normalize();
+  const overviewPosition = new THREE.Vector3();
+  let overviewDistance = plan.bounds.radius * 2.15;
+  let userInteracted = false;
+
+  function frameOverview() {
+    const fit = fitCamera(plan.bounds, {
+      direction: overviewDirection.toArray(),
+      fovDeg: camera.fov,
+      aspect: camera.aspect,
+    });
+    overviewDistance = fit.distance;
+    overviewPosition.set(...fit.position);
+    camera.position.copy(overviewPosition);
+    camera.near = fit.near;
+    camera.far = fit.far;
+    camera.updateProjectionMatrix();
+    controls.target.set(...fit.center);
+    controls.minDistance = Math.max(1, overviewDistance * 0.08);
+    controls.maxDistance = Math.max(80, overviewDistance * 5);
+    controls.update();
+  }
+
+  function updateDiagnostics() {
+    const rect = renderer.domElement.getBoundingClientRect();
+    window.__brainDiagnostics = {
+      nodes: plan.counts.nodes,
+      edges: plan.counts.edges,
+      layers: plan.counts.layers,
+      blocks: plan.layerRings.length,
+      blockScreens: plan.layerRings.map((ring) => {
+        const projected = new THREE.Vector3(ring.position[0], ring.position[1], ring.position[2]).project(camera);
+        return {
+          index: ring.blockIndex,
+          x: Math.round((projected.x + 1) * 0.5 * rect.width),
+          y: Math.round((1 - projected.y) * 0.5 * rect.height),
+        };
+      }),
+      bounds: plan.bounds,
+      camera: {
+        position: camera.position.toArray(),
+        target: controls.target.toArray(),
+        near: camera.near,
+        far: camera.far,
+        fov: camera.fov,
+        overviewDistance,
+      },
+      canvas: { width: rect.width, height: rect.height, pixelWidth: renderer.domElement.width, pixelHeight: renderer.domElement.height },
+      warnings: plan.warnings,
+    };
+  }
 
   const ambient = new THREE.HemisphereLight(0x93c5fd, 0x0b1220, 1.1);
   scene.add(ambient);
@@ -88,6 +165,7 @@ export function createBrainScene(container, blueprint, options = {}) {
   const material = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.96 });
   const byGeometry = new Map();
   for (const node of plan.nodes) {
+    if (node.group === "ring") continue;
     if (!byGeometry.has(node.group)) byGeometry.set(node.group, []);
     byGeometry.get(node.group).push(node);
   }
@@ -117,6 +195,30 @@ export function createBrainScene(container, blueprint, options = {}) {
     group.add(mesh);
     nodeMeshes.push(mesh);
   }
+
+  const ringTexture = makeRingTexture();
+  const blockSprites = [];
+  for (const ring of plan.layerRings) {
+    const spriteMaterial = new THREE.SpriteMaterial({
+      map: ringTexture,
+      color: new THREE.Color(ring.color),
+      transparent: true,
+      opacity: 0.52,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+    const sprite = new THREE.Sprite(spriteMaterial);
+    sprite.position.set(ring.position[0], ring.position[1], ring.position[2]);
+    const size = ring.radius * 2.2;
+    sprite.scale.set(size, size, 1);
+    sprite.userData.componentId = ring.id;
+    sprite.userData.blockIndex = ring.blockIndex;
+    sprite.userData.baseColor = new THREE.Color(ring.color);
+    sprite.renderOrder = 0;
+    group.add(sprite);
+    blockSprites.push(sprite);
+  }
+  const pickTargets = [...nodeMeshes];
 
   const glowPositions = new Float32Array(plan.nodes.length * 3);
   const glowColors = new Float32Array(plan.nodes.length * 3);
@@ -233,6 +335,15 @@ export function createBrainScene(container, blueprint, options = {}) {
     }
     for (const mesh of nodeMeshes) mesh.instanceColor.needsUpdate = true;
 
+    for (const sprite of blockSprites) {
+      const isSelected = sprite.userData.componentId === componentId;
+      const isRelevant = highlight?.componentIds.has(sprite.userData.componentId) ?? true;
+      sprite.material.color.copy(sprite.userData.baseColor);
+      if (isSelected) sprite.material.color.copy(selectedColor);
+      else if (highlight && !isRelevant) sprite.material.color.multiplyScalar(dimFactor);
+      sprite.material.opacity = highlight ? (isRelevant ? 0.88 : 0.12) : 0.52;
+    }
+
     const edgeAttr = edgeGeometry.getAttribute("color");
     plan.edges.forEach((edge, index) => {
       let rgb = edgeBaseColors[index];
@@ -266,24 +377,56 @@ export function createBrainScene(container, blueprint, options = {}) {
     const rect = renderer.domElement.getBoundingClientRect();
     pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
     pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    return rect;
+  }
+
+  const pickWorldCenter = new THREE.Vector3();
+  const pickWorldEdge = new THREE.Vector3();
+  const pickScreenCenter = new THREE.Vector3();
+  const pickScreenEdge = new THREE.Vector3();
+  const cameraRight = new THREE.Vector3();
+
+  function pickBlock(event, rect) {
+    const screenX = ((pointer.x + 1) * 0.5) * rect.width;
+    const screenY = ((1 - pointer.y) * 0.5) * rect.height;
+    cameraRight.setFromMatrixColumn(camera.matrixWorld, 0);
+    for (const ring of plan.layerRings) {
+      pickWorldCenter.set(ring.position[0], ring.position[1], ring.position[2]);
+      pickWorldEdge.copy(pickWorldCenter).addScaledVector(cameraRight, ring.radius * 0.88);
+      pickScreenCenter.copy(pickWorldCenter).project(camera);
+      pickScreenEdge.copy(pickWorldEdge).project(camera);
+      if (pickScreenCenter.z < -1 || pickScreenCenter.z > 1) continue;
+      const cx = ((pickScreenCenter.x + 1) * 0.5) * rect.width;
+      const cy = ((1 - pickScreenCenter.y) * 0.5) * rect.height;
+      const ex = ((pickScreenEdge.x + 1) * 0.5) * rect.width;
+      const ey = ((1 - pickScreenEdge.y) * 0.5) * rect.height;
+      const radius = Math.hypot(ex - cx, ey - cy);
+      const distance = Math.hypot(screenX - cx, screenY - cy);
+      if (Math.abs(distance - radius) <= Math.max(7, radius * 0.18)) return ring.id;
+    }
+    return null;
   }
 
   function pick(event) {
-    if (!nodeMeshes.length) return null;
-    positionFromEvent(event);
+    if (!nodeMeshes.length && !blockSprites.length) return null;
+    const rect = positionFromEvent(event);
     raycaster.setFromCamera(pointer, camera);
-    const hits = raycaster.intersectObjects(nodeMeshes, false);
-    if (!hits.length) return null;
-    const hit = hits[0];
-    return hit.object.userData.componentIds?.[hit.instanceId] ?? null;
+    const hits = raycaster.intersectObjects(pickTargets, false);
+    if (hits.length) {
+      const hit = hits[0];
+      const componentId = hit.object.userData.componentIds?.[hit.instanceId] ?? null;
+      if (componentId) return componentId;
+    }
+    return pickBlock(event, rect);
   }
 
   function focusOn(componentId) {
     const node = plan.nodes.find((item) => item.id === componentId);
     if (!node) return;
+    userInteracted = true;
     const distance = node.group === "ring"
-      ? plan.bounds.radius * 0.95
-      : Math.max(8, plan.bounds.radius * 0.42);
+      ? overviewDistance * 0.48
+      : Math.max(7, overviewDistance * 0.2);
     focusTarget.set(node.position[0], node.position[1], node.position[2]);
     focusPosition.copy(focusTarget).addScaledVector(overviewDirection, distance);
     focusActive = true;
@@ -305,9 +448,8 @@ export function createBrainScene(container, blueprint, options = {}) {
 
   function resetView() {
     focusActive = false;
-    controls.target.copy(overviewTarget);
-    camera.position.copy(overviewPosition);
-    controls.update();
+    userInteracted = false;
+    frameOverview();
   }
 
   function onPointerMove(event) {
@@ -341,6 +483,9 @@ export function createBrainScene(container, blueprint, options = {}) {
   renderer.domElement.addEventListener("pointerup", onPointerUp);
   renderer.domElement.addEventListener("dblclick", onDoubleClick);
   renderer.domElement.style.cursor = "grab";
+  controls.addEventListener("start", () => {
+    userInteracted = true;
+  });
 
   const resize = () => {
     const width = Math.max(container.clientWidth, 1);
@@ -348,9 +493,12 @@ export function createBrainScene(container, blueprint, options = {}) {
     renderer.setSize(width, height, false);
     camera.aspect = width / height;
     camera.updateProjectionMatrix();
+    if (!userInteracted && !selectedId) frameOverview();
+    updateDiagnostics();
   };
   const resizeObserver = new ResizeObserver(resize);
   resizeObserver.observe(container);
+  window.addEventListener("resize", resize);
   resize();
 
   const animate = () => {
@@ -372,12 +520,15 @@ export function createBrainScene(container, blueprint, options = {}) {
     disposed = true;
     cancelAnimationFrame(frame);
     resizeObserver.disconnect();
+    window.removeEventListener("resize", resize);
     renderer.domElement.removeEventListener("pointermove", onPointerMove);
     renderer.domElement.removeEventListener("pointerdown", onPointerDown);
     renderer.domElement.removeEventListener("pointerup", onPointerUp);
     renderer.domElement.removeEventListener("dblclick", onDoubleClick);
     controls.dispose();
     for (const mesh of nodeMeshes) mesh.geometry.dispose();
+    for (const sprite of blockSprites) sprite.material.dispose();
+    ringTexture.dispose();
     material.dispose();
     glowGeometry.dispose();
     glowMaterial.dispose();
