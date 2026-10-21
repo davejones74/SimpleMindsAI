@@ -52,17 +52,25 @@ function collapse(s) {
  */
 export async function extractDocument(html, { mode = "legacy" } = {}) {
   const legacy = htmlToText(html);
-  if (mode !== "readability") return { title: legacy.title, text: legacy.text };
+  if (mode !== "readability") {
+    return { title: legacy.title, text: legacy.text, mode: "legacy", fallback: false, readableChars: legacy.text.length };
+  }
   try {
     const { Readability, JSDOM } = await loadReadability();
     const dom = new JSDOM(String(html ?? ""), { url: "https://example.invalid/" });
     const article = new Readability(dom.window.document).parse();
     const text = collapse(article?.textContent ?? "");
     if (text.length >= MIN_READABLE_CHARS) {
-      return { title: String(article.title ?? "").trim() || legacy.title, text };
+      return {
+        title: String(article.title ?? "").trim() || legacy.title,
+        text,
+        mode: "readability",
+        fallback: false,
+        readableChars: text.length,
+      };
     }
   } catch {
     /* deps unavailable or parse failed — fall back to the legacy extractor */
   }
-  return { title: legacy.title, text: legacy.text };
+  return { title: legacy.title, text: legacy.text, mode: "readability", fallback: true, readableChars: legacy.text.length };
 }

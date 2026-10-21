@@ -160,6 +160,23 @@ const EVAL_SEED = [
   { promptId: "q2", prompt: "What is 2+2?", completion: "Two plus two equals four." },
 ];
 
+/**
+ * Attach paired per-document evidence to a synthetic evaluation, so the
+ * enforce-mode promotion gate can reach a decision in lifecycle tests that are
+ * about mechanics rather than about the statistics.
+ */
+function withPaired(result) {
+  if (!result || result.ok !== true || !Number.isFinite(result.loss)) return result;
+  const perDocument = Array.from({ length: 30 }, (_, i) => ({ articleId: `a${i}`, group: `g${i}`, tokens: 200, loss: result.loss }));
+  return {
+    ...result,
+    blockCount: 459,
+    tokensSeen: 6000,
+    evaluationSet: { ...(result.evaluationSet ?? {}), datasetHash: result.datasetHash, blockCount: 459, tokensSeen: 6000 },
+    perDocument,
+  };
+}
+
 async function seededStore() {
   const store = await ArticleStore.open(tmp());
   for (let i = 0; i < 3; i++) {
@@ -194,7 +211,7 @@ function pythonRunDeps({ store, lossFor, onActivate }) {
     store,
     trainer,
     evalSeed: async () => EVAL_SEED,
-    evaluateLoss: async ({ version }) => lossFor(version),
+    evaluateLoss: async ({ version }) => withPaired(lossFor(version)),
     setActive: async (version) => {
       onActivate(version);
       return { version };
@@ -331,7 +348,7 @@ function stagingRunDeps({
     evalSeed: async () => EVAL_SEED,
     evaluateLoss: async ({ version: v, staged }) => {
       onEvaluate(v, staged === true);
-      return { ...lossFor(v), staged: staged === true };
+      return { ...withPaired(lossFor(v)), staged: staged === true };
     },
     setActive: async (v) => {
       activateCalls += 1;

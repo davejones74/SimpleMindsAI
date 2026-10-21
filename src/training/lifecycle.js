@@ -12,7 +12,7 @@ import { setActiveVersion } from "./python-promotion.js";
 import { assertTrainer } from "./trainer-interface.js";
 import { modelHandle } from "./model-handle.js";
 import { baselineCacheKey, loadEvalCache, saveEvalCache } from "./eval-cache.js";
-import { computeTrainingBudget, checkMinimumTrainingData } from "./budget.js";
+import { computeTrainingBudget, checkMinimumTrainingData, computeEvaluationCadence } from "./budget.js";
 
 /**
  * Perpetual Training lifecycle — ONE TrainingRun from cradle to grave
@@ -277,6 +277,14 @@ export async function executeFullRun({
         });
       }
     }
+    // The fixed cadence was sized for 60-step runs. Tighten it to the ACTUAL
+    // budget so a short run still records enough finite validation observations
+    // to classify a trend (the configured value remains a cap; 0 stays disabled).
+    const effectiveEvalEvery = computeEvaluationCadence({
+      steps: trainingBudget?.steps ?? config.trainSteps,
+      configuredEvalEvery: config.trainEvalEvery,
+    });
+    if (trainingBudget) trainingBudget.effectiveEvalEvery = effectiveEvalEvery;
     const baselineModel = pythonMode
       ? await ensurePythonBaselineModel(registry, pythonBaseline)
       : await ensureBaselineModel(registry);
@@ -419,6 +427,7 @@ export async function executeFullRun({
         // adapter falls back to its fixed legacy default when it could not.
         steps: trainingBudget?.steps ?? null,
         valBlocks: config.trainValBlocks,
+        evalEvery: effectiveEvalEvery,
         targetEpochs: config.trainTargetEpochs,
         maxSteps: config.trainMaxSteps,
         trainBlockCount: trainingBudget?.trainBlockCount ?? null,
@@ -505,9 +514,11 @@ export async function executeFullRun({
       });
     }
 
-    // Consumption rule (Refinement #1):
+    // Consumption rule (Refinement #1, §8 of the diagnostic report):
     //   - not_evaluated (training/eval failed): do not consume; retry safely.
-    //   - rejected: consume the completed run, never promote.
+    //   - rejected: do NOT consume; defer the batch for bounded retry.
+    //   - inconclusive: do NOT consume; no defensible basis to activate, so the
+    //     batch follows the same deferral path as a rejection.
     //   - promoted: publish, activate, complete the manifest, then consume.
     //
     // The ordering publication -> active pointer -> manifest -> consumption is
@@ -522,19 +533,19 @@ export async function executeFullRun({
         status: "failed",
         error: decision.reason ?? "not_evaluated",
       });
-    } else if (decision.decision === "rejected") {
-      // Rejection must NOT consume articles. Instead, defer them with a retry
-      // count so they remain eligible for future selection alongside new material.
-      // The active model must never be altered by a rejected run.
+    } else if (decision.decision === "rejected" || decision.decision === "inconclusive") {
+      // Neither a rejection nor an inconclusive outcome may consume articles.
+      // They are deferred with a retry count so they remain eligible for future
+      // selection alongside new material. The active model must never be altered.
       if (stagedCandidate) await discardRejected(t, trainingResult.version, runId, options, logger);
       manifest = await updateManifest(manifestPath, manifest, {
         consumed: false,
         published: false,
         activated: false,
-        status: "rejected",
-        // Durable deferral provenance — survived process crash/restart because
-        // it is written to the manifest, which is the persistent recovery anchor.
-        deferralReason: decision.reason ?? "rejected by loss threshold",
+        status: decision.decision,
+        // Durable deferral provenance — survives process crash/restart because
+        // it is written to the manifest, the persistent recovery anchor.
+        deferralReason: decision.reason ?? `${decision.decision} by promotion gate`,
         deferralRunId: runId,
         deferralRetries: 1,
       });
@@ -583,13 +594,13 @@ export async function executeFullRun({
     // NOT be re-deferred or re-consumed: they are owned by the active version.
     const bookkeepingIds =
       snapshot.manifest.freshArticleIds ?? snapshot.manifest.articleIds ?? snapshot.rows.map((r) => r.articleId);
-    if (decision.decision === "rejected" && typeof store.deferArticles === "function") {
-      // Increment the deferral retry count for every article in the rejected
-      // run; the store retires those whose limit is exhausted so future runs
-      // never reconsider them.
+    if ((decision.decision === "rejected" || decision.decision === "inconclusive") && typeof store.deferArticles === "function") {
+      // Increment the deferral retry count for every article in the rejected or
+      // inconclusive run; the store retires those whose limit is exhausted so
+      // future runs never reconsider them.
       await store.deferArticles(bookkeepingIds, {
         runId,
-        reason: decision.reason ?? "rejected by loss threshold",
+        reason: decision.reason ?? `${decision.decision} by promotion gate`,
         maxRetries: config.jobs.training.maxRejectedRetries,
       });
     } else if (decision.decision === "promoted" && typeof store.clearDeferral === "function") {
@@ -603,7 +614,7 @@ export async function executeFullRun({
 
     // ---- persist the decision on the model, then close the run ----
     await registry.modelEvent(candidate.modelId, {
-      status: decision.decision === "promoted" ? "promoted" : "rejected",
+      status: decision.decision === "promoted" ? "promoted" : decision.decision === "inconclusive" ? "inconclusive" : "rejected",
       evaluationScore: pythonMode ? candidateResult.loss : candidateResult.score100,
       evalRunId: pythonMode ? null : candidateResult.evalRunId,
       note: pythonMode
@@ -738,18 +749,26 @@ export async function executeFullRun({
           await registry.runEvent(runId, { status: "promoted", note: "promotion completed during crash recovery" });
         } else if (
           savedManifest &&
-          savedManifest.decision === "rejected" &&
+          (savedManifest.decision === "rejected" || savedManifest.decision === "inconclusive") &&
           savedManifest.consumed === false
         ) {
-          // Evaluation completed and rejected the candidate, but consumption was
-          // never committed: discard the staged candidate (idempotent) and close
-          // the ledger. The candidate is never published.
+          // The candidate was rejected/inconclusive but the deferral bookkeeping
+          // did not complete. The retry policy says the batch must NOT be
+          // consumed: discard the staged candidate (idempotent) and defer the
+          // batch (idempotent per run). The candidate is never published.
           if (producedStage(trainingResult, stagingSupported) && trainingResult?.version) {
             await discardRejected(t, trainingResult.version, runId, options, logger);
           }
-          consumption = await commitConsumption(savedManifest.snapshotArticleIds ?? [], runId);
-          await updateManifest(manifestPath, savedManifest, { consumed: true });
-          await registry.runEvent(runId, { status: "rejected", note: "rejection committed during crash recovery" });
+          const ids = savedManifest.snapshotArticleIds ?? [];
+          if (typeof store?.deferArticles === "function") {
+            await store.deferArticles(ids, {
+              runId,
+              reason: savedManifest.deferralReason ?? `${savedManifest.decision} by promotion gate`,
+              maxRetries: config.jobs.training.maxRejectedRetries,
+            });
+          }
+          await updateManifest(manifestPath, savedManifest, { consumed: false, settled: true });
+          await registry.runEvent(runId, { status: savedManifest.decision, note: "rejection deferred during crash recovery (not consumed)" });
         } else if (
           savedManifest &&
           (savedManifest.decision === "promoted" || savedManifest.decision === "rejected") &&
@@ -995,8 +1014,8 @@ export async function recoverPendingPromotions({ registry, store, trainer = null
   for (const file of files) {
     const manifestPath = path.join(dir, file);
     const m = await readManifest(manifestPath);
-    if (!m || m.consumed === true) continue;
-    if (m.decision !== "promoted" && m.decision !== "rejected") continue;
+    if (!m || m.consumed === true || m.settled === true) continue;
+    if (m.decision !== "promoted" && m.decision !== "rejected" && m.decision !== "inconclusive") continue;
     try {
       if (m.decision === "promoted") {
         await completePromotion({
@@ -1019,13 +1038,32 @@ export async function recoverPendingPromotions({ registry, store, trainer = null
           continue;
         }
       } else {
-        await commitConsumption(m.snapshotArticleIds ?? [], m.runId);
-        await updateManifest(manifestPath, m, { consumed: true });
+        // Rejected / inconclusive: the retry policy says the batch must NOT be
+        // consumed. Defer it (idempotent per run) so it stays eligible for a
+        // bounded retry alongside new material, then settle the manifest so it
+        // is not re-scanned forever. `deferArticles` retires exhausted batches.
+        const ids = m.snapshotArticleIds ?? [];
+        if (typeof store?.deferArticles === "function") {
+          await store.deferArticles(ids, {
+            runId: m.runId,
+            reason: m.deferralReason ?? `${m.decision} by promotion gate`,
+            maxRetries: config.jobs.training.maxRejectedRetries,
+          });
+        }
+        await updateManifest(manifestPath, m, { settled: true, consumed: false, activated: false });
+        try {
+          await registry.runEvent(m.runId, {
+            status: m.decision,
+            note: "rejected batch deferred on recovery (retry policy; not consumed)",
+          });
+        } catch { /* run may already be terminal */ }
+        recovered.push({ runId: m.runId, decision: m.decision, deferred: true });
+        continue;
       }
       try {
         await registry.runEvent(m.runId, {
           status: m.decision,
-          note: "promotion completed on restart (pending manifest recovered)",
+          note: "pending promotion recovered during run-lock acquisition",
         });
       } catch { /* run may already be terminal */ }
       recovered.push({ runId: m.runId, decision: m.decision });

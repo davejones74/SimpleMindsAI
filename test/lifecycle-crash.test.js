@@ -31,7 +31,7 @@ async function readManifest(dir, runId) {
 }
 
 function recorder() {
-  const calls = { publish: [], activate: [], consume: [] };
+  const calls = { publish: [], activate: [], consume: [], defer: [] };
   return {
     calls,
     trainer: {
@@ -39,7 +39,10 @@ function recorder() {
       discardCandidate: async () => ({ discarded: true }),
     },
     setActive: async (v) => { calls.activate.push(v); return { version: v }; },
-    store: { markConsumed: async (ids) => { calls.consume.push(ids); return { consumed: ids, skipped: [] }; } },
+    store: {
+      markConsumed: async (ids) => { calls.consume.push(ids); return { consumed: ids, skipped: [] }; },
+      deferArticles: async (ids) => { calls.defer.push(ids); return { deferred: ids, retired: [], skipped: [] }; },
+    },
   };
 }
 
@@ -119,7 +122,7 @@ test("recovery: a crash AFTER publishing does not re-publish, but still activate
   await registry.close();
 });
 
-test("recovery: a rejected manifest is consumed but NEVER published or activated", async () => {
+test("recovery: a rejected manifest is deferred, never consumed, published or activated", async () => {
   const dir = tmp();
   await writeManifest(dir, "run-3", {
     decision: "rejected",
@@ -141,11 +144,14 @@ test("recovery: a rejected manifest is consumed but NEVER published or activated
     logger: { error() {}, log() {} },
   });
 
-  assert.deepEqual(recovered, [{ runId: "run-3", decision: "rejected" }]);
+  assert.deepEqual(recovered, [{ runId: "run-3", decision: "rejected", deferred: true }]);
   assert.deepEqual(r.calls.publish, [], "a rejected candidate is never published");
   assert.deepEqual(r.calls.activate, [], "a rejected candidate never becomes active");
-  assert.deepEqual(r.calls.consume, [["c1", "c2", "c3"]], "the rejected run's material is still committed once");
-  assert.equal((await readManifest(dir, "run-3")).consumed, true);
+  assert.deepEqual(r.calls.consume, [], "the rejected run's material must NOT be consumed");
+  assert.deepEqual(r.calls.defer, [["c1", "c2", "c3"]], "the rejected run's material is deferred for retry");
+  const after = await readManifest(dir, "run-3");
+  assert.equal(after.consumed, false);
+  assert.equal(after.settled, true);
   await registry.close();
 });
 
@@ -244,7 +250,18 @@ test("executeFullRun: an in-process crash before the consumption commit is re-dr
         store,
         trainer,
         evalSeed: async () => [{ promptId: "q1", prompt: "2+2?", completion: "four" }],
-        evaluateLoss: async ({ version }) => ({ version, loss: version === "v001" ? 2.0 : 1.0, datasetHash: "EVAL", ok: true }),
+        evaluateLoss: async ({ version }) => {
+          const loss = version === "v001" ? 2.0 : 1.0;
+          // Paired evidence so the enforce-mode gate can promote. 30 independent
+          // groups is above the configured minimum.
+          const perDocument = Array.from({ length: 30 }, (_, i) => ({ articleId: `a${i}`, group: `g${i}`, tokens: 200, loss }));
+          return {
+            version, loss, datasetHash: "EVAL", ok: true,
+            blockCount: 459, tokensSeen: 6000,
+            evaluationSet: { datasetHash: "EVAL", blockCount: 459, tokensSeen: 6000 },
+            perDocument,
+          };
+        },
         setActive: async (v) => { calls.activate.push(v); return { version: v }; },
         markConsumed: async (ids, runId) => {
           calls.consume += 1;

@@ -826,10 +826,10 @@ export class JobSupervisor {
       const maxRejections = config.jobs.training.maxConsecutiveRejections;
       if (maxRejections > 0 && consecutiveRejections >= maxRejections) {
         // Continuous training is perpetual: a rejection streak is a quality signal,
-        // not a terminal condition. Rejected runs still consume their batch (the
-        // lifecycle commits consumption on rejection), so the next eligible cycle
-        // only ever sees genuinely new material. Surface the streak for the operator
-        // and reset the counter so the job keeps running instead of stopping.
+        // not a terminal condition. A rejected batch is DEFERRED (bounded retry),
+        // not consumed, so it stays eligible alongside new material until the
+        // retry limit retires it. Surface the streak for the operator and reset
+        // the counter so the job keeps running instead of stopping.
         await this.#safeEvent(jobId, {
           status: JOB_STATUS.RUNNING,
           phase: "repeated-rejection",

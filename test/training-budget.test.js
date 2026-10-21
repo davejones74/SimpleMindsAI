@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { computeTrainingBudget, checkMinimumTrainingData } from "../src/training/budget.js";
+import { computeTrainingBudget, checkMinimumTrainingData, computeEvaluationCadence } from "../src/training/budget.js";
 import { estimateTokenCount, selectReplayRows, selectValidationRows } from "../src/dataset/snapshot.js";
 
 test("budget derives steps from training blocks and rounds up to a whole step", () => {
@@ -90,4 +90,35 @@ test("validation selection excludes replay rows and targets whole blocks", () =>
   assert.ok(picked.length > 0);
   assert.equal(picked.some((r) => r.articleId === "v0"), false);
   assert.ok(picked.reduce((n, r) => n + r.text.length, 0) >= 32 * 128 * 5);
+});
+
+// ------------------------------------------------- evaluation cadence
+// The fixed TRAIN_EVAL_EVERY was sized for 60-step runs. Once the step budget
+// became data-derived, a 7-10 step run recorded only the opening and closing
+// validation points. The configured value is now a CAP and the effective cadence
+// tightens with the actual budget; 0 still disables periodic validation.
+
+test("cadence: a short run samples more often than the configured cap", () => {
+  assert.equal(computeEvaluationCadence({ steps: 8, configuredEvalEvery: 10 }), 2);
+  assert.equal(computeEvaluationCadence({ steps: 7, configuredEvalEvery: 10 }), 1);
+  assert.equal(computeEvaluationCadence({ steps: 12, configuredEvalEvery: 10 }), 3);
+});
+
+test("cadence: a 60-step run keeps the configured cadence", () => {
+  assert.equal(computeEvaluationCadence({ steps: 60, configuredEvalEvery: 10 }), 10);
+});
+
+test("cadence: 0 or invalid configured cadence stays disabled", () => {
+  assert.equal(computeEvaluationCadence({ steps: 8, configuredEvalEvery: 0 }), 0);
+  assert.equal(computeEvaluationCadence({ steps: 8, configuredEvalEvery: -1 }), 0);
+});
+
+test("cadence: every effective cadence yields at least three finite observations", () => {
+  for (let steps = 1; steps <= 40; steps += 1) {
+    const evalEvery = computeEvaluationCadence({ steps, configuredEvalEvery: 10 });
+    if (evalEvery <= 0) continue;
+    const points = new Set([0, steps - 1]);
+    for (let step = 0; step < steps; step += 1) if ((step + 1) % evalEvery === 0) points.add(step);
+    if (steps >= 3) assert.ok(points.size >= 3, `steps=${steps} evalEvery=${evalEvery} -> ${points.size} points`);
+  }
 });

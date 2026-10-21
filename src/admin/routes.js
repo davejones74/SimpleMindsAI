@@ -560,18 +560,49 @@ export function attachAdmin({ app, store, registry, governance, chat, conversati
     // not basename(dirname(...)) — the latter yields the store dir ("store")
     // and produced false discrepancy warnings. Prefer the explicit
     // `meta.pythonVersion` when present.
-    const checkpointVersions = new Set(
-      models
-        .map((m) => m.meta?.pythonVersion ?? (m.checkpointPath ? path.basename(m.checkpointPath) : null))
-        .filter(Boolean),
-    );
-    const pyVersions = new Set(py.versions.map((v) => v.version));
-    const discrepancies = [];
-    if (!py.available) discrepancies.push({ kind: "python-store-unavailable", detail: py.reason });
-    else {
-      for (const v of pyVersions) if (!checkpointVersions.has(v)) discrepancies.push({ kind: "python-version-not-in-registry", version: v });
-      for (const v of checkpointVersions) if (!pyVersions.has(v)) discrepancies.push({ kind: "registry-version-not-in-python-store", version: v });
+    // Lifecycle-aware classification, NOT a raw set difference. A rejected
+    // candidate deliberately has an allocation record but no published
+    // directory; a staged candidate lives in `vNNN.tmp`; a pruned version keeps
+    // a tombstone. Only an UNEXPLAINED terminal-state mismatch is a conflict.
+    const nodeByVersion = new Map();
+    for (const m of models) {
+      const v = m.meta?.pythonVersion ?? (m.checkpointPath ? path.basename(m.checkpointPath) : null);
+      if (v && !nodeByVersion.has(v)) nodeByVersion.set(v, m.status);
     }
+    const pyByVersion = new Map(py.versions.map((v) => [v.version, v]));
+    const stagedVersions = new Set((py.staged ?? []).map((s) => s.version));
+    const prunedVersions = new Set((py.pruned ?? []).map((p) => p.version));
+    const allocatedVersions = new Set(py.allocatedVersions ?? []);
+    const conflicts = [];
+    const lifecycle = { published: 0, staged: 0, pruned: 0, discarded: 0, adopted: 0, allocatedOnly: 0, expected: 0 };
+    if (!py.available) conflicts.push({ kind: "python-store-unavailable", detail: py.reason });
+    else {
+      for (const [version, status] of nodeByVersion) {
+        const pv = pyByVersion.get(version);
+        if (pv) {
+          if (pv.committed) lifecycle.published += 1;
+          else lifecycle.staged += 1;
+          // A promoted Node model whose Python directory is not COMMITTED is a
+          // genuine integrity conflict, not an expected intermediate state.
+          if (status === "promoted" && !pv.committed) {
+            conflicts.push({ kind: "promoted-version-not-committed", version });
+          }
+          continue;
+        }
+        if (stagedVersions.has(version)) lifecycle.staged += 1;
+        else if (prunedVersions.has(version)) lifecycle.pruned += 1;
+        else if (allocatedVersions.has(version)) lifecycle.discarded += 1;
+        else { lifecycle.allocatedOnly += 1; conflicts.push({ kind: "registry-version-not-in-python-store", version }); }
+      }
+      for (const [version] of pyByVersion) {
+        if (nodeByVersion.has(version)) continue;
+        if (prunedVersions.has(version)) lifecycle.pruned += 1;
+        else lifecycle.adopted += 1;
+      }
+    }
+    lifecycle.expected =
+      lifecycle.staged + lifecycle.pruned + lifecycle.discarded + lifecycle.adopted + lifecycle.allocatedOnly;
+    const discrepancies = conflicts;
     ok(res, {
       workspace: identity(w, py),
       registry: {
@@ -582,6 +613,7 @@ export function attachAdmin({ app, store, registry, governance, chat, conversati
       },
       pythonStore: py,
       evaluationSet: evaluationSetSummary(w),
+      lifecycle,
       discrepancies,
     });
   }));

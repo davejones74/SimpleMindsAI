@@ -54,6 +54,27 @@ export function computeTrainingBudget({
 }
 
 /**
+ * Evaluation cadence for a run.
+ *
+ * A fixed `TRAIN_EVAL_EVERY` is a trap once the step budget becomes data-derived:
+ * 60 steps at every-10 gave 7 validation observations, but 8 steps at every-10
+ * gives only the opening and closing points — too few to classify a trend. The
+ * configured value is treated as a CAP, and the effective cadence is tightened
+ * until a short run records roughly one sample per quarter of its steps.
+ *
+ * `0` (or an invalid value) means "periodic validation disabled" and is
+ * preserved exactly.
+ */
+export function computeEvaluationCadence({ steps, configuredEvalEvery = 0 } = {}) {
+  const configured = Number(configuredEvalEvery);
+  if (!Number.isFinite(configured) || configured <= 0) return 0;
+  const s = Number(steps);
+  if (!Number.isInteger(s) || s <= 0) return configured;
+  const target = Math.max(1, Math.floor(s / 4));
+  return Math.min(Math.max(1, configured), target);
+}
+
+/**
  * Minimum usable-data gate. `tokens` is the unique token count of the training
  * stream (validation excluded), as reported by the trainer preflight. A missing
  * count is not treated as zero: legacy/custom trainers without preflight keep

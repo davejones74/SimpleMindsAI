@@ -220,6 +220,8 @@ test("admin API: mission proposal lifecycle, strategy versioning, review cycles"
     assert.equal(hist.status, 200);
     assert.ok(Array.isArray(hist.body.registry.runs));
     assert.ok(Array.isArray(hist.body.discrepancies));
+    assert.ok(hist.body.lifecycle, "training-history must expose lifecycle-aware gap counts");
+    assert.equal(typeof hist.body.lifecycle.discarded, "number");
   } finally {
     await h.close();
   }

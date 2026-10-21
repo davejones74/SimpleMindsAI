@@ -422,3 +422,31 @@ test("computeChartScales: non-finite and missing marker losses are ignored, and 
   assert.equal(empty.hasLeft, false);
   assert.equal(empty.hasRight, false);
 });
+test("deriveSeries: two points are labelled endpoints, not periodic", () => {
+  const s = deriveSeries({
+    config: { evalEvery: 10 },
+    stepsCompleted: 8,
+    validationHistory: [{ step: 0, loss: 5 }, { step: 7, loss: 4.9 }],
+  });
+  assert.equal(s.sampling, "endpoints");
+  assert.equal(s.validationSeries.length, 2);
+});
+
+test("deriveSeries: a genuine curve is labelled periodic", () => {
+  const s = deriveSeries({
+    config: { evalEvery: 2 },
+    stepsCompleted: 8,
+    validationHistory: [{ step: 0, loss: 5 }, { step: 1, loss: 4.9 }, { step: 3, loss: 4.7 }, { step: 7, loss: 4.5 }],
+  });
+  assert.equal(s.sampling, "periodic");
+  assert.equal(s.validationSeries.length, 4);
+});
+
+test("deriveSeries: duplicate steps are collapsed (the later sample wins)", () => {
+  const s = deriveSeries({
+    config: { evalEvery: 1 },
+    stepsCompleted: 2,
+    validationHistory: [{ step: 0, loss: 5 }, { step: 0, loss: 4.99 }, { step: 1, loss: 4.9 }],
+  });
+  assert.deepEqual(s.validationSeries.map((p) => p.step), [0, 1]);
+});

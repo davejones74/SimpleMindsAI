@@ -1,7 +1,7 @@
 import { config as defaultConfig } from "../config.js";
 import { throwIfAborted } from "./cancel.js";
 import { acquireReviewLock } from "./review-lock.js";
-import { preScreen } from "../domain/review-gates.js";
+import { preScreen, assessCompleteness } from "../domain/review-gates.js";
 import { AUTHORITY } from "../domain/article.js";
 
 /**
@@ -130,6 +130,7 @@ export async function reviewPendingArticles(store, scorer, opts = {}) {
         // merely because the LLM scored its content well. The gate decision is a
         // real, auditable verdict (authority=automation) recorded through the
         // SAME review path, so the ledger keeps one source of truth.
+        const completeness = assessCompleteness(article.text);
         if (review.gatesEnabled !== false) {
           const gate = preScreen(article.text, {
             sourceUrl: article.sourceUrl ?? null,
@@ -140,6 +141,7 @@ export async function reviewPendingArticles(store, scorer, opts = {}) {
               minBigramRatio: review.qualityMinBigramRatio,
               maxMojibakeRatio: review.qualityMaxMojibakeRatio,
             },
+            completeness: { mode: review.completenessMode ?? "shadow" },
           });
           if (gate.decision === "reject") {
             try {
@@ -151,6 +153,7 @@ export async function reviewPendingArticles(store, scorer, opts = {}) {
                 authority: AUTHORITY.AUTOMATION,
                 gate: gate.gate,
                 reason: gate.reason,
+                completeness: gate.completeness ?? completeness,
               });
               counters.gatesRejected++;
               counters.reviewed++;
@@ -210,6 +213,7 @@ export async function reviewPendingArticles(store, scorer, opts = {}) {
             criticPromptVersion: r.criticPromptVersion,
             criticScoreMissing: r.criticScoreMissing,
             criticError: r.criticError,
+            completeness,
           });
         } catch (err) {
           // The article was not durably reviewed; do not count it and never

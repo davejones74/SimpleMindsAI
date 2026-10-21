@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { metricSignature, decidePromotionByLoss } from "../src/training/loss-evaluator.js";
+import { metricSignature, decidePromotionByLoss, pairedSourceGroupBootstrap } from "../src/training/loss-evaluator.js";
 
 /**
  * The promotion gate must never promote on a number that was not measured the
@@ -33,7 +33,7 @@ test("metricSignature: deterministic, and every measurement-affecting field chan
 test("decidePromotionByLoss: promotes a real improvement on an identical metric", () => {
   const parent = ok(2.0);
   const candidate = ok(1.5);
-  const d = decidePromotionByLoss(parent, candidate, { minImprovement: 0.1 });
+  const d = decidePromotionByLoss(parent, candidate, { minImprovement: 0.1, uncertaintyMode: "off" });
   assert.equal(d.decision, "promoted");
   assert.equal(d.comparable, true);
   assert.ok(Math.abs(d.improvement - 0.5) < 1e-9);
@@ -45,7 +45,7 @@ test("decidePromotionByLoss: rejects an improvement measured with a DIFFERENT me
   // the numbers are not comparable, so this must NOT be promoted even though
   // the candidate's number is lower.
   const candidate = { ok: true, loss: 1.2, datasetHash: "abc123", metricSignature: metricSignature(SET, { seqLen: 64, microBatch: 1 }) };
-  const d = decidePromotionByLoss(parent, candidate, { minImprovement: 0.1 });
+  const d = decidePromotionByLoss(parent, candidate, { minImprovement: 0.1, uncertaintyMode: "off" });
   assert.equal(d.decision, "not_evaluated");
   assert.equal(d.comparable, false);
   assert.match(d.reason, /metric signatures differ/);
@@ -55,7 +55,7 @@ test("decidePromotionByLoss: falls back to dataset-hash comparison when neither 
   // Legacy records: no signature on either side. Behaviour must be unchanged.
   const parent = { ok: true, loss: 2.0, datasetHash: "abc123" };
   const candidate = { ok: true, loss: 1.5, datasetHash: "abc123" };
-  const d = decidePromotionByLoss(parent, candidate, { minImprovement: 0.1 });
+  const d = decidePromotionByLoss(parent, candidate, { minImprovement: 0.1, uncertaintyMode: "off" });
   assert.equal(d.decision, "promoted");
   assert.equal(d.comparable, true);
 });
@@ -63,7 +63,7 @@ test("decidePromotionByLoss: falls back to dataset-hash comparison when neither 
 test("decidePromotionByLoss: a one-sided signature falls back to the hash comparison", () => {
   const parent = { ok: true, loss: 2.0, datasetHash: "abc123", metricSignature: metricSignature(SET, { seqLen: 32, microBatch: 1 }) };
   const candidate = { ok: true, loss: 1.5, datasetHash: "abc123" }; // no signature
-  const d = decidePromotionByLoss(parent, candidate, { minImprovement: 0.1 });
+  const d = decidePromotionByLoss(parent, candidate, { minImprovement: 0.1, uncertaintyMode: "off" });
   // The signature is only enforceable when BOTH sides carry one, so a legacy
   // one-sided record keeps the historical dataset-hash-only decision.
   assert.equal(d.decision, "promoted");
@@ -73,7 +73,7 @@ test("decidePromotionByLoss: a one-sided signature falls back to the hash compar
 test("decidePromotionByLoss: different dataset hash => not comparable", () => {
   const parent = ok(2.0);
   const candidate = { ...ok(1.0), datasetHash: "different" };
-  const d = decidePromotionByLoss(parent, candidate, { minImprovement: 0.1 });
+  const d = decidePromotionByLoss(parent, candidate, { minImprovement: 0.1, uncertaintyMode: "off" });
   assert.equal(d.decision, "not_evaluated");
   assert.equal(d.comparable, false);
 });
@@ -93,7 +93,7 @@ const sized = (loss, blocks, tokens = null) => ({
 });
 
 test("decidePromotionByLoss: refuses to compare an undersized (noise-dominated) evaluation", () => {
-  const d = decidePromotionByLoss(sized(2.0, 1), sized(1.0, 1), { minImprovement: 0.1, minBlocks: 8 });
+  const d = decidePromotionByLoss(sized(2.0, 1), sized(1.0, 1), { minImprovement: 0.1, minBlocks: 8, uncertaintyMode: "off" });
   assert.equal(d.decision, "not_evaluated");
   assert.equal(d.evalFitness.enforced, true);
   assert.equal(d.evalFitness.ok, false);
@@ -101,13 +101,13 @@ test("decidePromotionByLoss: refuses to compare an undersized (noise-dominated) 
 });
 
 test("decidePromotionByLoss: evaluates normally when the set is adequate", () => {
-  const d = decidePromotionByLoss(sized(2.0, 459), sized(1.0, 459), { minImprovement: 0.1, minBlocks: 8 });
+  const d = decidePromotionByLoss(sized(2.0, 459), sized(1.0, 459), { minImprovement: 0.1, minBlocks: 8, uncertaintyMode: "off" });
   assert.equal(d.decision, "promoted");
   assert.equal(d.evalFitness.ok, true);
 });
 
 test("decidePromotionByLoss: the token floor is enforced when configured", () => {
-  const d = decidePromotionByLoss(sized(2.0, 459, 100), sized(1.0, 459, 100), { minImprovement: 0.1, minBlocks: 8, minTokens: 1024 });
+  const d = decidePromotionByLoss(sized(2.0, 459, 100), sized(1.0, 459, 100), { minImprovement: 0.1, minBlocks: 8, minTokens: 1024, uncertaintyMode: "off" });
   assert.equal(d.decision, "not_evaluated");
   assert.match(d.reason, /token/);
 });
@@ -115,7 +115,78 @@ test("decidePromotionByLoss: the token floor is enforced when configured", () =>
 test("decidePromotionByLoss: records with no size metadata keep the legacy behaviour", () => {
   // No blockCount/evaluationSet => fitness is not enforced, so the historical
   // dataset-hash decision stands (this is the pre-Python / synthetic case).
-  const d = decidePromotionByLoss(ok(2.0), ok(1.5), { minImprovement: 0.1, minBlocks: 8 });
+  const d = decidePromotionByLoss(ok(2.0), ok(1.5), { minImprovement: 0.1, minBlocks: 8, uncertaintyMode: "off" });
   assert.equal(d.evalFitness.enforced, false);
   assert.equal(d.decision, "promoted");
+});
+
+// ------------------------------------------------------- paired uncertainty
+
+/** Build N synthetic source groups, each with one document, at a fixed delta. */
+function paired(loss, { groups = 30, tokens = 500, delta = 0 } = {}) {
+  const perDocument = [];
+  for (let i = 0; i < groups; i += 1) {
+    perDocument.push({ articleId: `a${i}`, group: `g${i}`, tokens, loss: loss - delta });
+  }
+  return { ...ok(loss), perDocument, blockCount: 459, tokensSeen: groups * tokens, evaluationSet: { datasetHash: "abc123", blockCount: 459, tokensSeen: groups * tokens } };
+}
+
+test("pairedSourceGroupBootstrap: consistent gain has a CI above zero", () => {
+  const parent = paired(2.0, { delta: 0 });
+  const candidate = paired(1.9, { delta: 0 });
+  const b = pairedSourceGroupBootstrap(parent, candidate, { minGroups: 20, samples: 500 });
+  assert.equal(b.ok, true);
+  assert.ok(b.ciLow > 0, `CI should exclude zero, got ${JSON.stringify(b)}`);
+  assert.ok(b.pointImprovement > 0);
+});
+
+test("decidePromotionByLoss (enforce): promotes only when the paired CI excludes zero", () => {
+  const d = decidePromotionByLoss(paired(2.0), paired(1.9), {
+    minImprovement: 0.05, uncertaintyMode: "enforce", minGroups: 20, bootstrapSamples: 500,
+  });
+  assert.equal(d.decision, "promoted");
+  assert.ok(d.paired.ok);
+});
+
+test("decidePromotionByLoss (enforce): a zero-delta candidate is inconclusive, never promoted", () => {
+  const d = decidePromotionByLoss(paired(2.0), paired(2.0), {
+    minImprovement: 0, uncertaintyMode: "enforce", minGroups: 20, bootstrapSamples: 500,
+  });
+  assert.equal(d.decision, "inconclusive");
+});
+
+test("decidePromotionByLoss (enforce): missing per-document evidence is inconclusive", () => {
+  const d = decidePromotionByLoss(ok(2.0), ok(1.5), { minImprovement: 0.1, uncertaintyMode: "enforce" });
+  assert.equal(d.decision, "inconclusive");
+  assert.match(d.reason, /paired/i);
+});
+
+test("decidePromotionByLoss (enforce): too few source groups is inconclusive", () => {
+  const d = decidePromotionByLoss(paired(2.0, { groups: 3 }), paired(1.9, { groups: 3 }), {
+    minImprovement: 0.05, uncertaintyMode: "enforce", minGroups: 20, bootstrapSamples: 500,
+  });
+  assert.equal(d.decision, "inconclusive");
+});
+
+test("decidePromotionByLoss (enforce): an established regression is rejected, not inconclusive", () => {
+  const d = decidePromotionByLoss(paired(2.0), paired(2.2), {
+    minImprovement: 0, uncertaintyMode: "enforce", minGroups: 20, bootstrapSamples: 500,
+  });
+  assert.equal(d.decision, "rejected");
+  assert.match(d.reason, /regression/i);
+});
+
+test("decidePromotionByLoss (enforce): an established but immaterial gain is inconclusive", () => {
+  const d = decidePromotionByLoss(paired(2.0), paired(1.999), {
+    minImprovement: 0.05, uncertaintyMode: "enforce", minGroups: 20, bootstrapSamples: 500,
+  });
+  // With 30 tight groups the CI excludes zero, but the gain is below the
+  // material threshold, so the gate must NOT activate the candidate.
+  assert.equal(d.decision, "inconclusive");
+  assert.match(d.reason, /material/i);
+});
+
+test("decidePromotionByLoss (enforce): a failed or missing evaluation stays not_evaluated", () => {
+  assert.equal(decidePromotionByLoss(paired(2.0), { ok: false, error: "boom" }).decision, "not_evaluated");
+  assert.equal(decidePromotionByLoss({ ok: true, loss: NaN, datasetHash: "abc123" }, paired(1.0)).decision, "not_evaluated");
 });

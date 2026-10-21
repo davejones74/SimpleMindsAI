@@ -185,6 +185,7 @@ function normalizeRawDoc(doc, record = {}) {
     // audit why a document was or was not admitted.
     htmlLang: doc.htmlLang ?? null,
     title: doc.title ?? null,
+    extraction: doc.extraction ?? null,
     status: doc.status ?? null,
     contentType: doc.contentType ?? null,
     bytes: doc.bytes ?? null,

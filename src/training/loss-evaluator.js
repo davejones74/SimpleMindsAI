@@ -67,6 +67,7 @@ export async function evaluateVersionLoss({
   seqLen = config.promoteEvalSeqLen,
   microBatch = config.promoteEvalMicroBatch,
   timeoutMs = config.promoteEvalTimeoutMs,
+  perDocument = config.promotePerDocument,
   error = null,
 } = {}) {
   if (error) {
@@ -91,6 +92,9 @@ export async function evaluateVersionLoss({
     // A staged candidate has no COMMITTED marker yet; evaluate its `.tmp`
     // directory in place so the promotion decision precedes publication.
     if (staged) args.push("--staged");
+    // Paired (per-document) evidence is what makes a confidence interval
+    // possible; the packed aggregate alone cannot define a standard error.
+    if (perDocument) args.push("--per-document");
     const out = await runPython(args, { store, bin, timeoutMs });
     const loss = out.evalLoss;
     const ok = Number.isFinite(loss);
@@ -107,6 +111,10 @@ export async function evaluateVersionLoss({
       blockCount: evaluationSet?.blockCount ?? null,
       tokensSeen: evaluationSet?.tokensSeen ?? null,
       documentCount: evaluationSet?.documentCount ?? null,
+      // Paired evidence: one row per document with its source group and token
+      // count, plus a group-level rollup. Empty when not requested/available.
+      perDocument: Array.isArray(out.perDocument) ? out.perDocument : [],
+      groups: Array.isArray(out.groups) ? out.groups : [],
       metricSignature: metricSignature(evaluationSet, { seqLen, microBatch }),
       lossSignature: out.lossSignature ?? null,
       trainedSteps: out.trainedSteps ?? null,
@@ -118,13 +126,136 @@ export async function evaluateVersionLoss({
   }
 }
 
+/** Deterministic 32-bit PRNG so a bootstrap run is reproducible in tests. */
+function mulberry32(seed) {
+  let a = seed >>> 0;
+  return function next() {
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function smallHash(str) {
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+/** Linear-interpolated quantile of a sorted ascending array. */
+function quantile(sorted, q) {
+  if (!sorted.length) return null;
+  const pos = (sorted.length - 1) * q;
+  const lo = Math.floor(pos);
+  const hi = Math.ceil(pos);
+  if (lo === hi) return sorted[lo];
+  return sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo);
+}
+
+/**
+ * Paired source-group bootstrap over per-document losses.
+ *
+ * Parent and candidate are scored on the SAME documents, so the right unit is
+ * the per-document difference, resampled by independent source group (documents
+ * from one source are not independent). `improvement` is defined as
+ * parentLoss - candidateLoss, so a positive value favours the candidate.
+ *
+ * @returns {{ok, reason?, method?, groupCount?, pairedDocuments?, tokens?,
+ *   pointImprovement?, ciLow?, ciHigh?, level?, samples?}}
+ */
+export function pairedSourceGroupBootstrap(parent, candidate, {
+  minGroups = config.promoteMinGroups,
+  ciLevel = config.promoteCiLevel,
+  samples = config.promoteBootstrapSamples,
+} = {}) {
+  const parentDocs = Array.isArray(parent?.perDocument) ? parent.perDocument : [];
+  const candidateDocs = Array.isArray(candidate?.perDocument) ? candidate.perDocument : [];
+  if (!parentDocs.length || !candidateDocs.length) {
+    return { ok: false, reason: "no per-document evaluation recorded for parent and candidate" };
+  }
+  const candById = new Map(candidateDocs.map((d) => [String(d.articleId), d]));
+  const byGroup = new Map();
+  let pairs = 0;
+  for (const p of parentDocs) {
+    const c = candById.get(String(p.articleId));
+    if (!c) continue;
+    const pl = Number(p.loss);
+    const cl = Number(c.loss);
+    if (!Number.isFinite(pl) || !Number.isFinite(cl)) continue;
+    const pt = Number(p.tokens);
+    const ct = Number(c.tokens);
+    const tokens = Number.isFinite(pt) && pt > 0 ? pt : Number.isFinite(ct) && ct > 0 ? ct : 0;
+    if (tokens <= 0) continue;
+    const group = String(p.group ?? p.articleId ?? "unknown");
+    const g = byGroup.get(group) ?? { group, tokens: 0, weighted: 0, documents: 0 };
+    g.tokens += tokens;
+    g.weighted += (pl - cl) * tokens;
+    g.documents += 1;
+    byGroup.set(group, g);
+    pairs += 1;
+  }
+  const groups = [...byGroup.values()];
+  if (pairs === 0) {
+    return { ok: false, reason: "no documents were scored for both parent and candidate" };
+  }
+  const required = Math.max(1, Number(minGroups) || 1);
+  if (groups.length < required) {
+    return {
+      ok: false,
+      reason: `only ${groups.length} independent source group(s); ${required} required for a paired interval`,
+      groupCount: groups.length,
+      pairedDocuments: pairs,
+    };
+  }
+  const totalTokens = groups.reduce((n, g) => n + g.tokens, 0);
+  const pointImprovement = totalTokens ? groups.reduce((n, g) => n + g.weighted, 0) / totalTokens : null;
+  const resamples = Math.max(200, Math.floor(Number(samples) || 0) || 0);
+  const rng = mulberry32(smallHash(`${parent?.datasetHash ?? ""}:${parent?.version ?? ""}:${candidate?.version ?? ""}:${groups.length}`));
+  const means = [];
+  for (let i = 0; i < resamples; i += 1) {
+    let w = 0;
+    let s = 0;
+    for (let j = 0; j < groups.length; j += 1) {
+      const g = groups[Math.floor(rng() * groups.length)];
+      w += g.tokens;
+      s += g.weighted;
+    }
+    means.push(w ? s / w : 0);
+  }
+  means.sort((a, b) => a - b);
+  const alpha = (1 - (Number(ciLevel) || 0.95)) / 2;
+  return {
+    ok: true,
+    method: "paired-source-group-bootstrap",
+    groupCount: groups.length,
+    pairedDocuments: pairs,
+    tokens: totalTokens,
+    pointImprovement,
+    ciLow: quantile(means, alpha),
+    ciHigh: quantile(means, 1 - alpha),
+    level: Number(ciLevel) || 0.95,
+    samples: resamples,
+    groups: groups.map((g) => ({ group: g.group, tokens: g.tokens, documents: g.documents })),
+  };
+}
+
 /**
  * Decide whether `candidate` should replace `parent`.
  *
  * Lower causal-LM loss is better: improvement = parentLoss - candidateLoss, and
  * the candidate is promoted only when it clears the configured criterion.
  *
- * @returns {{decision, reason, parentLoss, candidateLoss, improvement, datasetHash, metricSignature, comparable, evaluated}}
+ * In `enforce` mode the decision also requires paired per-document evidence and
+ * a source-group bootstrap interval excluding zero. `inconclusive` means "no
+ * defensible basis to activate"; it is distinct from `rejected` (a measured
+ * regression) and `not_evaluated` (evidence could not be obtained).
+ *
+ * @returns {{decision, reason, parentLoss, candidateLoss, improvement, datasetHash, metricSignature, comparable, evaluated, paired?}}
  */
 /** Measured size of an evaluation, or null when the record carries none. */
 function evaluationSize(result) {
@@ -142,6 +273,10 @@ export function decidePromotionByLoss(parent, candidate, {
   requireSameMetric = true,
   minBlocks = config.promoteEvalMinBlocks,
   minTokens = config.promoteEvalMinTokens,
+  uncertaintyMode = config.promoteUncertaintyMode,
+  minGroups = config.promoteMinGroups,
+  ciLevel = config.promoteCiLevel,
+  bootstrapSamples = config.promoteBootstrapSamples,
 } = {}) {
   const base = {
     parentLoss: parent?.loss ?? null,
@@ -151,7 +286,10 @@ export function decidePromotionByLoss(parent, candidate, {
     metricSignature: null,
     comparable: false,
     evaluated: false,
-    criterion: { minImprovement, maxLoss, requireFinite, requireSameEvalSet, requireSameMetric, minBlocks, minTokens },
+    criterion: {
+      minImprovement, maxLoss, requireFinite, requireSameEvalSet, requireSameMetric,
+      minBlocks, minTokens, uncertaintyMode, minGroups, ciLevel, bootstrapSamples,
+    },
   };
 
   if (!parent?.ok || !candidate?.ok) {
@@ -202,6 +340,10 @@ export function decidePromotionByLoss(parent, candidate, {
   const sameMetric = !signaturesPresent || parentSig === candidateSig;
   const comparable = sameHash && (!requireSameMetric || sameMetric);
   const improvement = parent.loss - candidate.loss;
+  const mode = String(uncertaintyMode ?? "off").toLowerCase();
+  const paired = mode === "off"
+    ? null
+    : pairedSourceGroupBootstrap(parent, candidate, { minGroups, ciLevel, samples: bootstrapSamples });
   const withEval = {
     ...base,
     improvement,
@@ -210,6 +352,7 @@ export function decidePromotionByLoss(parent, candidate, {
     evalFitness: fitness,
     comparable,
     evaluated: true,
+    paired,
   };
 
   if (requireSameMetric && sameHash && !sameMetric) {
@@ -222,11 +365,55 @@ export function decidePromotionByLoss(parent, candidate, {
   if (requireSameEvalSet && !comparable) {
     return { ...withEval, decision: "not_evaluated", reason: "parent and candidate were not scored on the same frozen evaluation set" };
   }
-  if (improvement < minImprovement) {
-    return { ...withEval, decision: "rejected", reason: `improvement ${improvement.toFixed(4)} below required ${minImprovement}` };
-  }
   if (candidate.loss > maxLoss) {
     return { ...withEval, decision: "rejected", reason: `candidate loss ${candidate.loss.toFixed(4)} exceeds ceiling ${maxLoss}` };
   }
+
+  if (mode === "enforce") {
+    if (!paired?.ok) {
+      return {
+        ...withEval,
+        decision: "inconclusive",
+        reason: `no defensible paired evidence: ${paired?.reason ?? "paired evaluation unavailable"}`,
+      };
+    }
+    if (paired.ciHigh != null && paired.ciHigh < 0) {
+      return {
+        ...withEval,
+        decision: "rejected",
+        reason: `regression established: paired improvement ${paired.pointImprovement.toFixed(4)} (95% CI ${paired.ciLow.toFixed(4)}..${paired.ciHigh.toFixed(4)}) is below zero`,
+      };
+    }
+    if (paired.ciLow == null || paired.ciLow <= 0) {
+      return {
+        ...withEval,
+        decision: "inconclusive",
+        reason: `paired improvement ${paired.pointImprovement.toFixed(4)} (95% CI ${fmtCI(paired)}) includes zero`,
+      };
+    }
+    if (improvement < minImprovement) {
+      return {
+        ...withEval,
+        decision: "inconclusive",
+        reason: `paired improvement ${improvement.toFixed(4)} is established but below the material threshold ${minImprovement}`,
+      };
+    }
+    return {
+      ...withEval,
+      decision: "promoted",
+      reason: `paired improvement ${paired.pointImprovement.toFixed(4)} (95% CI ${fmtCI(paired)}) exceeds ${minImprovement} on ${parent.datasetHash}`,
+    };
+  }
+
+  // `report` / legacy: compute the interval but keep the aggregate decision.
+  if (improvement < minImprovement) {
+    return { ...withEval, decision: "rejected", reason: `improvement ${improvement.toFixed(4)} below required ${minImprovement}` };
+  }
   return { ...withEval, decision: "promoted", reason: `loss improved by ${improvement.toFixed(4)} on ${parent.datasetHash}` };
+}
+
+function fmtCI(paired) {
+  const lo = Number.isFinite(paired?.ciLow) ? paired.ciLow.toFixed(4) : "?";
+  const hi = Number.isFinite(paired?.ciHigh) ? paired.ciHigh.toFixed(4) : "?";
+  return `${lo}..${hi}`;
 }

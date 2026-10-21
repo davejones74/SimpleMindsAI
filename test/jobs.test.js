@@ -340,7 +340,10 @@ test("supervisor: one-shot training honors a pause requested during the run", as
     trainingDeps: {
       paths: { snapshots: tmp(), models: tmp(), plans: tmp(), evaluation: tmp() },
       evalSeed: async () => EVAL_SEED,
-      evaluateLoss: async ({ version }) => ({ version, loss: version === "v001" ? 2.0 : 1.4, datasetHash: "EVAL", ok: true }),
+      evaluateLoss: async ({ version }) => {
+        const loss = version === "v001" ? 2.0 : 1.4;
+        return { version, loss, datasetHash: "EVAL", ok: true, blockCount: 459, tokensSeen: 6000, evaluationSet: { datasetHash: "EVAL", blockCount: 459, tokensSeen: 6000 }, perDocument: Array.from({ length: 30 }, (_, i) => ({ articleId: `a${i}`, group: `g${i}`, tokens: 200, loss })) };
+      },
       setActive: async (version) => ({ version }),
     },
   });
@@ -403,7 +406,10 @@ test("supervisor: one-shot training runs the lifecycle and reports promotion", a
     trainingDeps: {
       paths: { snapshots: tmp(), models: tmp(), plans: tmp(), evaluation: tmp() },
       evalSeed: async () => EVAL_SEED,
-      evaluateLoss: async ({ version }) => ({ version, loss: version === "v001" ? 2.0 : 1.4, datasetHash: "EVAL", ok: true }),
+      evaluateLoss: async ({ version }) => {
+        const loss = version === "v001" ? 2.0 : 1.4;
+        return { version, loss, datasetHash: "EVAL", ok: true, blockCount: 459, tokensSeen: 6000, evaluationSet: { datasetHash: "EVAL", blockCount: 459, tokensSeen: 6000 }, perDocument: Array.from({ length: 30 }, (_, i) => ({ articleId: `a${i}`, group: `g${i}`, tokens: 200, loss })) };
+      },
       setActive: async (version) => { activated = version; return { version }; },
     },
   });

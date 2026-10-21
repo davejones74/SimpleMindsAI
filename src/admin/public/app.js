@@ -1066,9 +1066,9 @@ function renderHistory() {
       python store <code>${esc(h.pythonStore?.root ?? "—")}</code>
     </div>
     ${h.discrepancies.length ? `<div class="panel notice">
-      <div class="title warn">${h.discrepancies.length} discrepancy(ies) between Node registry and Python store — reported, not silently reconciled</div>
+      <div class="title warn">${h.discrepancies.length} unresolved registry conflict(s) between Node registry and Python store — reported, not silently reconciled</div>
       <ul class="small">${h.discrepancies.map((d) => `<li>${esc(d.kind)}${d.version ? ` — ${esc(d.version)}` : ""}${d.detail ? ` (${esc(d.detail)})` : ""}</li>`).join("")}</ul>
-    </div>` : `<div class="panel"><span class="ok">Registry and Python store agree.</span> <span class="small muted">Node = orchestration/audit; Python = committed artifacts.</span></div>`}
+    </div>` : `<div class="panel"><span class="ok">No unresolved registry conflicts.</span> <span class="small muted">${h.lifecycle ? `${h.lifecycle.published} published · ${h.lifecycle.staged} staged · ${h.lifecycle.discarded} discarded attempts · ${h.lifecycle.pruned} pruned · ${h.lifecycle.adopted} adopted` : "Node = orchestration/audit; Python = committed artifacts."}</span></div>`}
 
     ${subtabs("historyTab", [
       ["runs", `Training runs (${r.runs.length})`],

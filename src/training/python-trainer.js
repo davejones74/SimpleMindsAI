@@ -198,6 +198,9 @@ export function pythonTrainer({
       const runValBlocks = Number.isInteger(configuration.valBlocks) && configuration.valBlocks >= 0
         ? configuration.valBlocks
         : valBlocks;
+      const runEvalEvery = Number.isInteger(configuration.evalEvery) && configuration.evalEvery >= 0
+        ? configuration.evalEvery
+        : evalEvery;
       const args = [
         "train",
         "--parent", parentVersion,
@@ -209,7 +212,7 @@ export function pythonTrainer({
         "--grad-accum", String(gradAccum),
         "--warmup", String(warmup),
         "--val-blocks", String(runValBlocks),
-        "--eval-every", String(evalEvery),
+        "--eval-every", String(runEvalEvery),
         "--compute-dtype", resolvedDtype,
         "--device", device,
       ];
@@ -264,7 +267,7 @@ export function pythonTrainer({
         stepsCompleted: out.stepsCompleted ?? null,
         device: out.device ?? device,
         durationMs: out.durationMs ?? Date.now() - t0,
-        cfg: { lr: learningRate, steps: runSteps, valBlocks: runValBlocks, seqLen, microBatch, gradAccum, warmup, computeDtype: resolvedDtype },
+        cfg: { lr: learningRate, steps: runSteps, valBlocks: runValBlocks, evalEvery: runEvalEvery, seqLen, microBatch, gradAccum, warmup, computeDtype: resolvedDtype },
         note: "python causal-LM training",
       };
     },

@@ -159,3 +159,25 @@ test("a missing store reports no counts, not zeros", () => {
   assert.equal(store.available, false);
   assert.equal(store.counts, undefined);
 });
+
+test("allocated version numbers are read from the durable attempt ledger", () => {
+  const root = tmp();
+  // v001 is published; v002 was allocated and REJECTED (its number burned, no
+  // directory). The set-difference check would call v002 a "discrepancy"; the
+  // attempt ledger is what lets the UI classify it as an expected discard.
+  const v1 = path.join(root, "v001");
+  mkdirSync(v1, { recursive: true });
+  writeFileSync(path.join(v1, "COMMITTED"), "");
+  writeFileSync(
+    path.join(root, "_allocations.ndjson"),
+    [
+      JSON.stringify({ version: "v001", at: "2026-01-01T00:00:00Z" }),
+      JSON.stringify({ version: "v002", at: "2026-01-01T00:01:00Z" }),
+      "",
+    ].join("\n"),
+    "utf8",
+  );
+  const store = readPythonStore(root);
+  assert.deepEqual(store.allocatedVersions, ["v001", "v002"]);
+  assert.equal(store.counts.allocated, 2);
+});

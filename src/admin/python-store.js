@@ -160,6 +160,26 @@ export function readPythonTrainState(version, explicit = null) {
   return readRecord(root, version, RECORD.trainState);
 }
 
+/**
+ * Every version number ever ALLOCATED, read from the store's durable
+ * `_allocations.ndjson`. This is the authoritative record of attempts: a
+ * rejected candidate burns its number even though it never becomes a `vNNN`
+ * directory. Comparing a Node model's version against the version DIRECTORIES
+ * alone therefore reports every discarded attempt as a "discrepancy".
+ */
+function listAllocatedVersions(root) {
+  const file = path.join(root, "_allocations.ndjson");
+  try {
+    return readFileSync(file, "utf8")
+      .split(/\r?\n/)
+      .filter((l) => l.trim())
+      .map((l) => { try { return JSON.parse(l)?.version ?? null; } catch { return null; } })
+      .filter((v) => typeof v === "string" && /^v\d+$/.test(v));
+  } catch {
+    return [];
+  }
+}
+
 export function readPythonStore(explicit = null) {
   const root = resolveStorePath(explicit);
   const exists = existsSync(root);
@@ -170,6 +190,7 @@ export function readPythonStore(explicit = null) {
     activeVersion: null,
     active: null,
     versions: [],
+    allocatedVersions: [],
     reason: null,
   };
   if (!exists) {
@@ -232,11 +253,13 @@ export function readPythonStore(explicit = null) {
   // them into one list is what makes a brain count look wrong.
   result.staged = listStagedCandidates(root);
   result.pruned = listPrunedVersions(root);
+  result.allocatedVersions = [...new Set(listAllocatedVersions(root))].sort();
   result.counts = {
     published: result.versions.filter((v) => v.committed).length,
     uncommitted: result.versions.filter((v) => !v.committed).length,
     staged: result.staged.length,
     pruned: result.pruned.length,
+    allocated: result.allocatedVersions.length,
   };
   return result;
 }

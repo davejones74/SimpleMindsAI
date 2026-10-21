@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { preScreen, mojibakeRatio, heuristicPenalty, GATE } from "../src/domain/review-gates.js";
+import { preScreen, assessCompleteness, mojibakeRatio, heuristicPenalty, GATE } from "../src/domain/review-gates.js";
 
 /**
  * P3 — review-time quality gates (deterministic, dependency-free).
@@ -130,4 +130,51 @@ test("repetitionPenalty is neutral for non-Latin text, 0 only for empty input", 
   assert.equal(heuristicPenalty("دورة رانكين واحتراق خارجي"), 1);
   assert.equal(heuristicPenalty("蒸汽机"), 1);
   assert.equal(heuristicPenalty("γειά σου"), 1);
+});
+
+// ------------------------------------------------------ completeness gate
+// Deterministic signals that separate prose from titles, headings, citation
+// lists, navigation and metadata. In `shadow` mode they never change a verdict;
+// these tests exercise the SIGNALS directly.
+
+test("completeness: a title-like fragment is a reject signal", () => {
+  const r = assessCompleteness("Neural Networks 1991: Vol 4 Iss 2");
+  assert.equal(r.decision, "reject");
+  assert.equal(r.metrics.sentences, 0);
+});
+
+test("completeness: a course-code heading is a reject signal", () => {
+  const r = assessCompleteness("6.831 User Interface Design and Implementation");
+  assert.equal(r.decision, "reject");
+});
+
+test("completeness: a genuine short passage proceeds or quarantines, never rejects as a title", () => {
+  const r = assessCompleteness("A steam engine converts steam pressure into mechanical work using a piston inside a cylinder.");
+  assert.notEqual(r.decision, "reject");
+  assert.ok(r.metrics.sentences >= 1);
+});
+
+test("completeness: a citation/reference block without prose is a reject signal", () => {
+  const r = assessCompleteness("[1] Sambrook J 1989 Molecular cloning Cold Spring Harbor\n[2] Ausubel F 1994 Current protocols");
+  assert.equal(r.decision, "reject", JSON.stringify(r.metrics));
+});
+
+test("completeness: shadow mode records signals but never changes the verdict", () => {
+  const r = preScreen("Neural Networks 1991: Vol 4 Iss 2", {
+    languageFilter: { enabled: false },
+    quality: { enabled: false },
+    completeness: { mode: "shadow" },
+  });
+  assert.equal(r.decision, "proceed");
+  assert.equal(r.completeness.decision, "reject");
+});
+
+test("completeness: enforce mode rejects non-prose before the critic", () => {
+  const r = preScreen("Neural Networks 1991: Vol 4 Iss 2", {
+    languageFilter: { enabled: false },
+    quality: { enabled: false },
+    completeness: { mode: "enforce" },
+  });
+  assert.equal(r.decision, "reject");
+  assert.equal(r.gate, "completeness");
 });

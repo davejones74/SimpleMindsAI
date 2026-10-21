@@ -287,9 +287,10 @@ export async function fetchDocument(url, {
       const buf = await readCapped(res.body, maxBytes);
       const raw = new TextDecoder("utf-8", { fatal: false }).decode(buf);
       const isHtml = HTML_TYPE.test(contentType);
-      const { title, text } = isHtml
+      const extracted = isHtml
         ? await extractDocument(raw, { mode: config.extractionMode })
-        : { title: null, text: collapse(raw) };
+        : { title: null, text: collapse(raw), mode: "text", fallback: false, readableChars: null };
+      const { title, text } = extracted;
       return {
         url: current,
         status: res.status,
@@ -297,6 +298,15 @@ export async function fetchDocument(url, {
         bytes: buf.length,
         title,
         text,
+        // Extraction provenance: which strategy ran, whether readability fell
+        // back, and how much text it produced. Carried so the review pipeline can
+        // distinguish a metadata-only page from a genuinely short document.
+        extraction: {
+          mode: extracted.mode ?? config.extractionMode,
+          fallback: Boolean(extracted.fallback),
+          readableChars: extracted.readableChars ?? null,
+          textChars: String(text ?? "").length,
+        },
         // Raw HTML is retained ONLY so link discovery can extract anchors; callers
         // that just need text ignore it. It is null for non-HTML responses.
         html: isHtml ? raw : null,

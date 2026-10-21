@@ -280,6 +280,7 @@ export class ArticleStore {
     fetchedContentHash = null,
     fetchedAt = null,
     htmlLang = null,
+    extraction = null,
     uncertainty = null,
     missionRelevance = null,
     reviewRequested = false,
@@ -371,6 +372,7 @@ const rec = {
       ...(htmlLang ? { htmlLang } : {}),
       ...(fetchedContentHash ? { fetchedContentHash } : {}),
       ...(fetchedAt ? { fetchedAt } : {}),
+      ...(extraction ? { extraction } : {}),
       uncertainty,
       missionRelevance,
       reviewRequested,
@@ -473,6 +475,7 @@ const rec = {
     criticScoreMissing = false,
     criticError = null,
     gate = null,
+    completeness = null,
     reason = null,
   } = {}) {
     this.#assertWritable();
@@ -497,6 +500,7 @@ const rec = {
       criticPromptVersion,
       criticScoreMissing: Boolean(criticScoreMissing),
       criticError: criticError ?? null,
+      completeness: completeness ?? null,
       // Which deterministic review-time gate (if any) produced this review —
       // null for an LLM/teacher or human review.
       gate: gate ?? null,

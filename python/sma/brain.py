@@ -911,6 +911,65 @@ def _pack_paths(
     return blocks, record
 
 
+def _load_documents_with_group(paths: list) -> list:
+    """Load documents for per-document scoring, preserving a pairing/group key.
+
+    A JSONL row's `sourceUrl`, `source` or `domain` becomes the cluster key; the
+    articleId is the fallback. This is the grouping unit for the paired
+    promotion bootstrap, so it is carried explicitly rather than inferred from
+    the packed stream (which mixes documents across blocks).
+    """
+    import json
+
+    docs = []
+    for path in paths:
+        p = Path(path)
+        if not p.is_file():
+            continue
+        if p.suffix.lower() == ".jsonl":
+            for index, line in enumerate(p.read_text(encoding="utf-8").splitlines()):
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    item = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                text = item.get("text") or item.get("completion") or ""
+                if not str(text).strip():
+                    continue
+                group = item.get("sourceUrl") or item.get("source") or item.get("domain") or item.get("articleId") or f"{p.name}#{index}"
+                docs.append({"articleId": item.get("articleId") or f"{p.name}#{index}", "text": str(text), "group": str(group)})
+        else:
+            text = p.read_text(encoding="utf-8")
+            if text.strip():
+                docs.append({"articleId": p.name, "text": text, "group": p.name})
+    return docs
+
+
+def _group_per_document(per_document: list) -> list:
+    """Aggregate per-document losses into token-weighted source groups."""
+    groups: Dict[str, Dict[str, Any]] = {}
+    for row in per_document:
+        key = str(row.get("group") or row.get("articleId") or "unknown")
+        entry = groups.setdefault(key, {"group": key, "tokens": 0, "weighted": 0.0, "documents": 0})
+        entry["tokens"] += int(row.get("tokens") or 0)
+        entry["weighted"] += float(row.get("loss") or 0.0) * int(row.get("tokens") or 0)
+        entry["documents"] += 1
+    out = []
+    for entry in groups.values():
+        tokens = entry["tokens"]
+        out.append(
+            {
+                "group": entry["group"],
+                "tokens": tokens,
+                "documents": entry["documents"],
+                "loss": (entry["weighted"] / tokens) if tokens else None,
+            }
+        )
+    return out
+
+
 def _torch_dtype(name: Optional[str]):
     """Map a manifest dtype string to a torch dtype, or None if unknown."""
     import torch
@@ -1074,6 +1133,22 @@ def cmd_eval(args: argparse.Namespace) -> Dict[str, Any]:
         compute_dtype="float32",
     )
 
+    # Paired evidence for the promotion gate. The packed aggregate above cannot
+    # define a standard error; the per-document (grouped) losses can. Computed
+    # only on request so a diagnostic eval stays cheap.
+    per_document = []
+    group_losses = []
+    if getattr(args, "per_document", False):
+        per_document = train_mod.per_document_cross_entropy(
+            model,
+            _load_documents_with_group(paths),
+            tokenizer,
+            device=device,
+            max_sequence_length=args.seq_len,
+            compute_dtype="float32",
+        )
+        group_losses = _group_per_document(per_document)
+
     trained_steps = int(_safe_read_json(version_dir / "train-state.json").get("stepsCompleted") or 0)
     vocab = (manifest.get("architecture") or {}).get("vocabSize")
     if manifest.get("initialisationType") == "RANDOM" and trained_steps == 0:
@@ -1113,6 +1188,8 @@ def cmd_eval(args: argparse.Namespace) -> Dict[str, Any]:
             "tokensSeen": record.tokensSeen,
             "articles": record.articles,
         },
+        "perDocument": per_document,
+        "groups": group_losses,
     }
 
 
@@ -1538,6 +1615,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--staged",
         action="store_true",
         help="evaluate a staged (unpublished) candidate directory instead of a committed version",
+    )
+    sp.add_argument(
+        "--per-document",
+        dest="per_document",
+        action="store_true",
+        help="also score each document separately (paired promotion evidence)",
     )
     sp.set_defaults(func=cmd_eval)
 

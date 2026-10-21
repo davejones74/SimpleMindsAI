@@ -268,6 +268,10 @@ export const config = {
     gatesEnabled: bool("REVIEW_GATES_ENABLED", true),
     gateLanguage: bool("REVIEW_GATE_LANGUAGE", true),
     gateQuality: bool("REVIEW_GATE_QUALITY", true),
+    // Deterministic completeness gate: `shadow` records the signals and never
+    // changes a verdict (calibration default); `enforce` rejects non-prose
+    // before the critic. Enforcement must only follow a labelled-fixture pass.
+    completenessMode: oneOf("REVIEW_COMPLETENESS_MODE", "shadow", ["shadow", "enforce"]),
     // Fraction of characters that may be encoding-corruption indicators before
     // the text is judged mojibake, and the minimum unique-bigram ratio for text
     // to be considered non-degenerate. Heuristic starting values, not guarantees.
@@ -323,9 +327,26 @@ export const config = {
   // ---- Loss-based promotion gate (authoritative for the real brain) ----
   // improvement = parentLoss - candidateLoss; promote iff improvement >= delta
   // and candidateLoss <= maxLoss and both losses are finite.
+  //
+  // `minLossDelta` is the MATERIAL threshold: a paired result must beat it even
+  // when its confidence interval excludes zero. Significance is not usefulness.
   promoteMinLossDelta: num("PROMOTE_MIN_LOSS_DELTA", 0),
   promoteMaxLoss: num("PROMOTE_MAX_LOSS", Number.POSITIVE_INFINITY),
   promoteRequireFinite: bool("PROMOTE_REQUIRE_FINITE", true),
+  // Paired uncertainty gate. `enforce` (default): a decision needs paired
+  // per-document evidence and a cluster-bootstrap CI that excludes zero; with
+  // none available, or an interval that includes zero, the outcome is
+  // `inconclusive` and the active model does NOT move. `report`: compute and
+  // record the interval but keep the historical aggregate decision. `off`:
+  // skip paired evidence entirely (legacy/unit behaviour).
+  promoteUncertaintyMode: oneOf("PROMOTE_UNCERTAINTY_MODE", "enforce", ["off", "report", "enforce"]),
+  // Ask Python for per-document losses on a promotion evaluation.
+  promotePerDocument: bool("PROMOTE_PER_DOCUMENT", true),
+  // Minimum independent source groups before a paired interval is believable.
+  promoteMinGroups: num("PROMOTE_MIN_GROUPS", 20),
+  // Cluster-bootstrap confidence level and resample count (deterministic seed).
+  promoteCiLevel: num("PROMOTE_CI_LEVEL", 0.95),
+  promoteBootstrapSamples: num("PROMOTE_BOOTSTRAP_SAMPLES", 4000),
   // Evaluation sequence length, pinned to the training context so the eval
   // measures the same per-token objective the model is optimised on. Changing
   // this changes the metric signature and therefore starts a new, incomparable
@@ -638,8 +659,9 @@ export const config = {
       // signal, never a terminal stop: after this many consecutive runs that are
       // NOT promoted (rejected or not_evaluated), the supervisor logs the
       // `repeated-rejection` phase and resets the counter, then keeps waiting for
-      // genuinely new material. Rejected runs consume their batch, so new cycles
-      // never retrain the same corpus. 0 disables the surface/warn guard.
+      // genuinely new material. A rejected batch is deferred (bounded retry), not
+      // consumed, so it remains eligible until `maxRejectedRetries` retires it.
+      // 0 disables the surface/warn guard.
       maxConsecutiveRejections: num("TRAIN_MAX_CONSECUTIVE_REJECTIONS", 5),
       // Maximum number of deferral retries for a rejected batch before articles
       // are transitioned to the explicit `retired` state. Default 2: after two

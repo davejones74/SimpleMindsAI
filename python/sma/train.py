@@ -343,6 +343,73 @@ def mean_cross_entropy(
     return weighted / tokens
 
 
+def per_document_cross_entropy(
+    model: torch.nn.Module,
+    documents: List[Dict[str, Any]],
+    tokenizer: Any,
+    *,
+    device: str,
+    max_sequence_length: int,
+    compute_dtype: str = "float32",
+) -> List[Dict[str, Any]]:
+    """Token-weighted next-token cross-entropy scored PER DOCUMENT.
+
+    The promotion gate needs a paired unit (document or source group) so parent
+    and candidate can be compared on the SAME evidence rather than on one pooled
+    average whose standard error is not defined. Packing concatenates documents
+    across block boundaries, so a per-document number cannot be recovered from
+    the packed stream; each document is therefore tokenised and scored on its
+    own, in non-overlapping `max_sequence_length` windows, weighted by the
+    number of label tokens.
+
+    `documents` rows are `{ articleId, text, group }`. Documents that tokenise to
+    fewer than two tokens produce no finite loss and are omitted (they cannot
+    contribute a next-token label).
+    """
+    was_training = model.training
+    model.eval()
+    device_type = torch.device(device).type
+    out: List[Dict[str, Any]] = []
+    with torch.no_grad():
+        for doc in documents:
+            text = str(doc.get("text") or "")
+            if not text.strip():
+                continue
+            ids = tokenizer(text, add_special_tokens=False).input_ids
+            if len(ids) < 2:
+                continue
+            weighted = 0.0
+            tokens = 0
+            for start in range(0, len(ids), max_sequence_length):
+                chunk = ids[start : start + max_sequence_length]
+                if len(chunk) < 2:
+                    continue
+                batch = torch.tensor([chunk], dtype=torch.long, device=device)
+                if compute_dtype == "float32":
+                    ctx = contextlib.nullcontext()
+                else:
+                    ctx = torch.autocast(
+                        device_type=device_type, dtype=getattr(torch, compute_dtype)
+                    )
+                with ctx:
+                    loss = float(model(input_ids=batch, labels=batch).loss)
+                weighted += loss * int(batch.numel())
+                tokens += int(batch.numel())
+            if tokens <= 0:
+                continue
+            out.append(
+                {
+                    "articleId": doc.get("articleId"),
+                    "group": doc.get("group"),
+                    "tokens": tokens,
+                    "loss": weighted / tokens,
+                }
+            )
+    if was_training:
+        model.train()
+    return out
+
+
 def train(
     *,
     model: torch.nn.Module,

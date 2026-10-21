@@ -63,7 +63,10 @@ test("getStats reports no-eligible-unconsumed, the recoverable pipeline, and qua
   s = store.getStats();
   assert.equal(s.quarantineReleased, 1);
   assert.equal(s.quarantined, 0);
-  assert.equal(s.ingested, 2);
+  // The released article returns to the EARLIER of its pre-quarantine states
+  // (INGESTED or, if the deterministic sampler had selected it, PENDING_REVIEW).
+  // Either way it is back in the recoverable pipeline.
+  assert.equal(s.ingested + s.pendingReview, 2);
   assert.equal(s.recoverable, 2);
 
   await store.close();

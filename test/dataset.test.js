@@ -1,4 +1,4 @@
-import { test } from "node:test";
+﻿import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, existsSync } from "node:fs";
 import { writeFile, readFile } from "node:fs/promises";
@@ -7,7 +7,7 @@ import path from "node:path";
 import { config } from "../src/config.js";
 import { RegistryStore } from "../src/storage/registry-store.js";
 import { ArticleStore } from "../src/storage/article-store.js";
-import { buildSnapshot, collectRowsFromArticles, snapshotRowReader, rowForArticle } from "../src/dataset/snapshot.js";
+import { buildSnapshot, collectRowsFromArticles, snapshotRowReader, rowForArticle, reuseEligible } from "../src/dataset/snapshot.js";
 import { loadEvaluationSet, makeEvalGuard, pairHash, evalText } from "../src/dataset/evaluation-set.js";
 
 const tmpDir = () => path.join(mkdtempSync(path.join(tmpdir(), "sma-ds-")));
@@ -22,7 +22,7 @@ const articleRow = (i, origin = "curated") => ({
   createdAt: new Date().toISOString(),
 });
 
-test("rowForArticle carries source→curated provenance only when recorded", () => {
+test("rowForArticle carries sourceâ†’curated provenance only when recorded", () => {
   const plain = rowForArticle(articleRow(1));
   assert.equal("sourceUrl" in plain, false);
   assert.equal("fetchedContentHash" in plain, false);
@@ -249,7 +249,7 @@ test("evaluation set: the minimum-documents floor is advisory and off by default
   assert.deepEqual(quiet.warnings, []);
 
   // Configured floor: the shortfall is surfaced, and the set is STILL loaded
-  // and usable — the floor never fails closed.
+  // and usable â€” the floor never fails closed.
   const warned = await loadEvaluationSet({ dir: tmpDir(), seed, minDocuments: 3 });
   assert.equal(warned.size, 1);
   assert.equal(warned.items.length, 1);
@@ -324,5 +324,33 @@ test("evaluation set: a metric-parameter change is surfaced against the manifest
     assert.ok(changed.warnings.some((w) => w.code === "eval-metric-changed"));
   } finally {
     config.promoteEvalSeqLen = prev;
+  }
+});
+// ------------------------------------------------- reused-row eligibility
+// Replay/validation draw from already-consumed rows. Those rows were admitted
+// under older policies, so the SAME language/quality/completeness gates are
+// re-applied before they can re-enter training.
+
+test("reuseEligible: a confidently non-English consumed article is excluded", () => {
+  const french = "La photosynthese est un processus biologique qui convertit la lumiere du soleil en energie chimique dans les plantes et les autres organismes vivants sur la terre.";
+  assert.equal(reuseEligible({ text: french, sourceUrl: "https://fr.wikipedia.org/wiki/Photosynthese" }), false);
+});
+
+test("reuseEligible: a corrupt/repetitive consumed article is excluded", () => {
+  assert.equal(reuseEligible({ text: String.fromCharCode(0xfffd).repeat(200) }), false);
+});
+
+test("reuseEligible: a normal English consumed article passes", () => {
+  const text = "A steam engine converts steam pressure into mechanical work. It uses a piston inside a cylinder and a connecting rod to produce rotation.";
+  assert.equal(reuseEligible({ text, sourceUrl: "https://en.wikipedia.org/wiki/Steam_engine" }), true);
+});
+
+test("reuseEligible: a title-like consumed article is excluded under enforce completeness", () => {
+  const prev = config.review.completenessMode;
+  config.review.completenessMode = "enforce";
+  try {
+    assert.equal(reuseEligible({ text: "Neural Networks 1991: Vol 4 Iss 2" }), false);
+  } finally {
+    config.review.completenessMode = prev;
   }
 });

@@ -84,8 +84,90 @@ function wordCount(text) {
  * @returns {{decision: "proceed"|"reject", gate: string|null, reason: string|null,
  *   detection?: object, metrics?: object}}
  */
-export function preScreen(text, { sourceUrl = null, htmlLang = null, languageFilter = null, quality = null } = {}) {
+// Navigation/boilerplate markers are used as DENSITY signals, never as a
+// blanket substring ban: one "Home" in a long article is not navigation.
+const NAV_MARKERS = /(^|\n)\s*(home|login|log in|sign in|sign up|register|menu|search|privacy|terms|terms of use|cookie policy|copyright|all rights reserved|share|subscribe|advertisement|skip to content)\b/gi;
+const REFERENCE_MARKERS = /(\breferences?\b|\bbibliography\b|\bcitations?\b|\bfurther reading\b|^\s*\[\d+\]|\bdoi:\s*10\.|\bhttps?:\/\/|^\s*\d+\.\s|^\s*-\s)/gim;
+
+/** Count terminal sentence boundaries (., ! or ? followed by space/end). */
+function sentenceCount(text) {
+  const s = String(text ?? "").trim();
+  if (!s) return 0;
+  const matches = s.match(/[.!?]+(?=\s|$)/g);
+  return matches ? matches.length : 0;
+}
+
+function lineCount(text) {
+  return String(text ?? "").split(/\r?\n/).filter((l) => l.trim()).length;
+}
+
+/**
+ * Deterministic COMPLETENESS signals.
+ *
+ * This is the pre-review signal that distinguishes prose from a title, a
+ * heading, a citation/reference list, navigation text or a metadata block. It
+ * is pure and explainable: the same text always yields the same metrics and the
+ * same advisory decision. It does NOT run the critic.
+ */
+export function assessCompleteness(text) {
+  const s = String(text ?? "");
+  const trimmed = s.trim();
+  const chars = trimmed.length;
+  const words = (trimmed.match(/[A-Za-z0-9']+/g) ?? []).length;
+  const alpha = (trimmed.match(/[A-Za-z]/g) ?? []).length;
+  const sentences = sentenceCount(trimmed);
+  const refMarkers = (trimmed.match(REFERENCE_MARKERS) ?? []).length;
+  const navLines = (trimmed.match(NAV_MARKERS) ?? []).length;
+  const urlMatches = (trimmed.match(/\bhttps?:\/\//gi) ?? []).length;
+  const lines = lineCount(trimmed);
+  const wordsPerSentence = sentences > 0 ? words / sentences : words;
+  const referenceDensity = words > 0 ? refMarkers / Math.max(1, lines) : 0;
+  const navDensity = lines > 0 ? navLines / lines : 0;
+  const metrics = {
+    chars, words, sentences, lines, wordsPerSentence,
+    refMarkers, navLines, urls: urlMatches, alphaRatio: chars ? alpha / chars : 0,
+    referenceDensity, navDensity,
+  };
+
+  // Hard reject: no usable prose at all.
+  if (chars < 20 || words < 3) {
+    return { decision: "reject", reason: "no substantive text (too short to contain a sentence)", metrics };
+  }
+  if (sentences === 0 && words < 12) {
+    return { decision: "reject", reason: "no sentence structure (title/heading/citation-like fragment)", metrics };
+  }
+  if (sentences === 0 && referenceDensity >= 0.5 && refMarkers >= 2) {
+    return { decision: "reject", reason: "reference/citation list without prose", metrics };
+  }
+  if (sentences === 0 && navDensity >= 0.5 && navLines >= 2) {
+    return { decision: "reject", reason: "navigation/boilerplate block without prose", metrics };
+  }
+  // Quarantine (reversible): borderline short or list-heavy text that may be a
+  // legitimate concise passage. Never terminal on its own.
+  if (sentences <= 1 && words < 30) {
+    return { decision: "quarantine", reason: "very short prose; review before training", metrics };
+  }
+  if (referenceDensity >= 0.5 && words < 60) {
+    return { decision: "quarantine", reason: "reference-dense short text", metrics };
+  }
+  return { decision: "proceed", reason: null, metrics };
+}
+
+export function preScreen(text, { sourceUrl = null, htmlLang = null, languageFilter = null, quality = null, completeness = null } = {}) {
   const body = String(text ?? "");
+  const completenessResult = assessCompleteness(body);
+  const completenessMode = String(completeness?.mode ?? "shadow").toLowerCase();
+  // Shadow is the default: signals are recorded on the review record but never
+  // change the verdict until the gate has been calibrated on labelled fixtures.
+  if (completenessMode === "enforce" && completenessResult.decision !== "proceed") {
+    return {
+      decision: "reject",
+      gate: "completeness",
+      reason: `review gate: ${completenessResult.reason}`,
+      metrics: completenessResult.metrics,
+      completeness: completenessResult,
+    };
+  }
 
   if (languageFilter?.enabled && !languageFilter.shadow) {
     const decision = assess(body, {
@@ -138,5 +220,5 @@ export function preScreen(text, { sourceUrl = null, htmlLang = null, languageFil
     }
   }
 
-  return { decision: "proceed", gate: null, reason: null };
+  return { decision: "proceed", gate: null, reason: null, completeness: completenessResult };
 }

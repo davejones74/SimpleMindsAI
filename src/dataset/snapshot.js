@@ -5,6 +5,7 @@ import readline from "node:readline";
 import path from "node:path";
 import { config } from "../config.js";
 import { contentHash, isTrainable } from "../domain/article.js";
+import { preScreen } from "../domain/review-gates.js";
 
 /**
  * Immutable article snapshots (requirement #2 + #17).
@@ -58,6 +59,27 @@ export function rowForArticle(article, { corpusRole = "train" } = {}) {
  */
 export function estimateTokenCount(text) {
   return Math.max(0, Math.ceil(String(text ?? "").length / 4));
+}
+
+/**
+ * Eligibility for REUSED (already-consumed) rows selected as replay or
+ * validation. The fresh delta is filtered at ingest; this is the same policy
+ * applied on the way back in, so historical material cannot bypass it.
+ */
+export function reuseEligible(article) {
+  if (!article || typeof article.text !== "string") return false;
+  const gate = preScreen(article.text, {
+    sourceUrl: article.sourceUrl ?? null,
+    htmlLang: article.htmlLang ?? null,
+    languageFilter: config.languageFilter ?? null,
+    quality: {
+      enabled: true,
+      minBigramRatio: config.review.qualityMinBigramRatio,
+      maxMojibakeRatio: config.review.qualityMaxMojibakeRatio,
+    },
+    completeness: { mode: config.review.completenessMode ?? "shadow" },
+  });
+  return gate.decision !== "reject";
 }
 
 function stableOrder(rows) {
@@ -193,7 +215,7 @@ export function collectRowsFromArticles(
   let validationRows = [];
   if (includeConsumed) {
     const remaining = Math.max(0, limit - rows.length);
-    for (const a of drain(true, remaining)) {
+    for (const a of drain(true, remaining).filter(reuseEligible)) {
       rows.push(rowForArticle(a));
       retained += 1;
     }
@@ -202,7 +224,11 @@ export function collectRowsFromArticles(
     const needValidation = validationBlocks > 0;
     if (needReplay || needValidation) {
       const poolLimit = Math.max(512, limit * 4);
-      const pool = drain(true, poolLimit);
+      // Reused (consumed) rows were admitted under older policies. Re-check the
+      // SAME deterministic gates on the text before they can re-enter training:
+      // a historical non-English or corrupted article must not bypass the policy
+      // merely because it was consumed before the gate existed.
+      const pool = drain(true, poolLimit).filter(reuseEligible);
       if (needReplay) {
         replayRows = selectReplayRows(chosenFresh.map(rowForArticle), pool, {
           replayPercent: pct,

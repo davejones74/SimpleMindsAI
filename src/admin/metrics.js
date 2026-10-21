@@ -164,9 +164,18 @@ export function classifyTrend(validation, training = null, thresholds = {}) {
 
 /** Loss series recorded for a version while it trained. */export function deriveSeries(trainState) {
   const ts = trainState && typeof trainState === "object" ? trainState : {};
-  const validation = finitePoints(ts.validationHistory);
+  // Deduplicate by step: a periodic sample can land on the same step as the
+  // opening point (e.g. evalEvery=1), and counting it twice would overstate the
+  // evidence. The later sample wins, matching mergeChain.
+  const byStep = new Map();
+  for (const p of finitePoints(ts.validationHistory)) byStep.set(p.step, p);
+  const validation = [...byStep.values()].sort((a, b) => a.step - b.step);
   let sampling = "none";
-  if (validation.length > 0) sampling = (ts.config?.evalEvery ?? 0) > 0 ? "periodic" : "endpoints";
+  // "periodic" means a CURVE exists (>2 distinct points). Two points are the
+  // opening and closing endpoints even when a (too coarse) evalEvery produced
+  // them; labelling those "periodic" hid the hint to tighten the cadence.
+  if (validation.length > 2) sampling = (ts.config?.evalEvery ?? 0) > 0 ? "periodic" : "endpoints";
+  else if (validation.length > 0) sampling = "endpoints";
   if (validation.length === 0) {
     const a = ts.initialValidationLoss;
     const b = ts.finalValidationLoss;
