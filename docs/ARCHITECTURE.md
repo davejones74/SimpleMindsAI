@@ -215,11 +215,13 @@ The persistent frontier (`src/frontier.js`) carries the lifecycle:
   on adapter candidates *and* extracted links. `warn` counts and proceeds; the
   ingest-time language filter remains the authoritative backstop.
 
-**Recovery-driven progress (training side).** Training material is only reviewed,
-unconsumed, non-retired articles — the corpus is never replayed by default
-(`SNAPSHOT_INCLUDE_CONSUMED=false`; replay is a reversible opt-in for later). When
-the delta is empty the job reports why: `recovery-pending` when ingested, pending
-or quarantined articles can still become eligible, or
+**Recovery-driven progress (training side).** A snapshot is built from reviewed,
+unconsumed, non-retired articles, plus a bounded replay share of consumed
+reviewed articles (`TRAIN_REPLAY_PERCENT`, default 20%) and appended held-out
+validation rows (`TRAIN_VAL_BLOCKS`, default 32). Replay is not full corpus
+backfill: `SNAPSHOT_INCLUDE_CONSUMED=true` remains the explicit legacy mode. When
+the fresh delta is empty the job reports why: `recovery-pending` when ingested,
+pending or quarantined articles can still become eligible, or
 `no-eligible-unconsumed-material` when the pipeline is genuinely dry. The
 dashboard/API/SSE surface the waiting reason, acquisition state, frontier due
 counts and recovery pipeline.
@@ -485,30 +487,39 @@ continuous text. Consequences:
 
 Consumed training material is **not** discarded after training. Articles are
 marked consumed so they are not trained on twice, but they remain addressable
-and their content hashes are retained. This is a storage design constraint, not
-a replay feature: it keeps the [replay option](ROADMAP.md#1-catastrophic-forgetting)
-open without implementing any part of it, and it is cheap now and impossible to
-retrofit later.
+and their content hashes are retained. That makes bounded replay possible:
+`TRAIN_REPLAY_PERCENT` (default 20% of estimated training tokens) draws from
+consumed reviewed rows, always after fresh rows and without re-consuming,
+re-deferring or retiring them.
 
 ### Snapshot corpus policy: fresh input vs retained corpus
 
-By default (`SNAPSHOT_INCLUDE_CONSUMED=false`) a snapshot contains only
-`REVIEWED`-and-**unconsumed** articles — the *delta* since the last run. With
-`SNAPSHOT_INCLUDE_CONSUMED=true`, `collectRowsFromArticles` backfills
-already-consumed `REVIEWED` articles up to `SNAPSHOT_LIMIT`, so the trainer sees
-the *accumulated corpus* rather than a handful of new rows. Ordering is
-deterministic (fresh rows first, then retained in ascending insertion order).
+By default (`SNAPSHOT_INCLUDE_CONSUMED=false`) a snapshot contains the
+`REVIEWED`-and-**unconsumed** delta, then a bounded replay share of consumed
+reviewed rows (`TRAIN_REPLAY_PERCENT`), then held-out validation rows. Selection
+is deterministic by content hash, so replay and validation do not depend on
+insertion order. With `SNAPSHOT_INCLUDE_CONSUMED=true`,
+`collectRowsFromArticles` instead backfills already-consumed `REVIEWED` articles
+up to `SNAPSHOT_LIMIT` — the legacy accumulated-corpus mode.
 
-The manifest records both sets: `articleIds` is everything baked into the
-artifact (the trained corpus), and `freshArticleIds` is the subset that was
-unconsumed at bake time. Only `freshArticleIds` drive consumption and
-deferral/retirement bookkeeping, so retained rows contribute training text but
-are never re-consumed, re-deferred, or retired by a later run. An incremental
-run with **no** fresh rows is refused with `NO_ELIGIBLE_MATERIAL` rather than
-implicitly re-training on the corpus; corpus-only retraining is a separate,
-explicit workflow. `RETIRED` articles are never collected, and the
-evaluation-set leak guard removes a leaked row from `articleIds` and
-`freshArticleIds` alike.
+The manifest records `articleIds` (everything baked into the artifact),
+`freshArticleIds` (the unconsumed subset), `replayArticleIds`, and
+`validationArticleIds`. Only `freshArticleIds` drive consumption and
+deferral/retirement bookkeeping, so replay and retained rows contribute training
+text but are never re-consumed, re-deferred, or retired by a later run. An
+incremental run with **no** fresh rows is refused with `NO_ELIGIBLE_MATERIAL`
+rather than implicitly re-training on the corpus; corpus-only retraining is a
+separate, explicit workflow. `RETIRED` articles are never collected, and the
+evaluation-set leak guard removes a leaked row from all three manifests.
+
+Training steps are derived from the number of packed **training** blocks after
+validation is held out: `ceil(targetEpochs × blocks ÷ effectiveBatch)`, capped by
+`TRAIN_MAX_STEPS`. This replaces the fixed 60-step budget on the Python path.
+Before snapshot creation, corpus preflight also enforces
+`TRAIN_MIN_UNIQUE_TOKENS`; an undersized corpus is deferred with
+`INSUFFICIENT_TRAINING_DATA` rather than producing a near-empty model update.
+The run record stores the requested/completed budget and the actual effective
+epochs so a capped run is auditable.
 
 ---
 
@@ -533,10 +544,14 @@ Every consumed article is recorded by **both** `articleId` and `contentHash`, an
 stale hash would make the contribution record quietly false, and that failure
 would surface months later during a replay, when it is expensive to diagnose.
 
-The train/validation split holds out a **contiguous tail** of whole blocks, never
-a random subset. A random split over a packed stream leaks neighbouring context
+When enough consumed rows exist, validation is packed as a **separate**
+role-appended stream (`TRAIN_VAL_BLOCKS`, default 32) and does not reduce the
+training block count. When it is unavailable, the historical split holds out a
+**contiguous tail** of whole blocks. In either case the split is contiguous, never
+a random subset: a random split over a packed stream leaks neighbouring context
 across the boundary, which makes a validation number optimistic for a reason that
-has nothing to do with the model.
+has nothing to do with the model. A validation shortfall is recorded on the run
+and in the trainer's corpus accounting rather than silently shrinking.
 
 ---
 

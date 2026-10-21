@@ -60,7 +60,12 @@ function isNetworkError(err) {
  * block), `NO_ELIGIBLE_MATERIAL` by the empty snapshot guard, and
  * `INSUFFICIENT_ELIGIBLE` by the run-level eligibility gate.
  */
-const NO_MATERIAL_CODES = new Set(["INSUFFICIENT_CORPUS", "NO_ELIGIBLE_MATERIAL", "INSUFFICIENT_ELIGIBLE"]);
+const NO_MATERIAL_CODES = new Set([
+  "INSUFFICIENT_CORPUS",
+  "INSUFFICIENT_TRAINING_DATA",
+  "NO_ELIGIBLE_MATERIAL",
+  "INSUFFICIENT_ELIGIBLE",
+]);
 
 /**
  * JobSupervisor — owns the long-running lifecycle work the Observatory starts.
@@ -763,12 +768,20 @@ export class JobSupervisor {
         // fails with the clear message instead of a Python traceback.
         if (NO_MATERIAL_CODES.has(err?.code)) {
           if (job.mode === "one-shot") throw err;
+          const corpusWait = err.code === "INSUFFICIENT_CORPUS" || err.code === "INSUFFICIENT_TRAINING_DATA";
           await this.#event(jobId, {
             status: JOB_STATUS.WAITING,
-            phase: err.code === "INSUFFICIENT_CORPUS" ? "waiting-for-corpus" : "waiting-for-eligible",
+            phase: corpusWait ? "waiting-for-corpus" : "waiting-for-eligible",
             note: err.message,
             meta: {
-              waitingReason: err.code === "INSUFFICIENT_CORPUS" ? "corpus-too-small" : "insufficient-eligible-material",
+              waitingReason:
+                err.code === "INSUFFICIENT_TRAINING_DATA"
+                  ? "corpus-below-minimum"
+                  : err.code === "INSUFFICIENT_CORPUS"
+                    ? "corpus-too-small"
+                    : "insufficient-eligible-material",
+              tokens: err.tokens ?? null,
+              minUniqueTokens: err.minUniqueTokens ?? null,
             },
           });
           await this.#gate(jobId, config.jobs.pollIntervalMs);

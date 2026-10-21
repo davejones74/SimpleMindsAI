@@ -94,7 +94,7 @@ test("collectRowsFromArticles returns only REVIEWED, unconsumed articles", async
   assert.deepEqual(rows.map((r) => r.articleId).sort(), [...ids].sort());
   // With the default policy every collected row is fresh (the delta).
   assert.deepEqual(freshArticleIds.sort(), [...ids].sort());
-  assert.deepEqual(stats, { collected: 3, fresh: 3, retained: 0 });
+  assert.deepEqual(stats, { collected: 3, fresh: 3, retained: 0, replay: 0, validation: 0, estimatedReplayShare: 0 });
   await store.close();
 });
 
@@ -119,11 +119,52 @@ test("corpus backfill adds consumed REVIEWED rows but marks only new rows fresh"
   assert.equal(all.rows.length, 4);
   assert.deepEqual(all.rows.map((r) => r.articleId), [ids[3], ids[0], ids[1], ids[2]], "deterministic, fresh first then retained");
   assert.deepEqual(all.freshArticleIds, [ids[3]], "only previously-unconsumed rows are fresh");
-  assert.deepEqual(all.stats, { collected: 4, fresh: 1, retained: 3 });
+  assert.deepEqual(all.stats, { collected: 4, fresh: 1, retained: 3, replay: 0, validation: 0, estimatedReplayShare: 0 });
 
   // The backfill respects the limit: fresh rows always win the budget.
   const capped = collectRowsFromArticles(store, { limit: 2, includeConsumed: true });
   assert.deepEqual(capped.rows.map((r) => r.articleId), [ids[3], ids[0]]);
+  await store.close();
+});
+
+test("replay and validation rows are appended without consuming fresh slots", async () => {
+  const store = await ArticleStore.open(tmpDir());
+  const freshIds = [];
+  const oldIds = [];
+  for (let i = 0; i < 8; i++) {
+    const a = await store.ingestArticle({
+      text: `Fresh corpus article ${i} with enough prose to be a useful training row.`,
+      domain: "reasoning",
+    });
+    await store.recordReview({ articleId: a.articleId, verdict: "approve", authority: "human" });
+    freshIds.push(a.articleId);
+  }
+  for (let i = 0; i < 8; i++) {
+    const a = await store.ingestArticle({
+      text: `Consumed lineage article ${i} with enough prose to be replayed or validated.`,
+      domain: "reasoning",
+    });
+    await store.recordReview({ articleId: a.articleId, verdict: "approve", authority: "human" });
+    oldIds.push(a.articleId);
+  }
+  await store.markConsumed(oldIds, { runId: "run_old" });
+
+  const out = collectRowsFromArticles(store, {
+    limit: 10,
+    replayPercent: 20,
+    validationBlocks: 32,
+    validationSeqLen: 128,
+  });
+
+  assert.deepEqual(out.rows.slice(0, 8).map((r) => r.articleId), freshIds);
+  assert.deepEqual(out.freshArticleIds, freshIds);
+  assert.ok(out.replayArticleIds.length >= 1);
+  assert.ok(out.validationArticleIds.length >= 1);
+  assert.equal(new Set([...out.replayArticleIds, ...out.validationArticleIds]).size, out.replayArticleIds.length + out.validationArticleIds.length);
+  assert.equal(out.rows.filter((r) => r.corpusRole === "replay").length, out.replayArticleIds.length);
+  assert.equal(out.rows.filter((r) => r.corpusRole === "validation").length, out.validationArticleIds.length);
+  assert.ok(out.stats.estimatedReplayShare > 0 && out.stats.estimatedReplayShare < 0.5);
+  assert.equal(out.stats.validation, out.validationArticleIds.length);
   await store.close();
 });
 

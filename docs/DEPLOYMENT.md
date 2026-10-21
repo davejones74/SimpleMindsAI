@@ -272,6 +272,17 @@ environment file sets:
 SMA_BLUEPRINT=/var/lib/simpleminds/data/visualisation/brain-blueprint.json
 ```
 
+It also pins the data-derived training policy explicitly:
+`TRAIN_TARGET_EPOCHS=2`, `TRAIN_MAX_STEPS=400`, `TRAIN_MIN_UNIQUE_TOKENS=1700`,
+`TRAIN_REPLAY_PERCENT=20`, and `TRAIN_VAL_BLOCKS=32`. Verify the effective
+config after restart using the command in
+[PRODUCTION.md](PRODUCTION.md#71-training-policy-knobs-verify-after-deploy).
+
+The checked-in env carries `SIMPLEMINDS_AUTH_TOKEN=<TOKEN>` as a placeholder.
+Before installing it, replace that line with the production token **outside the
+repository**; never commit a real token. Verify `/health` stays open and a
+GraphQL request without the bearer token returns `401`.
+
 Generate the runtime blueprint **on the target host**, as the service user:
 
 ```bash
@@ -311,8 +322,11 @@ most relevant to deployment:
 | `PROMOTE_MIN_LOSS_DELTA` | `0` | Minimum `parentLoss − candidateLoss` for promotion. |
 | `PROMOTE_MAX_LOSS` | `Infinity` | Ceiling on candidate loss. |
 | `PROMOTE_REQUIRE_FINITE` | `true` | Reject non-finite losses. |
-| `TRAIN_LR` / `TRAIN_STEPS` / `TRAIN_SEQ_LEN` / `TRAIN_MICRO_BATCH` / `TRAIN_GRAD_ACCUM` | `1e-4`, `60`, `128`, `2`, `2` | Python trainer hyperparameters passed by the Node orchestrator. |
-| `TRAIN_WARMUP` / `TRAIN_VAL_BLOCKS` / `TRAIN_EVAL_EVERY` / `TRAIN_TIMEOUT_MS` | `10`, `2`, `10`, `3600000` | LR warmup steps, held-out validation blocks, validation-record interval (0 keeps the legacy two endpoints), and trainer subprocess timeout. |
+| `TRAIN_LR` / `TRAIN_SEQ_LEN` / `TRAIN_MICRO_BATCH` / `TRAIN_GRAD_ACCUM` | `1e-4`, `128`, `2`, `2` | Python trainer hyperparameters passed by the Node orchestrator. |
+| `TRAIN_TARGET_EPOCHS` / `TRAIN_MAX_STEPS` | `2`, `400` | Data-derived budget: steps are rounded up from `targetEpochs × training blocks ÷ effective batch`, then hard-capped. `TRAIN_STEPS` (`60`) is the legacy fallback for trainers without corpus preflight. |
+| `TRAIN_MIN_UNIQUE_TOKENS` | `1700` | Minimum unique tokens in the training stream (validation excluded). Below this the run is refused/deferred with `INSUFFICIENT_TRAINING_DATA`. `0` disables. |
+| `TRAIN_REPLAY_PERCENT` | `20` | Maximum estimated token share drawn from consumed reviewed articles for replay. `0` disables replay. |
+| `TRAIN_WARMUP` / `TRAIN_VAL_BLOCKS` / `TRAIN_EVAL_EVERY` / `TRAIN_TIMEOUT_MS` | `10`, `32`, `10`, `3600000` | LR warmup steps, held-out validation blocks, validation-record interval (0 keeps the legacy two endpoints), and trainer subprocess timeout. Validation rows are appended from consumed material when available, so they do not consume training blocks. |
 | `TRAIN_COMPUTE_DTYPE` | `bfloat16` | Compute dtype. Use `float32` on CPU (see below). |
 | `INIT_CONFIG` | `small` | `sma.brain init --config` architecture (random init). |
 | `CRAWL_MODE` | `fixture` | `fixture` \| `real`. `real` uses the persisted, robots-aware frontier; `CRAWL_URLS` seeds it, but an empty `CRAWL_URLS` never clears persisted work and never disables discovery. |

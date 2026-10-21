@@ -611,6 +611,15 @@ def _cmd_train_locked(args: argparse.Namespace, root: Path, version: str, node_r
         "tokensSeen": result.tokensSeen,
         "datasetHash": train_state["packing"]["datasetHash"],
         "blockCount": train_state["packing"]["blockCount"],
+        "trainBlockCount": train_state["packing"].get("trainBlockCount"),
+        "validationBlockCount": train_state["packing"].get("validationBlockCount"),
+        "trainTokensSeen": train_state.get("corpusSplit", {}).get("trainTokensSeen"),
+        "validationTokensSeen": train_state.get("corpusSplit", {}).get("validationTokensSeen"),
+        "replayTokensSeen": train_state["packing"].get("roleTokenCounts", {}).get("replay", 0),
+        "freshTokensSeen": train_state["packing"].get("roleTokenCounts", {}).get("train", 0),
+        "replayDocumentCount": train_state["packing"].get("roleDocumentCounts", {}).get("replay", 0),
+        "freshDocumentCount": train_state["packing"].get("roleDocumentCounts", {}).get("train", 0),
+        "corpusSplit": train_state.get("corpusSplit"),
         "articleCount": len(train_state["packing"].get("articles", [])),
         "durationMs": int((time.perf_counter() - t0) * 1000),
         "checks": {
@@ -1348,8 +1357,13 @@ def cmd_corpus_info(args: argparse.Namespace) -> Dict[str, Any]:
     tokenizer = AutoTokenizer.from_pretrained(parent_dir)
     documents = data_mod.load_documents([Path(p) for p in args.corpus])
     try:
-        _blocks, record = data_mod.pack(
-            tokenizer, documents, args.seq_len, tokenizer_file
+        train_blocks, val_blocks, record, split = data_mod.pack_for_training(
+            tokenizer,
+            documents,
+            args.seq_len,
+            tokenizer_file,
+            int(getattr(args, "val_blocks", 0) or 0),
+            on_warning=_log,
         )
     except data_mod.InsufficientCorpusError as exc:
         _log(f"INSUFFICIENT CORPUS: {exc}")
@@ -1361,14 +1375,29 @@ def cmd_corpus_info(args: argparse.Namespace) -> Dict[str, Any]:
             "parentVersion": parent,
             "documentCount": len(documents),
             "blockCount": 0,
+            "trainBlockCount": 0,
+            "trainTokensSeen": 0,
         }
     return {
         "ok": True,
         "verb": "corpus-info",
         "parentVersion": parent,
         "documentCount": record.documentCount,
+        # `blockCount` is the packed total (train + used validation); the budget
+        # is computed from `trainBlockCount`, because that is what the optimizer
+        # actually samples.
         "blockCount": record.blockCount,
+        "trainBlockCount": int(train_blocks.shape[0]),
+        "validationBlockCount": int(val_blocks.shape[0]),
         "tokensSeen": record.tokensSeen,
+        "trainTokensSeen": split["trainTokensSeen"],
+        "validationTokensSeen": split["validationTokensSeen"],
+        "replayTokensSeen": record.roleTokenCounts.get("replay", 0),
+        "replayDocumentCount": record.roleDocumentCounts.get("replay", 0),
+        "freshTokensSeen": record.roleTokenCounts.get("train", 0),
+        "freshDocumentCount": record.roleDocumentCounts.get("train", 0),
+        "validationShortfall": split["shortfall"],
+        "corpusSplitMode": split["mode"],
         "datasetHash": record.datasetHash,
     }
 
@@ -1465,6 +1494,7 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--parent", required=True, help="committed parent version whose tokenizer is used")
     sp.add_argument("--corpus", required=True, nargs="+", help="fixture .txt or .jsonl")
     sp.add_argument("--seq-len", type=int, default=128)
+    sp.add_argument("--val-blocks", type=int, default=0)
     sp.add_argument("--out", default=str(store_root()))
     sp.set_defaults(func=cmd_corpus_info)
 

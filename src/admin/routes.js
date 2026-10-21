@@ -992,6 +992,10 @@ function toRun(r, candidate = null) {
     parentVersion,
     // Full Node->Python lineage; checkpoint path/version is a secondary check.
     runLinkage: runLink,
+    // Data-aware budget and exact corpus accounting for the run. Null for
+    // legacy runs or trainers that do not provide a preflight.
+    trainingBudget: r.trainingBudget ?? null,
+    corpusAccounting: r.corpusAccounting ?? null,
     // Durable candidate lineage, surfaced even when the run record predates the
     // in-memory completion patch. `note` is the registry's recorded promotion
     // rationale (includes the frozen-set baseline loss).

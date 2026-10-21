@@ -476,3 +476,127 @@ test("staging crash recovery: a crash after the decision re-drives publish/activ
   await store.close();
   await registry.close();
 });
+
+test("python lifecycle applies the data-derived budget and records corpus accounting", async () => {
+  const registry = await RegistryStore.open(tmp());
+  const store = await seededStore();
+  const options = { paths: { snapshots: tmp(), models: tmp(), plans: tmp(), evaluation: tmp() } };
+  let seenConfig = null;
+  const trainer = {
+    kind: "python",
+    version: "python-v1",
+    async resolveBaseline() {
+      return { version: "v001", path: "C:/store/v001" };
+    },
+    async preflight() {
+      return {
+        ok: true,
+        blockCount: 132,
+        trainBlockCount: 100,
+        validationBlockCount: 32,
+        trainTokensSeen: 12000,
+        validationTokensSeen: 4096,
+        replayTokensSeen: 2000,
+        freshTokensSeen: 10000,
+        freshDocumentCount: 80,
+        replayDocumentCount: 20,
+        corpusSplitMode: "role-appended",
+        validationShortfall: 0,
+      };
+    },
+    async train({ runId, configuration }) {
+      seenConfig = configuration;
+      return {
+        checkpointPath: "C:/store/v002",
+        version: "v002",
+        parentVersion: "v001",
+        trainingRunId: "trid",
+        nodeRunId: runId,
+        datasetHash: "DATAHASH",
+        recordsProcessed: 100,
+        finalTrainLoss: 1.2,
+        stepsCompleted: configuration.steps,
+        trainBlockCount: 100,
+        validationBlockCount: 32,
+        trainTokensSeen: 12000,
+        validationTokensSeen: 4096,
+        replayTokensSeen: 2000,
+        freshDocumentCount: 80,
+        replayDocumentCount: 20,
+        corpusSplit: { mode: "role-appended", shortfall: 0 },
+        note: "python",
+      };
+    },
+  };
+
+  const out = await executeFullRun({
+    registry,
+    options,
+    deps: {
+      store,
+      trainer,
+      evalSeed: async () => EVAL_SEED,
+      evaluateLoss: async ({ version }) => ({ version, loss: version === "v001" ? 2.0 : 1.4, datasetHash: "EVAL", ok: true }),
+      setActive: async (version) => ({ version }),
+    },
+  });
+
+  assert.equal(seenConfig.steps, 50, "ceil(2 epochs * 100 blocks / effective batch 4)");
+  assert.equal(seenConfig.valBlocks, 32);
+  assert.equal(out.run.trainingBudget.steps, 50);
+  assert.equal(out.run.trainingBudget.capped, false);
+  assert.equal(out.run.trainingBudget.completedSteps, 50);
+  assert.ok(Math.abs(out.run.trainingBudget.actualEffectiveEpochs - 2) < 1e-9);
+  assert.equal(out.run.corpusAccounting.trainTokensSeen, 12000);
+  assert.equal(out.run.corpusAccounting.replayTokensSeen, 2000);
+  assert.ok(Math.abs(out.run.corpusAccounting.replayShare - 1 / 6) < 1e-9);
+  assert.equal(out.run.corpusAccounting.validationBlockCount, 32);
+  await store.close();
+  await registry.close();
+});
+
+test("python lifecycle refuses a corpus below the minimum-data floor before creating a run", async () => {
+  const registry = await RegistryStore.open(tmp());
+  const store = await seededStore();
+  const options = { paths: { snapshots: tmp(), models: tmp(), plans: tmp(), evaluation: tmp() } };
+  let trained = false;
+  const trainer = {
+    kind: "python",
+    version: "python-v1",
+    async resolveBaseline() {
+      return { version: "v001", path: "C:/store/v001" };
+    },
+    async preflight() {
+      return {
+        ok: true,
+        blockCount: 12,
+        trainBlockCount: 10,
+        trainTokensSeen: 1699,
+        tokensSeen: 1699,
+      };
+    },
+    async train() {
+      trained = true;
+      throw new Error("train must not run below the minimum-data floor");
+    },
+  };
+
+  await assert.rejects(
+    executeFullRun({
+      registry,
+      options,
+      deps: {
+        store,
+        trainer,
+        evalSeed: async () => EVAL_SEED,
+        evaluateLoss: async ({ version }) => ({ version, loss: 1, datasetHash: "EVAL", ok: true }),
+        setActive: async (version) => ({ version }),
+      },
+    }),
+    (err) => err.code === "INSUFFICIENT_TRAINING_DATA" && err.tokens === 1699 && err.minUniqueTokens === 1700,
+  );
+  assert.equal(trained, false);
+  assert.equal(registry.listRuns().length, 0);
+  await store.close();
+  await registry.close();
+});

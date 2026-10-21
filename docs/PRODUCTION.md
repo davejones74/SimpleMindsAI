@@ -602,7 +602,33 @@ CRAWL_MAX_LINKS_PER_PAGE=50
 portal). Leave it blank to disable auth (dev/tests); set it in production so the published
 `/simpleminds/` surface is not reachable by anyone who can reach the hostname. See §10.
 
-### 7.1 Resilient acquisition knobs (verify after deploy)
+### 7.1 Training-policy knobs (verify after deploy)
+
+The data-derived training policy is pinned explicitly in
+`deploy/etc/x1pro.simpleminds.env`; code defaults are not enough when the host
+env overrides them. After copying the env file and restarting, verify the
+effective values without mutating anything:
+
+```bash
+sudo -u simpleminds SMA_ENV_FILE=/etc/simpleminds/simpleminds.env \
+  node -e 'import("/opt/simpleminds/src/config.js").then(({config})=>console.log(JSON.stringify({
+    snapshotIncludeConsumed: config.snapshotIncludeConsumed,
+    replayPercent: config.trainReplayPercent,
+    targetEpochs: config.trainTargetEpochs,
+    maxSteps: config.trainMaxSteps,
+    legacySteps: config.trainSteps,
+    minUniqueTokens: config.trainMinUniqueTokens,
+    valBlocks: config.trainValBlocks,
+  }, null, 2)))'
+```
+
+Expected: `snapshotIncludeConsumed: false`, `replayPercent: 20`,
+`targetEpochs: 2`, `maxSteps: 400`, `legacySteps: 60`,
+`minUniqueTokens: 1700`, `valBlocks: 32`. Then confirm the active pointer and
+weight fingerprint are unchanged (`v146`, `e4715ac64c7a`); this verification
+only reads configuration and the store.
+
+### 7.2 Resilient acquisition knobs (verify after deploy)
 
 The 8-slice acquisition work added these keys (present in
 `deploy/etc/x1pro.simpleminds.env` and documented in `.env.example`). Verify the

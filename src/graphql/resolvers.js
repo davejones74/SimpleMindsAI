@@ -1,6 +1,7 @@
 import { collectRowsFromArticles, buildSnapshot } from "../dataset/snapshot.js";
 import { loadEvaluationSet, makeEvalGuard } from "../dataset/evaluation-set.js";
 import { isTrainable, normalizeImportance } from "../domain/article.js";
+import { config } from "../config.js";
 
 /**
  * GraphQL resolvers. Context: { store: ArticleStore, registry: RegistryStore }.
@@ -124,11 +125,17 @@ export const resolvers = {
     // ---- registry writes ----
     createDatasetSnapshot: async (_, { input }, { store, registry }) => {
       const evalSet = await loadEvaluationSet({});
-      const { rows, freshArticleIds } = collectRowsFromArticles(store);
+      const { rows, freshArticleIds, replayArticleIds, validationArticleIds } = collectRowsFromArticles(store, {
+        replayPercent: config.trainReplayPercent,
+        validationBlocks: config.trainValBlocks,
+        validationSeqLen: config.trainSeqLen,
+      });
       const { manifest } = await buildSnapshot({
         registry,
         rowsRaw: rows,
         freshArticleIds,
+        replayArticleIds,
+        validationArticleIds,
         source: input.source,
         evalGuard: makeEvalGuard(evalSet),
       });

@@ -12,6 +12,7 @@ import { setActiveVersion } from "./python-promotion.js";
 import { assertTrainer } from "./trainer-interface.js";
 import { modelHandle } from "./model-handle.js";
 import { baselineCacheKey, loadEvalCache, saveEvalCache } from "./eval-cache.js";
+import { computeTrainingBudget, checkMinimumTrainingData } from "./budget.js";
 
 /**
  * Perpetual Training lifecycle — ONE TrainingRun from cradle to grave
@@ -170,7 +171,12 @@ export async function executeFullRun({
     });
 
     // ---- immutable, capped, leak-guarded snapshot ----
-    const { rows, freshArticleIds } = collectRowsFromArticles(store, { limit });
+    const { rows, freshArticleIds, replayArticleIds, validationArticleIds } = collectRowsFromArticles(store, {
+      limit,
+      replayPercent: config.trainReplayPercent,
+      validationBlocks: config.trainValBlocks,
+      validationSeqLen: config.trainSeqLen,
+    });
     // Refuse BEFORE baking an artifact when there is nothing to collect: a
     // continuous job treats this as a wait condition and polls, so an empty
     // snapshot manifest must not be appended on every cycle.
@@ -187,6 +193,8 @@ export async function executeFullRun({
       freshArticleIds,
       dir: options.paths?.snapshots,
       evalGuard: makeEvalGuard(evalSet),
+      replayArticleIds,
+      validationArticleIds,
     });
 
     // The evaluation leak guard can still empty a non-empty collection (every
@@ -226,11 +234,17 @@ export async function executeFullRun({
     // A snapshot shorter than one `--seq-len` block cannot train. Sizing it here
     // (tokenizer only, no model load) keeps a too-small snapshot from ever
     // becoming a failed TrainingRun, and lets a continuous job wait for more
-    // material instead of crashing with a Python traceback.
+    // material instead of crashing with a Python traceback. The same response
+    // carries the authoritative training-token/block counts that size the epoch
+    // budget and enforce the minimum-data gate.
+    let corpusPreflight = null;
+    let trainingBudget = null;
+    let minimumData = null;
     if (pythonMode && typeof t.preflight === "function") {
       const info = await t.preflight({
         datasetFile: snapshot.manifest.file,
         parentVersion: pythonBaseline?.version ?? null,
+        valBlocks: config.trainValBlocks,
       });
       if (info && info.ok === false) {
         const err = new Error(
@@ -239,6 +253,28 @@ export async function executeFullRun({
         err.code = info.code ?? "INSUFFICIENT_CORPUS";
         err.blockCount = info.blockCount ?? 0;
         throw err;
+      }
+      corpusPreflight = info ?? null;
+      minimumData = checkMinimumTrainingData({
+        trainTokensSeen: info?.trainTokensSeen,
+        minUniqueTokens: config.trainMinUniqueTokens,
+      });
+      if (!minimumData.ok) {
+        const err = new Error(minimumData.reason);
+        err.code = "INSUFFICIENT_TRAINING_DATA";
+        err.tokens = minimumData.tokens;
+        err.minUniqueTokens = minimumData.floor;
+        throw err;
+      }
+      const trainBlockCount = Number(info?.trainBlockCount);
+      if (Number.isInteger(trainBlockCount) && trainBlockCount > 0) {
+        trainingBudget = computeTrainingBudget({
+          trainBlockCount,
+          targetEpochs: config.trainTargetEpochs,
+          maxSteps: config.trainMaxSteps,
+          microBatch: config.trainMicroBatch,
+          gradAccum: config.trainGradAccum,
+        });
       }
     }
     const baselineModel = pythonMode
@@ -265,6 +301,24 @@ export async function executeFullRun({
       // gates the run or the promotion decision.
       evaluationSetSize: evalSet.size,
       evaluationWarnings: evalSet.warnings ?? [],
+      trainingBudget,
+      corpusPreflight: corpusPreflight
+        ? {
+            trainBlockCount: corpusPreflight.trainBlockCount ?? null,
+            blockCount: corpusPreflight.blockCount ?? null,
+            trainTokensSeen: corpusPreflight.trainTokensSeen ?? null,
+            tokensSeen: corpusPreflight.tokensSeen ?? null,
+            validationBlockCount: corpusPreflight.validationBlockCount ?? null,
+            validationTokensSeen: corpusPreflight.validationTokensSeen ?? null,
+            freshTokensSeen: corpusPreflight.freshTokensSeen ?? null,
+            replayTokensSeen: corpusPreflight.replayTokensSeen ?? null,
+            freshDocumentCount: corpusPreflight.freshDocumentCount ?? null,
+            replayDocumentCount: corpusPreflight.replayDocumentCount ?? null,
+            validationShortfall: corpusPreflight.validationShortfall ?? null,
+            corpusSplitMode: corpusPreflight.corpusSplitMode ?? null,
+          }
+        : null,
+      minimumTrainingData: minimumData,
     });
     runId = run.runId;
     registry.bindRunLock(runId);
@@ -361,6 +415,13 @@ export async function executeFullRun({
         checkpointDir: options.paths?.models ?? config.paths.models,
         recordCount: snapshot.manifest.recordCount,
         parentVersion: pythonBaseline?.version ?? null,
+        // Data-derived budget when the preflight could size the corpus; the
+        // adapter falls back to its fixed legacy default when it could not.
+        steps: trainingBudget?.steps ?? null,
+        valBlocks: config.trainValBlocks,
+        targetEpochs: config.trainTargetEpochs,
+        maxSteps: config.trainMaxSteps,
+        trainBlockCount: trainingBudget?.trainBlockCount ?? null,
       },
     });
 
@@ -584,6 +645,36 @@ export async function executeFullRun({
           })()
         : null,
       evaluationWarnings: evalSet.warnings ?? [],
+      trainingBudget: trainingBudget
+        ? {
+            ...trainingBudget,
+            completedSteps: trainingResult.stepsCompleted ?? null,
+            actualEffectiveEpochs:
+              trainingResult.stepsCompleted != null && trainingBudget.trainBlockCount > 0
+                ? (trainingResult.stepsCompleted * trainingBudget.effectiveBatchSize) /
+                  trainingBudget.trainBlockCount
+                : null,
+          }
+        : null,
+      corpusAccounting: pythonMode
+        ? {
+            freshDocumentCount: trainingResult.freshDocumentCount ?? corpusPreflight?.freshDocumentCount ?? null,
+            replayDocumentCount: trainingResult.replayDocumentCount ?? corpusPreflight?.replayDocumentCount ?? null,
+            trainTokensSeen: trainingResult.trainTokensSeen ?? corpusPreflight?.trainTokensSeen ?? null,
+            replayTokensSeen: trainingResult.replayTokensSeen ?? corpusPreflight?.replayTokensSeen ?? null,
+            validationTokensSeen: trainingResult.validationTokensSeen ?? corpusPreflight?.validationTokensSeen ?? null,
+            trainBlockCount: trainingResult.trainBlockCount ?? corpusPreflight?.trainBlockCount ?? null,
+            validationBlockCount:
+              trainingResult.validationBlockCount ?? corpusPreflight?.validationBlockCount ?? null,
+            replayShare:
+              trainingResult.replayTokensSeen != null && trainingResult.trainTokensSeen
+                ? trainingResult.replayTokensSeen / trainingResult.trainTokensSeen
+                : null,
+            corpusSplitMode: trainingResult.corpusSplit?.mode ?? corpusPreflight?.corpusSplitMode ?? null,
+            validationShortfall:
+              trainingResult.corpusSplit?.shortfall ?? corpusPreflight?.validationShortfall ?? null,
+          }
+        : null,
       activatedVersion: pythonMode && decision.decision === "promoted" ? trainingResult.version : null,
       // Run linkage: Node run -> frozen dataset -> Python execution -> committed
       // candidate. Checkpoint path/version stay a secondary integrity check.

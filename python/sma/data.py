@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, field, asdict
 from pathlib import Path
 from typing import Any, Dict, List, Sequence
 
@@ -52,6 +52,13 @@ class PackRecord:
     articles: List[Dict[str, Any]]
     datasetHash: str
     tokenizerHash: str
+    # Role accounting, recorded per pack so a run can prove how much of the
+    # corpus was fresh, replay or held-out validation. `tokensSeen` is the sum
+    # over documents and excludes separators; role counts are the same unit.
+    roleTokenCounts: Dict[str, int] = field(default_factory=dict)
+    roleDocumentCounts: Dict[str, int] = field(default_factory=dict)
+    trainBlockCount: int = 0
+    validationBlockCount: int = 0
 
     def to_json(self) -> Dict[str, Any]:
         return asdict(self)
@@ -91,11 +98,15 @@ def load_documents(paths: Sequence[Path]) -> List[Dict[str, str]]:
             text = item.get("text") or item.get("completion") or ""
             if not text.strip():
                 continue
+            role = item.get("corpusRole") or "train"
+            if role not in ("train", "replay", "validation"):
+                raise ValueError(f"unknown corpusRole {role!r} for {path.name}#{index}")
             docs.append(
                 {
                     "articleId": item.get("articleId") or f"{path.name}#{index}",
                     "text": text,
                     "contentHash": _sha256_text(text),
+                    "corpusRole": role,
                 }
             )
     return docs
@@ -131,11 +142,16 @@ def pack(
 
     pieces: List[List[int]] = []
     seen = 0
+    role_tokens: Dict[str, int] = {}
+    role_docs: Dict[str, int] = {}
     for doc in documents:
         ids = tokenizer(doc["text"], add_special_tokens=False).input_ids
         if ids:
+            role = doc.get("corpusRole") or "train"
             pieces.append(ids)
             seen += len(ids)
+            role_tokens[role] = role_tokens.get(role, 0) + len(ids)
+            role_docs[role] = role_docs.get(role, 0) + 1
     if not pieces:
         raise ValueError("no tokens produced from the supplied documents")
 
@@ -174,8 +190,185 @@ def pack(
             ",".join(d["contentHash"] for d in documents).encode("utf-8")
         ).hexdigest(),
         tokenizerHash=_sha256_file(Path(tokenizer_path)),
+        roleTokenCounts=role_tokens,
+        roleDocumentCounts=role_docs,
+        trainBlockCount=int(blocks.shape[0]),
+        validationBlockCount=0,
     )
     return blocks, record
+
+
+def split_documents_by_role(
+    documents: Sequence[Dict[str, str]]
+) -> tuple[List[Dict[str, str]], List[Dict[str, str]]]:
+    """Partition snapshot rows into training and held-out validation documents.
+
+    The role is carried on the snapshot row, so a held-out block can be appended
+    after the training prefix without the packer ever mixing the two streams.
+    Rows without a role keep the historical behaviour: training data.
+    """
+    train: List[Dict[str, str]] = []
+    validation: List[Dict[str, str]] = []
+    for doc in documents:
+        if (doc.get("corpusRole") or "train") == "validation":
+            validation.append(doc)
+        else:
+            train.append(doc)
+    return train, validation
+
+
+def _merge_pack_records(
+    train_record: PackRecord,
+    validation_record: PackRecord | None,
+    validation_blocks: int,
+    *,
+    documents: Sequence[Dict[str, str]],
+) -> tuple[PackRecord, int, int]:
+    """Combine train/validation packs into one provenance record.
+
+    Block counts describe *used* blocks: the validation stream is truncated to
+    `validation_blocks` whole blocks, while its documents remain in the dataset
+    hash because they are part of the immutable snapshot artifact.
+    """
+    val_used = 0 if validation_record is None else min(
+        validation_record.blockCount, max(0, int(validation_blocks))
+    )
+    role_tokens: Dict[str, int] = dict(train_record.roleTokenCounts)
+    role_docs: Dict[str, int] = dict(train_record.roleDocumentCounts)
+    if validation_record is not None:
+        for role, count in validation_record.roleTokenCounts.items():
+            role_tokens[role] = role_tokens.get(role, 0) + count
+        for role, count in validation_record.roleDocumentCounts.items():
+            role_docs[role] = role_docs.get(role, 0) + count
+    articles = list(train_record.articles)
+    if validation_record is not None:
+        articles.extend(validation_record.articles)
+    merged = PackRecord(
+        strategy=train_record.strategy,
+        sequenceLength=train_record.sequenceLength,
+        separator=train_record.separator,
+        documentCount=len(documents),
+        blockCount=train_record.blockCount + val_used,
+        tokensSeen=(
+            train_record.tokensSeen
+            + (validation_record.tokensSeen if validation_record is not None else 0)
+        ),
+        droppedTokens=(
+            train_record.droppedTokens
+            + (validation_record.droppedTokens if validation_record is not None else 0)
+        ),
+        articles=articles,
+        datasetHash=hashlib.sha256(
+            ",".join(d["contentHash"] for d in documents).encode("utf-8")
+        ).hexdigest(),
+        tokenizerHash=train_record.tokenizerHash,
+        roleTokenCounts=role_tokens,
+        roleDocumentCounts=role_docs,
+        trainBlockCount=train_record.blockCount,
+        validationBlockCount=val_used,
+    )
+    return merged, train_record.blockCount, val_used
+
+
+def pack_for_training(
+    tokenizer: Any,
+    documents: Sequence[Dict[str, str]],
+    sequence_length: int,
+    tokenizer_path: Path,
+    validation_blocks: int,
+    *,
+    on_warning=None,
+) -> tuple[torch.Tensor, torch.Tensor, PackRecord, Dict[str, Any]]:
+    """Pack a snapshot into training and validation streams.
+
+    When rows carry `corpusRole: "validation"`, validation is packed from those
+    rows *after* the training prefix, so increasing validation size does not
+    remove training blocks. Without validation rows this falls back to the
+    historical contiguous tail split of one packed stream.
+    """
+    train_docs, validation_docs = split_documents_by_role(documents)
+    if not train_docs:
+        raise InsufficientCorpusError("corpus has no training documents")
+    if validation_docs:
+        train_blocks, train_record = pack(
+            tokenizer, train_docs, sequence_length, tokenizer_path
+        )
+        if validation_blocks <= 0:
+            return train_blocks, train_blocks[:0], train_record, {
+                "mode": "role-appended-empty",
+                "requestedValidationBlocks": 0,
+                "actualValidationBlocks": 0,
+                "trainBlockCount": int(train_blocks.shape[0]),
+                "trainTokensSeen": train_record.tokensSeen,
+                "validationTokensSeen": 0,
+                "shortfall": 0,
+            }
+        try:
+            val_all_blocks, val_record = pack(
+                tokenizer, validation_docs, sequence_length, tokenizer_path
+            )
+        except InsufficientCorpusError:
+            val_all_blocks, val_record = None, None
+        if val_record is not None and val_all_blocks is not None and val_all_blocks.shape[0] > 0:
+            val_blocks = val_all_blocks[: min(validation_blocks, val_all_blocks.shape[0])]
+            record, train_blocks_used, val_used = _merge_pack_records(
+                train_record, val_record, validation_blocks, documents=documents
+            )
+            return train_blocks, val_blocks, record, {
+                "mode": "role-appended",
+                "requestedValidationBlocks": int(validation_blocks),
+                "actualValidationBlocks": val_used,
+                "trainBlockCount": train_blocks_used,
+                "trainTokensSeen": train_record.tokensSeen,
+                "validationTokensSeen": val_record.tokensSeen,
+                "shortfall": max(0, int(validation_blocks) - val_used),
+            }
+        if on_warning:
+            on_warning(
+                "validation documents could not form a block; keeping them out of training"
+            )
+        # A role says "never train on this". If the validation rows are too small
+        # to form even one block, drop them from the training stream and report
+        # the shortfall instead of silently repurposing them.
+        record = PackRecord(
+            **{
+                **train_record.to_json(),
+                "documentCount": len(documents),
+                "datasetHash": hashlib.sha256(
+                    ",".join(d["contentHash"] for d in documents).encode("utf-8")
+                ).hexdigest(),
+            }
+        )
+        return train_blocks, train_blocks[:0], record, {
+            "mode": "role-appended-empty",
+            "requestedValidationBlocks": int(validation_blocks),
+            "actualValidationBlocks": 0,
+            "trainBlockCount": int(train_blocks.shape[0]),
+            "trainTokensSeen": train_record.tokensSeen,
+            "validationTokensSeen": 0,
+            "shortfall": int(validation_blocks),
+        }
+    blocks, record = pack(tokenizer, documents, sequence_length, tokenizer_path)
+    train_blocks, val_blocks = train_validation_split(blocks, validation_blocks)
+    record = PackRecord(
+        **{
+            **record.to_json(),
+            "trainBlockCount": int(train_blocks.shape[0]),
+            "validationBlockCount": int(val_blocks.shape[0]),
+        }
+    )
+    return train_blocks, val_blocks, record, {
+        "mode": "tail-split",
+        "requestedValidationBlocks": int(validation_blocks),
+        "actualValidationBlocks": int(val_blocks.shape[0]),
+        "trainBlockCount": int(train_blocks.shape[0]),
+        "trainTokensSeen": (
+            record.roleTokenCounts.get("train", 0)
+            + record.roleTokenCounts.get("replay", 0)
+        ),
+        "validationTokensSeen": record.roleTokenCounts.get("validation", 0),
+        "shortfall": max(0, int(validation_blocks) - int(val_blocks.shape[0])),
+    }
 
 
 def train_validation_split(

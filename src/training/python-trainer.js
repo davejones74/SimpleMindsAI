@@ -159,15 +159,24 @@ export function pythonTrainer({
      * or `{ ok:false, code:"INSUFFICIENT_CORPUS", ... }` when the corpus cannot
      * form one block. Distinct from `train`, which would also load the model.
      */
-    async preflight({ datasetFile, parentVersion = null } = {}) {
+    async preflight({ datasetFile, parentVersion = null, valBlocks: requestedValBlocks } = {}) {
       if (!datasetFile) {
         throw new Error("pythonTrainer.preflight requires datasetFile (immutable corpus path)");
       }
       const corpusFile = path.isAbsolute(datasetFile) ? datasetFile : path.resolve(REPO_ROOT, datasetFile);
       const parent =
         parentVersion ?? (await resolvePythonBaseline({ store, bin, run, signal })).version;
+      const blocks = Number.isInteger(requestedValBlocks) && requestedValBlocks >= 0
+        ? requestedValBlocks
+        : valBlocks;
       return run(
-        ["corpus-info", "--parent", parent, "--corpus", corpusFile, "--seq-len", String(seqLen)],
+        [
+          "corpus-info",
+          "--parent", parent,
+          "--corpus", corpusFile,
+          "--seq-len", String(seqLen),
+          "--val-blocks", String(blocks),
+        ],
         { store, bin, timeoutMs, signal },
       );
     },
@@ -183,17 +192,23 @@ export function pythonTrainer({
       const parentVersion =
         configuration.parentVersion ?? (await resolvePythonBaseline({ store, bin, run, signal })).version;
 
+      const runSteps = Number.isInteger(configuration.steps) && configuration.steps > 0
+        ? configuration.steps
+        : steps;
+      const runValBlocks = Number.isInteger(configuration.valBlocks) && configuration.valBlocks >= 0
+        ? configuration.valBlocks
+        : valBlocks;
       const args = [
         "train",
         "--parent", parentVersion,
         "--corpus", corpusFile,
         "--lr", String(learningRate),
-        "--steps", String(steps),
+        "--steps", String(runSteps),
         "--seq-len", String(seqLen),
         "--micro-batch", String(microBatch),
         "--grad-accum", String(gradAccum),
         "--warmup", String(warmup),
-        "--val-blocks", String(valBlocks),
+        "--val-blocks", String(runValBlocks),
         "--eval-every", String(evalEvery),
         "--compute-dtype", resolvedDtype,
         "--device", device,
@@ -237,9 +252,19 @@ export function pythonTrainer({
         avgLoss: out.finalTrainLoss ?? null,
         tokensSeen: out.tokensSeen ?? null,
         blockCount: out.blockCount ?? null,
+        trainBlockCount: out.trainBlockCount ?? null,
+        validationBlockCount: out.validationBlockCount ?? null,
+        trainTokensSeen: out.trainTokensSeen ?? null,
+        validationTokensSeen: out.validationTokensSeen ?? null,
+        replayTokensSeen: out.replayTokensSeen ?? null,
+        freshTokensSeen: out.freshTokensSeen ?? null,
+        replayDocumentCount: out.replayDocumentCount ?? null,
+        freshDocumentCount: out.freshDocumentCount ?? null,
+        corpusSplit: out.corpusSplit ?? null,
+        stepsCompleted: out.stepsCompleted ?? null,
         device: out.device ?? device,
         durationMs: out.durationMs ?? Date.now() - t0,
-        cfg: { lr: learningRate, steps, seqLen, microBatch, gradAccum, warmup, computeDtype: resolvedDtype },
+        cfg: { lr: learningRate, steps: runSteps, valBlocks: runValBlocks, seqLen, microBatch, gradAccum, warmup, computeDtype: resolvedDtype },
         note: "python causal-LM training",
       };
     },

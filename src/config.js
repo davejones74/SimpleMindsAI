@@ -383,12 +383,28 @@ export const config = {
   // `--lr` has no default in Python on purpose; sourcing it from config keeps
   // the value explicit and auditable in the Node provenance spine.
   trainLearningRate: num("TRAIN_LR", 1e-4),
+  // Legacy fixed budget, retained only for trainers/paths without a corpus
+  // preflight (the stub and injected test trainers). The Python path replaces
+  // it with a data-derived budget before training.
   trainSteps: num("TRAIN_STEPS", 60),
+  // Epoch-based budget. The lifecycle computes steps from the number of
+  // training blocks after validation is held out, then hard-caps them so a
+  // tiny corpus cannot be repeated indefinitely.
+  trainTargetEpochs: num("TRAIN_TARGET_EPOCHS", 2),
+  trainMaxSteps: num("TRAIN_MAX_STEPS", 400),
+  // Minimum usable training corpus (unique tokenizer tokens, excluding the
+  // held-out validation stream). Below this a run is skipped/deferred instead
+  // of training on a near-empty batch. 0 disables the gate.
+  trainMinUniqueTokens: num("TRAIN_MIN_UNIQUE_TOKENS", 1700),
+  // Replay share of the training corpus by token estimate. 0 disables replay.
+  trainReplayPercent: num("TRAIN_REPLAY_PERCENT", 20),
   trainSeqLen: num("TRAIN_SEQ_LEN", 128),
   trainMicroBatch: num("TRAIN_MICRO_BATCH", 2),
   trainGradAccum: num("TRAIN_GRAD_ACCUM", 2),
   trainWarmup: num("TRAIN_WARMUP", 10),
-  trainValBlocks: num("TRAIN_VAL_BLOCKS", 2),
+  // Held-out validation blocks for monitoring. These are packed from appended
+  // consumed rows when available, so they do not consume training material.
+  trainValBlocks: num("TRAIN_VAL_BLOCKS", 32),
   trainComputeDtype: env("TRAIN_COMPUTE_DTYPE", "bfloat16"), // bfloat16 | float32
   // Periodic held-out validation loss during training (record validation loss
   // every N steps so a validation *curve* exists for the Observatory). 0 keeps

@@ -374,15 +374,25 @@ def train(
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(cfg.seed)
 
-    blocks, pack_record = data_mod.pack(
-        tokenizer, documents, cfg.sequenceLength, tokenizer_path
+    train_blocks, val_blocks, pack_record, split = data_mod.pack_for_training(
+        tokenizer,
+        documents,
+        cfg.sequenceLength,
+        tokenizer_path,
+        cfg.validationBlocks,
+        on_warning=log,
     )
-    train_blocks, val_blocks = data_mod.train_validation_split(blocks, cfg.validationBlocks)
     log(
         f"packed {pack_record.documentCount} docs -> {pack_record.blockCount} blocks "
         f"({pack_record.tokensSeen} tokens, {pack_record.droppedTokens} dropped); "
-        f"{train_blocks.shape[0]} train / {val_blocks.shape[0]} val"
+        f"{train_blocks.shape[0]} train / {val_blocks.shape[0]} val "
+        f"({split['mode']})"
     )
+    if split["shortfall"]:
+        log(
+            f"WARNING: validation requested {split['requestedValidationBlocks']} block(s), "
+            f"only {split['actualValidationBlocks']} available"
+        )
 
     model = model.to(device)
     # Masters are fp32. This is the whole precision model.
@@ -657,6 +667,7 @@ def train(
         "resumedFromStep": start_step,
         "config": cfg.to_json(),
         "packing": pack_record.to_json(),
+        "corpusSplit": split,
         "stepsCompleted": completed,
         "tokensSeen": tokens_seen,
         # The sample order and its cursor are part of the resume state. Without
