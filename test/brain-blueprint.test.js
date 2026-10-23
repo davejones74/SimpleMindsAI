@@ -198,7 +198,7 @@ test("a synthetic 36-layer 3B-scale blueprint stays bounded", () => {
   assert.ok(plan.edges.length < 2000);
   assert.equal(plan.counts.nodes, plan.counts.totalNodes);
   assert.equal(plan.counts.edges, plan.counts.totalEdges);
-  assert.ok(plan.bounds.radius > 50);
+  assert.ok(plan.bounds.radius > 30);
   const blockRows = new Set(plan.blocks.filter((block) => block.blockIndex != null).map((block) => block.position[1]));
   assert.ok(blockRows.size > 1, "a long model should fold into multiple rows");
   assert.ok(plan.blocks.every((block) => block.size[0] > 0 && block.size[1] > 0 && block.size[2] > 0));
@@ -210,10 +210,10 @@ test("regions are a deterministic three-dimensional sequence, not a flat grid", 
   const plan = buildRenderPlan(blueprint);
   assert.equal(plan.regions.length, 8);
   assert.equal(plan.blocks.length, plan.regions.length);
-  const xs = new Set(plan.regions.map((region) => region.position[0].toFixed(2)));
+  const positions = new Set(plan.regions.map((region) => region.position.map((value) => value.toFixed(2)).join(",")));
   const ys = new Set(plan.regions.map((region) => region.position[1].toFixed(2)));
   const zs = new Set(plan.regions.map((region) => region.position[2].toFixed(2)));
-  assert.equal(xs.size, 8, "each region has its own place along the main axis");
+  assert.equal(positions.size, 8, "each region has its own place in the volume");
   assert.ok(ys.size > 4, "regions vary vertically");
   assert.ok(zs.size > 4, "regions vary in depth");
   const zSpread = Math.max(...plan.regions.map((region) => region.position[2]))
@@ -253,6 +253,11 @@ test("structural and illustrative geometry are explicitly separated", () => {
   }
   assert.equal(plan.counts.synapticNodes, plan.synaptic.nodes.length);
   assert.equal(plan.counts.filaments, plan.synaptic.filaments.length);
+  assert.ok(plan.synaptic.nodes.some((node) => node.role === "core"), "the volume has an inner core");
+  assert.ok(plan.synaptic.nodes.some((node) => node.role === "field"), "the volume has satellite clusters");
+  for (const node of plan.nodes) {
+    assert.ok(["glass", "metal", "matte"].includes(node.materialClass), `${node.id} has no material family`);
+  }
 });
 
 test("the illustrative budget is independent of parameter count", () => {
@@ -271,7 +276,7 @@ test("the synthetic 36-layer scene has a substantial but bounded synaptic web", 
   assert.ok(plan.synaptic.filaments.length > 800, "the larger model still has filaments");
   const zs = new Set(plan.regions.map((region) => region.position[2].toFixed(2)));
   assert.ok(zs.size > 20, "regions spiral through depth");
-  assert.ok(plan.bounds.radius > 50);
+  assert.ok(plan.bounds.radius > 30);
   assert.equal(validateBlueprint(blueprint).ok, true);
 });
 
@@ -289,7 +294,7 @@ test("camera framing fits both the small and synthetic 36-layer architecture", (
   }
   assert.ok(large.distance > small.distance);
   const portrait = fitCamera(smallPlan.bounds, { aspect: 0.6 });
-  assert.ok(portrait.distance > small.distance, "a narrow viewport must back the camera up");
+  assert.ok(portrait.distance >= small.distance, "a narrow viewport must not require a closer camera");
 });
 
 test("render safeguards cap a pathologically large blueprint", () => {

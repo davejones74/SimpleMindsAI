@@ -133,7 +133,7 @@ export function createBrainScene(container, blueprint, options = {}) {
   controls.maxDistance = Math.max(100, plan.bounds.radius * 8);
   controls.target.set(...plan.bounds.center);
 
-  const overviewDirection = new THREE.Vector3(0.06, 0.15, 1.0).normalize();
+  const overviewDirection = new THREE.Vector3(0.72, 0.3, 0.95).normalize();
   const overviewPosition = new THREE.Vector3();
   let overviewDistance = plan.bounds.radius * 2.15;
   let userInteracted = false;
@@ -144,8 +144,8 @@ export function createBrainScene(container, blueprint, options = {}) {
       direction: overviewDirection.toArray(),
       fovDeg: camera.fov,
       aspect: camera.aspect,
-      margin: brain ? 0.92 : 1.14,
-      depthFactor: brain ? 0.75 : 1.0,
+      margin: brain ? 0.7 : 0.78,
+      depthFactor: brain ? 0.4 : 0.4,
     });
     overviewDistance = fit.distance;
     overviewPosition.set(...fit.position);
@@ -159,47 +159,122 @@ export function createBrainScene(container, blueprint, options = {}) {
     controls.update();
   }
 
-  const ambient = new THREE.HemisphereLight(0xb6d8ff, 0x0a1020, 1.65);
+  const ambient = new THREE.HemisphereLight(0xd7ecff, 0x04060b, 1.05);
   scene.add(ambient);
-  const key = new THREE.DirectionalLight(0x9ed8ff, 2.25);
-  key.position.set(1.2, 2.1, 1.6);
+  const key = new THREE.DirectionalLight(0xe4f4ff, 3.1);
+  key.position.set(2.6, 3.4, 2.8);
   scene.add(key);
-  const rim = new THREE.DirectionalLight(0xa78bfa, 1.15);
-  rim.position.set(-1.5, -0.6, -1.2);
+  const fill = new THREE.DirectionalLight(0x38bdf8, 1.2);
+  fill.position.set(-2.8, 0.8, 1.6);
+  scene.add(fill);
+  const rim = new THREE.DirectionalLight(0x8b5cf6, 1.85);
+  rim.position.set(-1.8, 1.5, -3.2);
   scene.add(rim);
+  const under = new THREE.DirectionalLight(0x2563eb, 0.65);
+  under.position.set(0.8, -2.6, -1.2);
+  scene.add(under);
+  const innerLight = new THREE.PointLight(0x22d3ee, 140, plan.bounds.radius * 2.6, 2);
+  innerLight.position.set(...plan.bounds.center);
+  scene.add(innerLight);
 
   const root = new THREE.Group();
   scene.add(root);
   const glowTexture = makeGlowTexture();
 
-  // ------------------------------------------------------- structural nodes
-  const structuralMaterial = new THREE.MeshStandardMaterial({
-    color: 0xffffff,
-    roughness: 0.36,
-    metalness: 0.2,
-    emissive: new THREE.Color(0x0a2138),
-    emissiveIntensity: 1.2,
-    transparent: true,
-    opacity: 0.98,
-  });
+  // Large, very faint camera-facing glows sit behind the structure. They give
+  // the volume an atmospheric gradient without a full-screen post effect.
+  const atmosphereGroup = new THREE.Group();
+  root.add(atmosphereGroup);
+  const atmosphereSpecs = [
+    { color: 0x1d4ed8, opacity: 0.055, scale: plan.bounds.radius * 2.7, offset: [0, 0, -plan.bounds.radius * 0.55] },
+    { color: 0x6d28d9, opacity: 0.04, scale: plan.bounds.radius * 2.15, offset: [-plan.bounds.radius * 0.45, plan.bounds.radius * 0.18, plan.bounds.radius * 0.35] },
+    { color: 0x0891b2, opacity: 0.05, scale: plan.bounds.radius * 1.9, offset: [plan.bounds.radius * 0.42, -plan.bounds.radius * 0.14, -plan.bounds.radius * 0.25] },
+    { color: 0x67e8f9, opacity: 0.035, scale: plan.bounds.radius * 1.15, offset: [0, 0, 0] },
+  ];
+  for (const spec of atmosphereSpecs) {
+    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: glowTexture,
+      color: spec.color,
+      transparent: true,
+      opacity: spec.opacity,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      depthTest: true,
+      toneMapped: false,
+      fog: false,
+    }));
+    sprite.position.set(
+      plan.bounds.center[0] + spec.offset[0],
+      plan.bounds.center[1] + spec.offset[1],
+      plan.bounds.center[2] + spec.offset[2],
+    );
+    sprite.scale.set(spec.scale, spec.scale, 1);
+    sprite.renderOrder = 0;
+    atmosphereGroup.add(sprite);
+  }
 
-  const nodesByGeometry = new Map();
+  // ------------------------------------------------------- structural nodes
+  // Three deliberate material families establish hierarchy without making every
+  // component equally glossy. Weight-bearing/container nodes are glassy or
+  // metallic; derived structural nodes stay matte and subdued.
+  const structuralMaterials = {
+    glass: new THREE.MeshPhysicalMaterial({
+      color: 0xffffff,
+      roughness: 0.16,
+      metalness: 0.08,
+      clearcoat: 1,
+      clearcoatRoughness: 0.1,
+      sheen: 0.35,
+      sheenColor: new THREE.Color(0x7dd3fc),
+      sheenRoughness: 0.7,
+      emissive: new THREE.Color(0x0b2a44),
+      emissiveIntensity: 0.5,
+      transparent: true,
+      opacity: 0.9,
+    }),
+    metal: new THREE.MeshPhysicalMaterial({
+      color: 0xffffff,
+      roughness: 0.3,
+      metalness: 0.5,
+      clearcoat: 0.45,
+      clearcoatRoughness: 0.28,
+      emissive: new THREE.Color(0x071c33),
+      emissiveIntensity: 0.48,
+      transparent: true,
+      opacity: 0.96,
+    }),
+    matte: new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      roughness: 0.72,
+      metalness: 0.12,
+      emissive: new THREE.Color(0x071625),
+      emissiveIntensity: 0.82,
+      transparent: true,
+      opacity: 0.94,
+    }),
+  };
+
+  const nodesByVariant = new Map();
   for (const node of plan.nodes) {
-    if (!nodesByGeometry.has(node.group)) nodesByGeometry.set(node.group, []);
-    nodesByGeometry.get(node.group).push(node);
+    const key = `${node.group}:${node.materialClass ?? "matte"}`;
+    if (!nodesByVariant.has(key)) nodesByVariant.set(key, []);
+    nodesByVariant.get(key).push(node);
   }
 
   const dummy = new THREE.Object3D();
   const scratchColor = new THREE.Color();
   const nodeInstances = [];
   const nodeMeshes = [];
-  for (const [geometryName, nodes] of nodesByGeometry) {
+  for (const [variant, nodes] of nodesByVariant) {
+    const [geometryName, materialClass] = variant.split(":");
     const geometry = (GEOMETRY_BUILDERS[geometryName] ?? GEOMETRY_BUILDERS.sphere)();
-    const mesh = new THREE.InstancedMesh(geometry, structuralMaterial, nodes.length);
+    const material = structuralMaterials[materialClass] ?? structuralMaterials.matte;
+    const mesh = new THREE.InstancedMesh(geometry, material, nodes.length);
     mesh.instanceMatrix.setUsage(THREE.StaticDrawUsage);
     mesh.userData.componentIds = nodes.map((node) => node.id);
     mesh.userData.pickKind = "node";
     mesh.userData.geometryName = geometryName;
+    mesh.userData.materialClass = materialClass;
     nodes.forEach((node, index) => {
       dummy.position.set(node.position[0], node.position[1], node.position[2]);
       dummy.scale.set(node.scale, node.scale, node.scale);
@@ -288,7 +363,7 @@ export function createBrainScene(container, blueprint, options = {}) {
       depthWrite: false,
       worldUnits: false,
       toneMapped: false,
-      fog: false,
+      fog: true,
     });
     structuralLines = new LineSegments2(structuralLineGeometry, structuralLineMaterial);
     structuralLines.renderOrder = 3;
@@ -369,7 +444,7 @@ export function createBrainScene(container, blueprint, options = {}) {
     const ringSegments = 56;
     for (const region of plan.regions) {
       const rgb = colorToRgb(region.color);
-      const radius = region.radius * 1.02;
+      const radius = region.radius * 0.9;
       for (let index = 0; index < ringSegments; index += 1) {
         const a = (index / ringSegments) * Math.PI * 2;
         const b = ((index + 1) / ringSegments) * Math.PI * 2;
@@ -423,9 +498,9 @@ export function createBrainScene(container, blueprint, options = {}) {
       fog: false,
     }));
     sprite.position.set(
-      region.position[0] + region.normal[0] * region.radius * 1.22,
-      region.position[1] + region.normal[1] * region.radius * 1.22,
-      region.position[2] + region.normal[2] * region.radius * 1.22,
+      region.position[0] + region.normal[0] * region.radius * 0.98,
+      region.position[1] + region.normal[1] * region.radius * 0.98,
+      region.position[2] + region.normal[2] * region.radius * 0.98,
     );
     sprite.scale.set(region.radius * 0.95, region.radius * 0.36, 1);
     sprite.renderOrder = 8;
@@ -534,16 +609,20 @@ export function createBrainScene(container, blueprint, options = {}) {
   for (const filament of plan.synaptic.filaments) {
     const rgb = colorToRgb(filament.color);
     const intensity = filament.intensity ?? 1;
-    for (let index = 0; index < filament.points.length - 1; index += 1) {
-      // Deliberate gaps make the illustrative web visually distinct from the
-      // solid, blueprint-derived structural connections.
-      if (index % 3 === 2) continue;
+    const pointCount = filament.points.length;
+    for (let index = 0; index < pointCount - 1; index += 1) {
       const from = filament.points[index];
       const to = filament.points[index + 1];
+      // Branches are brightest at the structural root and fade toward their
+      // tips. Field webs stay uniformly faint. The taper gives the web a
+      // natural direction and keeps long foreground strands from dominating.
+      const taper = filament.role === "field-web"
+        ? 0.62
+        : 1 - 0.58 * (index / Math.max(1, pointCount - 2));
       filamentPositions.push(from[0], from[1], from[2], to[0], to[1], to[2]);
-      const r = Math.min(1, rgb[0] * intensity);
-      const g = Math.min(1, rgb[1] * intensity);
-      const b = Math.min(1, rgb[2] * intensity);
+      const r = Math.min(1, rgb[0] * intensity * taper);
+      const g = Math.min(1, rgb[1] * intensity * taper);
+      const b = Math.min(1, rgb[2] * intensity * taper);
       filamentColors.push(r, g, b, r, g, b);
     }
   }
@@ -555,18 +634,24 @@ export function createBrainScene(container, blueprint, options = {}) {
     filamentLineGeometry = new LineSegmentsGeometry();
     filamentLineGeometry.setPositions(new Float32Array(filamentPositions));
     filamentLineGeometry.setColors(new Float32Array(filamentColors));
+    const dashSize = Math.max(0.16, plan.bounds.radius * 0.012);
     filamentLineMaterial = new LineMaterial({
       vertexColors: true,
       transparent: true,
-      opacity: 0.6,
-      linewidth: 1.05,
+      opacity: 0.52,
+      linewidth: 0.9,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
       worldUnits: false,
       toneMapped: false,
-      fog: false,
+      fog: true,
+      dashed: true,
+      dashSize,
+      gapSize: dashSize * 0.72,
     });
+    filamentLineMaterial.dashed = true;
     filamentLines = new LineSegments2(filamentLineGeometry, filamentLineMaterial);
+    filamentLines.computeLineDistances();
     filamentLines.renderOrder = 2;
     synapticGroup.add(filamentLines);
   }
@@ -611,7 +696,7 @@ export function createBrainScene(container, blueprint, options = {}) {
     map: glowTexture,
     color: 0xd8f4ff,
     transparent: true,
-    opacity: 0.92,
+    opacity: 0.8,
     blending: THREE.AdditiveBlending,
     depthTest: false,
     depthWrite: false,
@@ -621,6 +706,26 @@ export function createBrainScene(container, blueprint, options = {}) {
   selectionHalo.visible = false;
   selectionHalo.renderOrder = 9;
   scene.add(selectionHalo);
+
+  const selectionShellGeometry = new THREE.IcosahedronGeometry(1, 2);
+  const selectionShellMaterial = new THREE.MeshPhysicalMaterial({
+    color: 0x9be8ff,
+    roughness: 0.06,
+    metalness: 0.02,
+    clearcoat: 1,
+    clearcoatRoughness: 0.06,
+    emissive: new THREE.Color(0x2aa7d8),
+    emissiveIntensity: 0.32,
+    transparent: true,
+    opacity: 0.2,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+  });
+  const selectionShell = new THREE.Mesh(selectionShellGeometry, selectionShellMaterial);
+  selectionShell.visible = false;
+  selectionShell.renderOrder = 6;
+  selectionShell.frustumCulled = false;
+  scene.add(selectionShell);
 
   // ------------------------------------------------------------ interaction
   const raycaster = new THREE.Raycaster();
@@ -699,12 +804,12 @@ export function createBrainScene(container, blueprint, options = {}) {
     }
 
     if (filamentLineMaterial) {
-      filamentLineMaterial.opacity = highlight ? 0.16 : 0.6;
+      filamentLineMaterial.opacity = highlight ? 0.14 : 0.52;
     }
     synapticMaterial.opacity = highlight ? 0.5 : 0.8;
     synapticGlowMaterial.opacity = highlight ? 0.2 : 0.32;
     glowMaterial.opacity = highlight ? (brain ? 0.34 : 0.26) : (brain ? 0.42 : 0.3);
-    regionHaloMaterial.opacity = highlight ? 0.08 : 0.17;
+    regionHaloMaterial.opacity = highlight ? 0.09 : 0.2;
 
     let selectedNode = null;
     let selectedRegion = null;
@@ -715,8 +820,8 @@ export function createBrainScene(container, blueprint, options = {}) {
     if (selectedNode || selectedRegion) {
       const position = selectedNode?.position ?? selectedRegion.position;
       const haloScale = selectedNode
-        ? Math.max(selectedNode.scale * 4.2, plan.bounds.radius * 0.02)
-        : selectedRegion.radius * 1.85;
+        ? Math.max(selectedNode.scale * 3.4, plan.bounds.radius * 0.018)
+        : selectedRegion.radius * 1.45;
       selectionHalo.position.set(position[0], position[1], position[2]);
       selectionHalo.scale.set(haloScale, haloScale, 1);
       if (selectedNode) {
@@ -730,8 +835,16 @@ export function createBrainScene(container, blueprint, options = {}) {
         );
       }
       selectionHalo.visible = true;
+      if (selectedNode) {
+        selectionShell.position.set(position[0], position[1], position[2]);
+        selectionShell.scale.setScalar(selectedNode.scale * 1.42);
+        selectionShell.visible = true;
+      } else {
+        selectionShell.visible = false;
+      }
     } else {
       selectionHalo.visible = false;
+      selectionShell.visible = false;
     }
   }
 
@@ -740,8 +853,9 @@ export function createBrainScene(container, blueprint, options = {}) {
     synapticGroup.visible = brain;
     dust.visible = brain;
     regionHalo.visible = brain;
+    atmosphereGroup.visible = brain;
     architectureGroup.visible = !brain;
-    if (regionRingMaterial) regionRingMaterial.opacity = brain ? 0.11 : 0.55;
+    if (regionRingMaterial) regionRingMaterial.opacity = brain ? 0.26 : 0.45;
     applyHighlight(selectedId);
   }
 
@@ -943,6 +1057,8 @@ export function createBrainScene(container, blueprint, options = {}) {
     controls.dispose();
     disposeObject(root);
     disposeObject(selectionHalo);
+    disposeObject(selectionShell);
+    for (const material of Object.values(structuralMaterials)) material.dispose();
     for (const texture of labelTextures) texture.dispose();
     glowTexture.dispose();
     renderer.dispose();

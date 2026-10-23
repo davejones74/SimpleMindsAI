@@ -9,8 +9,8 @@ export const DEFAULT_LAYOUT = {
   // The illustrative web has its own fixed budget. It adds visual density, not
   // model detail, and is generated deterministically from the blueprint's
   // stable ids and a fixed seed.
-  maxSynapticNodes: 2800,
-  maxFilaments: 2600,
+  maxSynapticNodes: 2400,
+  maxFilaments: 2200,
   layerSpacing: 8.4,
   clusterScale: 1.0,
 };
@@ -94,7 +94,23 @@ const FILAMENT_COLORS = [
   "#f59e0b",
 ];
 
-const REGION_TINTS = ["#4ea1ff", "#6d8cff", "#8b7cff", "#38bdf8"];
+const REGION_TINTS = ["#38bdf8", "#6d8cff", "#a78bfa", "#c084fc"];
+
+function mixHex(first, second, t) {
+  const parse = (hex) => [1, 3, 5].map((offset) => parseInt(hex.slice(offset, offset + 2), 16));
+  const a = parse(first);
+  const b = parse(second);
+  return `#${a.map((value, index) => (
+    Math.round(value + (b[index] - value) * t).toString(16).padStart(2, "0")
+  )).join("")}`;
+}
+
+function regionTint(index, count) {
+  if (count <= 1) return REGION_TINTS[0];
+  const scaled = (index / (count - 1)) * (REGION_TINTS.length - 1);
+  const lower = Math.min(REGION_TINTS.length - 2, Math.floor(scaled));
+  return mixHex(REGION_TINTS[lower], REGION_TINTS[lower + 1], scaled - lower);
+}
 
 function hashString(value) {
   let hash = 2166136261;
@@ -164,37 +180,33 @@ function localOffset(component, indexWithinRegion, randomForId) {
   return [Math.cos(angle) * ring, Math.sin(angle) * ring * 0.7, (randomForId() - 0.5) * 1.5];
 }
 
-// A spiral spine rather than a grid. The sequence is unambiguous (each region
-// follows the previous one) but it folds through three dimensions, so the
-// transformer stack reads as one continuous, living object. Long models gain
-// turns and radius instead of turning into a wide 2D table.
+// A spherical spiral rather than a flat horseshoe. The transformer sequence
+// still runs from the first region to the last, but it winds over an ellipsoidal
+// shell so the stack reads as one coherent neural volume. Longer models add
+// turns instead of becoming a long cable; illustrative core and satellite
+// clusters fill the interior and the gaps.
 function regionSpine(layerCount, config) {
   const count = Math.max(1, layerCount);
   const turns = count <= 1
     ? 0
     : count <= 8
-      ? 0.9
-      : Math.min(2.7, 0.9 + (count - 8) * 0.064);
-  const span = count <= 1
-    ? 0
-    : count <= 8
-      ? Math.max(30, 30 + count * 2.4)
-      : Math.max(50, 48 + (count - 8) * 1.2);
-  const radius = 7 + 2.8 * Math.sqrt(count);
-  const rise = count <= 8 ? 2.5 : 6.0;
+      ? 1.7
+      : Math.min(4.6, 1.7 + (count - 8) * 0.105);
+  const radiusX = count <= 1 ? 0 : count <= 8 ? 20.0 : 23.0;
+  const radiusY = count <= 1 ? 0 : count <= 8 ? 16.0 : 20.0;
+  const radiusZ = count <= 1 ? 0 : count <= 8 ? 16.0 : 21.0;
   const positions = [];
   for (let index = 0; index < count; index += 1) {
     const u = count === 1 ? 0.5 : index / (count - 1);
-    const theta = u * turns * Math.PI * 2 + 0.7;
-    const x = (u - 0.5) * span;
-    const y = Math.sin(theta) * radius * 0.82
-      + (u - 0.5) * rise
-      + Math.sin(u * Math.PI * 1.5) * radius * 0.12;
-    const z = Math.cos(theta) * radius
-      + Math.sin(u * Math.PI * 2.1) * radius * 0.08;
+    const phi = Math.acos(Math.max(-1, Math.min(1, 1 - 2 * u)));
+    const theta = u * turns * Math.PI * 2 + 0.55;
+    const modulation = 1 + 0.035 * Math.sin(theta * 2.2);
+    const x = Math.sin(phi) * Math.cos(theta) * radiusX * modulation;
+    const y = Math.cos(phi) * radiusY;
+    const z = Math.sin(phi) * Math.sin(theta) * radiusZ * modulation;
     positions.push([x, y, z]);
   }
-  return { positions, turns, span, radius };
+  return { positions, turns, radius: Math.max(radiusX, radiusY, radiusZ) };
 }
 
 function basisAt(positions, index) {
@@ -216,6 +228,15 @@ function componentScale(component, layerCount) {
   const mass = 1 + Math.min(0.42, Math.log10(1 + parameters) / 14);
   const growth = 1 + Math.min(0.28, Math.max(0, layerCount - 8) * 0.008);
   return base * mass * growth;
+}
+
+// The renderer uses this to keep a coherent material hierarchy: weight-bearing
+// and container nodes read as polished glass/metal, while derived structural
+// nodes stay matte and subdued.
+function materialClassFor(component) {
+  if (["embedding", "output_head", "attention", "mlp"].includes(component.type)) return "glass";
+  if (component.type === "linear_projection") return "metal";
+  return "matte";
 }
 
 function regionOf(component, blocksByIndex) {
@@ -321,11 +342,11 @@ function buildSynapticWeb({ nodes, regions, baseBounds, config, seed, layerCount
     Math.min(config.maxSynapticNodes, Math.round(regionCount * 95 + 640)),
   );
   const random = seededRandom(seed ^ 0x51a1f00d);
-  const regionShare = Math.floor(budget * 0.66);
-  const bridgeShare = Math.floor(budget * 0.19);
+  const regionShare = Math.floor(budget * 0.6);
+  const bridgeShare = Math.floor(budget * 0.25);
   const fieldShare = Math.max(0, budget - regionShare - bridgeShare);
   const sizeGrowth = 1 + Math.min(0.22, Math.max(0, layerCount - 8) * 0.006);
-  const clusterRadius = config.clusterScale * (layerCount > 20 ? 4.9 : 4.5);
+  const clusterRadius = config.clusterScale * (layerCount <= 10 ? 6.0 : layerCount > 20 ? 4.9 : 5.4);
   const synapticNodes = [];
   const regionPools = regions.map(() => []);
 
@@ -402,34 +423,85 @@ function buildSynapticWeb({ nodes, regions, baseBounds, config, seed, layerCount
   const center = baseBounds.center;
   const fieldRadius = Math.max(baseBounds.radius, 1);
   const fieldNodes = [];
-  const fieldClusterCount = Math.max(6, Math.min(24, 6 + Math.floor(regionCount * 0.45)));
-  const fieldClusters = Array.from({ length: fieldClusterCount }, () => ({ nodes: [] }));
-  const fieldCenters = [];
-  for (let index = 0; index < fieldClusterCount; index += 1) {
+  const shellClusterCount = Math.max(8, Math.min(30, 8 + Math.floor(regionCount * 0.6)));
+  const coreClusterCount = Math.max(4, Math.min(12, 4 + Math.floor(regionCount * 0.25)));
+  const fieldClusters = [];
+
+  for (let index = 0; index < shellClusterCount; index += 1) {
+    const regionIndex = regionCount ? Math.floor(random() * regionCount) : null;
+    const region = regionIndex != null ? regions[regionIndex] : null;
     const direction = unitVector(random);
-    const distance = fieldRadius * (0.68 + random() * 0.29);
-    fieldCenters.push(add(center, scaleVector(direction, distance)));
+    // Most satellite clusters sit just outside a region; every fifth cluster is
+    // allowed to drift further out to create a background layer. They still
+    // orbit the same shell, so the web reads as one volume rather than islands.
+    const outer = index % 5 === 0;
+    const reach = clusterRadius * (outer ? 2.4 + random() * 1.7 : 0.9 + random() * 1.7);
+    const offset = region
+      ? add(
+        scaleVector(region.side, direction[0] * reach),
+        add(
+          scaleVector(region.normal, direction[1] * reach * 0.75),
+          scaleVector(region.tangent, direction[2] * reach * 0.95),
+        ),
+      )
+      : scaleVector(direction, fieldRadius * 0.7);
+    fieldClusters.push({
+      kind: "shell",
+      nodes: [],
+      regionIndex,
+      center: add(region?.position ?? center, offset),
+      connect: !outer || random() < 0.55,
+    });
   }
-  for (let index = 0; index < fieldShare; index += 1) {
-    const clusterIndex = index % fieldClusterCount;
-    const clusterCenter = fieldCenters[clusterIndex];
+
+  for (let index = 0; index < coreClusterCount; index += 1) {
     const direction = unitVector(random);
-    const spread = fieldRadius * (0.035 + random() * 0.085);
-    const position = add(clusterCenter, scaleVector(direction, spread));
-    const node = {
-      id: `synapse.field.${index}`,
-      kind: "illustrative",
-      role: "field",
-      regionId: null,
-      regionIndex: null,
-      fieldCluster: clusterIndex,
-      position,
-      scale: (0.06 + random() ** 2 * 0.16) * sizeGrowth,
-      color: pickColor(random, SYNAPTIC_COLORS),
-    };
-    synapticNodes.push(node);
-    fieldNodes.push(node);
-    fieldClusters[clusterIndex].nodes.push(node);
+    const distance = fieldRadius * (0.12 + random() * 0.5);
+    const clusterCenter = add(center, scaleVector(direction, distance));
+    let nearestRegion = null;
+    let nearestDistance = Infinity;
+    for (let regionIndex = 0; regionIndex < regionCount; regionIndex += 1) {
+      const regionDistance = length(sub(clusterCenter, regions[regionIndex].position));
+      if (regionDistance < nearestDistance) {
+        nearestDistance = regionDistance;
+        nearestRegion = regionIndex;
+      }
+    }
+    fieldClusters.push({
+      kind: "core",
+      nodes: [],
+      regionIndex: nearestRegion,
+      center: clusterCenter,
+      connect: regionCount > 0 && random() < 0.4,
+    });
+  }
+
+  const basePerCluster = Math.floor(fieldShare / Math.max(1, fieldClusters.length));
+  let clusterRemainder = fieldShare - basePerCluster * fieldClusters.length;
+  for (let clusterIndex = 0; clusterIndex < fieldClusters.length; clusterIndex += 1) {
+    const cluster = fieldClusters[clusterIndex];
+    const count = basePerCluster + (clusterRemainder > 0 ? 1 : 0);
+    if (clusterRemainder > 0) clusterRemainder -= 1;
+    for (let index = 0; index < count; index += 1) {
+      const direction = unitVector(random);
+      const spread = clusterRadius * (cluster.kind === "core" ? 0.1 + random() * 0.28 : 0.14 + random() * 0.34);
+      const position = add(cluster.center, scaleVector(direction, spread));
+      const node = {
+        id: `synapse.field.${fieldNodes.length}`,
+        kind: "illustrative",
+        role: cluster.kind === "core" ? "core" : "field",
+        fieldLayer: cluster.kind,
+        regionId: cluster.regionIndex != null ? regions[cluster.regionIndex]?.id ?? null : null,
+        regionIndex: cluster.regionIndex,
+        fieldCluster: clusterIndex,
+        position,
+        scale: (cluster.kind === "core" ? 0.045 + random() ** 2 * 0.12 : 0.06 + random() ** 2 * 0.16) * sizeGrowth,
+        color: pickColor(random, SYNAPTIC_COLORS),
+      };
+      synapticNodes.push(node);
+      fieldNodes.push(node);
+      cluster.nodes.push(node);
+    }
   }
 
   const structuralByRegion = regions.map(() => []);
@@ -464,7 +536,7 @@ function buildSynapticWeb({ nodes, regions, baseBounds, config, seed, layerCount
       ? roots[Math.floor(random() * roots.length)]
       : null;
     const start = root?.position ?? region.position;
-    const crossRegion = random() < 0.2 && regionIndex < regionCount - 1;
+    const crossRegion = random() < 0.12 && regionIndex < regionCount - 1;
     const targetRegionIndex = crossRegion ? regionIndex + 1 : regionIndex;
     const targetPool = regionPools[targetRegionIndex] ?? pool;
     const targetNode = targetPool[Math.floor(random() * targetPool.length)];
@@ -495,15 +567,16 @@ function buildSynapticWeb({ nodes, regions, baseBounds, config, seed, layerCount
       regionIndex,
       points,
       color,
-      intensity: 0.56 + random() * 0.48,
+      intensity: 0.52 + random() * 0.4,
     });
 
-    if (filaments.length < primaryFilamentBudget && random() < 0.42) {
+    if (filaments.length < primaryFilamentBudget && random() < 0.55) {
       const branchStart = points[Math.min(points.length - 1, 2 + Math.floor(random() * 2))];
       const branchNode = pool[Math.floor(random() * pool.length)];
       if (branchNode && length(sub(branchNode.position, branchStart)) > 0.6) {
         const branchDirection = perpendicularTo(sub(branchNode.position, branchStart), hashString(`branch.${filaments.length}`));
-        const branchBow = scaleVector(branchDirection, 0.35 + random() * 0.9);
+        const branchSeparation = length(sub(branchNode.position, branchStart));
+        const branchBow = scaleVector(branchDirection, Math.min(2.6, branchSeparation * 0.28) * (0.5 + random() * 0.8));
         const branchTarget = branchNode.position;
         const branchPoints = [];
         const branchSegments = 4 + Math.floor(random() * 2);
@@ -525,7 +598,7 @@ function buildSynapticWeb({ nodes, regions, baseBounds, config, seed, layerCount
           regionIndex,
           points: branchPoints,
           color,
-          intensity: 0.48 + random() * 0.38,
+          intensity: 0.4 + random() * 0.34,
         });
       }
     }
@@ -540,22 +613,29 @@ function buildSynapticWeb({ nodes, regions, baseBounds, config, seed, layerCount
     const cluster = fieldClusters[Math.floor(random() * fieldClusters.length)];
     if (cluster.nodes.length < 2) continue;
     const startNode = cluster.nodes[Math.floor(random() * cluster.nodes.length)];
+    const regionPool = cluster.regionIndex != null ? regionPools[cluster.regionIndex] : null;
+    const bridgeToRegion = cluster.connect && regionPool?.length && random() < 0.34;
     let best = null;
     let bestDistance = Infinity;
-    for (let attempt = 0; attempt < 10; attempt += 1) {
-      const candidate = cluster.nodes[Math.floor(random() * cluster.nodes.length)];
-      if (!candidate || candidate === startNode) continue;
-      const distance = length(sub(candidate.position, startNode.position));
-      if (distance > 0.35 && distance < bestDistance) {
-        best = candidate;
-        bestDistance = distance;
+    if (bridgeToRegion) {
+      best = regionPool[Math.floor(random() * regionPool.length)];
+      bestDistance = length(sub(best.position, startNode.position));
+    } else {
+      for (let attempt = 0; attempt < 10; attempt += 1) {
+        const candidate = cluster.nodes[Math.floor(random() * cluster.nodes.length)];
+        if (!candidate || candidate === startNode) continue;
+        const distance = length(sub(candidate.position, startNode.position));
+        if (distance > 0.35 && distance < bestDistance) {
+          best = candidate;
+          bestDistance = distance;
+        }
       }
     }
     if (!best) continue;
     const start = startNode.position;
     const target = best.position;
     const direction = perpendicularTo(sub(target, start), hashString(`field.${startNode.id}.${best.id}`));
-    const bow = scaleVector(direction, Math.min(2.2, bestDistance * 0.26) * (0.5 + random() * 0.8));
+    const bow = scaleVector(direction, Math.min(3.4, bestDistance * 0.3) * (0.5 + random() * 0.8));
     const controlA = add(lerp(start, target, 0.34), bow);
     const controlB = add(lerp(start, target, 0.66), scaleVector(bow, 0.62));
     const points = [];
@@ -572,12 +652,12 @@ function buildSynapticWeb({ nodes, regions, baseBounds, config, seed, layerCount
     filaments.push({
       id: `filament.${filaments.length}`,
       kind: "illustrative",
-      role: "field-web",
-      regionId: null,
-      regionIndex: null,
+      role: bridgeToRegion ? "field-bridge" : "field-web",
+      regionId: cluster.regionIndex != null ? regions[cluster.regionIndex]?.id ?? null : null,
+      regionIndex: cluster.regionIndex,
       points,
       color: pickColor(random, FILAMENT_COLORS),
-      intensity: 0.36 + random() * 0.38,
+      intensity: bridgeToRegion ? 0.34 + random() * 0.32 : 0.3 + random() * 0.4,
     });
   }
 
@@ -630,7 +710,7 @@ export function buildRenderPlan(blueprint, options = {}) {
 
   const spine = regionSpine(layerCount, config);
   const bases = spine.positions.map((_, index) => basisAt(spine.positions, index));
-  const clusterRadius = config.clusterScale * (layerCount > 20 ? 4.9 : 4.5);
+  const clusterRadius = config.clusterScale * (layerCount <= 10 ? 6.0 : layerCount > 20 ? 4.9 : 5.4);
   const blocksByIndex = new Map(blocks.map((block) => [block.blockIndex, block]));
   const componentsByBlock = new Map();
   for (const block of blocks) componentsByBlock.set(block.blockIndex, []);
@@ -655,7 +735,7 @@ export function buildRenderPlan(blueprint, options = {}) {
       position,
       radius: clusterRadius * 1.55,
       size: [clusterRadius * 3.1, clusterRadius * 3.1, clusterRadius * 3.1],
-      color: REGION_TINTS[index % REGION_TINTS.length],
+      color: regionTint(index, blocks.length),
       tangent: basis.tangent,
       side: basis.side,
       normal: basis.normal,
@@ -720,6 +800,7 @@ export function buildRenderPlan(blueprint, options = {}) {
       scale3: [nodeScale, nodeScale, nodeScale],
       color: COMPONENT_COLORS[component.type] ?? COMPONENT_COLORS.buffer,
       group: GROUP[component.type] ?? "sphere",
+      materialClass: materialClassFor(component),
     });
   }
 
