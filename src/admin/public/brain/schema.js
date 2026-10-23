@@ -1,17 +1,17 @@
 export const BLUEPRINT_SCHEMA = "sma/brain-blueprint@1";
 
 export const COMPONENT_COLORS = {
-  model: "#9aa7b8",
-  embedding: "#5eead4",
+  model: "#91a5c2",
+  embedding: "#67e8f9",
   positional_encoding: "#a78bfa",
   transformer_block: "#4ea1ff",
-  attention: "#f472b6",
+  attention: "#38bdf8",
   linear_projection: "#60a5fa",
-  mlp: "#f59e0b",
+  mlp: "#8b5cf6",
   activation: "#fbbf24",
   elementwise: "#fb923c",
-  normalization: "#34d399",
-  residual: "#94a3b8",
+  normalization: "#2dd4bf",
+  residual: "#93a4c0",
   output_head: "#e879f9",
   buffer: "#64748b",
 };

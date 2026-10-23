@@ -6,7 +6,7 @@ import {
   highlightFor,
   validateBlueprint,
 } from "../src/admin/public/brain/schema.js";
-import { buildRenderPlan } from "../src/admin/public/brain/layout.js";
+import { buildRenderPlan, DEFAULT_LAYOUT } from "../src/admin/public/brain/layout.js";
 import { fitCamera } from "../src/admin/public/brain/framing.js";
 
 function component(id, type, parentId, blockIndex, extra = {}) {
@@ -202,6 +202,76 @@ test("a synthetic 36-layer 3B-scale blueprint stays bounded", () => {
   const blockRows = new Set(plan.blocks.filter((block) => block.blockIndex != null).map((block) => block.position[1]));
   assert.ok(blockRows.size > 1, "a long model should fold into multiple rows");
   assert.ok(plan.blocks.every((block) => block.size[0] > 0 && block.size[1] > 0 && block.size[2] > 0));
+  assert.equal(validateBlueprint(blueprint).ok, true);
+});
+
+test("regions are a deterministic three-dimensional sequence, not a flat grid", () => {
+  const blueprint = syntheticBlueprint(8);
+  const plan = buildRenderPlan(blueprint);
+  assert.equal(plan.regions.length, 8);
+  assert.equal(plan.blocks.length, plan.regions.length);
+  const xs = new Set(plan.regions.map((region) => region.position[0].toFixed(2)));
+  const ys = new Set(plan.regions.map((region) => region.position[1].toFixed(2)));
+  const zs = new Set(plan.regions.map((region) => region.position[2].toFixed(2)));
+  assert.equal(xs.size, 8, "each region has its own place along the main axis");
+  assert.ok(ys.size > 4, "regions vary vertically");
+  assert.ok(zs.size > 4, "regions vary in depth");
+  const zSpread = Math.max(...plan.regions.map((region) => region.position[2]))
+    - Math.min(...plan.regions.map((region) => region.position[2]));
+  assert.ok(zSpread > plan.bounds.radius * 0.25, "the sequence should not be a flat plane");
+});
+
+test("structural and illustrative geometry are explicitly separated", () => {
+  const blueprint = syntheticBlueprint(4);
+  const plan = buildRenderPlan(blueprint);
+  const componentIds = new Set(blueprint.components.map((component) => component.id));
+  const connectionIds = new Set(blueprint.connections.map((connection) => connection.id));
+
+  assert.ok(plan.nodes.length > 0);
+  assert.ok(plan.edges.length > 0);
+  assert.ok(plan.synaptic.nodes.length > 0);
+  assert.ok(plan.synaptic.filaments.length > 0);
+
+  for (const node of plan.nodes) {
+    assert.equal(node.kind, "architecture");
+    assert.ok(componentIds.has(node.id), `${node.id} is not a blueprint component`);
+  }
+  for (const edge of plan.edges) {
+    assert.equal(edge.kind, "architecture");
+    assert.ok(connectionIds.has(edge.id), `${edge.id} is not a blueprint connection`);
+    assert.ok(edge.points.length > 2, "structural connections are curved polylines");
+  }
+  for (const node of plan.synaptic.nodes) {
+    assert.equal(node.kind, "illustrative");
+    assert.ok(!componentIds.has(node.id));
+    assert.match(node.id, /^synapse\./);
+  }
+  for (const filament of plan.synaptic.filaments) {
+    assert.equal(filament.kind, "illustrative");
+    assert.match(filament.id, /^filament\./);
+    assert.ok(filament.points.length > 2);
+  }
+  assert.equal(plan.counts.synapticNodes, plan.synaptic.nodes.length);
+  assert.equal(plan.counts.filaments, plan.synaptic.filaments.length);
+});
+
+test("the illustrative budget is independent of parameter count", () => {
+  const small = syntheticBlueprint(8, { totalParameters: 61839744 });
+  const large = syntheticBlueprint(8, { totalParameters: 3075098624 });
+  assert.deepEqual(buildRenderPlan(small), buildRenderPlan(large));
+});
+
+test("the synthetic 36-layer scene has a substantial but bounded synaptic web", () => {
+  const blueprint = syntheticBlueprint(36, { totalParameters: 3075098624 });
+  const plan = buildRenderPlan(blueprint);
+  assert.equal(plan.counts.layers, 36);
+  assert.ok(plan.synaptic.nodes.length <= DEFAULT_LAYOUT.maxSynapticNodes);
+  assert.ok(plan.synaptic.filaments.length <= DEFAULT_LAYOUT.maxFilaments);
+  assert.ok(plan.synaptic.nodes.length > 1000, "the larger model still has a rich web");
+  assert.ok(plan.synaptic.filaments.length > 800, "the larger model still has filaments");
+  const zs = new Set(plan.regions.map((region) => region.position[2].toFixed(2)));
+  assert.ok(zs.size > 20, "regions spiral through depth");
+  assert.ok(plan.bounds.radius > 50);
   assert.equal(validateBlueprint(blueprint).ok, true);
 });
 

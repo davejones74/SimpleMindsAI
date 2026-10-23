@@ -21,6 +21,7 @@ export function fitCamera(bounds, options = {}) {
   const fovDeg = options.fovDeg ?? 52;
   const aspect = Math.max(options.aspect ?? 1.96, 0.1);
   const margin = options.margin ?? 0.9;
+  const depthFactor = options.depthFactor ?? 1;
   const min = bounds?.min ?? [-1, -1, -1];
   const max = bounds?.max ?? [1, 1, 1];
   const half = [
@@ -45,7 +46,7 @@ export function fitCamera(bounds, options = {}) {
   const tanHalfFov = Math.tan((fovDeg * Math.PI) / 360);
   const widthDistance = halfWidth / (tanHalfFov * aspect);
   const heightDistance = halfHeight / tanHalfFov;
-  const distance = Math.max(widthDistance, heightDistance) * margin + halfDepth;
+  const distance = Math.max(widthDistance, heightDistance) * margin + halfDepth * depthFactor;
   const position = [
     center[0] + direction[0] * distance,
     center[1] + direction[1] * distance,

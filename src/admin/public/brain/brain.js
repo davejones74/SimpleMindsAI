@@ -6,11 +6,13 @@ import {
 } from "./schema.js";
 
 const API = "/api/admin/brain/blueprint";
+const requestedMode = new URLSearchParams(window.location.search).get("mode");
 const state = {
   blueprint: null,
   summary: null,
   scene: null,
   selectedId: null,
+  mode: requestedMode === "architecture" ? "architecture" : "brain",
 };
 
 const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({
@@ -99,6 +101,7 @@ function renderHeader(summary) {
 }
 
 function renderLegend(blueprint) {
+  if (!blueprint) return;
   const counts = blueprint.model?.counts?.componentsByType ?? {};
   const present = Object.entries(counts).filter(([, count]) => count > 0);
   const fallback = Object.entries(
@@ -119,7 +122,22 @@ function renderLegend(blueprint) {
         </div>
       `;
     });
-  document.getElementById("legendItems").innerHTML = rows.join("") || `<div class="empty-note">No components.</div>`;
+  const key = `
+    <div class="legend-key">
+      <div class="legend-row"><span class="legend-swatch structural"></span><span>Structural component</span></div>
+      <div class="legend-row"><span class="legend-swatch connection"></span><span>Blueprint connection</span></div>
+      ${state.mode === "brain" ? `
+        <div class="legend-row"><span class="legend-swatch filament"></span><span>Illustrative filament</span></div>
+        <div class="legend-row"><span class="legend-swatch ambient"></span><span>Ambient particle</span></div>
+      ` : ""}
+    </div>
+  `;
+  const note = state.mode === "brain"
+    ? `<p class="legend-note">Dashed filaments and ambient particles are artistic atmosphere. They are not parameters, weights, activations or architectural connections.</p>`
+    : `<p class="legend-note">Architecture mode hides the illustrative web. Every node and connection shown here comes from the exported blueprint. Low-priority positional links brighten when a related component is selected.</p>`;
+  document.getElementById("legendItems").innerHTML = key
+    + (rows.join("") || `<div class="empty-note">No components.</div>`)
+    + note;
 }
 
 function renderWarnings(blueprint, planWarnings = []) {
@@ -155,7 +173,10 @@ function renderIntro() {
       </div>`
     : "";
   document.getElementById("inspectorBody").innerHTML = `
-    <p class="muted">Select a component or transformer block in the scene.</p>
+    <p class="muted">Select a structural node or layer region in the scene.</p>
+    <p class="small muted">${state.mode === "brain"
+      ? "Brain mode adds illustrative filaments for atmosphere. Selection still identifies the real component and its genuine blueprint connections."
+      : "Architecture mode shows only the exported blueprint: structural nodes, tensor metadata and real computational connections."}</p>
     <dl class="inspector-grid">
       <dt>Version</dt><dd>${esc(summary?.version ?? "—")}</dd>
       <dt>Architecture</dt><dd>${esc(summary?.architecture ?? "—")}</dd>
@@ -280,6 +301,36 @@ function renderInspector(componentId) {
   `;
 }
 
+function updateModeButtons() {
+  for (const button of document.querySelectorAll("[data-mode]")) {
+    const active = button.getAttribute("data-mode") === state.mode;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  }
+}
+
+function setMode(mode, { announce = true } = {}) {
+  if (mode !== "brain" && mode !== "architecture") return;
+  state.mode = mode;
+  updateModeButtons();
+  if (state.scene) state.scene.setMode(mode);
+  if (state.blueprint) renderLegend(state.blueprint);
+  try {
+    const url = new URL(window.location.href);
+    url.searchParams.set("mode", mode);
+    window.history.replaceState(null, "", url);
+  } catch {
+    // A restrictive file:// or embedded context may not allow history updates.
+  }
+  if (announce && state.blueprint) {
+    renderInspector(state.selectedId);
+    const subtitle = document.getElementById("brainSubtitle");
+    if (subtitle) {
+      subtitle.dataset.mode = mode;
+    }
+  }
+}
+
 async function loadBlueprint() {
   setOverlay(`
     <div class="overlay-card">
@@ -345,8 +396,12 @@ async function loadBlueprint() {
   try {
     const { createBrainScene } = await import("./render.js");
     state.scene = createBrainScene(document.getElementById("scene"), blueprint, {
+      initialMode: state.mode,
       onSelect: (componentId) => renderInspector(componentId),
     });
+    state.scene.setMode(state.mode);
+    updateModeButtons();
+    renderLegend(blueprint);
     renderWarnings(blueprint, state.scene.plan.warnings);
     hideOverlay();
   } catch (err) {
@@ -360,6 +415,9 @@ async function loadBlueprint() {
 function wireControls() {
   document.getElementById("resetView").addEventListener("click", () => state.scene?.resetView());
   document.getElementById("overview").addEventListener("click", () => state.scene?.clear());
+  for (const button of document.querySelectorAll("[data-mode]")) {
+    button.addEventListener("click", () => setMode(button.getAttribute("data-mode")));
+  }
   document.getElementById("inspectorBody").addEventListener("click", (event) => {
     const target = event.target.closest("[data-select]");
     if (!target) return;
@@ -367,10 +425,14 @@ function wireControls() {
     if (componentId) state.scene?.select(componentId);
   });
   document.addEventListener("keydown", (event) => {
+    if (event.metaKey || event.ctrlKey || event.altKey) return;
     if (event.key === "r" || event.key === "R") state.scene?.resetView();
     if (event.key === "Escape") state.scene?.clear();
+    if (event.key === "b" || event.key === "B") setMode("brain");
+    if (event.key === "a" || event.key === "A") setMode("architecture");
   });
   window.addEventListener("beforeunload", () => state.scene?.dispose());
+  updateModeButtons();
 }
 
 wireControls();

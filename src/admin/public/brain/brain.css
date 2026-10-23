@@ -17,8 +17,10 @@ body.brain-body {
   margin: 0;
   overflow: hidden;
   background:
-    radial-gradient(circle at 50% -20%, rgba(37, 99, 235, 0.16), transparent 50%),
-    radial-gradient(circle at 80% 110%, rgba(168, 85, 247, 0.12), transparent 55%),
+    radial-gradient(circle at 50% 34%, rgba(20, 74, 130, 0.2), transparent 46%),
+    radial-gradient(circle at 16% 8%, rgba(56, 189, 248, 0.1), transparent 38%),
+    radial-gradient(circle at 86% 92%, rgba(124, 58, 237, 0.13), transparent 48%),
+    radial-gradient(circle at 50% 50%, transparent 46%, rgba(0, 0, 0, 0.5) 100%),
     var(--brain-bg);
   color: var(--brain-text);
   font: 13px/1.5 "Segoe UI", system-ui, -apple-system, sans-serif;
@@ -64,7 +66,7 @@ body.brain-body {
 .brain-chip.good { color: var(--brain-good); border-color: rgba(52, 211, 153, 0.5); }
 .brain-chip.warn { color: var(--brain-warn); border-color: rgba(251, 191, 36, 0.5); }
 .brain-chip.bad { color: var(--brain-bad); border-color: rgba(251, 113, 133, 0.5); }
-.brain-actions { display: flex; gap: 7px; }
+.brain-actions { display: flex; gap: 7px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
 .brain-actions button {
   background: rgba(16, 25, 37, 0.9);
   color: var(--brain-text);
@@ -75,6 +77,29 @@ body.brain-body {
   cursor: pointer;
 }
 .brain-actions button:hover { border-color: var(--brain-accent); color: var(--brain-accent); }
+.brain-mode-switch {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--brain-border);
+  border-radius: 9px;
+  background: rgba(8, 14, 23, 0.78);
+}
+.brain-mode-switch button {
+  border: 0;
+  border-radius: 6px;
+  padding: 5px 10px;
+  background: transparent;
+  color: var(--brain-muted);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+}
+.brain-mode-switch button:hover { color: var(--brain-text); }
+.brain-mode-switch button.active {
+  color: #04121e;
+  background: linear-gradient(135deg, #7dd3fc, #67e8f9);
+  box-shadow: 0 0 16px rgba(103, 232, 249, 0.28);
+}
 
 main.brain-stage {
   position: relative;
@@ -119,6 +144,47 @@ main.brain-stage {
 .legend-row { display: flex; align-items: center; gap: 8px; color: var(--brain-muted); font-size: 11px; }
 .legend-dot { width: 9px; height: 9px; border-radius: 50%; box-shadow: 0 0 9px currentColor; flex: 0 0 auto; }
 .legend-count { margin-left: auto; color: var(--brain-text); font-variant-numeric: tabular-nums; }
+.legend-key {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(120, 153, 190, 0.16);
+}
+.legend-swatch { width: 12px; height: 12px; flex: 0 0 auto; border-radius: 50%; }
+.legend-swatch.structural {
+  background: radial-gradient(circle at 35% 30%, #f0fbff, #67e8f9 48%, #2563eb 100%);
+  box-shadow: 0 0 10px rgba(103, 232, 249, 0.75);
+}
+.legend-swatch.connection {
+  width: 15px;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #38bdf8, #818cf8);
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.65);
+}
+.legend-swatch.filament {
+  width: 15px;
+  height: 0;
+  border-radius: 0;
+  border-top: 1px dashed #a78bfa;
+  box-shadow: 0 0 6px rgba(167, 139, 250, 0.5);
+}
+.legend-swatch.ambient {
+  width: 4px;
+  height: 4px;
+  margin: 0 5px;
+  background: #93c5fd;
+  box-shadow: 0 0 7px rgba(147, 197, 253, 0.7);
+}
+.legend-note {
+  margin: 10px 0 0;
+  padding-top: 9px;
+  border-top: 1px solid rgba(120, 153, 190, 0.16);
+  color: var(--brain-muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
 
 .inspector-body { color: var(--brain-muted); font-size: 12px; }
 .inspector-heading { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 4px; }

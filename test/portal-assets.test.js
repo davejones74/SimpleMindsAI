@@ -25,6 +25,9 @@ test("the brain visualiser is a separate page with locally served Three.js modul
   const html = await readFile(path.join(PUBLIC, "brain", "index.html"), "utf8");
   const css = await readFile(path.join(PUBLIC, "brain", "brain.css"), "utf8");
   const index = await readFile(path.join(PUBLIC, "index.html"), "utf8");
+  const brain = await readFile(path.join(PUBLIC, "brain", "brain.js"), "utf8");
+  const render = await readFile(path.join(PUBLIC, "brain", "render.js"), "utf8");
+  const layout = await readFile(path.join(PUBLIC, "brain", "layout.js"), "utf8");
 
   assert.match(html, /\/admin\/brain\/brain\.js/);
   assert.match(html, /"three":\s*"\/admin\/vendor\/three\/three\.module\.js"/);
@@ -36,6 +39,27 @@ test("the brain visualiser is a separate page with locally served Three.js modul
   assert.match(css, /main\.brain-stage\s*\{[^}]*max-width:\s*none/s, "brain stage retains the global max-width");
   assert.match(css, /main\.brain-stage\s*\{[^}]*margin:\s*0/s, "brain stage retains auto margins");
   assert.match(index, /href="\/admin\/brain"/);
+
+  // Two explicit modes and an honest visual-language key.
+  assert.match(html, /data-mode="brain"/);
+  assert.match(html, /data-mode="architecture"/);
+  assert.match(brain, /initialMode:\s*state\.mode/);
+  assert.match(brain, /function setMode\(/);
+  assert.match(brain, /Illustrative filament/);
+  assert.match(css, /\.brain-mode-switch/);
+  assert.match(css, /\.legend-swatch\.filament/);
+
+  // The default Brain scene must not fall back to rectangular block enclosures,
+  // and illustrative geometry must remain a separate collection.
+  assert.ok(!render.includes("BoxGeometry"), "renderer still creates rectangular block boxes");
+  assert.ok(!render.includes("EdgesGeometry"), "renderer still creates rectangular wireframes");
+  assert.match(layout, /synaptic,/);
+  assert.match(layout, /kind:\s*"illustrative"/);
+});
+
+test("the brain renderer module parses and resolves its Three.js imports", async () => {
+  const module = await import("../src/admin/public/brain/render.js");
+  assert.equal(typeof module.createBrainScene, "function");
 });
 
 test("portal serves the chat conversation controls", async () => {
