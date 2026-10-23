@@ -10,30 +10,6 @@ const GEOMETRY_BUILDERS = {
   box: () => new THREE.BoxGeometry(1, 1, 1),
 };
 
-function makeRingTexture() {
-  const canvas = document.createElement("canvas");
-  canvas.width = 256;
-  canvas.height = 256;
-  const context = canvas.getContext("2d");
-  context.translate(128, 128);
-  context.strokeStyle = "rgba(255,255,255,1)";
-  context.shadowColor = "rgba(255,255,255,0.85)";
-  context.shadowBlur = 8;
-  context.lineWidth = 3.5;
-  context.beginPath();
-  context.arc(0, 0, 102, 0, Math.PI * 2);
-  context.stroke();
-  context.shadowBlur = 0;
-  context.globalAlpha = 0.34;
-  context.lineWidth = 1.5;
-  context.beginPath();
-  context.arc(0, 0, 84, 0, Math.PI * 2);
-  context.stroke();
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  return texture;
-}
-
 function makeGlowTexture() {
   const canvas = document.createElement("canvas");
   canvas.width = 64;
@@ -46,6 +22,22 @@ function makeGlowTexture() {
   gradient.addColorStop(1, "rgba(255,255,255,0)");
   context.fillStyle = gradient;
   context.fillRect(0, 0, 64, 64);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+function makeLabelTexture(text) {
+  const canvas = document.createElement("canvas");
+  canvas.width = 128;
+  canvas.height = 64;
+  const context = canvas.getContext("2d");
+  context.clearRect(0, 0, 128, 64);
+  context.font = "600 34px system-ui, sans-serif";
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  context.fillStyle = "rgba(214, 231, 248, 0.92)";
+  context.fillText(String(text), 64, 34);
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
   return texture;
@@ -67,17 +59,26 @@ function colorToRgb(hex) {
 
 export function createBrainScene(container, blueprint, options = {}) {
   if (!window.WebGLRenderingContext) throw new Error("WebGL is not available in this browser");
-  const plan = buildRenderPlan(blueprint, options);
+  const initialAspect = Math.max(
+    (container.clientWidth || 1) / (container.clientHeight || 1),
+    0.4,
+  );
+  const plan = buildRenderPlan(blueprint, {
+    ...options,
+    targetAspect: Math.min(Math.max(initialAspect, 0.8), 2.4),
+  });
   console.info("[brain] render plan", {
     nodes: plan.counts.nodes,
     edges: plan.counts.edges,
     layers: plan.counts.layers,
+    blocks: plan.blocks.length,
     bounds: plan.bounds,
     warnings: plan.warnings,
   });
+
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x05080d);
-  scene.fog = new THREE.FogExp2(0x05080d, 0.0016);
+  scene.fog = new THREE.FogExp2(0x05080d, 0.0012);
 
   const camera = new THREE.PerspectiveCamera(52, 1, 0.1, 8000);
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
@@ -87,16 +88,16 @@ export function createBrainScene(container, blueprint, options = {}) {
 
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
-  controls.dampingFactor = 0.065;
+  controls.dampingFactor = 0.07;
   controls.screenSpacePanning = true;
-  controls.rotateSpeed = 0.68;
-  controls.zoomSpeed = 0.9;
-  controls.panSpeed = 0.8;
-  controls.minDistance = Math.max(2, plan.bounds.radius * 0.12);
+  controls.rotateSpeed = 0.62;
+  controls.zoomSpeed = 0.85;
+  controls.panSpeed = 0.75;
+  controls.minDistance = Math.max(2, plan.bounds.radius * 0.1);
   controls.maxDistance = Math.max(80, plan.bounds.radius * 7);
   controls.target.set(...plan.bounds.center);
 
-  const overviewDirection = new THREE.Vector3(1.3, 0.65, 1.0).normalize();
+  const overviewDirection = new THREE.Vector3(0.3, 0.2, 1.0).normalize();
   const overviewPosition = new THREE.Vector3();
   let overviewDistance = plan.bounds.radius * 2.15;
   let userInteracted = false;
@@ -114,7 +115,7 @@ export function createBrainScene(container, blueprint, options = {}) {
     camera.far = fit.far;
     camera.updateProjectionMatrix();
     controls.target.set(...fit.center);
-    controls.minDistance = Math.max(1, overviewDistance * 0.08);
+    controls.minDistance = Math.max(1, overviewDistance * 0.06);
     controls.maxDistance = Math.max(80, overviewDistance * 5);
     controls.update();
   }
@@ -125,11 +126,11 @@ export function createBrainScene(container, blueprint, options = {}) {
       nodes: plan.counts.nodes,
       edges: plan.counts.edges,
       layers: plan.counts.layers,
-      blocks: plan.layerRings.length,
-      blockScreens: plan.layerRings.map((ring) => {
-        const projected = new THREE.Vector3(ring.position[0], ring.position[1], ring.position[2]).project(camera);
+      blocks: plan.blocks.length,
+      blockScreens: plan.blocks.map((block) => {
+        const projected = new THREE.Vector3(block.position[0], block.position[1], block.position[2]).project(camera);
         return {
-          index: ring.blockIndex,
+          index: block.blockIndex,
           x: Math.round((projected.x + 1) * 0.5 * rect.width),
           y: Math.round((1 - projected.y) * 0.5 * rect.height),
         };
@@ -148,24 +149,76 @@ export function createBrainScene(container, blueprint, options = {}) {
     };
   }
 
-  const ambient = new THREE.HemisphereLight(0x93c5fd, 0x0b1220, 1.1);
+  const ambient = new THREE.HemisphereLight(0x9ec7f5, 0x0b1220, 1.05);
   scene.add(ambient);
-  const key = new THREE.DirectionalLight(0x93c5fd, 1.4);
-  key.position.set(1, 2, 1);
+  const key = new THREE.DirectionalLight(0x93c5fd, 1.3);
+  key.position.set(1, 2, 1.4);
   scene.add(key);
-  const rim = new THREE.DirectionalLight(0xa78bfa, 1.1);
-  rim.position.set(-1, -0.6, -1);
+  const rim = new THREE.DirectionalLight(0xa78bfa, 0.9);
+  rim.position.set(-1, -0.5, -1.2);
   scene.add(rim);
 
   const group = new THREE.Group();
   scene.add(group);
 
   const glowTexture = makeGlowTexture();
+
+  // ------------------------------------------------------------ block shells
+  const blockShellMaterial = new THREE.MeshBasicMaterial({
+    transparent: true,
+    opacity: 0.055,
+    depthWrite: false,
+    side: THREE.BackSide,
+  });
+  const blockEdgeMaterial = new THREE.LineBasicMaterial({
+    transparent: true,
+    opacity: 0.16,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+  const blockShells = [];
+  const blockEdges = [];
+  const blockLabelSprites = [];
+  for (const block of plan.blocks) {
+    const geometry = new THREE.BoxGeometry(block.size[0], block.size[1], block.size[2]);
+    const shell = new THREE.Mesh(geometry, blockShellMaterial.clone());
+    shell.position.set(block.position[0], block.position[1], block.position[2]);
+    shell.userData.componentId = block.id;
+    shell.userData.blockIndex = block.blockIndex;
+    shell.userData.baseColor = new THREE.Color(block.color);
+    shell.material.color.copy(shell.userData.baseColor);
+    group.add(shell);
+    blockShells.push(shell);
+
+    const edge = new THREE.LineSegments(new THREE.EdgesGeometry(geometry), blockEdgeMaterial.clone());
+    edge.position.copy(shell.position);
+    edge.userData.componentId = block.id;
+    edge.userData.blockIndex = block.blockIndex;
+    edge.userData.baseColor = new THREE.Color(block.color);
+    edge.material.color.copy(edge.userData.baseColor);
+    group.add(edge);
+    blockEdges.push(edge);
+
+    const label = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: makeLabelTexture(block.blockIndex),
+      transparent: true,
+      opacity: 0.62,
+      depthTest: false,
+      depthWrite: false,
+    }));
+    label.position.set(block.position[0], block.position[1] + block.size[1] * 0.5 + 1.2, block.position[2]);
+    label.scale.set(2.4, 1.2, 1);
+    label.userData.componentId = block.id;
+    label.renderOrder = 4;
+    group.add(label);
+    blockLabelSprites.push(label);
+  }
+
+  // ------------------------------------------------------------ node meshes
   const nodeMeshes = [];
   const material = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.96 });
   const byGeometry = new Map();
   for (const node of plan.nodes) {
-    if (node.group === "ring") continue;
     if (!byGeometry.has(node.group)) byGeometry.set(node.group, []);
     byGeometry.get(node.group).push(node);
   }
@@ -195,38 +248,18 @@ export function createBrainScene(container, blueprint, options = {}) {
     group.add(mesh);
     nodeMeshes.push(mesh);
   }
+  const pickTargets = [...nodeMeshes, ...blockShells];
 
-  const ringTexture = makeRingTexture();
-  const blockSprites = [];
-  for (const ring of plan.layerRings) {
-    const spriteMaterial = new THREE.SpriteMaterial({
-      map: ringTexture,
-      color: new THREE.Color(ring.color),
-      transparent: true,
-      opacity: 0.52,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-    });
-    const sprite = new THREE.Sprite(spriteMaterial);
-    sprite.position.set(ring.position[0], ring.position[1], ring.position[2]);
-    const size = ring.radius * 2.2;
-    sprite.scale.set(size, size, 1);
-    sprite.userData.componentId = ring.id;
-    sprite.userData.blockIndex = ring.blockIndex;
-    sprite.userData.baseColor = new THREE.Color(ring.color);
-    sprite.renderOrder = 0;
-    group.add(sprite);
-    blockSprites.push(sprite);
-  }
-  const pickTargets = [...nodeMeshes];
-
+  // ------------------------------------------------------------ glow points
   const glowPositions = new Float32Array(plan.nodes.length * 3);
   const glowColors = new Float32Array(plan.nodes.length * 3);
+  const glowBaseColors = [];
   plan.nodes.forEach((node, index) => {
     glowPositions[index * 3] = node.position[0];
     glowPositions[index * 3 + 1] = node.position[1];
     glowPositions[index * 3 + 2] = node.position[2];
     const rgb = colorToRgb(node.color);
+    glowBaseColors.push(rgb);
     glowColors[index * 3] = rgb[0];
     glowColors[index * 3 + 1] = rgb[1];
     glowColors[index * 3 + 2] = rgb[2];
@@ -235,10 +268,10 @@ export function createBrainScene(container, blueprint, options = {}) {
   glowGeometry.setAttribute("position", new THREE.BufferAttribute(glowPositions, 3));
   glowGeometry.setAttribute("color", new THREE.BufferAttribute(glowColors, 3));
   const glowMaterial = new THREE.PointsMaterial({
-    size: 1.7,
+    size: 1.35,
     map: glowTexture,
     transparent: true,
-    opacity: 0.6,
+    opacity: 0.42,
     vertexColors: true,
     blending: THREE.AdditiveBlending,
     depthWrite: false,
@@ -248,15 +281,18 @@ export function createBrainScene(container, blueprint, options = {}) {
   glowPoints.renderOrder = 2;
   group.add(glowPoints);
 
+  // ------------------------------------------------------------ edges
   const edgePositions = new Float32Array(plan.edges.length * 6);
   const edgeColors = new Float32Array(plan.edges.length * 6);
   const edgeBaseColors = [];
+  const edgeAlpha = [];
   plan.edges.forEach((edge, index) => {
     edgePositions.set(edge.points[0], index * 6);
     edgePositions.set(edge.points[1], index * 6 + 3);
     const rgb = colorToRgb(edge.color);
     edgeBaseColors.push(rgb);
     edgeColors.set([rgb[0], rgb[1], rgb[2], rgb[0], rgb[1], rgb[2]], index * 6);
+    edgeAlpha.push(edge.type === "positional_encoding" ? 0.22 : edge.type === "residual" ? 0.34 : 0.5);
   });
   const edgeGeometry = new THREE.BufferGeometry();
   edgeGeometry.setAttribute("position", new THREE.BufferAttribute(edgePositions, 3));
@@ -264,7 +300,7 @@ export function createBrainScene(container, blueprint, options = {}) {
   const edgeMaterial = new THREE.LineBasicMaterial({
     vertexColors: true,
     transparent: true,
-    opacity: 0.52,
+    opacity: 0.5,
     blending: THREE.AdditiveBlending,
     depthWrite: false,
   });
@@ -272,19 +308,20 @@ export function createBrainScene(container, blueprint, options = {}) {
   edgeLines.renderOrder = 1;
   group.add(edgeLines);
 
-  const particleCount = 1400;
+  // ------------------------------------------------------------ ambient dust
+  const particleCount = 900;
   const particlePositions = new Float32Array(particleCount * 3);
   const particleColors = new Float32Array(particleCount * 3);
   const random = seededRandom(0x51a1);
-  const span = plan.bounds.radius * 2.8;
+  const span = plan.bounds.radius * 2.6;
   for (let index = 0; index < particleCount; index += 1) {
     const theta = random() * Math.PI * 2;
     const phi = Math.acos(2 * random() - 1);
-    const radius = plan.bounds.radius * (0.55 + random() * 1.5);
+    const radius = plan.bounds.radius * (0.5 + random() * 1.3);
     particlePositions[index * 3] = plan.bounds.center[0] + radius * Math.sin(phi) * Math.cos(theta);
     particlePositions[index * 3 + 1] = plan.bounds.center[1] + radius * Math.cos(phi);
     particlePositions[index * 3 + 2] = plan.bounds.center[2] + radius * Math.sin(phi) * Math.sin(theta);
-    const tint = 0.18 + random() * 0.3;
+    const tint = 0.16 + random() * 0.26;
     particleColors[index * 3] = tint * 0.45;
     particleColors[index * 3 + 1] = tint * 0.7;
     particleColors[index * 3 + 2] = tint;
@@ -293,9 +330,9 @@ export function createBrainScene(container, blueprint, options = {}) {
   particleGeometry.setAttribute("position", new THREE.BufferAttribute(particlePositions, 3));
   particleGeometry.setAttribute("color", new THREE.BufferAttribute(particleColors, 3));
   const particleMaterial = new THREE.PointsMaterial({
-    size: 0.055,
+    size: 0.045,
     transparent: true,
-    opacity: 0.5,
+    opacity: 0.4,
     vertexColors: true,
     blending: THREE.AdditiveBlending,
     depthWrite: false,
@@ -305,6 +342,7 @@ export function createBrainScene(container, blueprint, options = {}) {
   particles.frustumCulled = false;
   scene.add(particles);
 
+  // ------------------------------------------------------------ interaction
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
   const focusTarget = new THREE.Vector3();
@@ -316,8 +354,8 @@ export function createBrainScene(container, blueprint, options = {}) {
   let pointerDown = null;
   let frame = 0;
 
-  const selectedColor = new THREE.Color(0xffffff);
-  const dimFactor = 0.18;
+  const selectedColor = new THREE.Color(0xf5fbff);
+  const dimFactor = 0.32;
 
   function applyHighlight(componentId) {
     const highlight = componentId ? highlightFor(blueprint, componentId) : null;
@@ -327,7 +365,9 @@ export function createBrainScene(container, blueprint, options = {}) {
         if (item.node.id === componentId) {
           const white = selectedColor;
           rgb = [white.r, white.g, white.b];
-        } else if (!highlight.componentIds.has(item.node.id)) {
+        } else if (highlight.componentIds.has(item.node.id)) {
+          rgb = [item.base[0] * 1.05, item.base[1] * 1.05, item.base[2] * 1.05];
+        } else {
           rgb = [item.base[0] * dimFactor, item.base[1] * dimFactor, item.base[2] * dimFactor];
         }
       }
@@ -335,13 +375,25 @@ export function createBrainScene(container, blueprint, options = {}) {
     }
     for (const mesh of nodeMeshes) mesh.instanceColor.needsUpdate = true;
 
-    for (const sprite of blockSprites) {
-      const isSelected = sprite.userData.componentId === componentId;
-      const isRelevant = highlight?.componentIds.has(sprite.userData.componentId) ?? true;
-      sprite.material.color.copy(sprite.userData.baseColor);
-      if (isSelected) sprite.material.color.copy(selectedColor);
-      else if (highlight && !isRelevant) sprite.material.color.multiplyScalar(dimFactor);
-      sprite.material.opacity = highlight ? (isRelevant ? 0.88 : 0.12) : 0.52;
+    for (const shell of blockShells) {
+      const isSelected = shell.userData.componentId === componentId;
+      const isRelevant = highlight?.componentIds.has(shell.userData.componentId) ?? true;
+      shell.material.color.copy(shell.userData.baseColor);
+      if (isSelected) shell.material.color.lerp(selectedColor, 0.55);
+      else if (highlight && !isRelevant) shell.material.color.multiplyScalar(dimFactor);
+      shell.material.opacity = highlight ? (isRelevant ? 0.14 : 0.02) : 0.055;
+    }
+    for (const edgeLine of blockEdges) {
+      const isSelected = edgeLine.userData.componentId === componentId;
+      const isRelevant = highlight?.componentIds.has(edgeLine.userData.componentId) ?? true;
+      edgeLine.material.color.copy(edgeLine.userData.baseColor);
+      if (isSelected) edgeLine.material.color.lerp(selectedColor, 0.7);
+      else if (highlight && !isRelevant) edgeLine.material.color.multiplyScalar(dimFactor);
+      edgeLine.material.opacity = highlight ? (isRelevant ? 0.34 : 0.03) : 0.16;
+    }
+    for (const label of blockLabelSprites) {
+      const isRelevant = highlight?.componentIds.has(label.userData.componentId) ?? true;
+      label.material.opacity = highlight && !isRelevant ? 0.12 : 0.62;
     }
 
     const edgeAttr = edgeGeometry.getAttribute("color");
@@ -349,7 +401,7 @@ export function createBrainScene(container, blueprint, options = {}) {
       let rgb = edgeBaseColors[index];
       if (highlight) {
         if (highlight.connectionIds.has(edge.id)) {
-          rgb = [Math.min(1, rgb[0] * 2.4 + 0.12), Math.min(1, rgb[1] * 2.4 + 0.12), Math.min(1, rgb[2] * 2.4 + 0.12)];
+          rgb = [Math.min(1, rgb[0] * 2.1 + 0.15), Math.min(1, rgb[1] * 2.1 + 0.15), Math.min(1, rgb[2] * 2.1 + 0.15)];
         } else {
           rgb = [rgb[0] * 0.14, rgb[1] * 0.14, rgb[2] * 0.14];
         }
@@ -358,19 +410,20 @@ export function createBrainScene(container, blueprint, options = {}) {
       edgeAttr.setXYZ(index * 2 + 1, rgb[0], rgb[1], rgb[2]);
     });
     edgeAttr.needsUpdate = true;
-    edgeMaterial.opacity = highlight ? 0.85 : 0.52;
+    edgeMaterial.opacity = highlight ? 0.9 : 0.5;
 
     const glowAttr = glowGeometry.getAttribute("color");
     plan.nodes.forEach((node, index) => {
-      let rgb = colorToRgb(node.color);
+      let rgb = glowBaseColors[index];
       if (highlight) {
         if (node.id === componentId) rgb = [1, 1, 1];
-        else if (!highlight.componentIds.has(node.id)) rgb = [rgb[0] * 0.2, rgb[1] * 0.2, rgb[2] * 0.2];
+        else if (highlight.componentIds.has(node.id)) rgb = [rgb[0] * 1.1, rgb[1] * 1.1, rgb[2] * 1.1];
+        else rgb = [rgb[0] * 0.22, rgb[1] * 0.22, rgb[2] * 0.22];
       }
       glowAttr.setXYZ(index, rgb[0], rgb[1], rgb[2]);
     });
     glowAttr.needsUpdate = true;
-    glowMaterial.opacity = highlight ? 0.4 : 0.6;
+    glowMaterial.opacity = highlight ? 0.4 : 0.42;
   }
 
   function positionFromEvent(event) {
@@ -380,55 +433,30 @@ export function createBrainScene(container, blueprint, options = {}) {
     return rect;
   }
 
-  const pickWorldCenter = new THREE.Vector3();
-  const pickWorldEdge = new THREE.Vector3();
-  const pickScreenCenter = new THREE.Vector3();
-  const pickScreenEdge = new THREE.Vector3();
-  const cameraRight = new THREE.Vector3();
-
-  function pickBlock(event, rect) {
-    const screenX = ((pointer.x + 1) * 0.5) * rect.width;
-    const screenY = ((1 - pointer.y) * 0.5) * rect.height;
-    cameraRight.setFromMatrixColumn(camera.matrixWorld, 0);
-    for (const ring of plan.layerRings) {
-      pickWorldCenter.set(ring.position[0], ring.position[1], ring.position[2]);
-      pickWorldEdge.copy(pickWorldCenter).addScaledVector(cameraRight, ring.radius * 0.88);
-      pickScreenCenter.copy(pickWorldCenter).project(camera);
-      pickScreenEdge.copy(pickWorldEdge).project(camera);
-      if (pickScreenCenter.z < -1 || pickScreenCenter.z > 1) continue;
-      const cx = ((pickScreenCenter.x + 1) * 0.5) * rect.width;
-      const cy = ((1 - pickScreenCenter.y) * 0.5) * rect.height;
-      const ex = ((pickScreenEdge.x + 1) * 0.5) * rect.width;
-      const ey = ((1 - pickScreenEdge.y) * 0.5) * rect.height;
-      const radius = Math.hypot(ex - cx, ey - cy);
-      const distance = Math.hypot(screenX - cx, screenY - cy);
-      if (Math.abs(distance - radius) <= Math.max(7, radius * 0.18)) return ring.id;
-    }
-    return null;
-  }
-
   function pick(event) {
-    if (!nodeMeshes.length && !blockSprites.length) return null;
-    const rect = positionFromEvent(event);
+    if (!pickTargets.length) return null;
+    positionFromEvent(event);
     raycaster.setFromCamera(pointer, camera);
     const hits = raycaster.intersectObjects(pickTargets, false);
     if (hits.length) {
       const hit = hits[0];
-      const componentId = hit.object.userData.componentIds?.[hit.instanceId] ?? null;
+      const componentId = hit.object.userData.componentIds?.[hit.instanceId] ?? hit.object.userData.componentId ?? null;
       if (componentId) return componentId;
     }
-    return pickBlock(event, rect);
+    return null;
   }
 
   function focusOn(componentId) {
     const node = plan.nodes.find((item) => item.id === componentId);
-    if (!node) return;
+    const block = plan.blocks.find((item) => item.id === componentId);
+    if (!node && !block) return;
     userInteracted = true;
-    const distance = node.group === "ring"
-      ? overviewDistance * 0.48
-      : Math.max(7, overviewDistance * 0.2);
-    focusTarget.set(node.position[0], node.position[1], node.position[2]);
-    focusPosition.copy(focusTarget).addScaledVector(overviewDirection, distance);
+    const target = node?.position ?? block.position;
+    const extent = block ? Math.hypot(block.size[0], block.size[1], block.size[2]) * 0.5 : Math.max(3, node.scale * 6);
+    const distance = block ? overviewDistance * 0.34 : Math.max(6, overviewDistance * 0.12);
+    const focusDistance = Math.max(extent * 1.4, distance * 0.4);
+    focusTarget.set(target[0], target[1], target[2]);
+    focusPosition.copy(focusTarget).addScaledVector(overviewDirection, Math.max(focusDistance, distance * 0.5));
     focusActive = true;
   }
 
@@ -527,9 +555,12 @@ export function createBrainScene(container, blueprint, options = {}) {
     renderer.domElement.removeEventListener("dblclick", onDoubleClick);
     controls.dispose();
     for (const mesh of nodeMeshes) mesh.geometry.dispose();
-    for (const sprite of blockSprites) sprite.material.dispose();
-    ringTexture.dispose();
+    for (const shell of blockShells) shell.geometry.dispose();
+    for (const edgeLine of blockEdges) edgeLine.geometry.dispose();
+    for (const label of blockLabelSprites) label.material.map?.dispose();
     material.dispose();
+    blockShellMaterial.dispose();
+    blockEdgeMaterial.dispose();
     glowGeometry.dispose();
     glowMaterial.dispose();
     glowTexture.dispose();

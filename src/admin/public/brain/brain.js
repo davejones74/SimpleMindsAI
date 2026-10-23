@@ -258,6 +258,24 @@ function renderInspector(componentId) {
       <h3>Outgoing (${detail.outgoing.length})</h3>
       ${connectionChips(detail.outgoing, "outgoing")}
     </div>
+    ${detail.isContainer ? `
+      <div class="inspector-section">
+        <h3>Contained components (${formatInt(detail.containedComponents)})</h3>
+        <div class="inspector-section">
+          <h3>Connections into block (${detail.interfaceIncoming.length})</h3>
+          ${connectionChips(detail.interfaceIncoming, "incoming")}
+        </div>
+        <div class="inspector-section">
+          <h3>Connections out of block (${detail.interfaceOutgoing.length})</h3>
+          ${connectionChips(detail.interfaceOutgoing, "outgoing")}
+        </div>
+        <div class="inspector-section">
+          <h3>Connections within block (${detail.internal.length})</h3>
+          ${connectionChips(detail.internal, "internal")}
+        </div>
+      </div>
+      <p class="small muted">A container reports its children's graph relationships separately: "into/out of block" are edges crossing the container boundary, "within block" are edges between contained components.</p>
+    ` : ""}
     ${detail.labels.inferredConnections ? `<p class="small muted">${detail.labels.inferredConnections} connection(s) are inferred rather than explicit module edges.</p>` : ""}
   `;
 }

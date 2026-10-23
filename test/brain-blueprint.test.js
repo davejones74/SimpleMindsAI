@@ -199,8 +199,9 @@ test("a synthetic 36-layer 3B-scale blueprint stays bounded", () => {
   assert.equal(plan.counts.nodes, plan.counts.totalNodes);
   assert.equal(plan.counts.edges, plan.counts.totalEdges);
   assert.ok(plan.bounds.radius > 50);
-  const blockRows = new Set(plan.nodes.filter((node) => node.type === "transformer_block").map((node) => node.position[1]));
+  const blockRows = new Set(plan.blocks.filter((block) => block.blockIndex != null).map((block) => block.position[1]));
   assert.ok(blockRows.size > 1, "a long model should fold into multiple rows");
+  assert.ok(plan.blocks.every((block) => block.size[0] > 0 && block.size[1] > 0 && block.size[2] > 0));
   assert.equal(validateBlueprint(blueprint).ok, true);
 });
 
@@ -263,6 +264,38 @@ test("selecting a block highlights its children and crossing edges", () => {
   assert.ok(highlight.connectionIds.has("c.0.norm"));
   assert.ok(highlight.connectionIds.has("c.0.downres"));
   assert.equal(highlightFor(blueprint, "missing").componentIds.size, 0);
+});
+
+test("containers report boundary and internal connections rather than zero", () => {
+  const blueprint = syntheticBlueprint(2);
+
+  const block = describeSelection(blueprint, "model.layers.0");
+  assert.equal(block.isContainer, true);
+  assert.ok(block.containedComponents > 0);
+  assert.equal(block.incoming.length, 0, "the block itself has no directly attached edges");
+  assert.equal(block.outgoing.length, 0);
+  assert.ok(block.internal.length > 0, "a block has internal connections between its children");
+  assert.ok(block.interfaceIncoming.length > 0, "a block has boundary incoming connections");
+  assert.ok(block.interfaceOutgoing.length > 0, "a block has boundary outgoing connections");
+  assert.ok(block.internal.every((edge) => edge.otherId !== "model.layers.0"));
+
+  const mlp = describeSelection(blueprint, "model.layers.0.mlp");
+  assert.equal(mlp.isContainer, true);
+  assert.ok(mlp.internal.length > 0, "the MLP has child-to-child edges (gate->act, up->mul, ...)");
+  assert.ok(mlp.interfaceIncoming.length > 0);
+  assert.ok(mlp.interfaceOutgoing.length > 0);
+
+  const attn = describeSelection(blueprint, "model.layers.0.attn");
+  assert.equal(attn.isContainer, true);
+  assert.ok(attn.incoming.length > 0, "the attention core has direct incoming projections");
+  assert.ok(attn.outgoing.length > 0, "the attention core has a direct outgoing projection");
+
+  const leaf = describeSelection(blueprint, "model.layers.0.attn.q_proj");
+  assert.equal(leaf.isContainer, false);
+  assert.equal(leaf.internal.length, 0);
+  assert.equal(leaf.containedComponents, 0);
+  assert.ok(leaf.incoming.length > 0);
+  assert.ok(leaf.outgoing.length > 0);
 });
 
 test("tied and unverified metadata is surfaced, not hidden", () => {
