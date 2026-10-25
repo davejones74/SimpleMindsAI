@@ -57,7 +57,7 @@ function tinyBlueprint() {
   };
 }
 
-async function harness(blueprintPath) {
+async function harness(blueprintPath, { supervisor = null } = {}) {
   const root = tmp();
   const store = await ArticleStore.open(root);
   const registry = await RegistryStore.open(tmp());
@@ -74,6 +74,7 @@ async function harness(blueprintPath) {
     changeFeed,
     pythonStorePath: path.join(tmp(), "empty-store"),
     blueprintPath,
+    supervisor,
     logger: { log() {} },
   });
   const server = app.listen(0);
@@ -90,6 +91,43 @@ async function harness(blueprintPath) {
     },
   };
 }
+
+test("live telemetry is unavailable without a supervisor and is a bounded snapshot with one", async () => {
+  const without = await harness(path.join(tmp(), "missing.json"));
+  try {
+    const response = await fetch(`${without.base}/api/admin/training/telemetry`);
+    assert.equal(response.status, 503);
+    assert.match((await response.json()).error, /supervisor/);
+  } finally {
+    await without.close();
+  }
+
+  const snapshot = {
+    schema: "sma/training-telemetry@1",
+    available: true,
+    status: "running",
+    jobId: "job-1",
+    sessionId: "run-1",
+    step: 4,
+    totalSteps: 20,
+    trainLoss: 1.9,
+    history: { training: [{ step: 4, loss: 1.9 }], evaluation: [] },
+  };
+  const withSupervisor = await harness(path.join(tmp(), "missing.json"), {
+    supervisor: { telemetrySnapshot: () => snapshot },
+  });
+  try {
+    const response = await fetch(`${withSupervisor.base}/api/admin/training/telemetry`);
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.schema, "sma/training-telemetry@1");
+    assert.equal(body.jobId, "job-1");
+    assert.equal(body.history.training.length, 1);
+    assert.ok(Number.isInteger(body.changeSeq), "the snapshot carries the SSE resume point");
+  } finally {
+    await withSupervisor.close();
+  }
+});
 
 test("blueprint endpoint reports a missing export without inventing one", async () => {
   const blueprintPath = path.join(tmp(), "missing.json");

@@ -31,3 +31,17 @@ test("subprocess contract: non-JSON stdout rejects", async () => {
 test("subprocess contract: timeout rejects", async () => {
   await assert.rejects(runJsonProcess({ bin, args: [FAKE, "sleep"], timeoutMs: 250 }), /timed out after 250ms/);
 });
+
+test("subprocess contract: stderr lines are forwarded without breaking stdout parsing", async () => {
+  const lines = [];
+  const out = await runJsonProcess({
+    bin,
+    args: [FAKE, "telemetry"],
+    onStderrLine: (line) => lines.push(line),
+  });
+  assert.equal(out.ok, true);
+  assert.equal(out.verb, "telemetry");
+  assert.ok(lines.includes("[sma] ordinary log"));
+  assert.ok(lines.some((line) => line.includes('"seq":1')));
+  assert.ok(lines.some((line) => line.includes('"seq":2')), "a split stderr chunk is reassembled into one line");
+});

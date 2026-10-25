@@ -48,6 +48,23 @@ def _emit(payload: Dict[str, Any]) -> None:
     sys.stdout.flush()
 
 
+TELEMETRY_SCHEMA = "sma/training-telemetry@1"
+TELEMETRY_PREFIX = "__SMA_TELEMETRY__ "
+
+
+def _emit_telemetry_line(payload: Dict[str, Any]) -> None:
+    """Optional observational telemetry on stderr.
+
+    stdout is reserved for the one final JSON object. A telemetry formatting or
+    write failure must never fail the training run, so this stays best-effort.
+    """
+    try:
+        line = json.dumps(payload, separators=(",", ":"), allow_nan=False, default=str)
+        print(f"{TELEMETRY_PREFIX}{line}", file=sys.stderr, flush=True)
+    except Exception:
+        pass
+
+
 # --------------------------------------------------------------------- init
 
 
@@ -376,6 +393,32 @@ def _cmd_train_locked(args: argparse.Namespace, root: Path, version: str, node_r
         + (f" node-run {node_run_id}" if node_run_id else "")
     )
 
+    telemetry_seq = {"value": 0}
+    telemetry_session = str(node_run_id or version)
+    try:
+        telemetry_interval_ms = int(os.environ.get("SMA_TELEMETRY_INTERVAL_MS", "1000"))
+    except ValueError:
+        telemetry_interval_ms = 1000
+    layer_activity_enabled = os.environ.get("SMA_LAYER_ACTIVITY", "").lower() in {"1", "true", "yes", "on"}
+    try:
+        layer_activity_interval_ms = int(os.environ.get("SMA_LAYER_ACTIVITY_INTERVAL_MS", "2000"))
+    except ValueError:
+        layer_activity_interval_ms = 2000
+
+    def emit_telemetry(event: Dict[str, Any]) -> None:
+        """Add session identity/sequence once, then hand off to the root writer."""
+        telemetry_seq["value"] += 1
+        payload = {
+            "schema": TELEMETRY_SCHEMA,
+            "sessionId": telemetry_session,
+            "version": version,
+            "parentVersion": parent,
+            "seq": telemetry_seq["value"],
+            "at": int(time.time() * 1000),
+            **event,
+        }
+        _emit_telemetry_line(payload)
+
     # Our own checkpoint on local disk. The audit allows a filesystem path and
     # forbids a Hub id, which is exactly this case.
     os.environ["HF_HUB_OFFLINE"] = "1"
@@ -465,11 +508,16 @@ def _cmd_train_locked(args: argparse.Namespace, root: Path, version: str, node_r
             resume=resume_state,
             optimizer_state=optimizer_state,
             log=_log,
+            telemetry=emit_telemetry,
+            telemetry_interval_ms=telemetry_interval_ms,
+            layer_activity_enabled=layer_activity_enabled,
+            layer_activity_interval_ms=layer_activity_interval_ms,
         )
     except train_mod.NumericalFailure as exc:
         # Invariant 9: a failed run must never become the active brain. Nothing has
         # been written yet, so there is nothing to roll back.
         _log(f"GUARD TRIPPED, nothing published: {exc}")
+        emit_telemetry({"type": "failed", "kind": "numerical_failure", "error": str(exc)})
         return {
             "ok": False,
             "verb": "train",
@@ -483,6 +531,7 @@ def _cmd_train_locked(args: argparse.Namespace, root: Path, version: str, node_r
         # operator condition, not a training fault: nothing has been written, so
         # a continuous job can wait for more material rather than fail a run.
         _log(f"INSUFFICIENT CORPUS, nothing published: {exc}")
+        emit_telemetry({"type": "failed", "kind": "insufficient_corpus", "error": str(exc)})
         return {
             "ok": False,
             "verb": "train",
@@ -591,6 +640,25 @@ def _cmd_train_locked(args: argparse.Namespace, root: Path, version: str, node_r
         resume_blob = runs_dir / f"{version}.train-state.pt"
         train_mod.save_train_state(resume_blob, train_state, optimizer)
         _log(f"committed {version} (resume state -> {resume_blob.name})")
+
+    # A checkpoint exists only after the candidate artifacts were written. This
+    # is the same boundary the lifecycle uses; it is an acknowledgement, not a
+    # claim about training quality or promotion.
+    emit_telemetry({
+        "type": "checkpoint",
+        "step": result.steps,
+        "staged": stage_only,
+        "version": version,
+    })
+    emit_telemetry({
+        "type": "completed",
+        "step": result.steps,
+        "totalSteps": cfg.steps,
+        "tokensSeen": result.tokensSeen,
+        "finalTrainLoss": result.finalTrainLoss,
+        "finalValidationLoss": result.finalValidationLoss,
+        "elapsedMs": result.wallSeconds * 1000,
+    })
 
     return {
         "ok": True,

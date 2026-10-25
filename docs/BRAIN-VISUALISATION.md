@@ -1,4 +1,4 @@
-# Brain visualisation (Phase 1.4)
+# Brain visualisation (Phase 1.5)
 
 A read-only, explicitly invoked exporter turns the **active** SimpleMindsAI
 checkpoint into a versioned structural blueprint. A standalone Three.js page at
@@ -9,11 +9,17 @@ The synaptic web is the primary visual language. The real transformer
 architecture remains embedded in it: structural nodes, tensor metadata and
 actual computational connections stay inspectable in **Architecture** mode.
 
-Phase 1.4 refines the art direction without changing the blueprint or the
-two-mode design: the layout is now a coherent ellipsoidal volume, structural
-nodes use a glass/metal/matte material hierarchy, lighting has cool key and
+Phase 1.4 refined the art direction without changing the blueprint or the
+two-mode design: the layout is a coherent ellipsoidal volume, structural nodes
+use a glass/metal/matte material hierarchy, lighting has cool key and
 violet/cyan accents, and the illustrative filaments are finer, tapered and
 depth-faded.
+
+Phase 1.5 adds bounded, observational live training telemetry. Python emits
+step-level aggregates over its existing stderr pipe; the server keeps a small
+in-process snapshot and publishes it on the existing SSE feed; the brain page
+shows a live dashboard and a rolling loss chart. No weights, activations or
+per-parameter events are collected.
 
 The visualiser is optional. It is not part of the perpetual-learning service,
 does not run in the background, and never loads model weights.
@@ -28,8 +34,13 @@ does not run in the background, and never loads model weights.
   using a temporary file plus atomic `os.replace`.
 - **No model is constructed and no tensor data is read.** No torch model, no
   GPU allocation, no hooks, no training loop, no new Python dependency.
-- **The visualiser has no live telemetry.** There are no activations, gradients,
-  weight deltas, or training-progress claims in the scene or inspector.
+- **Telemetry is observational and bounded.** The training loop publishes a
+  configured-interval snapshot of metrics it already computes (loss, learning
+  rate, tokens, step timing). It never reads activations, gradients, weights or
+  individual parameters, and no per-parameter browser objects exist.
+- **Training is unaffected by the observer.** Publication uses the existing
+  child-process stderr pipe; telemetry failures are swallowed, history is
+  capped, and a disconnected browser cannot pause or alter training.
 
 ## Two modes, two visual categories
 
@@ -53,6 +64,84 @@ The categories never mix in the authoritative data:
 - The on-screen legend states this distinction, and Brain mode explicitly says
   that filaments and ambient particles are artistic atmosphere, not weights,
   activations, learned signals or information flow.
+
+## Live training telemetry (Phase 1.5)
+
+The live panel has a separate, versioned contract: `sma/training-telemetry@1`.
+It is observational, not a training input.
+
+| Aspect | Implementation |
+|---|---|
+| Source | `python/sma/train.py` at natural step/evaluation boundaries. Values are already computed for the durable training history. |
+| Transport | One structured JSON line per interval on the existing child-process **stderr** pipe. stdout remains the single final JSON object. |
+| Events | `started`, `snapshot`, `evaluation`, `checkpoint`, `completed`, `failed`, plus job lifecycle status. |
+| Sampling | Default one snapshot per second (`TRAIN_TELEMETRY_INTERVAL_MS`), clamped to 250 ms minimum. Evaluation events occur only when evaluation actually runs. |
+| Server state | A bounded in-process snapshot and history (`TRAIN_TELEMETRY_HISTORY_POINTS`, default 600). Publication to SSE is coalesced (`TRAIN_TELEMETRY_PUBLISH_MS`, default 1000). |
+| Reconnect | `GET /api/admin/training/telemetry` returns the authoritative snapshot plus the SSE resume sequence. The browser re-reads it on `hello`/`resync`. |
+| Auth | The endpoint and SSE feed sit behind the existing admin auth gate. No token is placed in a URL or telemetry payload. |
+| Staleness | The snapshot carries `receivedAt`, `staleAfterMs` and `ageMs`; the UI distinguishes live, stale, disconnected, completed and unavailable states. |
+| Stale sessions | Out-of-order sequences and events from an old session are ignored. Only an explicit `started` begins a new session and resets history. |
+
+Metrics collected: training loss, learning rate, step and total steps, tokens
+seen, step duration, steps/second, elapsed run time, evaluation loss when
+measured, checkpoint creation and final run state. All values that are missing
+are reported as unavailable (`null` / "not measured"); no estimate is presented
+as a measurement.
+
+A controlled six-step CPU microbenchmark (tiny model, iterations alternated)
+measured a 3.259 s median without telemetry and 3.218 s with telemetry enabled.
+The difference is smaller than run-to-run noise, so no measurable training
+regression was observed; this is not a production GPU benchmark.
+
+The chart keeps only the current live session and distinguishes training loss
+from evaluation points. A new session starts a new chart; completed-run history
+remains in the Observatory's Trends & Metrics view. Training and evaluation
+loss are never joined into a fabricated continuous line.
+
+### Layer activity prototype (Phase 1.6)
+
+The optional layer measurement is **per-transformer-block gradient RMS**:
+
+```
+rms_block = sqrt(mean(g^2))
+```
+
+over every parameter-gradient element in `model.layers.N`, after `backward()`
+and **before gradient clipping**. It is read from gradients the training pass
+already produced; no hooks, activations, full tensors or extra model are
+created. Per-tensor reductions stay on the device and only one scalar per block
+is copied to the host per sample.
+
+Controls:
+
+- `TRAIN_LAYER_ACTIVITY=false` (default) disables measurement entirely.
+- `TRAIN_LAYER_ACTIVITY_INTERVAL_MS=2000` sets the sample interval.
+- The live panel's **Layer overlay** toggle is independently off by default.
+- Missing/non-finite values remain `null`; no layer is marked active by a
+  global training-step event.
+- Display intensity is normalised only for colour (robust p90 reference); the
+  telemetry payload keeps the raw RMS and element count.
+
+The overlay is one batched `Points` object with one point per existing layer
+region, not a per-layer sprite/timer. The Phase 1.5 acknowledgement pool remains
+four sprites.
+
+A three-condition CPU microbenchmark (tiny model, 10 steps, 3 repetitions,
+worst-case 500 ms layer sampling) measured median wall time: baseline 5.044 s,
+Phase 1.5 telemetry 5.113 s, layer measurement 5.094 s. The layer condition was
+inside run-to-run noise; p95 step time was 0.517 s / 0.528 s / 0.521 s. The
+8-layer payload was 897 bytes at its worst sample; a 36-layer payload is about
+2.9 KB. This is not a production GPU benchmark. The feature therefore remains
+**off by default** until a GPU budget is measured on target hardware.
+
+Live activity effects are a separate renderer layer with a **fixed pool of four**
+transient sprites. A genuine new step produces a restrained cyan acknowledgement
+at a dedicated status anchor; a genuine checkpoint produces a distinct amber
+acknowledgement. Activity can be switched off in the panel without disabling
+telemetry or training. It never highlights a layer, because no layer-level
+measurement exists. Adding that honestly would require per-layer activation
+collection, aggregation and validation within an explicit performance budget;
+it is deliberately deferred.
 
 ## Export
 
@@ -124,7 +213,7 @@ The complete export has this shape. Array contents are abbreviated here.
     "activeVersion": "v061",
     "artifactName": "simpleminds-62m-20260925-2664db44513d",
     "weightFingerprint": "2664db44513d",
-    "configSha256": "…",
+    "configSha256": "â€¦",
     "manifestSchema": "sma/init-manifest@1",
     "committedAt": "2026-10-14T18:40:54Z",
     "weightsInspected": "safetensors-header",
@@ -279,12 +368,12 @@ The fields deliberately answer different questions:
 - `tiedAliases`: entries such as `lm_head.weight` that share storage with the
   embedding and are **not** counted twice.
 - `verification.status`:
-  - `verified` — manifest tensor shapes, config structure and safetensors
+  - `verified` â€” manifest tensor shapes, config structure and safetensors
     headers agree; the header is independent evidence of the persisted tensor
     set.
-  - `unverified` — exact as recorded by the manifest, but no safetensors header
+  - `unverified` â€” exact as recorded by the manifest, but no safetensors header
     was available to independently confirm the checkpoint structure.
-  - `mismatch` — at least one structural check failed; discrepancies are
+  - `mismatch` â€” at least one structural check failed; discrepancies are
     reported.
 - `verification.checks` lists every comparison and its basis. Agreement between
   config and manifest alone is not reported as independent verification.
@@ -360,6 +449,9 @@ Performance is independent of parameter count:
   Omitted geometry is reported, never silently invented.
 - Background dust is a fixed budget. Fog, additive glow and soft halos replace
   expensive post-processing; no bloom pass is required.
+- Live telemetry costs one short stderr line per configured interval, one
+  bounded server history and at most one coalesced SSE publication per interval.
+  It creates no browser object per parameter or tensor.
 - Render plans are deterministic for the same blueprint (seeded from stable
   ids, version and counts). Rebuilding the page does not reshuffle the scene.
 - Camera fitting projects the actual blueprint bounds, then derives near and
@@ -378,9 +470,9 @@ load the real 3B model.
 | Concern | Status |
 |---|---|
 | Training algorithms / optimisers / loss | untouched |
-| Training loop / hooks | untouched |
+| Training loop / hooks | observational telemetry callback only; no gradient, optimizer, RNG or decision changes |
 | GPU allocation / model loading | none |
-| WebSockets / live telemetry | none |
+| WebSockets / new services | none; live telemetry uses the existing HTTP API + SSE change feed |
 | Background workers / services | none |
 | Model selection / promotion | untouched |
 | Store artifacts / manifests / registry | read-only |
@@ -395,14 +487,14 @@ camera.
 
 Phase 1.3 baseline:
 
-- [Brain mode](screenshots/brain-mode.png) — earlier horseshoe composition.
-- [Architecture mode](screenshots/architecture-mode.png) — earlier blueprint view.
+- [Brain mode](screenshots/brain-mode.png) â€” earlier horseshoe composition.
+- [Architecture mode](screenshots/architecture-mode.png) â€” earlier blueprint view.
 
 Phase 1.4 refinement:
 
-- [Brain mode](screenshots/phase-1.4-brain.png) — cohesive ellipsoidal synaptic
+- [Brain mode](screenshots/phase-1.4-brain.png) â€” cohesive ellipsoidal synaptic
   volume with glass/metal/matte nodes and refined lighting.
-- [Architecture mode](screenshots/phase-1.4-architecture.png) — same precise
+- [Architecture mode](screenshots/phase-1.4-architecture.png) â€” same precise
   blueprint view with the refined spatial layout.
 
 The synthetic 36-layer, ~3.075B-parameter fixture was also rendered in both
@@ -425,4 +517,6 @@ the software-rendered FPS.
 | `blueprint failed schema validation` | Corrupt/edited export | Re-run the exporter |
 | Scene squeezed into a narrow central strip | The portal's global `main` max-width/margins leaked into the standalone page | The visualiser overrides `main.brain-stage` with full width, no max-width, and zero margins |
 | Blank scene / WebGL error | Browser or GPU WebGL unavailable | Use a WebGL-capable browser; the blueprint remains valid |
+| Live panel says stale | No telemetry snapshot arrived within `TRAIN_TELEMETRY_STALE_MS` | Check that training is still running and its step interval is not longer than the stale window |
+| Live panel says reconnecting | SSE is disconnected or auth expired | The page re-reads the snapshot on reconnect; re-authenticate via the admin sign-in if needed |
 | Cannot find a component in Brain mode | The decorative web is dense at the overview scale | Select the layer region, use the inspector connection chips, or switch to Architecture mode |

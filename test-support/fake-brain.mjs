@@ -22,6 +22,15 @@ switch (verb) {
   case "sleep":
     setTimeout(() => emit({ ok: true, verb: "sleep" }), 5000);
     break;
+  case "telemetry":
+    process.stderr.write("[sma] ordinary log\n");
+    process.stderr.write('__SMA_TELEMETRY__ {"schema":"sma/training-telemetry@1","type":"snapshot","seq":1,"step":3,"loss":1.25}\n');
+    process.stderr.write('__SMA_TELEMETRY__ {"schema":"sma/training-telemetry@1","type":"snapshot","seq":2,');
+    setTimeout(() => {
+      process.stderr.write('"step":4,"loss":1.2}\n');
+      emit({ ok: true, verb: "telemetry" });
+    }, 10);
+    break;
   default:
     emit({ ok: true, verb: verb ?? null });
 }

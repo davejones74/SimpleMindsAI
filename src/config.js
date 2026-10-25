@@ -436,6 +436,23 @@ export const config = {
   trainTimeoutMs: num("TRAIN_TIMEOUT_MS", 60 * 60 * 1000),
   initConfig: env("INIT_CONFIG", "small"), // sma.brain init --config
 
+  // ---- Live training telemetry (observational only) ----
+  // Python emits at most one aggregated snapshot per interval over its existing
+  // stderr pipe. The server keeps a bounded in-process history and coalesces
+  // SSE publication. These knobs change presentation cost, never optimization.
+  telemetry: {
+    intervalMs: num("TRAIN_TELEMETRY_INTERVAL_MS", 1000),
+    publishIntervalMs: num("TRAIN_TELEMETRY_PUBLISH_MS", 1000),
+    staleAfterMs: num("TRAIN_TELEMETRY_STALE_MS", 5000),
+    historyPoints: num("TRAIN_TELEMETRY_HISTORY_POINTS", 600),
+    // Optional Phase 1.6 prototype. Off by default until the performance gate
+    // has been reviewed; it aggregates gradient RMS per decoder block.
+    layerActivity: {
+      enabled: bool("TRAIN_LAYER_ACTIVITY", false),
+      intervalMs: num("TRAIN_LAYER_ACTIVITY_INTERVAL_MS", 2000),
+    },
+  },
+
   // ---- Harvest / crawl ----
   // CRAWL_MODE=real fetches the persistent frontier (bounded, robots-aware),
   // seeded from CRAWL_URLS and expanded by the discovery adapters below.

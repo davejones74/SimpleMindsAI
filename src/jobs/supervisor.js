@@ -10,6 +10,7 @@ import { ReviewScorer } from "../reward/reward-scorer.js";
 import { config } from "../config.js";
 import { abortError, isAbort } from "./cancel.js";
 import { ACQUISITION_STATE, backoffDeadline } from "../discovery/acquisition-state.js";
+import { TrainingTelemetry } from "../telemetry/training-telemetry.js";
 
 export class JobConflictError extends Error {
   constructor(message) {
@@ -103,6 +104,7 @@ export class JobSupervisor {
     trainingDeps = {},
     learningDeps = {},
     clock = () => Date.now(),
+    telemetry = null,
   } = {}) {
     this.store = store;
     this.registry = registry;
@@ -118,10 +120,17 @@ export class JobSupervisor {
     this.discovery = discovery;
     this.domainRegistry = domainRegistry;
     this.runPython = runPythonFn;
-    this.trainerFactory = trainerFactory ?? ((signal) => selectTrainer({ signal }));
+    this.trainerFactory = trainerFactory ?? ((signal, extra = {}) => selectTrainer({ signal, ...extra }));
     this.trainingDeps = trainingDeps;
     this.learningDeps = learningDeps;
     this.clock = clock;
+    this.telemetry = telemetry ?? new TrainingTelemetry({
+      emit: (snapshot) => this.changeFeed?.emit("training.telemetry", snapshot),
+      now: clock,
+      maxPoints: config.telemetry.historyPoints,
+      publishIntervalMs: config.telemetry.publishIntervalMs,
+      staleAfterMs: Math.max(config.telemetry.staleAfterMs, config.telemetry.intervalMs * 2),
+    });
 
     this.jobStore = null;
     this.controls = new Map(); // jobId -> { controller, shouldStop, shouldPause, promise }
@@ -145,6 +154,11 @@ export class JobSupervisor {
 
   getLog(jobId, opts) {
     return this.jobStore ? this.jobStore.getLog(jobId, opts) : [];
+  }
+
+  /** Authoritative reconnect snapshot for live training telemetry. */
+  telemetrySnapshot() {
+    return this.telemetry.snapshot();
   }
 
   activeJobOfKind(kind) {
@@ -337,6 +351,9 @@ export class JobSupervisor {
       throw new JobConflictError(`a ${kind} job is already active (${existing.jobId}, ${existing.status})`);
     }
     const job = await this.jobStore.createJob({ kind, title: KIND_TITLES[kind] ?? kind, mode, params });
+    if (kind === "training") {
+      this.telemetry.beginJob({ jobId: job.jobId, mode, at: this.clock() });
+    }
     const controller = new AbortController();
     const control = { controller, shouldStop: false, shouldPause: false, networkPaused: false, promise: null };
     this.controls.set(job.jobId, control);
@@ -755,7 +772,9 @@ export class JobSupervisor {
         out = await runTrainingOnce({
           ...base,
           ...this.trainingDeps,
-          trainer: this.trainerFactory(base.signal),
+          trainer: this.trainerFactory(base.signal, {
+            onTelemetry: (event) => this.telemetry.ingest(event, { jobId, now: this.clock() }),
+          }),
           parentVersion: params.parentVersion,
           minEligible,
           logger: this.#jobLogger(jobId),
@@ -1000,6 +1019,16 @@ export class JobSupervisor {
     // the dashboard reflects acquisition/recovery waits without waiting for the
     // next poll. Consumers debounce the resulting refresh.
     if (payload?.status) {
+      const job = this.getJob(jobId);
+      if (job?.kind === "training") {
+        this.telemetry.noteJob({
+          jobId,
+          status: payload.status,
+          phase: payload.phase ?? null,
+          note: payload.note ?? null,
+          at: this.clock(),
+        });
+      }
       this.changeFeed?.emit("job.status", {
         jobId,
         status: payload.status,
@@ -1174,6 +1203,7 @@ export class JobSupervisor {
   }
 
   async close() {
+    this.telemetry.dispose();
     if (this.jobStore) await this.jobStore.close();
   }
 }

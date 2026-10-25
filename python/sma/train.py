@@ -24,7 +24,9 @@ diverges.
 from __future__ import annotations
 
 import contextlib
+import math
 import random
+import re
 import time
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
@@ -36,6 +38,92 @@ import torch
 from . import data as data_mod
 
 SCHEMA = "sma/train-state@1"
+LAYER_PARAMETER_RE = re.compile(r"^model\.layers\.(\d+)\.")
+
+
+def layer_parameter_groups(model: torch.nn.Module) -> Dict[int, List[torch.nn.Parameter]]:
+    """Reference parameters grouped by decoder block.
+
+    This stores parameter references only (already owned by the model); it never
+    copies weights, gradients or activations.
+    """
+    groups: Dict[int, List[torch.nn.Parameter]] = {}
+    for name, parameter in model.named_parameters():
+        match = LAYER_PARAMETER_RE.match(name)
+        if match:
+            groups.setdefault(int(match.group(1)), []).append(parameter)
+    return groups
+
+
+def summarize_layer_gradient_rms(
+    groups: Dict[int, List[torch.nn.Parameter]],
+    *,
+    step: Optional[int] = None,
+    phase: str = "pre-clip",
+) -> Optional[Dict[str, Any]]:
+    """Aggregate gradient RMS per decoder block, with one host synchronisation.
+
+    For each block:
+
+        rms = sqrt(mean(g^2))
+
+    over every gradient element in that block, measured after backward and
+    BEFORE gradient clipping. `g` is the gradient already produced by the
+    normal training pass; nothing is captured, retained or modified. The
+    per-tensor reductions remain on the device and only the final one-scalar-
+    per-layer vector is copied to the host, once per sample.
+
+    This is a training-gradient magnitude, not an activation, attention map,
+    neuron activity or signal pathway.
+    """
+    if not groups:
+        return None
+    entries: List[Dict[str, Any]] = []
+    scalars: List[Optional[torch.Tensor]] = []
+    with torch.no_grad():
+        for index in sorted(groups):
+            total_sq = None
+            elements = 0
+            for parameter in groups[index]:
+                gradient = parameter.grad
+                if gradient is None:
+                    continue
+                elements += int(gradient.numel())
+                norm_sq = torch.linalg.vector_norm(gradient.detach().float()) ** 2
+                total_sq = norm_sq if total_sq is None else total_sq + norm_sq
+            if total_sq is None or elements == 0:
+                scalars.append(None)
+                entries.append({
+                    "index": index,
+                    "componentId": f"model.layers.{index}",
+                    "rms": None,
+                    "elements": 0,
+                })
+            else:
+                scalars.append(torch.sqrt(total_sq / elements))
+                entries.append({
+                    "index": index,
+                    "componentId": f"model.layers.{index}",
+                    "rms": None,
+                    "elements": elements,
+                })
+        present = [value for value in scalars if value is not None]
+        if present:
+            values = torch.stack(present).detach().cpu().tolist()
+            cursor = 0
+            for entry, scalar in zip(entries, scalars):
+                if scalar is None:
+                    continue
+                value = float(values[cursor])
+                cursor += 1
+                entry["rms"] = value if math.isfinite(value) else None
+    return {
+        "measure": "gradientRms",
+        "phase": phase,
+        "aggregation": "per-transformer-block",
+        "step": step,
+        "layers": entries,
+    }
 
 
 class NumericalFailure(RuntimeError):
@@ -423,17 +511,41 @@ def train(
     resume: Optional[Dict[str, Any]] = None,
     optimizer_state: Optional[Dict[str, Any]] = None,
     log=lambda _msg: None,
+    telemetry=lambda _event: None,
+    telemetry_interval_ms: int = 1000,
+    layer_activity_enabled: bool = False,
+    layer_activity_interval_ms: int = 2000,
 ) -> tuple[TrainResult, Dict[str, Any], "torch.optim.Optimizer"]:
     """Run real optimization.
 
     Returns the result, the JSON-readable train state, and the optimizer (whose
     moments cannot be JSON, so the caller persists them separately).
 
+    `telemetry` is observational only: it receives a bounded snapshot at
+    `telemetry_interval_ms` boundaries, plus evaluation/start events. It is
+    called from the main training thread, never from a worker, and every error
+    it raises is swallowed so an observer can never affect the run.
+
     Does not save anything. The caller publishes, so a failure here can never
     leave a half-written checkpoint looking valid.
     """
     cfg.validate()
     started = time.perf_counter()
+    telemetry_interval_s = max(0.25, min(60.0, float(telemetry_interval_ms) / 1000.0))
+    layer_activity_interval_s = max(0.5, min(60.0, float(layer_activity_interval_ms) / 1000.0))
+    last_telemetry_at = 0.0
+    last_layer_activity_at = 0.0
+
+    def emit_telemetry(kind: str, **fields: Any) -> None:
+        """Never let presentation work perturb optimization or its outcome."""
+        try:
+            telemetry({"type": kind, **fields})
+        except Exception:
+            pass
+
+    def finite_or_none(value: Any) -> Optional[float]:
+        number = float(value)
+        return number if np.isfinite(number) else None
 
     random.seed(cfg.seed)
     np.random.seed(cfg.seed)
@@ -486,6 +598,7 @@ def train(
         betas=tuple(cfg.betas),
         eps=cfg.eps,
     )
+    layer_groups = layer_parameter_groups(model) if layer_activity_enabled else {}
 
     if resume is not None:
         # Refuse to resume across a changed corpus or config. Silently continuing
@@ -583,6 +696,24 @@ def train(
         elif validation_history[-1]["step"] < start_step - 1:
             validation_history.append({"step": start_step - 1, "loss": initial_validation_loss})
 
+    emit_telemetry(
+        "started",
+        step=start_step,
+        totalSteps=cfg.steps,
+        learningRate=finite_or_none(learning_rate_at(start_step, cfg)),
+        tokensSeen=tokens_seen,
+        initialTrainLoss=finite_or_none(initial_train_loss),
+        initialValidationLoss=finite_or_none(initial_validation_loss) if initial_validation_loss is not None else None,
+        elapsedMs=round((time.perf_counter() - started) * 1000, 1),
+    )
+    if initial_validation_loss is not None:
+        emit_telemetry(
+            "evaluation",
+            step=start_step,
+            loss=finite_or_none(initial_validation_loss),
+            learningRate=finite_or_none(learning_rate_at(start_step, cfg)),
+        )
+
     model.train()
     consecutive_nonfinite = 0
     spikes = SpikeTracker(
@@ -626,6 +757,34 @@ def train(
                 step_nonfinite = True
             (loss / cfg.gradAccumSteps).backward()
             accumulated += loss_value / cfg.gradAccumSteps
+
+        now_perf = time.perf_counter()
+        snapshot_due = (
+            now_perf - last_telemetry_at >= telemetry_interval_s
+            or step == cfg.steps - 1
+        )
+        layer_activity = None
+        if (
+            layer_activity_enabled
+            and snapshot_due
+            and (
+                now_perf - last_layer_activity_at >= layer_activity_interval_s
+                or step == cfg.steps - 1
+            )
+        ):
+            # Read-only aggregate of gradients that backward already produced.
+            # Deliberately BEFORE clipping, so the published number describes
+            # the raw per-block gradient magnitude for this sampled step. An
+            # optional observer must never be able to fail the training run.
+            try:
+                layer_activity = summarize_layer_gradient_rms(
+                    layer_groups,
+                    step=step + 1,
+                    phase="pre-clip",
+                )
+            except Exception:
+                layer_activity = None
+            last_layer_activity_at = time.perf_counter()
 
         if cfg.gradClip is not None:
             total_norm = float(torch.nn.utils.clip_grad_norm_(model.parameters(), cfg.gradClip))
@@ -689,6 +848,28 @@ def train(
         )
         steps_this_run += 1
 
+        # Bounded observational snapshot. All values below are already computed
+        # for the durable history; this adds no tensor sync and no device copy.
+        if snapshot_due:
+            now_perf = time.perf_counter()
+            elapsed = max(now_perf - started, 1e-9)
+            snapshot_fields = {
+                "step": step + 1,
+                "totalSteps": cfg.steps,
+                "loss": finite_or_none(accumulated),
+                "learningRate": finite_or_none(lr),
+                "gradNorm": finite_or_none(total_norm),
+                "clipped": step_clipped,
+                "tokensSeen": tokens_seen,
+                "stepSeconds": history[-1]["seconds"],
+                "stepsPerSecond": round(steps_this_run / elapsed, 4),
+                "elapsedMs": round(elapsed * 1000, 1),
+            }
+            if layer_activity is not None:
+                snapshot_fields["layerActivity"] = layer_activity
+            emit_telemetry("snapshot", **snapshot_fields)
+            last_telemetry_at = now_perf
+
         # Periodic held-out validation: measured in eval mode, under no_grad,
         # through the same token-weighted mean_cross_entropy path the promotion
         # gate uses, so training and evaluation cannot drift apart. Sampled
@@ -697,6 +878,13 @@ def train(
             periodic_val = evaluate()
             if periodic_val is not None:
                 validation_history.append({"step": step, "loss": periodic_val})
+                emit_telemetry(
+                    "evaluation",
+                    step=step + 1,
+                    loss=finite_or_none(periodic_val),
+                    learningRate=finite_or_none(lr),
+                    tokensSeen=tokens_seen,
+                )
 
     # Derived from an explicit counter rather than the loop variable's final
     # value, which is wrong by one on both the normal and the early-break path.
@@ -706,6 +894,12 @@ def train(
     if not stopped_early and final_validation_loss is not None:
         if not validation_history or validation_history[-1]["step"] != completed - 1:
             validation_history.append({"step": completed - 1, "loss": final_validation_loss})
+        emit_telemetry(
+            "evaluation",
+            step=completed,
+            loss=finite_or_none(final_validation_loss),
+            tokensSeen=tokens_seen,
+        )
 
     result = TrainResult(
         version=new_version,

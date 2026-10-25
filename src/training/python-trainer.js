@@ -1,6 +1,7 @@
 import path from "node:path";
 import { REPO_ROOT, runPython, resolveStoreRoot } from "../brain/python-cli.js";
 import { config } from "../config.js";
+import { parseTelemetryLine } from "../telemetry/training-telemetry.js";
 
 /**
  * The real Trainer: a thin Node adapter over `python -m sma.brain train`.
@@ -142,6 +143,10 @@ export function pythonTrainer({
   run = runPython,
   version = config.pythonTrainerVersion,
   signal = null,
+  onTelemetry = null,
+  telemetryIntervalMs = config.telemetry?.intervalMs ?? 1000,
+  layerActivityEnabled = config.telemetry?.layerActivity?.enabled === true,
+  layerActivityIntervalMs = config.telemetry?.layerActivity?.intervalMs ?? 2000,
 } = {}) {
   const root = storeRoot(store);
   const resolvedDtype = device === "cpu" ? "float32" : computeDtype;
@@ -222,7 +227,27 @@ export function pythonTrainer({
       if (stageOnly) args.push("--stage-only");
 
       const t0 = Date.now();
-      const out = await run(args, { store, bin, timeoutMs, signal });
+      const out = await run(args, {
+        store,
+        bin,
+        timeoutMs,
+        signal,
+        env: {
+          SMA_TELEMETRY_INTERVAL_MS: String(
+            Number.isFinite(Number(telemetryIntervalMs)) ? Math.max(250, Number(telemetryIntervalMs)) : 1000,
+          ),
+          SMA_LAYER_ACTIVITY: layerActivityEnabled ? "1" : "0",
+          SMA_LAYER_ACTIVITY_INTERVAL_MS: String(
+            Number.isFinite(Number(layerActivityIntervalMs)) ? Math.max(500, Number(layerActivityIntervalMs)) : 2000,
+          ),
+        },
+        onStderrLine: typeof onTelemetry === "function"
+          ? (line) => {
+              const event = parseTelemetryLine(line);
+              if (event) onTelemetry(event);
+            }
+          : null,
+      });
       if (!out.ok || (!stageOnly && out.published === false)) {
         const err = new Error(
           `python training did not publish (${out.kind ?? "error"}): ${out.error ?? "unknown"}`,
