@@ -733,6 +733,30 @@ export function attachAdmin({ app, store, registry, governance, chat, conversati
     });
   }));
 
+  /**
+   * Live telemetry is process-local and belongs to the single writable
+   * development workspace. It is an authoritative reconnect snapshot; SSE
+   * carries coalesced deltas. An inspection workspace must never display live
+   * activity from a different store.
+   */
+  router.get("/training/telemetry", (req, res) => {
+    const sup = requireSupervisor(res);
+    if (!sup) return;
+    if (typeof sup.telemetrySnapshot !== "function") {
+      return res.status(503).json({ error: "live training telemetry is not available" });
+    }
+    const snapshot = sup.telemetrySnapshot();
+    if (req.workspace.readOnly) {
+      return ok(res, {
+        ...snapshot,
+        available: false,
+        reason: "live telemetry is only available for the development workspace",
+        changeSeq: changeFeed.currentSeq(),
+      });
+    }
+    return ok(res, { ...snapshot, changeSeq: changeFeed.currentSeq() });
+  });
+
   router.post("/brain/fresh", blockWrites, asyncRoute(async (req, res) => {
     const sup = requireSupervisor(res);
     if (!sup) return;

@@ -111,6 +111,7 @@ export function runJsonProcess({
   cwd = PYTHON_DIR,
   env = {},
   signal = null,
+  onStderrLine = null,
 } = {}) {
   return new Promise((resolve, reject) => {
     if (signal?.aborted) {
@@ -127,6 +128,15 @@ export function runJsonProcess({
 
     let stdout = "";
     let stderr = "";
+    let stderrRemainder = "";
+    const emitStderrLine = (line) => {
+      if (!onStderrLine || !line) return;
+      try {
+        onStderrLine(line);
+      } catch {
+        // A telemetry/log observer must never break the subprocess contract.
+      }
+    };
     let settled = false;
     const settle = (fn, arg) => {
       if (settled) return;
@@ -148,11 +158,27 @@ export function runJsonProcess({
     signal?.addEventListener?.("abort", onAbort, { once: true });
 
     child.stdout.on("data", (d) => { stdout += d; });
-    child.stderr.on("data", (d) => { stderr += d; });
+    child.stderr.on("data", (d) => {
+      const chunk = String(d);
+      stderr += chunk;
+      if (!onStderrLine) return;
+      stderrRemainder += chunk;
+      let newline = stderrRemainder.indexOf("\n");
+      while (newline !== -1) {
+        const line = stderrRemainder.slice(0, newline).replace(/\r$/, "");
+        stderrRemainder = stderrRemainder.slice(newline + 1);
+        emitStderrLine(line);
+        newline = stderrRemainder.indexOf("\n");
+      }
+    });
     child.on("error", (err) => {
       settle(reject, err);
     });
     child.on("close", (code) => {
+      if (onStderrLine && stderrRemainder) {
+        emitStderrLine(stderrRemainder.replace(/\r$/, ""));
+        stderrRemainder = "";
+      }
       if (settled) return;
       if (code !== 0) {
         settle(reject, new Error(`python exited ${code}: ${stderr.trim().slice(-800) || "(no stderr)"}`));
@@ -181,6 +207,7 @@ export function runPython(args, {
   cwd = PYTHON_DIR,
   env = {},
   signal = null,
+  onStderrLine = null,
 } = {}) {
   return runJsonProcess({
     bin,
@@ -189,5 +216,6 @@ export function runPython(args, {
     cwd,
     env: pythonEnv(store, env),
     signal,
+    onStderrLine,
   });
 }

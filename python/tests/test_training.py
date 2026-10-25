@@ -628,3 +628,32 @@ def test_diff_reports_max_delta_for_explainability():
     after = {"w": torch.tensor([0.0, 0.5, -0.25])}
     diff = train_mod.diff_tensors(before, after)
     assert diff["changed"][0]["maxAbsDelta"] == pytest.approx(0.5)
+
+def test_telemetry_is_observational_and_bounded(small_model, tokenizer):
+    """The live dashboard observer cannot change the run and stays interval-bounded."""
+    model, _config, _sizes = small_model
+    events = []
+    result, state, _opt = train_mod.train(
+        model=model.float(),
+        tokenizer=tokenizer,
+        documents=data_mod.load_documents([FIXTURE_CORPUS]),
+        cfg=_cfg(steps=5),
+        parent_version="v001",
+        new_version="v002",
+        tokenizer_path=FIXTURE_CORPUS,
+        device="cpu",
+        telemetry=events.append,
+        telemetry_interval_ms=250,
+    )
+    kinds = [event["type"] for event in events]
+    assert kinds[0] == "started"
+    assert "snapshot" in kinds
+    assert kinds.count("snapshot") <= 5
+    for event in events:
+        assert "type" in event
+        if event["type"] == "snapshot":
+            assert isinstance(event["step"], int)
+            assert event["totalSteps"] == 5
+            assert event["tokensSeen"] >= 0
+    assert result.steps == 5
+    assert state["stepsCompleted"] == 5

@@ -51,6 +51,33 @@
         </div>
       </aside>
 
+      <aside id="livePanel" class="brain-live" aria-label="Live training telemetry">
+        <div class="live-head">
+          <div class="live-title-wrap">
+            <span class="brain-panel-title">Live training</span>
+            <span id="liveStatus" class="live-status unavailable">No telemetry</span>
+          </div>
+          <div class="live-head-actions">
+            <span id="liveConnection" class="live-pill connecting" role="status" aria-live="polite">connecting</span>
+            <button id="activityToggle" class="live-toggle" type="button" aria-pressed="true" title="Toggle data-driven activity indicators">Activity on</button>
+          </div>
+        </div>
+        <div class="live-run">
+          <span id="liveRun">No active training session</span>
+          <span id="liveUpdated">—</span>
+        </div>
+        <div id="liveMetrics" class="live-metrics"></div>
+        <div class="live-chart">
+          <svg id="lossChart" viewBox="0 0 640 150" role="img" aria-label="Rolling training and evaluation loss history"></svg>
+          <div id="lossEmpty" class="live-chart-empty">No loss measurements yet.</div>
+        </div>
+        <div class="live-foot">
+          <span class="live-legend"><i class="line training"></i>Training loss</span>
+          <span class="live-legend"><i class="point eval"></i>Evaluation loss, measured only</span>
+          <a href="/admin#trends">Completed runs in the Observatory</a>
+        </div>
+      </aside>
+
       <div id="warnings" class="brain-warnings hidden" role="status"></div>
       <div id="overlay" class="brain-overlay" role="status" aria-live="polite">
         <div class="overlay-card">

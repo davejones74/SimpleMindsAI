@@ -28,6 +28,7 @@ test("the brain visualiser is a separate page with locally served Three.js modul
   const brain = await readFile(path.join(PUBLIC, "brain", "brain.js"), "utf8");
   const render = await readFile(path.join(PUBLIC, "brain", "render.js"), "utf8");
   const layout = await readFile(path.join(PUBLIC, "brain", "layout.js"), "utf8");
+  const telemetry = await readFile(path.join(PUBLIC, "brain", "telemetry.js"), "utf8");
 
   assert.match(html, /\/admin\/brain\/brain\.js/);
   assert.match(html, /"three":\s*"\/admin\/vendor\/three\/three\.module\.js"/);
@@ -55,11 +56,34 @@ test("the brain visualiser is a separate page with locally served Three.js modul
   assert.ok(!render.includes("EdgesGeometry"), "renderer still creates rectangular wireframes");
   assert.match(layout, /synaptic,/);
   assert.match(layout, /kind:\s*"illustrative"/);
+
+  // Live training panel: telemetry is distinguishable from structure, uses
+  // the existing SSE feed, supports reconnect snapshots, and can be switched
+  // off without disabling training.
+  assert.match(html, /id="livePanel"/);
+  assert.match(html, /id="lossChart"/);
+  assert.match(html, /id="activityToggle"/);
+  assert.match(brain, /telemetryFromSnapshot/);
+  assert.match(brain, /EventSource\(`\$\{ADMIN_API\}\/events/);
+  assert.match(brain, /loadTelemetrySnapshot/);
+  assert.match(brain, /notifyActivity/);
+  assert.match(telemetry, /sma\/training-telemetry@1/);
+  assert.match(telemetry, /TELEMETRY_HISTORY_LIMIT/);
+  assert.ok(!/EventSource\([^)]*token/.test(brain), "tokens must never be placed in an SSE URL");
+  assert.match(render, /ACTIVITY_POOL_SIZE/);
+  assert.match(render, /setActivityEnabled/);
 });
 
 test("the brain renderer module parses and resolves its Three.js imports", async () => {
   const module = await import("../src/admin/public/brain/render.js");
   assert.equal(typeof module.createBrainScene, "function");
+});
+
+test("the browser telemetry reducer is a parseable module", async () => {
+  const module = await import("../src/admin/public/brain/telemetry.js");
+  assert.equal(typeof module.applyTelemetryEvent, "function");
+  assert.equal(typeof module.telemetryFromSnapshot, "function");
+  assert.equal(typeof module.chartModel, "function");
 });
 
 test("portal serves the chat conversation controls", async () => {

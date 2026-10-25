@@ -423,17 +423,37 @@ def train(
     resume: Optional[Dict[str, Any]] = None,
     optimizer_state: Optional[Dict[str, Any]] = None,
     log=lambda _msg: None,
+    telemetry=lambda _event: None,
+    telemetry_interval_ms: int = 1000,
 ) -> tuple[TrainResult, Dict[str, Any], "torch.optim.Optimizer"]:
     """Run real optimization.
 
     Returns the result, the JSON-readable train state, and the optimizer (whose
     moments cannot be JSON, so the caller persists them separately).
 
+    `telemetry` is observational only: it receives a bounded snapshot at
+    `telemetry_interval_ms` boundaries, plus evaluation/start events. It is
+    called from the main training thread, never from a worker, and every error
+    it raises is swallowed so an observer can never affect the run.
+
     Does not save anything. The caller publishes, so a failure here can never
     leave a half-written checkpoint looking valid.
     """
     cfg.validate()
     started = time.perf_counter()
+    telemetry_interval_s = max(0.25, min(60.0, float(telemetry_interval_ms) / 1000.0))
+    last_telemetry_at = 0.0
+
+    def emit_telemetry(kind: str, **fields: Any) -> None:
+        """Never let presentation work perturb optimization or its outcome."""
+        try:
+            telemetry({"type": kind, **fields})
+        except Exception:
+            pass
+
+    def finite_or_none(value: Any) -> Optional[float]:
+        number = float(value)
+        return number if np.isfinite(number) else None
 
     random.seed(cfg.seed)
     np.random.seed(cfg.seed)
@@ -583,6 +603,24 @@ def train(
         elif validation_history[-1]["step"] < start_step - 1:
             validation_history.append({"step": start_step - 1, "loss": initial_validation_loss})
 
+    emit_telemetry(
+        "started",
+        step=start_step,
+        totalSteps=cfg.steps,
+        learningRate=finite_or_none(learning_rate_at(start_step, cfg)),
+        tokensSeen=tokens_seen,
+        initialTrainLoss=finite_or_none(initial_train_loss),
+        initialValidationLoss=finite_or_none(initial_validation_loss) if initial_validation_loss is not None else None,
+        elapsedMs=round((time.perf_counter() - started) * 1000, 1),
+    )
+    if initial_validation_loss is not None:
+        emit_telemetry(
+            "evaluation",
+            step=start_step,
+            loss=finite_or_none(initial_validation_loss),
+            learningRate=finite_or_none(learning_rate_at(start_step, cfg)),
+        )
+
     model.train()
     consecutive_nonfinite = 0
     spikes = SpikeTracker(
@@ -689,6 +727,26 @@ def train(
         )
         steps_this_run += 1
 
+        # Bounded observational snapshot. All values below are already computed
+        # for the durable history; this adds no tensor sync and no device copy.
+        now_perf = time.perf_counter()
+        if now_perf - last_telemetry_at >= telemetry_interval_s or step == cfg.steps - 1:
+            elapsed = max(now_perf - started, 1e-9)
+            emit_telemetry(
+                "snapshot",
+                step=step + 1,
+                totalSteps=cfg.steps,
+                loss=finite_or_none(accumulated),
+                learningRate=finite_or_none(lr),
+                gradNorm=finite_or_none(total_norm),
+                clipped=step_clipped,
+                tokensSeen=tokens_seen,
+                stepSeconds=history[-1]["seconds"],
+                stepsPerSecond=round(steps_this_run / elapsed, 4),
+                elapsedMs=round(elapsed * 1000, 1),
+            )
+            last_telemetry_at = now_perf
+
         # Periodic held-out validation: measured in eval mode, under no_grad,
         # through the same token-weighted mean_cross_entropy path the promotion
         # gate uses, so training and evaluation cannot drift apart. Sampled
@@ -697,6 +755,13 @@ def train(
             periodic_val = evaluate()
             if periodic_val is not None:
                 validation_history.append({"step": step, "loss": periodic_val})
+                emit_telemetry(
+                    "evaluation",
+                    step=step + 1,
+                    loss=finite_or_none(periodic_val),
+                    learningRate=finite_or_none(lr),
+                    tokensSeen=tokens_seen,
+                )
 
     # Derived from an explicit counter rather than the loop variable's final
     # value, which is wrong by one on both the normal and the early-break path.
@@ -706,6 +771,12 @@ def train(
     if not stopped_early and final_validation_loss is not None:
         if not validation_history or validation_history[-1]["step"] != completed - 1:
             validation_history.append({"step": completed - 1, "loss": final_validation_loss})
+        emit_telemetry(
+            "evaluation",
+            step=completed,
+            loss=finite_or_none(final_validation_loss),
+            tokensSeen=tokens_seen,
+        )
 
     result = TrainResult(
         version=new_version,

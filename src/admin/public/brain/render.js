@@ -774,6 +774,103 @@ export function createBrainScene(container, blueprint, options = {}) {
   selectionShell.frustumCulled = false;
   scene.add(selectionShell);
 
+  // ------------------------------------------------------- observed activity
+  // A fixed-size pool of transient acknowledgements. These are deliberately
+  // separate from structural nodes, blueprint edges and the illustrative web:
+  // they acknowledge a real telemetry event and never claim per-layer activity.
+  const activityGroup = new THREE.Group();
+  activityGroup.visible = false;
+  scene.add(activityGroup);
+  const activityAnchor = new THREE.Vector3(
+    plan.bounds.center[0],
+    plan.bounds.center[1] + plan.bounds.radius * 0.92,
+    plan.bounds.center[2],
+  );
+  const ACTIVITY_POOL_SIZE = 4;
+  const activityEffects = [];
+  for (let index = 0; index < ACTIVITY_POOL_SIZE; index += 1) {
+    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: glowTexture,
+      color: 0x67e8f9,
+      transparent: true,
+      opacity: 0,
+      blending: THREE.AdditiveBlending,
+      depthTest: false,
+      depthWrite: false,
+      toneMapped: false,
+      fog: false,
+    }));
+    sprite.position.copy(activityAnchor);
+    sprite.visible = false;
+    sprite.renderOrder = 9;
+    activityGroup.add(sprite);
+    activityEffects.push({ sprite, startedAt: 0, duration: 0, baseScale: 1 });
+  }
+  let activityEnabled = options.activityEnabled !== false;
+  let lastStepAckAt = -Infinity;
+
+  function clearActivity() {
+    for (const effect of activityEffects) {
+      effect.sprite.visible = false;
+      effect.sprite.material.opacity = 0;
+    }
+    activityGroup.visible = false;
+  }
+
+  function setActivityEnabled(enabled) {
+    activityEnabled = enabled === true;
+    if (!activityEnabled) clearActivity();
+    return activityEnabled;
+  }
+
+  /**
+   * Acknowledge one genuine event. `step` is a restrained local status glow;
+   * `checkpoint` is a distinct amber ring-like acknowledgement. No effect is
+   * scheduled by a timer, so an idle brain emits nothing.
+   */
+  function notifyActivity({ kind = "step" } = {}) {
+    if (!activityEnabled || mode !== "brain") return false;
+    const now = performance.now();
+    if (kind === "step" && now - lastStepAckAt < 450) return false;
+    if (kind === "step") lastStepAckAt = now;
+    const checkpoint = kind === "checkpoint";
+    const effect = activityEffects.find((item) => !item.sprite.visible)
+      ?? activityEffects.reduce((oldest, item) => (item.startedAt < oldest.startedAt ? item : oldest), activityEffects[0]);
+    effect.startedAt = now;
+    effect.duration = checkpoint ? 1500 : 900;
+    effect.baseScale = plan.bounds.radius * (checkpoint ? 0.13 : 0.07);
+    effect.peakOpacity = checkpoint ? 0.9 : 0.65;
+    effect.sprite.material.color.set(checkpoint ? 0xfbbf24 : 0x67e8f9);
+    effect.sprite.material.opacity = effect.peakOpacity;
+    effect.sprite.position.copy(activityAnchor);
+    effect.sprite.scale.setScalar(effect.baseScale);
+    effect.sprite.visible = true;
+    activityGroup.visible = true;
+    return true;
+  }
+
+  function updateActivity(now) {
+    if (!activityEnabled || mode !== "brain") {
+      if (activityGroup.visible) clearActivity();
+      return;
+    }
+    let any = false;
+    for (const effect of activityEffects) {
+      if (!effect.sprite.visible) continue;
+      const t = (now - effect.startedAt) / effect.duration;
+      if (t >= 1) {
+        effect.sprite.visible = false;
+        effect.sprite.material.opacity = 0;
+        continue;
+      }
+      any = true;
+      const eased = 1 - (1 - t) * (1 - t);
+      effect.sprite.material.opacity = (1 - t) * (1 - t) * effect.peakOpacity;
+      effect.sprite.scale.setScalar(effect.baseScale * (1 + eased * 1.6));
+    }
+    activityGroup.visible = any;
+  }
+
   // ------------------------------------------------------------ interaction
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
@@ -902,6 +999,7 @@ export function createBrainScene(container, blueprint, options = {}) {
     regionHalo.visible = brain;
     atmosphereGroup.visible = brain;
     architectureGroup.visible = !brain;
+    if (!brain) clearActivity();
     if (regionRingMaterial) regionRingMaterial.opacity = brain ? 0.26 : 0.45;
     applyHighlight(selectedId);
   }
@@ -1086,6 +1184,7 @@ export function createBrainScene(container, blueprint, options = {}) {
       if (camera.position.distanceToSquared(focusPosition) < 0.02) focusActive = false;
     }
     dust.rotation.y += 0.000035;
+    updateActivity(performance.now());
     controls.update();
     renderer.render(scene, camera);
   };
@@ -1103,6 +1202,8 @@ export function createBrainScene(container, blueprint, options = {}) {
     renderer.domElement.removeEventListener("dblclick", onDoubleClick);
     controls.dispose();
     disposeObject(root);
+    disposeObject(activityGroup);
+    activityGroup.removeFromParent();
     disposeObject(selectionHalo);
     disposeObject(selectionShell);
     for (const material of Object.values(structuralMaterials)) material.dispose();
@@ -1120,7 +1221,12 @@ export function createBrainScene(container, blueprint, options = {}) {
     clear,
     resetView,
     setMode,
+    notifyActivity,
+    setActivityEnabled,
     dispose,
+    get activityEnabled() {
+      return activityEnabled;
+    },
     get selectedId() {
       return selectedId;
     },

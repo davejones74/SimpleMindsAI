@@ -4,15 +4,40 @@ import {
   describeSelection,
   validateBlueprint,
 } from "./schema.js";
+import {
+  applyJobStatus,
+  applyTelemetryEvent,
+  chartModel,
+  createTelemetryState,
+  formatAge,
+  formatDuration,
+  formatLoss,
+  formatRate,
+  telemetryDisplayStatus,
+  telemetryFromSnapshot,
+} from "./telemetry.js";
 
 const API = "/api/admin/brain/blueprint";
+const ADMIN_API = "/api/admin";
 const requestedMode = new URLSearchParams(window.location.search).get("mode");
+const activityPreference = (() => {
+  try {
+    return window.sessionStorage.getItem("sma.brain.activity") !== "off";
+  } catch {
+    return true;
+  }
+})();
 const state = {
   blueprint: null,
   summary: null,
   scene: null,
   selectedId: null,
   mode: requestedMode === "architecture" ? "architecture" : "brain",
+  telemetry: createTelemetryState(),
+  telemetrySeq: 0,
+  activityEnabled: activityPreference,
+  liveTimer: null,
+  telemetryStream: null,
 };
 
 const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({
@@ -24,26 +49,26 @@ const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({
 }[char]));
 
 const formatInt = (value) => (
-  typeof value === "number" && Number.isFinite(value) ? value.toLocaleString() : "—"
+  typeof value === "number" && Number.isFinite(value) ? value.toLocaleString() : "â€”"
 );
 
 const formatValue = (value) => {
-  if (value === null || value === undefined) return "—";
+  if (value === null || value === undefined) return "â€”";
   if (typeof value === "number") return Number.isInteger(value) ? value.toLocaleString() : value.toFixed(4);
   if (typeof value === "boolean") return value ? "yes" : "no";
-  if (Array.isArray(value)) return value.length > 12 ? `[${value.slice(0, 12).join(", ")}, …]` : `[${value.join(", ")}]`;
+  if (Array.isArray(value)) return value.length > 12 ? `[${value.slice(0, 12).join(", ")}, â€¦]` : `[${value.join(", ")}]`;
   if (typeof value === "object") return JSON.stringify(value);
   return String(value);
 };
 
-const formatShape = (shape) => (Array.isArray(shape) && shape.length ? `[${shape.join(" × ")}]` : "—");
+const formatShape = (shape) => (Array.isArray(shape) && shape.length ? `[${shape.join(" Ã— ")}]` : "â€”");
 
 const dimensionsText = (dimensions) => {
-  if (!dimensions || typeof dimensions !== "object") return "—";
+  if (!dimensions || typeof dimensions !== "object") return "â€”";
   if (dimensions.in !== undefined || dimensions.out !== undefined) {
-    return `${formatValue(dimensions.in)} → ${formatValue(dimensions.out)}`;
+    return `${formatValue(dimensions.in)} â†’ ${formatValue(dimensions.out)}`;
   }
-  return Object.entries(dimensions).map(([key, value]) => `${key}: ${formatValue(value)}`).join(" · ") || "—";
+  return Object.entries(dimensions).map(([key, value]) => `${key}: ${formatValue(value)}`).join(" Â· ") || "â€”";
 };
 
 function setOverlay(html) {
@@ -87,7 +112,7 @@ function renderHeader(summary) {
   const metrics = document.getElementById("brainMetrics");
   metrics.innerHTML = `
     <span class="brain-chip"><strong>${esc(summary.version ?? "unknown")}</strong></span>
-    <span class="brain-chip">${esc(summary.architecture ?? "unknown")} · ${esc(summary.configName ?? "config unknown")}</span>
+    <span class="brain-chip">${esc(summary.architecture ?? "unknown")} Â· ${esc(summary.configName ?? "config unknown")}</span>
     <span class="brain-chip"><strong>${formatInt(summary.layers)}</strong> layers</span>
     <span class="brain-chip"><strong>${formatInt(summary.parameters)}</strong> parameters</span>
     <span class="brain-chip ${verificationClass}" title="${esc(summary.weightsInspected ?? "unknown inspection")}">${esc(verificationLabel)}</span>
@@ -97,7 +122,7 @@ function renderHeader(summary) {
     summary.exportedAt ? `exported ${new Date(summary.exportedAt).toLocaleString()}` : null,
     summary.components != null ? `${formatInt(summary.components)} components` : null,
     summary.connections != null ? `${formatInt(summary.connections)} connections` : null,
-  ].filter(Boolean).join(" · ");
+  ].filter(Boolean).join(" Â· ");
 }
 
 function renderLegend(blueprint) {
@@ -148,8 +173,8 @@ function renderWarnings(blueprint, planWarnings = []) {
     element.textContent = "";
     return;
   }
-  const shown = warnings.slice(0, 3).map(esc).join(" · ");
-  const more = warnings.length > 3 ? ` · +${warnings.length - 3} more` : "";
+  const shown = warnings.slice(0, 3).map(esc).join(" Â· ");
+  const more = warnings.length > 3 ? ` Â· +${warnings.length - 3} more` : "";
   element.textContent = `${shown}${more}`;
   element.classList.remove("hidden");
 }
@@ -178,8 +203,8 @@ function renderIntro() {
       ? "Brain mode adds illustrative filaments for atmosphere. Selection still identifies the real component and its genuine blueprint connections."
       : "Architecture mode shows only the exported blueprint: structural nodes, tensor metadata and real computational connections."}</p>
     <dl class="inspector-grid">
-      <dt>Version</dt><dd>${esc(summary?.version ?? "—")}</dd>
-      <dt>Architecture</dt><dd>${esc(summary?.architecture ?? "—")}</dd>
+      <dt>Version</dt><dd>${esc(summary?.version ?? "â€”")}</dd>
+      <dt>Architecture</dt><dd>${esc(summary?.architecture ?? "â€”")}</dd>
       <dt>Layers</dt><dd>${formatInt(summary?.layers)}</dd>
       <dt>Parameters</dt><dd>${formatInt(accounting.totalParameters)}</dd>
       <dt>Unique storage</dt><dd>${formatInt(accounting.persistedTensorElements ?? accounting.tensorElements)}</dd>
@@ -227,7 +252,7 @@ function renderInspector(componentId) {
     .map((tensor) => `
         <div class="tensor-row">
           <div class="tensor-name">${esc(tensor.name)}</div>
-          <div class="tensor-meta">${esc(formatShape(tensor.shape))} · ${esc(tensor.dtype ?? "—")}</div>
+          <div class="tensor-meta">${esc(formatShape(tensor.shape))} Â· ${esc(tensor.dtype ?? "â€”")}</div>
           <div class="tensor-elements">${formatInt(tensor.elements ?? tensor.numel)}</div>
         </div>
       `).join("");
@@ -251,10 +276,10 @@ function renderInspector(componentId) {
     ${tiedLabel}
     ${derivedLabel}
     <dl class="inspector-grid">
-      <dt>Block</dt><dd>${detail.blockIndex == null ? "—" : esc(detail.blockIndex)}</dd>
-      <dt>Parent</dt><dd>${esc(component.parentId ?? "—")}</dd>
+      <dt>Block</dt><dd>${detail.blockIndex == null ? "â€”" : esc(detail.blockIndex)}</dd>
+      <dt>Parent</dt><dd>${esc(component.parentId ?? "â€”")}</dd>
       <dt>Dimensions</dt><dd>${esc(dimensionsText(detail.dimensions))}</dd>
-      <dt>Parameters</dt><dd>${formatInt(shownParameters)} unique · ${formatInt(shownElements)} elements${hasAggregate ? ` <span class="muted">(aggregate of ${formatInt(aggregate.components)} contained components)</span>` : ""}</dd>
+      <dt>Parameters</dt><dd>${formatInt(shownParameters)} unique Â· ${formatInt(shownElements)} elements${hasAggregate ? ` <span class="muted">(aggregate of ${formatInt(aggregate.components)} contained components)</span>` : ""}</dd>
       <dt>Exactness</dt><dd>${parameters.exact === false ? "estimated" : "exact"}</dd>
       <dt>Tensor count</dt><dd>${formatInt(tensorSource.length)}${hasAggregate ? ` <span class="muted">(contained)</span>` : ""}</dd>
     </dl>
@@ -397,9 +422,11 @@ async function loadBlueprint() {
     const { createBrainScene } = await import("./render.js");
     state.scene = createBrainScene(document.getElementById("scene"), blueprint, {
       initialMode: state.mode,
+      activityEnabled: state.activityEnabled,
       onSelect: (componentId) => renderInspector(componentId),
     });
     state.scene.setMode(state.mode);
+    state.scene.setActivityEnabled(state.activityEnabled);
     updateModeButtons();
     renderLegend(blueprint);
     renderWarnings(blueprint, state.scene.plan.warnings);
@@ -409,6 +436,289 @@ async function loadBlueprint() {
       "The 3D scene could not start",
       `${esc(err.message ?? "WebGL initialisation failed")}. The structural blueprint itself was valid.`,
     );
+  }
+}
+
+// ---------------------------------------------------------- live training
+const LIVE_STATUS_LABEL = {
+  live: "Live",
+  connecting: "Connecting",
+  stale: "Stale",
+  disconnected: "Disconnected",
+  unavailable: "No telemetry",
+  completed: "Completed",
+  failed: "Failed",
+  stopped: "Stopped",
+  interrupted: "Interrupted",
+  paused: "Paused",
+  waiting: "Waiting",
+  running: "Running",
+  "pause-requested": "Pausing",
+  "stop-requested": "Stopping",
+  stopping: "Stopping",
+};
+
+function liveStatusClass(status) {
+  return ["live", "stale", "disconnected", "unavailable", "connecting", "failed", "completed", "stopped", "paused", "waiting", "pause-requested", "stop-requested", "stopping"].includes(status)
+    ? status
+    : "unavailable";
+}
+
+function metricHtml(label, value, className = "") {
+  return `
+    <div class="live-metric">
+      <span class="live-metric-label">${esc(label)}</span>
+      <span class="live-metric-value ${className}">${esc(value)}</span>
+    </div>
+  `;
+}
+
+function chartSvg(telemetry) {
+  const model = chartModel(telemetry);
+  if (!model) return null;
+  const width = 640;
+  const height = 150;
+  const left = 44;
+  const right = 12;
+  const top = 10;
+  const bottom = 22;
+  const innerWidth = width - left - right;
+  const innerHeight = height - top - bottom;
+  const px = (step) => left + model.x(step) * innerWidth;
+  const py = (loss) => top + (1 - model.y(loss)) * innerHeight;
+  const line = (points) => points
+    .map((point, index) => `${index === 0 ? "M" : "L"}${px(point.step).toFixed(1)},${py(point.loss).toFixed(1)}`)
+    .join(" ");
+  const yTicks = [model.yMax, (model.yMax + model.yMin) / 2, model.yMin];
+  const xTicks = [model.xMin, (model.xMin + model.xMax) / 2, model.xMax];
+  const grid = yTicks.map((value) => {
+    const y = py(value).toFixed(1);
+    return `<line class="grid" x1="${left}" y1="${y}" x2="${width - right}" y2="${y}"/>
+      <text class="axis" x="${left - 5}" y="${Number(y) + 3}" text-anchor="end">${esc(formatLoss(value))}</text>`;
+  }).join("");
+  const xAxis = xTicks.map((value) => {
+    const x = px(value).toFixed(1);
+    return `<text class="axis" x="${x}" y="${height - 6}" text-anchor="${value === model.xMin ? "start" : value === model.xMax ? "end" : "middle"}">${esc(Math.round(value).toLocaleString())}</text>`;
+  }).join("");
+  const trainingPath = model.training.length > 1
+    ? `<path class="training-line" d="${line(model.training)}"/>`
+    : "";
+  const evaluationPath = model.evaluation.length > 1
+    ? `<path class="eval-line" d="${line(model.evaluation)}"/>`
+    : "";
+  const evaluationPoints = model.evaluation
+    .map((point) => `<circle class="eval-point" cx="${px(point.step).toFixed(1)}" cy="${py(point.loss).toFixed(1)}" r="2.8"/>`)
+    .join("");
+  const checkpoints = (telemetry.checkpoints ?? [])
+    .filter((checkpoint) => Number.isFinite(checkpoint.step)
+      && checkpoint.step >= model.xMin
+      && checkpoint.step <= model.xMax)
+    .map((checkpoint) => {
+      const x = px(checkpoint.step).toFixed(1);
+      return `<line class="checkpoint-mark" x1="${x}" y1="${top}" x2="${x}" y2="${height - bottom}"/>`;
+    })
+    .join("");
+  return `${grid}${xAxis}${checkpoints}${trainingPath}${evaluationPath}${evaluationPoints}`;
+}
+
+function renderLivePanel({ rebuildChart = true } = {}) {
+  const now = Date.now();
+  const telemetry = state.telemetry;
+  const displayStatus = telemetryDisplayStatus(telemetry, {
+    now,
+    connection: telemetry.connection,
+  });
+  const statusEl = document.getElementById("liveStatus");
+  if (statusEl) {
+    statusEl.textContent = LIVE_STATUS_LABEL[displayStatus] ?? "No telemetry";
+    statusEl.className = `live-status ${liveStatusClass(displayStatus)}`;
+  }
+  const connectionEl = document.getElementById("liveConnection");
+  if (connectionEl) {
+    const connection = telemetry.connection ?? "connecting";
+    connectionEl.textContent = connection === "live"
+      ? "SSE live"
+      : connection === "disconnected" ? "SSE reconnecting" : "SSE connecting";
+    connectionEl.className = `live-pill ${liveStatusClass(connection)}`;
+  }
+  const runEl = document.getElementById("liveRun");
+  if (runEl) {
+    runEl.textContent = telemetry.jobId
+      ? [telemetry.jobId, telemetry.version, telemetry.parentVersion ? `from ${telemetry.parentVersion}` : null]
+        .filter(Boolean).join(" Â· ")
+      : (telemetry.available ? "Training session" : "No active training session");
+  }
+  const updatedEl = document.getElementById("liveUpdated");
+  if (updatedEl) {
+    if (telemetry.receivedLocallyAt) {
+      const age = Math.max(0, now - telemetry.receivedLocallyAt);
+      const suffix = telemetry.completedAt ? "finished" : "updated";
+      updatedEl.textContent = `${suffix} ${formatAge(age)} Â· stale after ${formatDuration(telemetry.staleAfterMs)}`;
+    } else if (telemetry.reason) {
+      updatedEl.textContent = telemetry.reason;
+    } else {
+      updatedEl.textContent = "â€”";
+    }
+    updatedEl.title = updatedEl.textContent;
+  }
+
+  const metrics = document.getElementById("liveMetrics");
+  if (metrics) {
+    const step = telemetry.step == null
+      ? "â€”"
+      : `${Math.round(telemetry.step).toLocaleString()}${telemetry.totalSteps ? ` / ${Math.round(telemetry.totalSteps).toLocaleString()}` : ""}`;
+    const learningRate = Number.isFinite(telemetry.learningRate)
+      ? Number(telemetry.learningRate).toExponential(2)
+      : "â€”";
+    metrics.innerHTML = [
+      metricHtml("Step", step),
+      metricHtml("Train loss", formatLoss(telemetry.trainLoss), "train"),
+      metricHtml("Eval loss", telemetry.evaluationLoss == null ? "not measured" : formatLoss(telemetry.evaluationLoss), "eval"),
+      metricHtml("Learning rate", learningRate),
+      metricHtml("Throughput", formatRate(telemetry.stepsPerSecond)),
+      metricHtml("Elapsed", formatDuration(telemetry.elapsedMs)),
+    ].join("");
+  }
+
+  if (rebuildChart) {
+    const svg = document.getElementById("lossChart");
+    const empty = document.getElementById("lossEmpty");
+    const markup = chartSvg(telemetry);
+    if (svg) svg.innerHTML = markup ?? "";
+    if (empty) {
+      empty.classList.toggle("hidden", Boolean(markup));
+      empty.textContent = telemetry.available
+        ? "No loss measurements yet. The chart fills as training steps are observed."
+        : (telemetry.reason ?? "No live training telemetry.");
+    }
+  }
+
+  const toggle = document.getElementById("activityToggle");
+  if (toggle) {
+    toggle.setAttribute("aria-pressed", String(state.activityEnabled));
+    toggle.textContent = state.activityEnabled ? "Activity on" : "Activity off";
+  }
+}
+
+function acknowledgeActivity(kind) {
+  if (!state.activityEnabled) return;
+  state.scene?.notifyActivity({ kind });
+}
+
+async function loadTelemetrySnapshot() {
+  let response;
+  try {
+    response = await fetch(`${ADMIN_API}/training/telemetry`, {
+      headers: { Accept: "application/json" },
+      cache: "no-store",
+    });
+  } catch {
+    state.telemetry.connection = "disconnected";
+    renderLivePanel();
+    return;
+  }
+  let payload = null;
+  try {
+    payload = await response.json();
+  } catch {
+    payload = null;
+  }
+  if (!response.ok || !payload) {
+    if (response.status === 401) {
+      state.telemetry.connection = "disconnected";
+    } else {
+      state.telemetry.connection = "disconnected";
+      state.telemetry.reason = payload?.error ?? `telemetry HTTP ${response.status}`;
+    }
+    renderLivePanel();
+    return;
+  }
+  state.telemetry = telemetryFromSnapshot(payload, { now: Date.now() });
+  state.telemetry.connection = payload.available ? "live" : "unavailable";
+  state.telemetrySeq = Math.max(state.telemetrySeq, Number(payload.changeSeq) || 0);
+  renderLivePanel();
+}
+
+function connectTelemetryStream() {
+  if (!window.EventSource) {
+    state.telemetry.connection = "disconnected";
+    state.telemetry.reason = "this browser cannot subscribe to live telemetry; refreshing the snapshot periodically";
+    renderLivePanel();
+    state.liveTimer = setInterval(() => {
+      loadTelemetrySnapshot();
+      renderLivePanel({ rebuildChart: false });
+    }, 5000);
+    return;
+  }
+  state.telemetryStream?.close();
+  const stream = new EventSource(`${ADMIN_API}/events?since=${state.telemetrySeq}`);
+  state.telemetryStream = stream;
+  stream.onopen = () => {
+    if (state.telemetry.connection !== "live") {
+      state.telemetry.connection = "connecting";
+      renderLivePanel();
+    }
+  };
+  stream.addEventListener("hello", () => {
+    state.telemetry.connection = "live";
+    renderLivePanel();
+    loadTelemetrySnapshot();
+  });
+  stream.addEventListener("change", (event) => {
+    let change;
+    try {
+      change = JSON.parse(event.data);
+    } catch {
+      return;
+    }
+    state.telemetrySeq = Math.max(state.telemetrySeq, Number(change.seq) || 0);
+    if (change.type === "training.telemetry" && change.data) {
+      state.telemetry.connection = "live";
+      const previousStep = state.telemetry.step;
+      const result = applyTelemetryEvent(state.telemetry, change.data, { now: Date.now() });
+      if (!result.accepted) return;
+      if (result.kind === "checkpoint") {
+        acknowledgeActivity("checkpoint");
+      } else if (result.kind === "snapshot" && result.point && result.point.step !== previousStep) {
+        acknowledgeActivity("step");
+      }
+      renderLivePanel();
+      return;
+    }
+    if (change.type === "job.status" && change.data) {
+      if (state.telemetry.jobId && change.data.jobId === state.telemetry.jobId) {
+        if (applyJobStatus(state.telemetry, change.data, { now: Date.now() })) {
+          renderLivePanel();
+        }
+      }
+    }
+    if (change.type === "job.started" && change.data?.kind === "training") {
+      loadTelemetrySnapshot();
+    }
+  });
+  stream.addEventListener("resync", () => loadTelemetrySnapshot());
+  stream.onerror = () => {
+    state.telemetry.connection = "disconnected";
+    renderLivePanel();
+  };
+}
+
+async function wireLiveTraining() {
+  document.getElementById("activityToggle")?.addEventListener("click", () => {
+    state.activityEnabled = !state.activityEnabled;
+    state.scene?.setActivityEnabled(state.activityEnabled);
+    try {
+      window.sessionStorage.setItem("sma.brain.activity", state.activityEnabled ? "on" : "off");
+    } catch {
+      // A restrictive context may not allow storage; the toggle still works.
+    }
+    renderLivePanel();
+  });
+  renderLivePanel();
+  await loadTelemetrySnapshot();
+  connectTelemetryStream();
+  if (!state.liveTimer) {
+    state.liveTimer = setInterval(() => renderLivePanel({ rebuildChart: false }), 1000);
   }
 }
 
@@ -431,9 +741,14 @@ function wireControls() {
     if (event.key === "b" || event.key === "B") setMode("brain");
     if (event.key === "a" || event.key === "A") setMode("architecture");
   });
-  window.addEventListener("beforeunload", () => state.scene?.dispose());
+  window.addEventListener("beforeunload", () => {
+    state.telemetryStream?.close();
+    if (state.liveTimer) clearInterval(state.liveTimer);
+    state.scene?.dispose();
+  });
   updateModeButtons();
 }
 
 wireControls();
+wireLiveTraining();
 loadBlueprint();
