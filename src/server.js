@@ -15,6 +15,8 @@ import { ConversationStore } from "./chat/conversation-store.js";
 import { JobSupervisor } from "./jobs/supervisor.js";
 import { Frontier } from "./frontier.js";
 import { DiscoveryService } from "./discovery/discovery-service.js";
+import { AdmissionStore } from "./gateway/admission-store.js";
+import { AcquisitionGateway } from "./gateway/acquisition-gateway.js";
 import { createDomainRegistry } from "./storage/domain-registry.js";
 import { resolvers } from "./graphql/resolvers.js";
 import { sha256, createAuthRouter, createAuthGate } from "./auth/simple-auth.js";
@@ -112,9 +114,28 @@ const frontier = new Frontier({ dir: config.paths.frontier });
       after = p.nextCursor;
     }
   }
+  let admissionStore = null;
+  let admissionGateway = null;
+  if (config.crawlMode === "real") {
+    admissionStore = await AdmissionStore.open({
+      dir: config.paths.admission,
+      config: {
+        capLimit: config.admissionCapLimit,
+        capEpoch: config.admissionCapEpoch,
+        ackRequired: config.admissionAckRequired,
+        protocolVersion: config.admissionProtocolVersion,
+      },
+    });
+    admissionGateway = new AcquisitionGateway({ store: admissionStore });
+  }
   const discovery =
     config.crawlMode === "real"
-      ? new DiscoveryService({ frontier, missionTexts: activeMissionTexts, corpusTexts: reviewedCorpusTexts })
+      ? new DiscoveryService({
+          frontier,
+          missionTexts: activeMissionTexts,
+          corpusTexts: reviewedCorpusTexts,
+          admissionGateway,
+        })
       : null;
 
   const supervisor = new JobSupervisor({

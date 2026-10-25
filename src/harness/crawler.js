@@ -4,9 +4,38 @@ import { pathToFileURL } from "node:url";
 import { config } from "../config.js";
 import { createDiscoveryPolicy } from "../discovery/discovery-policy.js";
 import { fetchDocument, parseRobots, robotsAllows, assertUrlAllowed, contentHashFor } from "./fetcher.js";
-import { canonicalDomain } from "../storage/domain-registry.js";
+import { canonicalDomain, createDomainRegistry } from "../storage/domain-registry.js";
 import { assess } from "../domain/language.js";
 import { classifyDiscoveryLanguage } from "../discovery/language-prior.js";
+import { AdmissionStore, COMPLIANCE, DECISION } from "../gateway/admission-store.js";
+import { AcquisitionGateway } from "../gateway/acquisition-gateway.js";
+import { Frontier } from "../frontier.js";
+
+const ADMISSION_PATH_DISABLED = "ADMISSION_PATH_DISABLED";
+
+function admissionPathDisabled(name) {
+  const err = new Error(
+    `${name} is disabled while the admission gateway is enabled; use the frontier acquisition path`,
+  );
+  err.code = ADMISSION_PATH_DISABLED;
+  return err;
+}
+
+/**
+ * Real network acquisition must be admitted. An explicit `fetchImpl` is the
+ * existing offline/mock seam used by tests and local fixtures; a caller that
+ * leaves it undefined (meaning the global fetch) cannot perform real acquisition
+ * without a valid gateway.
+ */
+function requireAdmissionOrMockTransport(name, { admissionGateway, fetchImpl }) {
+  if (admissionGateway || fetchImpl !== undefined) return;
+  const err = new Error(
+    `${name} would perform real network acquisition without Baseline v1 admission. ` +
+      "Provide an admissionGateway; an explicit fetchImpl is accepted only for offline/mocked acquisition.",
+  );
+  err.code = ADMISSION_PATH_DISABLED;
+  throw err;
+}
 
 /**
  * Harvest — the ONLY entry point that produces raw docs.
@@ -227,6 +256,10 @@ export async function runCrawlCycle(ctx = {}) {
     discoveryLanguagePrior = null,
     rediscoveryEnabled = config.rediscoveryEnabled,
     rediscoveryTtlMs = config.rediscoveryTtlMs,
+    admissionGateway = null,
+    fetchImpl,
+    accept,
+    claimNow,
   } = ctx;
 
   if (!frontier.initialized) await frontier.init();
@@ -244,6 +277,8 @@ export async function runCrawlCycle(ctx = {}) {
     languagePriorRejected: 0,
     notModified: 0,
     rediscoveries: 0,
+    admissionRejected: 0,
+    admissionQuarantined: 0,
     errors: 0,
     documents: [],
     failures: [],
@@ -274,7 +309,7 @@ export async function runCrawlCycle(ctx = {}) {
       // Revalidate URL at fetch time
       await assertUrlAllowed(urlString, { allowPrivate });
       if (respectRobots) {
-        const groups = await loadRobots(urlString, { timeoutMs: 5000, allowPrivate, userAgent });
+        const groups = await loadRobots(urlString, { timeoutMs: 5000, allowPrivate, userAgent, fetchImpl });
         const { pathname, search } = new URL(urlString);
         if (!robotsAllows(groups, `${pathname}${search}`, userAgent)) {
           return { ok: false, reason: "robots-disallowed" };
@@ -286,8 +321,10 @@ export async function runCrawlCycle(ctx = {}) {
         maxRedirects: config.crawlMaxRedirects,
         allowPrivate,
         userAgent,
+        ...(accept ? { accept } : {}),
         etag: conditional.etag ?? null,
         lastModified: conditional.lastModified ?? null,
+        ...(fetchImpl ? { fetchImpl } : {}),
       });
       return { ok: true, doc };
     } catch (err) {
@@ -304,7 +341,10 @@ export async function runCrawlCycle(ctx = {}) {
 
   // Claim next URL from frontier. Due rediscoveries are claimable only AFTER new
   // queued work and due retries, so revisits never starve fresh URLs.
-  const claimed = await frontier.claimNext({ rediscoveryEnabled });
+  const claimed = await frontier.claimNext({
+    rediscoveryEnabled,
+    ...(claimNow === undefined ? {} : { now: claimNow }),
+  });
   if (!claimed) {
     summary.budgetRemaining = totalBudget; // no URLs available
     return summary;
@@ -346,6 +386,53 @@ export async function runCrawlCycle(ctx = {}) {
     }
   }
 
+  // Admission is the durable gate for the whole target operation: the robots
+  // prerequisite, the target request, and its bounded redirect chain.
+  if (admissionGateway) {
+    const admitted = await admissionGateway.authorize({
+      url: canonical,
+      generation: record.generation ?? 0,
+      etag: record.etag ?? null,
+      lastModified: record.lastModified ?? null,
+      userAgent,
+      accept,
+      respectRobots,
+      maxRedirects: config.crawlMaxRedirects,
+    });
+    await frontier.recordAdmission(canonical, {
+      requestId: admitted.requestId,
+      payloadDigest: admitted.payloadDigest,
+    });
+
+    if (admitted.compliance !== COMPLIANCE.COMPLIANT) {
+      await frontier.markQuarantined(canonical, {
+        reason: admitted.reason ?? "admission-protocol-violation",
+        requestId: admitted.requestId,
+        payloadDigest: admitted.payloadDigest,
+      });
+      summary.admissionQuarantined++;
+      return summary;
+    }
+    if (admitted.decision === DECISION.REJECTED) {
+      await frontier.markRejected(canonical, {
+        reason: admitted.reason ?? "gateway-rejected",
+        requestId: admitted.requestId,
+        payloadDigest: admitted.payloadDigest,
+      });
+      summary.admissionRejected++;
+      return summary;
+    }
+    if (admitted.decision !== DECISION.ADMITTED) {
+      await frontier.markQuarantined(canonical, {
+        reason: "admission-without-decision",
+        requestId: admitted.requestId,
+        payloadDigest: admitted.payloadDigest,
+      });
+      summary.admissionQuarantined++;
+      return summary;
+    }
+  }
+
   // Fetch the URL, conditionally when we hold validators from a prior visit.
   const fetchResult = await tryFetch(record.url, { etag: record.etag, lastModified: record.lastModified });
   summary.pagesFetched = 1;
@@ -364,6 +451,7 @@ export async function runCrawlCycle(ctx = {}) {
         nextCrawlAt: computeNextCrawlAt(),
         notModified: true,
         rediscovery: Boolean(record.rediscovery),
+        advanceGeneration: Boolean(admissionGateway),
       });
       if (domainRegistry && domain) {
         domainRegistry.recordFetchSuccess(domain, { url: record.url, contentHash: record.contentHash ?? undefined });
@@ -380,6 +468,7 @@ export async function runCrawlCycle(ctx = {}) {
       lastModified: doc?.lastModified ?? null,
       nextCrawlAt: computeNextCrawlAt(),
       rediscovery: Boolean(record.rediscovery),
+      advanceGeneration: Boolean(admissionGateway),
     });
 
     // Register domain in registry if provided
@@ -506,6 +595,9 @@ export async function runCrawlBatches({
   discoveryLanguagePrior = null,
   rediscoveryEnabled = config.rediscoveryEnabled,
   rediscoveryTtlMs = config.rediscoveryTtlMs,
+  admissionGateway = null,
+  fetchImpl,
+  accept,
   onCycle = async (ctx) => ({ pagesFetched: 0, linksDiscovered: 0, urlsEnqueued: 0 }),
 } = {}) {
   if (!frontier.initialized) await frontier.init();
@@ -523,6 +615,8 @@ let totalPagesFetched = 0;
   let languagePriorRejected = 0;
   let notModified = 0;
   let rediscoveries = 0;
+  let admissionRejected = 0;
+  let admissionQuarantined = 0;
   const skipped = [];
   const shadowRejected = [];
 
@@ -548,6 +642,9 @@ let totalPagesFetched = 0;
       discoveryLanguagePrior,
       rediscoveryEnabled,
       rediscoveryTtlMs,
+      admissionGateway,
+      fetchImpl,
+      accept,
       totalBudget: config.crawlTotalBudget - totalPagesFetched,
     };
     const cycleResult = await runCrawlCycle(cycleCtx);
@@ -564,6 +661,8 @@ let totalPagesFetched = 0;
     languagePriorRejected += cycleResult.languagePriorRejected ?? 0;
     notModified += cycleResult.notModified ?? 0;
     rediscoveries += cycleResult.rediscoveries ?? 0;
+    admissionRejected += cycleResult.admissionRejected ?? 0;
+    admissionQuarantined += cycleResult.admissionQuarantined ?? 0;
     if (cycleResult.skipped?.length) skipped.push(...cycleResult.skipped);
     if (cycleResult.shadowRejected?.length) shadowRejected.push(...cycleResult.shadowRejected);
 
@@ -596,6 +695,8 @@ let totalPagesFetched = 0;
     languagePriorRejected,
     notModified,
     rediscoveries,
+    admissionRejected,
+    admissionQuarantined,
     skipped,
     shadowRejected,
     budgetRemaining: config.crawlTotalBudget - totalPagesFetched,
@@ -623,7 +724,10 @@ export async function seedFrontierFromConfig(frontier, seeds = config.crawlUrls 
 export async function collectDocuments({
   mode = config.crawlMode,
   urls = config.crawlUrls,
-  fetchImpl = globalThis.fetch,
+  // Undefined means "use the global fetch" and therefore identifies a real
+  // acquisition path. Tests/local callers that inject a transport are treated as
+  // offline/mocked and may run without a gateway.
+  fetchImpl = undefined,
   timeoutMs = config.crawlTimeoutMs,
   maxBytes = config.crawlMaxBytes,
   maxRedirects = config.crawlMaxRedirects,
@@ -631,11 +735,14 @@ export async function collectDocuments({
   respectRobots = config.crawlRespectRobots,
   userAgent = config.crawlUserAgent,
   languageFilter = null,
+  admissionGateway = null,
 } = {}) {
   const decided = classifyCrawlMode({ mode, urls });
   if (decided.mode === "fixture") {
     return { mode: "fixture", capability: CAPABILITY.fixture, documents: FIXTURE_DOCS.map((t) => fixtureRecord(t)), failures: [] };
   }
+  requireAdmissionOrMockTransport("direct collectDocuments", { admissionGateway, fetchImpl });
+  if (admissionGateway) throw admissionPathDisabled("direct collectDocuments");
 
   // If no frontier, fall back to direct fetch of provided URLs (original behaviour)
   if (!urls.length) {
@@ -650,14 +757,14 @@ export async function collectDocuments({
     try {
       await assertUrlAllowed(url, { allowPrivate });
       if (respectRobots) {
-        const groups = await loadRobots(url, { timeoutMs: 5000, allowPrivate, userAgent });
+        const groups = await loadRobots(url, { timeoutMs: 5000, allowPrivate, userAgent, fetchImpl });
         const { pathname, search } = new URL(url);
         if (!robotsAllows(groups, `${pathname}${search}`, userAgent)) {
           failures.push({ url, ok: false, reason: "robots-disallowed" });
           continue;
         }
       }
-      const doc = await fetchDocument(url, { timeoutMs, maxBytes, maxRedirects, allowPrivate, userAgent });
+      const doc = await fetchDocument(url, { timeoutMs, maxBytes, maxRedirects, allowPrivate, userAgent, fetchImpl });
 
       // Language filter: a skipped page fetched fine — it is not a failure.
       if (applyLanguageFilter(doc, languageFilter, localSummary, url) === "skip") {
@@ -709,8 +816,12 @@ export async function harvest({
   userAgent = config.crawlUserAgent,
   domainRegistry = null,
   languageFilter = null,
+  admissionGateway = null,
 } = {}) {
   const decided = classifyCrawlMode({ mode, urls });
+  if (decided.mode === "real") {
+    requireAdmissionOrMockTransport("direct harvest", { admissionGateway, fetchImpl });
+  }
 
   async function writeJsonLines(filePath, records) {
     const content = records.length > 0 ? records.map((r) => JSON.stringify(r)).join("\n") + "\n" : "[]\n";
@@ -736,7 +847,18 @@ export async function harvest({
     // configured frontier dir. A caller using an isolated data dir MUST inject
     // its own registry, or discoveries leak into the live one.
     const registry = domainRegistry ?? createDomainRegistry({ dir: config.paths.frontier });
-    const result = await runCrawlBatches({ frontier, domainRegistry: registry, maxCycles: 0, policy, allowPrivate, respectRobots, userAgent, languageFilter });
+    const result = await runCrawlBatches({
+      frontier,
+      domainRegistry: registry,
+      maxCycles: 0,
+      policy,
+      allowPrivate,
+      respectRobots,
+      userAgent,
+      languageFilter,
+      admissionGateway,
+      fetchImpl,
+    });
 
     // Persist what was ACTUALLY fetched (previously this branch returned
     // `documents: []`, so the frontier crawler silently produced nothing).
@@ -779,6 +901,8 @@ export async function harvest({
     };
   }
 
+  if (admissionGateway) throw admissionPathDisabled("direct harvest");
+
   const documents = [];
   const failures = [];
   const localSummary = { languageFiltered: 0, skipped: [], shadowRejected: [] };
@@ -786,14 +910,14 @@ export async function harvest({
     try {
       await assertUrlAllowed(url, { allowPrivate });
       if (respectRobots) {
-        const groups = await loadRobots(url, { timeoutMs: 5000, allowPrivate, userAgent });
+        const groups = await loadRobots(url, { timeoutMs: 5000, allowPrivate, userAgent, fetchImpl });
         const { pathname, search } = new URL(url);
         if (!robotsAllows(groups, `${pathname}${search}`, userAgent)) {
           failures.push({ url, ok: false, reason: "robots-disallowed", crawlMode: "real", capability: CAPABILITY.real });
           continue;
         }
       }
-      const doc = await fetchDocument(url, { timeoutMs, maxBytes, maxRedirects, allowPrivate, userAgent });
+      const doc = await fetchDocument(url, { timeoutMs, maxBytes, maxRedirects, allowPrivate, userAgent, fetchImpl });
 
       // Language filter: skipped is NOT a fetch failure — the page fetched fine.
       if (applyLanguageFilter(doc, languageFilter, localSummary, url) === "skip") {
@@ -841,7 +965,22 @@ export async function harvest({
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
-    const res = await harvest({ languageFilter: config.languageFilter });
+    let admissionGateway = null;
+    let frontier;
+    if (config.crawlMode === "real") {
+      const admissionStore = await AdmissionStore.open({
+        dir: config.paths.admission,
+        config: {
+          capLimit: config.admissionCapLimit,
+          capEpoch: config.admissionCapEpoch,
+          ackRequired: config.admissionAckRequired,
+          protocolVersion: config.admissionProtocolVersion,
+        },
+      });
+      admissionGateway = new AcquisitionGateway({ store: admissionStore });
+      frontier = new Frontier({ dir: config.paths.frontier });
+    }
+    const res = await harvest({ languageFilter: config.languageFilter, admissionGateway, frontier });
     console.log(`[crawl] mode=${res.mode} capability=${res.capability} fetched=${res.documents.length} failed=${res.failures.length}`);
     console.log(`[crawl] wrote ${res.documents.length} raw docs -> ${res.file}`);
     if (res.languageFiltered) console.log(`[crawl] language-filtered ${res.languageFiltered} page(s) (skipped=${res.skipped?.length ?? 0}, shadow=${res.shadowRejected?.length ?? 0})`);

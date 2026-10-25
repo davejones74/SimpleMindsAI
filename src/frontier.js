@@ -38,6 +38,8 @@ const URL_STATE = {
   VISITED: "visited",
   DEFERRED: "deferred",
   FAILED: "failed",
+  REJECTED: "rejected",
+  QUARANTINED: "quarantined",
 };
 
 // Frontier record per URL
@@ -64,6 +66,10 @@ function makeFrontierRecord(url, state, depth, parent, seed, metadata = {}) {
     nextAttemptAt: metadata.nextAttemptAt ?? null, // independent retry backoff (DEFERRED)
     rediscoveries: metadata.rediscoveries ?? 0,
     rediscovery: metadata.rediscovery ?? false, // true when the current claim is a re-visit
+    // Admission lifecycle: one request identity per acquisition generation.
+    generation: metadata.generation ?? 0,
+    requestId: metadata.requestId ?? null,
+    payloadDigest: metadata.payloadDigest ?? null,
   };
 }
 
@@ -89,6 +95,9 @@ export class Frontier {
           if (record.url && record.state) {
             const canonical = canonicalURL(record.url);
             if (canonical) {
+              if (!Number.isSafeInteger(record.generation) || record.generation < 0) record.generation = 0;
+              if (record.requestId == null) record.requestId = null;
+              if (record.payloadDigest == null) record.payloadDigest = null;
               this.state.set(canonical, record);
             }
           }
@@ -112,6 +121,9 @@ export class Frontier {
 
     const existing = this.state.get(canonical);
     if (existing) {
+      // Gateway-rejected and quarantined work is terminal. Neither force nor a
+      // subsequent discovery may silently revive it in the same frontier.
+      if (existing.state === URL_STATE.REJECTED || existing.state === URL_STATE.QUARANTINED) return null;
       // Idempotency: already visited (completed) => never re-enqueue.
       if (existing.state === URL_STATE.VISITED && existing.completedAt) return null;
       // Failed with retries exhausted => terminal unless explicitly forced.
@@ -131,6 +143,9 @@ export class Frontier {
       lastModified: existing?.lastModified ?? null,
       lastFetchedAt: existing?.lastFetchedAt ?? null,
       contentHash: existing?.contentHash ?? null,
+      generation: existing?.generation ?? 0,
+      requestId: existing?.requestId ?? null,
+      payloadDigest: existing?.payloadDigest ?? null,
     });
     this.state.set(canonical, record);
     await this.persist();
@@ -183,6 +198,49 @@ export class Frontier {
     return null; // nothing available
   }
 
+  /**
+   * Persist the admission identity on the in-progress frontier record. The
+   * identity is deterministic for the generation, but persisting it makes crash
+   * recovery auditable and prevents a later code/config drift from silently
+   * changing the request under the same generation.
+   */
+  async recordAdmission(canonical, { requestId, payloadDigest } = {}) {
+    const record = this.state.get(canonical);
+    if (!record) return false;
+    if (typeof requestId === "string") record.requestId = requestId;
+    if (typeof payloadDigest === "string") record.payloadDigest = payloadDigest;
+    await this.persist();
+    return true;
+  }
+
+  // Mark URL as gateway-rejected. This is terminal and cannot be re-enqueued.
+  async markRejected(canonical, { reason = null, requestId = undefined, payloadDigest = undefined } = {}) {
+    return this.#markTerminal(canonical, URL_STATE.REJECTED, { reason, requestId, payloadDigest });
+  }
+
+  // Mark URL as quarantined by a contradictory/protocol-violating admission.
+  async markQuarantined(canonical, { reason = null, requestId = undefined, payloadDigest = undefined } = {}) {
+    return this.#markTerminal(canonical, URL_STATE.QUARANTINED, { reason, requestId, payloadDigest });
+  }
+
+  async #markTerminal(canonical, state, { reason = null, requestId = undefined, payloadDigest = undefined } = {}) {
+    const record = this.state.get(canonical);
+    if (!record) return false;
+    const now = new Date().toISOString();
+    record.state = state;
+    record.completedAt = now;
+    record.claimedAt = null;
+    record.nextCrawlAt = null;
+    record.nextAttemptAt = null;
+    record.rediscovery = false;
+    record.lastError = reason ?? state;
+    record.lastErrorAt = now;
+    if (typeof requestId === "string") record.requestId = requestId;
+    if (typeof payloadDigest === "string") record.payloadDigest = payloadDigest;
+    await this.persist();
+    return true;
+  }
+
   // Mark URL as visited (completed fetch). `nextCrawlAt` schedules the next
   // rediscovery; `etag`/`lastModified` are the validators for a conditional
   // refetch. A 304 (notModified) keeps the existing contentHash.
@@ -196,9 +254,11 @@ export class Frontier {
     notModified = false,
     rediscovery = false,
     fetchOutcome = "ok",
+    advanceGeneration = false,
   } = {}) {
     const record = this.state.get(canonical);
     if (!record) return false;
+    if (record.state === URL_STATE.REJECTED || record.state === URL_STATE.QUARANTINED) return false;
     const now = new Date().toISOString();
     record.state = URL_STATE.VISITED;
     record.completedAt = now;
@@ -213,6 +273,11 @@ export class Frontier {
     record.nextAttemptAt = null;
     record.claimedAt = null;
     record.rediscovery = false;
+    if (advanceGeneration) {
+      record.generation = (record.generation ?? 0) + 1;
+      record.requestId = null;
+      record.payloadDigest = null;
+    }
     await this.persist();
     return true;
   }
@@ -231,6 +296,7 @@ export class Frontier {
   } = {}) {
     const record = this.state.get(canonical);
     if (!record) return false;
+    if (record.state === URL_STATE.REJECTED || record.state === URL_STATE.QUARANTINED) return false;
     record.lastError = error ?? reason ?? "fetch_failed";
     record.lastErrorAt = new Date(now).toISOString();
     record.claimedAt = null;
@@ -309,6 +375,9 @@ export class Frontier {
         nextAttemptAt: record.nextAttemptAt ?? null,
         rediscoveries: record.rediscoveries ?? 0,
         rediscovery: record.rediscovery ?? false,
+        generation: record.generation ?? 0,
+        requestId: record.requestId ?? null,
+        payloadDigest: record.payloadDigest ?? null,
       };
       lines.push(JSON.stringify(clean));
     }
@@ -353,6 +422,8 @@ export class Frontier {
       visited: 0,
       deferred: 0,
       failed: 0,
+      rejected: 0,
+      quarantined: 0,
     };
     const retryDist = { 0: 0, 1: 0, 2: 0, 3: 0 };
     const now = Date.now();
@@ -371,6 +442,8 @@ export class Frontier {
         case URL_STATE.VISITED: counts.visited++; break;
         case URL_STATE.DEFERRED: counts.deferred++; break;
         case URL_STATE.FAILED: counts.failed++; break;
+        case URL_STATE.REJECTED: counts.rejected++; break;
+        case URL_STATE.QUARANTINED: counts.quarantined++; break;
         default: break;
       }
       const r = record.retries ?? 0;

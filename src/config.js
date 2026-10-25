@@ -168,6 +168,7 @@ export const config = {
     raw: env("RAW_DIR", "data/raw"),
     chat: env("CHAT_DIR", "data/chat"), // durable conversation log (NDJSON)
     frontier: env("FRONTIER_DIR", "data/frontier"), // persistent URL frontier (discovery state)
+    admission: env("ADMISSION_DIR", "data/gateway"), // durable admission decisions + sealed config
     blueprint: env("SMA_BLUEPRINT", null)
       ? path.resolve(REPO_ROOT, env("SMA_BLUEPRINT", null))
       : BLUEPRINT_PATH,
@@ -465,6 +466,12 @@ export const config = {
   crawlMaxBytes: num("CRAWL_MAX_BYTES", 2_000_000),
   crawlMaxRedirects: num("CRAWL_MAX_REDIRECTS", 5),
   crawlRespectRobots: bool("CRAWL_RESPECT_ROBOTS", true),
+  // Baseline v1 admission. The configuration is sealed durably on first open;
+  // changing any value against an existing admission database fails closed.
+  admissionCapLimit: num("ADMISSION_CAP_LIMIT", 420),
+  admissionCapEpoch: env("ADMISSION_CAP_EPOCH", "baseline-v1"),
+  admissionAckRequired: bool("ADMISSION_ACK_REQUIRED", false),
+  admissionProtocolVersion: env("ADMISSION_PROTOCOL_VERSION", "baseline-v1"),
   crawlUserAgent: env("CRAWL_USER_AGENT", "SimpleMindsAI/0.2 (+https://github.com/davejones74/SimpleMindsAI)"),
   // HTML extraction strategy for fetched pages.
   //   legacy      : the original dependency-free tag-stripper (default; no new deps)

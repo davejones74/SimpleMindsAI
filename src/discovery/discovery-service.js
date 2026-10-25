@@ -72,6 +72,8 @@ export class DiscoveryService {
     corpusQueryMax = config.corpusQueryMax,
     corpusQueryMinFreq = config.corpusQueryMinFreq,
     languagePrior = config.discoveryLanguagePrior,
+    admissionGateway = null,
+    fetchImpl = undefined,
   } = {}) {
     this.frontier = frontier ?? new Frontier({ dir: config.paths.frontier });
     this.seeds = (seeds ?? []).filter(Boolean);
@@ -101,6 +103,19 @@ export class DiscoveryService {
     // Adapters and their network access are injectable so tests can drive the
     // whole pipeline deterministically without touching the network.
     this.fetchText = fetchText ?? createAdapterFetchText();
+    this.fetchImpl = fetchImpl;
+    this.admissionGateway = admissionGateway;
+    // Adapter discovery (sitemap/feed/search) performs network I/O outside the
+    // target-acquisition boundary. When the gateway is enabled those paths are
+    // disabled until they have an explicit admission integration; caller-supplied
+    // adapters are rejected rather than silently bypassing the gateway.
+    if (admissionGateway && Array.isArray(adapters) && adapters.length > 0) {
+      const err = new Error(
+        "discovery adapters are disabled while the admission gateway is enabled; no adapter admission integration exists",
+      );
+      err.code = "ADMISSION_PATH_DISABLED";
+      throw err;
+    }
     // Mission-driven acquisition (P4): when enabled, deterministic queries derived
     // from the mission(s) are appended to the configured search queries. They are
     // only candidates — the search adapter proposes them and this service still
@@ -125,7 +140,9 @@ export class DiscoveryService {
       corpusQueryMax,
       corpusQueryMinFreq,
     });
-    this.adapters = adapters ?? buildAdapters({ fetchText: this.fetchText, opts: { searchQueries: this.searchQueries, knownUrls: (url) => this.frontier.has(url) } });
+    this.adapters = admissionGateway
+      ? []
+      : adapters ?? buildAdapters({ fetchText: this.fetchText, opts: { searchQueries: this.searchQueries, knownUrls: (url) => this.frontier.has(url) } });
   }
 
   /** Reporting descriptor — must match what `collect` actually does. */
@@ -364,6 +381,8 @@ export class DiscoveryService {
       // Apply the discovery language prior to EXTRACTED LINKS too, not only to
       // adapter candidates, so foreign hosts never enter the frontier.
       discoveryLanguagePrior: this.languagePrior,
+      admissionGateway: this.admissionGateway,
+      fetchImpl: this.fetchImpl,
     });
 
     const frontierAfter = this.frontier.summary();
