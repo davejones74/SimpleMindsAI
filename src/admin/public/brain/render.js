@@ -10,6 +10,57 @@ const GEOMETRY_BUILDERS = {
   box: () => new THREE.BoxGeometry(1, 1, 1),
 };
 
+/**
+ * Three restrained finishes, chosen by node silhouette rather than by model
+ * semantics. They describe an art direction (polished, satin, ceramic), not a
+ * measured property of the network.
+ */
+const NODE_FINISHES = {
+  sphere: { roughness: 0.24, metalness: 0.62, envMapIntensity: 1.15 },
+  box: { roughness: 0.42, metalness: 0.44, envMapIntensity: 0.95 },
+  octa: { roughness: 0.56, metalness: 0.14, envMapIntensity: 0.8 },
+};
+const FALLBACK_FINISH = { roughness: 0.4, metalness: 0.3, envMapIntensity: 0.9 };
+
+/**
+ * A tiny procedural equirectangular studio, generated once. It gives every
+ * metallic surface a plausible reflection without loading an HDR file or
+ * adding a second render pass. The highlights are deliberately cool, violet
+ * and cyan so reflections reinforce the existing palette.
+ */
+function makeEnvironmentTexture() {
+  const canvas = document.createElement("canvas");
+  canvas.width = 1024;
+  canvas.height = 512;
+  const context = canvas.getContext("2d");
+
+  const base = context.createLinearGradient(0, 0, 0, 512);
+  base.addColorStop(0, "#14263c");
+  base.addColorStop(0.42, "#0a1523");
+  base.addColorStop(0.62, "#060b13");
+  base.addColorStop(1, "#020407");
+  context.fillStyle = base;
+  context.fillRect(0, 0, 1024, 512);
+
+  const glow = (x, y, radius, inner, outer) => {
+    const gradient = context.createRadialGradient(x, y, 0, x, y, radius);
+    gradient.addColorStop(0, inner);
+    gradient.addColorStop(0.55, outer);
+    gradient.addColorStop(1, "rgba(0,0,0,0)");
+    context.fillStyle = gradient;
+    context.fillRect(0, 0, 1024, 512);
+  };
+  glow(742, 132, 340, "rgba(206,229,255,0.95)", "rgba(92,146,224,0.3)");
+  glow(176, 258, 310, "rgba(151,124,255,0.6)", "rgba(88,58,180,0.18)");
+  glow(286, 418, 230, "rgba(58,205,224,0.22)", "rgba(18,78,110,0.08)");
+  glow(930, 300, 180, "rgba(88,120,190,0.24)", "rgba(20,40,80,0.06)");
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.mapping = THREE.EquirectangularReflectionMapping;
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
 function makeRingTexture() {
   const canvas = document.createElement("canvas");
   canvas.width = 256;
@@ -17,15 +68,15 @@ function makeRingTexture() {
   const context = canvas.getContext("2d");
   context.translate(128, 128);
   context.strokeStyle = "rgba(255,255,255,1)";
-  context.shadowColor = "rgba(255,255,255,0.85)";
-  context.shadowBlur = 8;
-  context.lineWidth = 3.5;
+  context.shadowColor = "rgba(255,255,255,0.8)";
+  context.shadowBlur = 6;
+  context.lineWidth = 3;
   context.beginPath();
   context.arc(0, 0, 102, 0, Math.PI * 2);
   context.stroke();
   context.shadowBlur = 0;
-  context.globalAlpha = 0.34;
-  context.lineWidth = 1.5;
+  context.globalAlpha = 0.28;
+  context.lineWidth = 1.4;
   context.beginPath();
   context.arc(0, 0, 84, 0, Math.PI * 2);
   context.stroke();
@@ -83,7 +134,17 @@ export function createBrainScene(container, blueprint, options = {}) {
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.05;
   container.appendChild(renderer.domElement);
+
+  const environmentSource = makeEnvironmentTexture();
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  const environmentTarget = pmrem.fromEquirectangular(environmentSource);
+  pmrem.dispose();
+  environmentSource.dispose();
+  scene.environment = environmentTarget.texture;
+  scene.environmentIntensity = 0.55;
 
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
@@ -148,21 +209,24 @@ export function createBrainScene(container, blueprint, options = {}) {
     };
   }
 
-  const ambient = new THREE.HemisphereLight(0x93c5fd, 0x0b1220, 1.1);
+  const ambient = new THREE.HemisphereLight(0x8fb7ff, 0x070b12, 0.7);
   scene.add(ambient);
-  const key = new THREE.DirectionalLight(0x93c5fd, 1.4);
-  key.position.set(1, 2, 1);
+  const key = new THREE.DirectionalLight(0xdce9ff, 2.4);
+  key.position.set(1.2, 2.2, 1.4);
   scene.add(key);
-  const rim = new THREE.DirectionalLight(0xa78bfa, 1.1);
-  rim.position.set(-1, -0.6, -1);
+  const rim = new THREE.DirectionalLight(0x9f8cff, 1.9);
+  rim.position.set(-1.4, 0.4, -1.6);
   scene.add(rim);
+  const fill = new THREE.DirectionalLight(0x5eead4, 0.5);
+  fill.position.set(-0.6, -1.2, 1.2);
+  scene.add(fill);
 
   const group = new THREE.Group();
   scene.add(group);
 
   const glowTexture = makeGlowTexture();
   const nodeMeshes = [];
-  const material = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.96 });
+  const nodeMaterials = new Map();
   const byGeometry = new Map();
   for (const node of plan.nodes) {
     if (node.group === "ring") continue;
@@ -175,6 +239,13 @@ export function createBrainScene(container, blueprint, options = {}) {
   const nodeInstances = [];
   for (const [geometryName, nodes] of byGeometry) {
     const geometry = (GEOMETRY_BUILDERS[geometryName] ?? GEOMETRY_BUILDERS.sphere)();
+    const finish = NODE_FINISHES[geometryName] ?? FALLBACK_FINISH;
+    const material = new THREE.MeshStandardMaterial({
+      roughness: finish.roughness,
+      metalness: finish.metalness,
+      envMapIntensity: finish.envMapIntensity,
+    });
+    nodeMaterials.set(geometryName, material);
     const mesh = new THREE.InstancedMesh(geometry, material, nodes.length);
     mesh.instanceMatrix.setUsage(THREE.StaticDrawUsage);
     mesh.userData.componentIds = nodes.map((node) => node.id);
@@ -203,7 +274,7 @@ export function createBrainScene(container, blueprint, options = {}) {
       map: ringTexture,
       color: new THREE.Color(ring.color),
       transparent: true,
-      opacity: 0.52,
+      opacity: 0.46,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
     });
@@ -235,10 +306,10 @@ export function createBrainScene(container, blueprint, options = {}) {
   glowGeometry.setAttribute("position", new THREE.BufferAttribute(glowPositions, 3));
   glowGeometry.setAttribute("color", new THREE.BufferAttribute(glowColors, 3));
   const glowMaterial = new THREE.PointsMaterial({
-    size: 1.7,
+    size: 1.35,
     map: glowTexture,
     transparent: true,
-    opacity: 0.6,
+    opacity: 0.34,
     vertexColors: true,
     blending: THREE.AdditiveBlending,
     depthWrite: false,
@@ -264,7 +335,7 @@ export function createBrainScene(container, blueprint, options = {}) {
   const edgeMaterial = new THREE.LineBasicMaterial({
     vertexColors: true,
     transparent: true,
-    opacity: 0.52,
+    opacity: 0.34,
     blending: THREE.AdditiveBlending,
     depthWrite: false,
   });
@@ -341,7 +412,7 @@ export function createBrainScene(container, blueprint, options = {}) {
       sprite.material.color.copy(sprite.userData.baseColor);
       if (isSelected) sprite.material.color.copy(selectedColor);
       else if (highlight && !isRelevant) sprite.material.color.multiplyScalar(dimFactor);
-      sprite.material.opacity = highlight ? (isRelevant ? 0.88 : 0.12) : 0.52;
+      sprite.material.opacity = highlight ? (isRelevant ? 0.82 : 0.12) : 0.46;
     }
 
     const edgeAttr = edgeGeometry.getAttribute("color");
@@ -358,7 +429,7 @@ export function createBrainScene(container, blueprint, options = {}) {
       edgeAttr.setXYZ(index * 2 + 1, rgb[0], rgb[1], rgb[2]);
     });
     edgeAttr.needsUpdate = true;
-    edgeMaterial.opacity = highlight ? 0.85 : 0.52;
+    edgeMaterial.opacity = highlight ? 0.78 : 0.34;
 
     const glowAttr = glowGeometry.getAttribute("color");
     plan.nodes.forEach((node, index) => {
@@ -370,7 +441,7 @@ export function createBrainScene(container, blueprint, options = {}) {
       glowAttr.setXYZ(index, rgb[0], rgb[1], rgb[2]);
     });
     glowAttr.needsUpdate = true;
-    glowMaterial.opacity = highlight ? 0.4 : 0.6;
+    glowMaterial.opacity = highlight ? 0.42 : 0.34;
   }
 
   function positionFromEvent(event) {
@@ -527,9 +598,11 @@ export function createBrainScene(container, blueprint, options = {}) {
     renderer.domElement.removeEventListener("dblclick", onDoubleClick);
     controls.dispose();
     for (const mesh of nodeMeshes) mesh.geometry.dispose();
+    for (const material of nodeMaterials.values()) material.dispose();
     for (const sprite of blockSprites) sprite.material.dispose();
     ringTexture.dispose();
-    material.dispose();
+    scene.environment = null;
+    environmentTarget.dispose();
     glowGeometry.dispose();
     glowMaterial.dispose();
     glowTexture.dispose();
