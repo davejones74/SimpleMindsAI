@@ -140,6 +140,36 @@ main.brain-stage {
   font-size: 10px;
   margin-bottom: 10px;
 }
+.brain-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.brain-panel-head .brain-panel-title { margin: 0; }
+.panel-collapse {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--brain-border);
+  border-radius: 7px;
+  background: rgba(16, 25, 37, 0.8);
+  color: var(--brain-muted);
+  cursor: pointer;
+}
+.panel-collapse:hover { color: var(--brain-accent); border-color: var(--brain-accent); }
+.panel-collapse svg { width: 14px; height: 14px; transition: transform 160ms ease; }
+.panel-collapse[aria-expanded="false"] svg { transform: rotate(-90deg); }
+.brain-inspector.collapsed { padding-bottom: 10px; }
+.brain-inspector.collapsed .brain-panel-head { margin-bottom: 0; }
+.brain-inspector.collapsed .inspector-body { display: none; }
+.brain-live.collapsed { padding-bottom: 10px; }
+.brain-live.collapsed .live-panel-body { display: none; }
+.brain-live.collapsed .live-head-actions > :not(.panel-collapse) { display: none; }
 .legend-items { display: grid; gap: 6px; }
 .legend-row { display: flex; align-items: center; gap: 8px; color: var(--brain-muted); font-size: 11px; }
 .legend-dot { width: 9px; height: 9px; border-radius: 50%; box-shadow: 0 0 9px currentColor; flex: 0 0 auto; }
@@ -260,6 +290,7 @@ main.brain-stage {
   z-index: 3;
 }
 .live-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.live-panel-body { min-width: 0; }
 .live-title-wrap { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .live-title-wrap .brain-panel-title { margin: 0; white-space: nowrap; }
 .live-status {
@@ -277,7 +308,7 @@ main.brain-stage {
 .live-status.disconnected, .live-status.failed { color: var(--brain-bad); border-color: rgba(251, 113, 133, 0.5); }
 .live-status.paused, .live-status.waiting, .live-status.pause-requested, .live-status.stop-requested, .live-status.stopping { color: var(--brain-warn); border-color: rgba(251, 191, 36, 0.45); }
 .live-status.unavailable, .live-status.connecting { color: var(--brain-muted); }
-.live-head-actions { display: flex; align-items: center; gap: 7px; }
+.live-head-actions { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; justify-content: flex-end; }
 .live-pill { font-size: 10px; color: var(--brain-muted); border: 1px solid var(--brain-border); border-radius: 999px; padding: 2px 8px; white-space: nowrap; }
 .live-pill.live { color: var(--brain-good); border-color: rgba(52, 211, 153, 0.45); }
 .live-pill.stale { color: var(--brain-warn); border-color: rgba(251, 191, 36, 0.45); }

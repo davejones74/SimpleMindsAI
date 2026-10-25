@@ -44,7 +44,12 @@
       </aside>
 
       <aside id="inspector" class="brain-inspector" aria-live="polite">
-        <div class="brain-panel-title">Inspector</div>
+        <div class="brain-panel-head">
+          <div class="brain-panel-title">Inspector</div>
+          <button class="panel-collapse" type="button" data-panel-collapse="inspector" aria-expanded="true" aria-controls="inspectorBody" aria-label="Collapse inspector" title="Collapse inspector">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+        </div>
         <div id="inspectorBody" class="inspector-body">
           <p class="muted">Select a component or transformer block in the scene.</p>
           <p class="small muted">Drag to orbit, scroll to zoom, right-drag or shift-drag to pan. Click a node to inspect it.</p>
@@ -61,22 +66,27 @@
             <span id="liveConnection" class="live-pill connecting" role="status" aria-live="polite">connecting</span>
             <button id="activityToggle" class="live-toggle" type="button" aria-pressed="true" title="Toggle step and checkpoint acknowledgements">Activity on</button>
             <button id="layerActivityToggle" class="live-toggle" type="button" aria-pressed="false" title="Toggle the measured per-layer gradient overlay">Layer overlay off</button>
+            <button class="panel-collapse" type="button" data-panel-collapse="livePanel" aria-expanded="true" aria-controls="livePanelBody" aria-label="Collapse live training" title="Collapse live training">
+              <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
           </div>
         </div>
-        <div class="live-run">
-          <span id="liveRun">No active training session</span>
-          <span id="liveUpdated">—</span>
-        </div>
-        <div id="liveMetrics" class="live-metrics"></div>
-        <div class="live-chart">
-          <svg id="lossChart" viewBox="0 0 640 150" role="img" aria-label="Rolling training and evaluation loss history"></svg>
-          <div id="lossEmpty" class="live-chart-empty">No loss measurements yet.</div>
-        </div>
-        <div class="live-foot">
-          <span class="live-legend"><i class="line training"></i>Training loss</span>
-          <span class="live-legend"><i class="point eval"></i>Evaluation loss, measured only</span>
-          <span id="layerActivityStatus" class="live-layer-status">Layer gradient RMS: unavailable</span>
-          <a href="/admin#trends">Completed runs in the Observatory</a>
+        <div id="livePanelBody" class="live-panel-body">
+          <div class="live-run">
+            <span id="liveRun">No active training session</span>
+            <span id="liveUpdated">-</span>
+          </div>
+          <div id="liveMetrics" class="live-metrics"></div>
+          <div class="live-chart">
+            <svg id="lossChart" viewBox="0 0 640 150" role="img" aria-label="Rolling training and evaluation loss history"></svg>
+            <div id="lossEmpty" class="live-chart-empty">No loss measurements yet.</div>
+          </div>
+          <div class="live-foot">
+            <span class="live-legend"><i class="line training"></i>Training loss</span>
+            <span class="live-legend"><i class="point eval"></i>Evaluation loss, measured only</span>
+            <span id="layerActivityStatus" class="live-layer-status">Layer gradient RMS: unavailable</span>
+            <a href="/admin#trends">Completed runs in the Observatory</a>
+          </div>
         </div>
       </aside>
 

@@ -65,6 +65,10 @@ test("the brain visualiser is a separate page with locally served Three.js modul
   assert.match(html, /id="activityToggle"/);
   assert.match(html, /id="layerActivityToggle"/);
   assert.match(html, /id="layerActivityStatus"/);
+  assert.equal((html.match(/data-panel-collapse=/g) ?? []).length, 2, "both overlay panels need a collapse control");
+  assert.match(html, /aria-controls="inspectorBody"/);
+  assert.match(html, /aria-controls="livePanelBody"/);
+  assert.match(brain, /function setPanelCollapsed\(/);
   assert.match(brain, /syncLayerActivity/);
   assert.match(brain, /layerActivityEnabled/);
   assert.match(telemetry, /gradientRms/);

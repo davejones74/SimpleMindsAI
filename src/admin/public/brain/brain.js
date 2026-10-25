@@ -49,6 +49,48 @@ const state = {
   telemetryStream: null,
 };
 
+const PANEL_NAMES = { livePanel: "live training", inspector: "inspector" };
+
+function setPanelCollapsed(panelId, collapsed, { persist = true } = {}) {
+  const panel = document.getElementById(panelId);
+  if (!panel) return;
+  panel.classList.toggle("collapsed", collapsed);
+  const button = panel.querySelector(`[data-panel-collapse="${panelId}"]`);
+  const name = PANEL_NAMES[panelId] ?? "panel";
+  if (button) {
+    button.setAttribute("aria-expanded", String(!collapsed));
+    button.setAttribute("aria-label", `${collapsed ? "Expand" : "Collapse"} ${name}`);
+    button.setAttribute("title", `${collapsed ? "Expand" : "Collapse"} ${name}`);
+  }
+  if (persist) {
+    try {
+      window.sessionStorage.setItem(`sma.brain.collapsed.${panelId}`, collapsed ? "1" : "0");
+    } catch {
+      // Storage may be unavailable; collapse still works for this page view.
+    }
+  }
+}
+
+function initPanelCollapse() {
+  for (const panelId of Object.keys(PANEL_NAMES)) {
+    let collapsed = false;
+    try {
+      collapsed = window.sessionStorage.getItem(`sma.brain.collapsed.${panelId}`) === "1";
+    } catch {
+      collapsed = false;
+    }
+    setPanelCollapsed(panelId, collapsed, { persist: false });
+  }
+  for (const button of document.querySelectorAll("[data-panel-collapse]")) {
+    button.addEventListener("click", () => {
+      const panelId = button.getAttribute("data-panel-collapse");
+      const panel = document.getElementById(panelId);
+      if (!panel) return;
+      setPanelCollapsed(panelId, !panel.classList.contains("collapsed"));
+    });
+  }
+}
+
 const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({
   "&": "&amp;",
   "<": "&lt;",
@@ -433,7 +475,10 @@ async function loadBlueprint() {
       initialMode: state.mode,
       activityEnabled: state.activityEnabled,
       layerActivityEnabled: state.layerActivityEnabled,
-      onSelect: (componentId) => renderInspector(componentId),
+      onSelect: (componentId) => {
+        if (componentId) setPanelCollapsed("inspector", false);
+        renderInspector(componentId);
+      },
     });
     state.scene.setMode(state.mode);
     state.scene.setActivityEnabled(state.activityEnabled);
@@ -790,6 +835,7 @@ async function wireLiveTraining() {
 }
 
 function wireControls() {
+  initPanelCollapse();
   document.getElementById("resetView").addEventListener("click", () => state.scene?.resetView());
   document.getElementById("overview").addEventListener("click", () => state.scene?.clear());
   for (const button of document.querySelectorAll("[data-mode]")) {
