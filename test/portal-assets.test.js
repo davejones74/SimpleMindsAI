@@ -63,6 +63,13 @@ test("the brain visualiser is a separate page with locally served Three.js modul
   assert.match(html, /id="livePanel"/);
   assert.match(html, /id="lossChart"/);
   assert.match(html, /id="activityToggle"/);
+  assert.match(html, /id="layerActivityToggle"/);
+  assert.match(html, /id="layerActivityStatus"/);
+  assert.match(brain, /syncLayerActivity/);
+  assert.match(brain, /layerActivityEnabled/);
+  assert.match(telemetry, /gradientRms/);
+  assert.match(render, /setLayerActivity/);
+  assert.match(render, /LAYER_ACTIVITY_LOW/);
   assert.match(brain, /telemetryFromSnapshot/);
   assert.match(brain, /EventSource\(`\$\{ADMIN_API\}\/events/);
   assert.match(brain, /loadTelemetrySnapshot/);

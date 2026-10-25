@@ -10,6 +10,7 @@
 
 export const TELEMETRY_SCHEMA = "sma/training-telemetry@1";
 export const TELEMETRY_HISTORY_LIMIT = 600;
+const MAX_LAYER_ACTIVITY_LAYERS = 128;
 
 const TERMINAL = new Set(["completed", "failed", "stopped", "interrupted"]);
 const STALE_EXPECTED = new Set(["running"]);
@@ -21,6 +22,36 @@ const isoOrNull = (value) => {
   const parsed = Date.parse(value);
   return Number.isFinite(parsed) ? new Date(parsed).toISOString() : null;
 };
+
+export function cleanLayerActivity(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  if (value.measure !== "gradientRms") return null;
+  const layers = [];
+  for (const raw of Array.isArray(value.layers) ? value.layers : []) {
+    if (!raw || typeof raw !== "object") continue;
+    const index = intOrNull(raw.index);
+    if (index === null || index < 0 || index > 9999) continue;
+    layers.push({
+      index,
+      componentId: typeof raw.componentId === "string" && raw.componentId
+        ? raw.componentId
+        : `model.layers.${index}`,
+      rms: raw.rms === null || raw.rms === undefined ? null : finiteOrNull(raw.rms),
+      elements: intOrNull(raw.elements) ?? 0,
+    });
+    if (layers.length >= MAX_LAYER_ACTIVITY_LAYERS) break;
+  }
+  if (!layers.length) return null;
+  layers.sort((a, b) => a.index - b.index);
+  return {
+    measure: "gradientRms",
+    phase: typeof value.phase === "string" ? value.phase : "pre-clip",
+    aggregation: typeof value.aggregation === "string" ? value.aggregation : "per-transformer-block",
+    step: intOrNull(value.step),
+    sampledAt: isoOrNull(value.sampledAt),
+    layers,
+  };
+}
 
 export function createTelemetryState() {
   return {
@@ -54,6 +85,7 @@ export function createTelemetryState() {
     receivedLocallyAt: null,
     lastEvent: null,
     lastCheckpoint: null,
+    layerActivity: null,
     staleAfterMs: 5000,
     historyLimit: TELEMETRY_HISTORY_LIMIT,
     changeSeq: 0,
@@ -139,6 +171,7 @@ export function telemetryFromSnapshot(snapshot, { now = Date.now() } = {}) {
     receivedLocallyAt: snapshot.receivedAt ? now : null,
     lastEvent: snapshot.lastEvent ?? null,
     lastCheckpoint: cleanCheckpoint(snapshot.lastCheckpoint),
+    layerActivity: cleanLayerActivity(snapshot.layerActivity),
     staleAfterMs: Math.max(1000, intOrNull(snapshot.staleAfterMs) ?? 5000),
     historyLimit: limit,
     changeSeq: intOrNull(snapshot.changeSeq) ?? 0,
@@ -192,6 +225,7 @@ export function applyTelemetryEvent(state, event, { now = Date.now() } = {}) {
     state.history = { training: [], evaluation: [] };
     state.checkpoints = [];
     state.lastCheckpoint = null;
+    state.layerActivity = null;
     sessionChanged = true;
   }
   if (!state.sessionId || state.sessionId === sessionId) {
@@ -231,6 +265,15 @@ export function applyTelemetryEvent(state, event, { now = Date.now() } = {}) {
     state.step = intOrNull(event.step) ?? state.step;
     state.trainLoss = finiteOrNull(event.loss) ?? state.trainLoss;
     state.stepSeconds = finiteOrNull(event.stepSeconds) ?? state.stepSeconds;
+    if (event.layerActivity !== undefined) {
+      const layerActivity = cleanLayerActivity(event.layerActivity);
+      if (layerActivity) {
+        state.layerActivity = {
+          ...layerActivity,
+          sampledAt: layerActivity.sampledAt ?? state.updatedAt,
+        };
+      }
+    }
     point = cleanPoint({ step: event.step, loss: event.loss, at: state.updatedAt });
     if (point) appendPoint(state.history.training, point);
   } else if (event.type === "evaluation") {

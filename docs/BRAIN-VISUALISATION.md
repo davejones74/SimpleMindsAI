@@ -98,6 +98,42 @@ from evaluation points. A new session starts a new chart; completed-run history
 remains in the Observatory's Trends & Metrics view. Training and evaluation
 loss are never joined into a fabricated continuous line.
 
+### Layer activity prototype (Phase 1.6)
+
+The optional layer measurement is **per-transformer-block gradient RMS**:
+
+```
+rms_block = sqrt(mean(g^2))
+```
+
+over every parameter-gradient element in `model.layers.N`, after `backward()`
+and **before gradient clipping**. It is read from gradients the training pass
+already produced; no hooks, activations, full tensors or extra model are
+created. Per-tensor reductions stay on the device and only one scalar per block
+is copied to the host per sample.
+
+Controls:
+
+- `TRAIN_LAYER_ACTIVITY=false` (default) disables measurement entirely.
+- `TRAIN_LAYER_ACTIVITY_INTERVAL_MS=2000` sets the sample interval.
+- The live panel's **Layer overlay** toggle is independently off by default.
+- Missing/non-finite values remain `null`; no layer is marked active by a
+  global training-step event.
+- Display intensity is normalised only for colour (robust p90 reference); the
+  telemetry payload keeps the raw RMS and element count.
+
+The overlay is one batched `Points` object with one point per existing layer
+region, not a per-layer sprite/timer. The Phase 1.5 acknowledgement pool remains
+four sprites.
+
+A three-condition CPU microbenchmark (tiny model, 10 steps, 3 repetitions,
+worst-case 500 ms layer sampling) measured median wall time: baseline 5.044 s,
+Phase 1.5 telemetry 5.113 s, layer measurement 5.094 s. The layer condition was
+inside run-to-run noise; p95 step time was 0.517 s / 0.528 s / 0.521 s. The
+8-layer payload was 897 bytes at its worst sample; a 36-layer payload is about
+2.9 KB. This is not a production GPU benchmark. The feature therefore remains
+**off by default** until a GPU budget is measured on target hardware.
+
 Live activity effects are a separate renderer layer with a **fixed pool of four**
 transient sprites. A genuine new step produces a restrained cyan acknowledgement
 at a dedicated status anchor; a genuine checkpoint produces a distinct amber

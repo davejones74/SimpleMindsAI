@@ -145,6 +145,8 @@ export function pythonTrainer({
   signal = null,
   onTelemetry = null,
   telemetryIntervalMs = config.telemetry?.intervalMs ?? 1000,
+  layerActivityEnabled = config.telemetry?.layerActivity?.enabled === true,
+  layerActivityIntervalMs = config.telemetry?.layerActivity?.intervalMs ?? 2000,
 } = {}) {
   const root = storeRoot(store);
   const resolvedDtype = device === "cpu" ? "float32" : computeDtype;
@@ -233,6 +235,10 @@ export function pythonTrainer({
         env: {
           SMA_TELEMETRY_INTERVAL_MS: String(
             Number.isFinite(Number(telemetryIntervalMs)) ? Math.max(250, Number(telemetryIntervalMs)) : 1000,
+          ),
+          SMA_LAYER_ACTIVITY: layerActivityEnabled ? "1" : "0",
+          SMA_LAYER_ACTIVITY_INTERVAL_MS: String(
+            Number.isFinite(Number(layerActivityIntervalMs)) ? Math.max(500, Number(layerActivityIntervalMs)) : 2000,
           ),
         },
         onStderrLine: typeof onTelemetry === "function"

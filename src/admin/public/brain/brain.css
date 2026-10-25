@@ -325,6 +325,8 @@ main.brain-stage {
 .live-legend { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
 .live-legend .line { width: 14px; height: 2px; background: #67e8f9; border-radius: 2px; }
 .live-legend .point { width: 6px; height: 6px; background: #fbbf24; border-radius: 50%; }
+.live-layer-status { color: var(--brain-muted); white-space: nowrap; }
+.live-layer-status.measured { color: #a78bfa; }
 .live-foot a { margin-left: auto; color: var(--brain-accent); text-decoration: none; white-space: nowrap; }
 .live-foot a:hover { text-decoration: underline; }
 

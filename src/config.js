@@ -444,6 +444,12 @@ export const config = {
     publishIntervalMs: num("TRAIN_TELEMETRY_PUBLISH_MS", 1000),
     staleAfterMs: num("TRAIN_TELEMETRY_STALE_MS", 5000),
     historyPoints: num("TRAIN_TELEMETRY_HISTORY_POINTS", 600),
+    // Optional Phase 1.6 prototype. Off by default until the performance gate
+    // has been reviewed; it aggregates gradient RMS per decoder block.
+    layerActivity: {
+      enabled: bool("TRAIN_LAYER_ACTIVITY", false),
+      intervalMs: num("TRAIN_LAYER_ACTIVITY_INTERVAL_MS", 2000),
+    },
   },
 
   // ---- Harvest / crawl ----

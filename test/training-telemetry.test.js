@@ -4,11 +4,13 @@ import {
   TELEMETRY_PREFIX,
   TELEMETRY_SCHEMA,
   TrainingTelemetry,
+  cleanLayerActivity as cleanServerLayerActivity,
   parseTelemetryLine,
 } from "../src/telemetry/training-telemetry.js";
 import {
   applyTelemetryEvent,
   chartModel,
+  cleanLayerActivity as cleanBrowserLayerActivity,
   createTelemetryState,
   telemetryDisplayStatus,
   telemetryFromSnapshot,
@@ -187,6 +189,95 @@ test("reconnect snapshots are authoritative; unavailable snapshots never fabrica
   assert.equal(missing.available, false);
   assert.equal(chartModel(missing), null);
   assert.equal(telemetryDisplayStatus(missing, { now: T0 }), "unavailable");
+});
+
+test("layer gradient activity is validated, bounded and mapped to existing layer ids", () => {
+  const raw = {
+    measure: "gradientRms",
+    phase: "pre-clip",
+    aggregation: "per-transformer-block",
+    step: 12,
+    layers: Array.from({ length: 36 }, (_, index) => ({
+      index,
+      componentId: `model.layers.${index}`,
+      rms: index === 3 ? null : 0.01 + index * 1e-4,
+      elements: 1000 + index,
+    })),
+  };
+  for (const clean of [cleanServerLayerActivity, cleanBrowserLayerActivity]) {
+    const activity = clean(raw);
+    assert.equal(activity.measure, "gradientRms");
+    assert.equal(activity.layers.length, 36);
+    assert.equal(activity.layers[0].componentId, "model.layers.0");
+    assert.equal(activity.layers[3].rms, null, "a missing measurement stays missing");
+    assert.equal(clean({ ...raw, measure: "attention" }), null, "unknown measurements are never coerced");
+    assert.equal(clean({ ...raw, layers: [] }), null);
+  }
+
+  const oversized = cleanServerLayerActivity({
+    ...raw,
+    layers: Array.from({ length: 200 }, (_, index) => ({
+      index,
+      componentId: `model.layers.${index}`,
+      rms: 1,
+      elements: 1,
+    })),
+  });
+  assert.equal(oversized.layers.length, 128, "layer payload stays bounded");
+});
+
+test("a snapshot's layer measurement is stored, published and cleared with the session", () => {
+  const { store } = makeStore();
+  store.beginJob({ jobId: "job-1", at: T0 });
+  const activity = {
+    measure: "gradientRms",
+    phase: "pre-clip",
+    aggregation: "per-transformer-block",
+    step: 1,
+    layers: [{ index: 0, componentId: "model.layers.0", rms: 0.025, elements: 384 }],
+  };
+  store.ingest(event({ seq: 1, type: "started", step: 0 }), { jobId: "job-1" });
+  store.ingest(event({ seq: 2, type: "snapshot", step: 1, layerActivity: activity }), { jobId: "job-1" });
+  const snapshot = store.snapshot();
+  assert.equal(snapshot.layerActivity.measure, "gradientRms");
+  assert.equal(snapshot.layerActivity.layers[0].componentId, "model.layers.0");
+  assert.ok(snapshot.layerActivity.sampledAt, "the store stamps the received sample time");
+
+  store.ingest(event({ seq: 1, type: "started", sessionId: "run-2", step: 0 }), { jobId: "job-1" });
+  assert.equal(store.snapshot().layerActivity, null, "a new session cannot inherit old layer data");
+  store.dispose();
+});
+
+test("browser reducer applies measured layer activity without inventing missing values", () => {
+  const state = createTelemetryState();
+  applyTelemetryEvent(state, event({ seq: 1, type: "started", step: 0 }), { now: T0 });
+  const result = applyTelemetryEvent(state, event({
+    seq: 2,
+    type: "snapshot",
+    step: 1,
+    layerActivity: {
+      measure: "gradientRms",
+      phase: "pre-clip",
+      step: 1,
+      layers: [
+        { index: 0, componentId: "model.layers.0", rms: 0.02, elements: 384 },
+        { index: 1, componentId: "model.layers.1", rms: null, elements: 384 },
+      ],
+    },
+  }), { now: T0 + 1000 });
+  assert.equal(result.accepted, true);
+  assert.equal(state.layerActivity.layers.length, 2);
+  assert.equal(state.layerActivity.layers[1].rms, null);
+
+  const snapshotted = telemetryFromSnapshot({
+    schema: TELEMETRY_SCHEMA,
+    available: true,
+    status: "running",
+    sessionId: "run-1",
+    layerActivity: state.layerActivity,
+    receivedAt: new Date(T0).toISOString(),
+  }, { now: T0 });
+  assert.equal(snapshotted.layerActivity.layers.length, 2);
 });
 
 test("chart model distinguishes training and evaluation losses without inventing continuity", () => {

@@ -27,6 +27,42 @@ const STALE_EXPECTED = new Set(["running"]);
 const finiteOrNull = (value) => (Number.isFinite(Number(value)) ? Number(value) : null);
 const intOrNull = (value) => (Number.isInteger(Number(value)) ? Number(value) : null);
 const isoNow = (now) => new Date(now).toISOString();
+const MAX_LAYER_ACTIVITY_LAYERS = 128;
+
+/**
+ * Validate and bound the optional per-layer extension. Unknown or malformed
+ * payloads are dropped rather than turned into invented activity. `rms: null`
+ * is a legitimate "measured but unavailable" value.
+ */
+export function cleanLayerActivity(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  if (value.measure !== "gradientRms") return null;
+  const layers = [];
+  for (const raw of Array.isArray(value.layers) ? value.layers : []) {
+    if (!raw || typeof raw !== "object") continue;
+    const index = intOrNull(raw.index);
+    if (index === null || index < 0 || index > 9999) continue;
+    layers.push({
+      index,
+      componentId: typeof raw.componentId === "string" && raw.componentId
+        ? raw.componentId
+        : `model.layers.${index}`,
+      rms: raw.rms === null || raw.rms === undefined ? null : finiteOrNull(raw.rms),
+      elements: intOrNull(raw.elements) ?? 0,
+    });
+    if (layers.length >= MAX_LAYER_ACTIVITY_LAYERS) break;
+  }
+  if (!layers.length) return null;
+  layers.sort((a, b) => a.index - b.index);
+  return {
+    measure: "gradientRms",
+    phase: typeof value.phase === "string" ? value.phase : "pre-clip",
+    aggregation: typeof value.aggregation === "string" ? value.aggregation : "per-transformer-block",
+    step: intOrNull(value.step),
+    sampledAt: typeof value.sampledAt === "string" ? value.sampledAt : null,
+    layers,
+  };
+}
 
 /** Parse one stderr line from the Python telemetry channel. */
 export function parseTelemetryLine(line) {
@@ -109,6 +145,7 @@ export class TrainingTelemetry {
       receivedAt: null,
       lastEvent: null,
       lastCheckpoint: null,
+      layerActivity: null,
       history: { training: [], evaluation: [] },
       checkpoints: [],
       counters: { received: 0, accepted: 0, ignored: 0, coalesced: 0, published: 0, dropped: 0 },
@@ -163,6 +200,8 @@ export class TrainingTelemetry {
       if (event.type !== "started") return this.#ignore();
       this.state.history = { training: [], evaluation: [] };
       this.state.checkpoints = [];
+      this.state.lastCheckpoint = null;
+      this.state.layerActivity = null;
       this.state.sessionId = sessionId;
       this.state.seq = 0;
     }
@@ -205,6 +244,13 @@ export class TrainingTelemetry {
       if (elapsedMs !== null) this.state.elapsedMs = elapsedMs;
       if (step !== null && loss !== null) {
         pushPoint(this.state.history.training, { step, loss, at: this.state.updatedAt }, this.maxPoints);
+      }
+      if (event.layerActivity !== undefined) {
+        const layerActivity = cleanLayerActivity(event.layerActivity);
+        if (layerActivity) {
+          layerActivity.sampledAt = this.state.updatedAt;
+          this.state.layerActivity = layerActivity;
+        }
       }
       this.state.status = "running";
     } else if (event.type === "evaluation") {
@@ -311,6 +357,12 @@ export class TrainingTelemetry {
       receivedAt: state.receivedAt,
       lastEvent: state.lastEvent,
       lastCheckpoint: state.lastCheckpoint ? { ...state.lastCheckpoint } : null,
+      layerActivity: state.layerActivity
+        ? {
+            ...state.layerActivity,
+            layers: state.layerActivity.layers.map((layer) => ({ ...layer })),
+          }
+        : null,
       stale,
       ageMs,
       staleAfterMs: this.staleAfterMs,

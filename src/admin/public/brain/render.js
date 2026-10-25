@@ -451,6 +451,99 @@ export function createBrainScene(container, blueprint, options = {}) {
   regionHalo.renderOrder = 1;
   root.add(regionHalo);
 
+  // --------------------------------------------- observed layer activity
+  // One batched point per existing layer region. The overlay is deliberately
+  // separate from the resting-state region aura and from the illustrative web.
+  // It is driven only by measured per-block gradient RMS, never by a global
+  // step event.
+  const layerActivityPositions = new Float32Array(plan.regions.length * 3);
+  const layerActivityColors = new Float32Array(plan.regions.length * 3);
+  plan.regions.forEach((region, index) => {
+    layerActivityPositions[index * 3] = region.position[0];
+    layerActivityPositions[index * 3 + 1] = region.position[1];
+    layerActivityPositions[index * 3 + 2] = region.position[2];
+  });
+  const layerActivityGeometry = new THREE.BufferGeometry();
+  layerActivityGeometry.setAttribute("position", new THREE.BufferAttribute(layerActivityPositions, 3));
+  layerActivityGeometry.setAttribute("color", new THREE.BufferAttribute(layerActivityColors, 3));
+  const layerActivityMaterial = new THREE.PointsMaterial({
+    size: Math.max(5, Math.min(22, averageRegionRadius * 2.05)),
+    map: glowTexture,
+    transparent: true,
+    opacity: 0.58,
+    vertexColors: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    sizeAttenuation: true,
+    toneMapped: false,
+    fog: false,
+  });
+  const layerActivityPoints = new THREE.Points(layerActivityGeometry, layerActivityMaterial);
+  layerActivityPoints.visible = false;
+  layerActivityPoints.renderOrder = 2;
+  layerActivityPoints.frustumCulled = false;
+  root.add(layerActivityPoints);
+  let layerActivityEnabled = options.layerActivityEnabled === true;
+  let layerActivityData = null;
+
+  const LAYER_ACTIVITY_LOW = new THREE.Color(0x38bdf8);
+  const LAYER_ACTIVITY_HIGH = new THREE.Color(0xa78bfa);
+  const layerActivityScratch = new THREE.Color();
+  const layerActivityColor = new THREE.Color();
+
+  function updateLayerActivityColors() {
+    const layers = layerActivityData?.layers ?? [];
+    const values = layers
+      .map((layer) => layer.rms)
+      .filter((value) => Number.isFinite(value))
+      .sort((a, b) => a - b);
+    if (!values.length) {
+      layerActivityPoints.visible = false;
+      return;
+    }
+    const reference = values[Math.min(values.length - 1, Math.floor((values.length - 1) * 0.9))] || values[values.length - 1] || 1;
+    const byIndex = new Map(layers.map((layer) => [layer.index, layer]));
+    const byId = new Map(layers.map((layer) => [layer.componentId, layer]));
+    let any = false;
+    for (let index = 0; index < plan.regions.length; index += 1) {
+      const region = plan.regions[index];
+      const layer = byId.get(region.id) ?? byIndex.get(region.blockIndex);
+      const value = layer?.rms;
+      if (!Number.isFinite(value)) {
+        layerActivityColors[index * 3] = 0;
+        layerActivityColors[index * 3 + 1] = 0;
+        layerActivityColors[index * 3 + 2] = 0;
+        continue;
+      }
+      any = true;
+      const intensity = Math.min(1, Math.sqrt(Math.max(0, value / Math.max(reference, 1e-9))));
+      layerActivityColor.copy(LAYER_ACTIVITY_LOW).lerp(LAYER_ACTIVITY_HIGH, intensity);
+      const gain = 0.22 + 0.78 * intensity;
+      layerActivityScratch.copy(layerActivityColor).multiplyScalar(gain);
+      layerActivityColors[index * 3] = layerActivityScratch.r;
+      layerActivityColors[index * 3 + 1] = layerActivityScratch.g;
+      layerActivityColors[index * 3 + 2] = layerActivityScratch.b;
+    }
+    layerActivityGeometry.getAttribute("color").needsUpdate = true;
+    layerActivityPoints.visible = layerActivityEnabled && mode === "brain" && any;
+  }
+
+  function setLayerActivityEnabled(enabled) {
+    layerActivityEnabled = enabled === true;
+    if (!layerActivityEnabled) layerActivityPoints.visible = false;
+    else updateLayerActivityColors();
+    return layerActivityEnabled;
+  }
+
+  function setLayerActivity(activity) {
+    layerActivityData = activity && typeof activity === "object" ? activity : null;
+    if (!layerActivityEnabled || !layerActivityData || mode !== "brain") {
+      layerActivityPoints.visible = false;
+      return;
+    }
+    updateLayerActivityColors();
+  }
+
   // -------------------------------------------------------- region pickers
   const regionPickMaterial = new THREE.MeshBasicMaterial({
     transparent: true,
@@ -999,7 +1092,12 @@ export function createBrainScene(container, blueprint, options = {}) {
     regionHalo.visible = brain;
     atmosphereGroup.visible = brain;
     architectureGroup.visible = !brain;
-    if (!brain) clearActivity();
+    if (!brain) {
+      clearActivity();
+      layerActivityPoints.visible = false;
+    } else if (layerActivityEnabled && layerActivityData) {
+      updateLayerActivityColors();
+    }
     if (regionRingMaterial) regionRingMaterial.opacity = brain ? 0.26 : 0.45;
     applyHighlight(selectedId);
   }
@@ -1223,9 +1321,14 @@ export function createBrainScene(container, blueprint, options = {}) {
     setMode,
     notifyActivity,
     setActivityEnabled,
+    setLayerActivity,
+    setLayerActivityEnabled,
     dispose,
     get activityEnabled() {
       return activityEnabled;
+    },
+    get layerActivityEnabled() {
+      return layerActivityEnabled;
     },
     get selectedId() {
       return selectedId;

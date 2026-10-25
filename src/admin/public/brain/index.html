@@ -59,7 +59,8 @@
           </div>
           <div class="live-head-actions">
             <span id="liveConnection" class="live-pill connecting" role="status" aria-live="polite">connecting</span>
-            <button id="activityToggle" class="live-toggle" type="button" aria-pressed="true" title="Toggle data-driven activity indicators">Activity on</button>
+            <button id="activityToggle" class="live-toggle" type="button" aria-pressed="true" title="Toggle step and checkpoint acknowledgements">Activity on</button>
+            <button id="layerActivityToggle" class="live-toggle" type="button" aria-pressed="false" title="Toggle the measured per-layer gradient overlay">Layer overlay off</button>
           </div>
         </div>
         <div class="live-run">
@@ -74,6 +75,7 @@
         <div class="live-foot">
           <span class="live-legend"><i class="line training"></i>Training loss</span>
           <span class="live-legend"><i class="point eval"></i>Evaluation loss, measured only</span>
+          <span id="layerActivityStatus" class="live-layer-status">Layer gradient RMS: unavailable</span>
           <a href="/admin#trends">Completed runs in the Observatory</a>
         </div>
       </aside>

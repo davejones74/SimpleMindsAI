@@ -1,13 +1,14 @@
 """Check 5 and check 7, plus the guards the README requires around them.
 
 The suite builds a real model and runs a real (short) optimization. There is no
-mocked optimizer, because the failure this file exists to catch — a parameter
-that receives a gradient, is handed to AdamW, and then does not change — is
+mocked optimizer, because the failure this file exists to catch â€” a parameter
+that receives a gradient, is handed to AdamW, and then does not change â€” is
 invisible to anything that mocks the loop.
 """
 
 from __future__ import annotations
 
+import copy
 import json
 import subprocess
 import sys
@@ -29,7 +30,7 @@ MATERIAL_DELTA = 1e-6
 
 def _cfg(**overrides):
     # computeDtype is fp32 here on purpose. Measured on this machine: a bf16 CPU
-    # autocast forward+backward costs 28.96s against 0.13s for fp32 — a 220x
+    # autocast forward+backward costs 28.96s against 0.13s for fp32 â€” a 220x
     # penalty, because the CPU has no native bf16 and PyTorch emulates it. Tests
     # that are 200x slower test nothing extra. The production bf16-compute path is
     # covered separately by test_bf16_compute_with_fp32_masters.
@@ -52,7 +53,7 @@ def _cfg(**overrides):
 
 
 def test_every_tensor_differs_after_training(small_model, tokenizer):
-    """Check 7, over `named_parameters()` — not `state_dict()`.
+    """Check 7, over `named_parameters()` â€” not `state_dict()`.
 
     The narrow form is the correct one. `state_dict()` carries 75 entries
     because the tied embedding appears twice, and it omits the 2 RoPE buffers
@@ -177,7 +178,7 @@ def test_bf16_masters_would_freeze_rmsnorm(small_model):
 
     With bf16 masters the 17 RMSNorm weights start at 1.0, where bf16
     resolution is ~7.8e-3, so a 1e-4 AdamW update rounds away and the
-    parameter is unchanged — while the loss still falls, because the other 57
+    parameter is unchanged â€” while the loss still falls, because the other 57
     parameters are learning. This is the silent failure check 7 exists to catch.
     """
     def drive(model, steps=5, lr=1e-4):
@@ -375,7 +376,7 @@ def test_packing_hash_changes_when_text_changes(tokenizer):
     docs_a = data_mod.load_documents([FIXTURE_CORPUS])
     docs_b = [dict(d) for d in docs_a]
     docs_b[0]["text"] = docs_b[0]["text"] + " An extra sentence."
-    # The hash travels with the text, so it must be recomputed — which is exactly
+    # The hash travels with the text, so it must be recomputed â€” which is exactly
     # the contract pack() enforces below.
     import hashlib
 
@@ -657,3 +658,100 @@ def test_telemetry_is_observational_and_bounded(small_model, tokenizer):
             assert event["tokensSeen"] >= 0
     assert result.steps == 5
     assert state["stepsCompleted"] == 5
+
+def test_layer_gradient_activity_is_opt_in_bounded_and_mapped(small_model, tokenizer):
+    """Per-block gradient RMS is measured from existing grads, never retained."""
+    model, _config, _sizes = small_model
+    events = []
+    train_mod.train(
+        model=model.float(),
+        tokenizer=tokenizer,
+        documents=data_mod.load_documents([FIXTURE_CORPUS]),
+        cfg=_cfg(steps=4),
+        parent_version="v001",
+        new_version="v002",
+        tokenizer_path=FIXTURE_CORPUS,
+        device="cpu",
+        telemetry=events.append,
+        telemetry_interval_ms=250,
+        layer_activity_enabled=True,
+        layer_activity_interval_ms=500,
+    )
+    snapshots = [e for e in events if e["type"] == "snapshot" and "layerActivity" in e]
+    assert snapshots, "layer activity must be attached to a sampled snapshot"
+    activity = snapshots[-1]["layerActivity"]
+    assert activity["measure"] == "gradientRms"
+    assert activity["phase"] == "pre-clip"
+    assert activity["aggregation"] == "per-transformer-block"
+    assert 0 < len(activity["layers"]) <= 128
+    assert any(layer["rms"] is not None for layer in activity["layers"])
+    indices = [layer["index"] for layer in activity["layers"]]
+    assert indices == sorted(indices)
+    for layer in activity["layers"]:
+        assert layer["componentId"] == f"model.layers.{layer['index']}"
+        assert set(layer) == {"index", "componentId", "rms", "elements"}
+        assert layer["elements"] >= 0
+        assert layer["rms"] is None or layer["rms"] >= 0
+
+
+def test_layer_gradient_activity_is_absent_when_disabled(small_model, tokenizer):
+    model, _config, _sizes = small_model
+    events = []
+    train_mod.train(
+        model=model.float(),
+        tokenizer=tokenizer,
+        documents=data_mod.load_documents([FIXTURE_CORPUS]),
+        cfg=_cfg(steps=3),
+        parent_version="v001",
+        new_version="v002",
+        tokenizer_path=FIXTURE_CORPUS,
+        device="cpu",
+        telemetry=events.append,
+        telemetry_interval_ms=250,
+        layer_activity_enabled=False,
+    )
+    assert all("layerActivity" not in event for event in events)
+
+def test_layer_measurement_does_not_change_training_updates(small_model, tokenizer):
+    """The observer reads existing gradients and must not perturb the update."""
+    model, _config, _sizes = small_model
+    docs = data_mod.load_documents([FIXTURE_CORPUS])
+    events = []
+
+    baseline = copy.deepcopy(model.float())
+    train_mod.train(
+        model=baseline,
+        tokenizer=tokenizer,
+        documents=docs,
+        cfg=_cfg(steps=3, seed=17),
+        parent_version="v001",
+        new_version="v002",
+        tokenizer_path=FIXTURE_CORPUS,
+        device="cpu",
+        telemetry=lambda _event: None,
+        telemetry_interval_ms=250,
+        layer_activity_enabled=False,
+    )
+
+    observed = copy.deepcopy(model.float())
+    train_mod.train(
+        model=observed,
+        tokenizer=tokenizer,
+        documents=docs,
+        cfg=_cfg(steps=3, seed=17),
+        parent_version="v001",
+        new_version="v002",
+        tokenizer_path=FIXTURE_CORPUS,
+        device="cpu",
+        telemetry=events.append,
+        telemetry_interval_ms=250,
+        layer_activity_enabled=True,
+        layer_activity_interval_ms=500,
+    )
+
+    assert any(event.get("type") == "snapshot" and "layerActivity" in event for event in events)
+    before = dict(baseline.named_parameters())
+    after = dict(observed.named_parameters())
+    assert before.keys() == after.keys()
+    for name in before:
+        assert torch.equal(before[name], after[name]), f"layer measurement changed {name}"

@@ -27,6 +27,13 @@ const activityPreference = (() => {
     return true;
   }
 })();
+const layerActivityPreference = (() => {
+  try {
+    return window.sessionStorage.getItem("sma.brain.layerActivity") === "on";
+  } catch {
+    return false;
+  }
+})();
 const state = {
   blueprint: null,
   summary: null,
@@ -36,6 +43,8 @@ const state = {
   telemetry: createTelemetryState(),
   telemetrySeq: 0,
   activityEnabled: activityPreference,
+  layerActivityEnabled: layerActivityPreference,
+  layerActivityKey: "",
   liveTimer: null,
   telemetryStream: null,
 };
@@ -423,10 +432,12 @@ async function loadBlueprint() {
     state.scene = createBrainScene(document.getElementById("scene"), blueprint, {
       initialMode: state.mode,
       activityEnabled: state.activityEnabled,
+      layerActivityEnabled: state.layerActivityEnabled,
       onSelect: (componentId) => renderInspector(componentId),
     });
     state.scene.setMode(state.mode);
     state.scene.setActivityEnabled(state.activityEnabled);
+    syncLayerActivity(true);
     updateModeButtons();
     renderLegend(blueprint);
     renderWarnings(blueprint, state.scene.plan.warnings);
@@ -521,6 +532,44 @@ function chartSvg(telemetry) {
   return `${grid}${xAxis}${checkpoints}${trainingPath}${evaluationPath}${evaluationPoints}`;
 }
 
+function syncLayerActivity(force = false) {
+  const now = Date.now();
+  const activity = state.telemetry.layerActivity;
+  const status = telemetryDisplayStatus(state.telemetry, {
+    now,
+    connection: state.telemetry.connection,
+  });
+  const live = status === "live" && state.telemetry.status === "running";
+  const enabled = state.layerActivityEnabled && live && Boolean(activity);
+  const key = enabled
+    ? `${state.telemetry.sessionId}:${activity.step}:${activity.layers.map((layer) => `${layer.index}:${layer.rms ?? "n"}`).join(",")}`
+    : `off:${status}`;
+  if (force || key !== state.layerActivityKey) {
+    state.layerActivityKey = key;
+    state.scene?.setLayerActivity(enabled ? activity : null);
+  }
+
+  const statusEl = document.getElementById("layerActivityStatus");
+  if (statusEl) {
+    let text;
+    let measured = false;
+    if (!state.layerActivityEnabled) {
+      text = "Layer gradient RMS: overlay off";
+    } else if (!activity) {
+      text = "Layer gradient RMS: not measured";
+    } else if (!live) {
+      text = `Layer gradient RMS: ${status}`;
+    } else {
+      const age = activity.sampledAt ? Date.parse(activity.sampledAt) : NaN;
+      text = `Layer gradient RMS: ${activity.layers.length} layers · step ${activity.step ?? "—"}${Number.isFinite(age) ? ` · sampled ${formatAge(Math.max(0, now - age))}` : ""}`;
+      measured = true;
+    }
+    statusEl.textContent = text;
+    statusEl.title = "Gradient RMS = sqrt(mean(g^2)) over each transformer block's parameter gradients, after backward and before clipping. Raw values are in the telemetry payload.";
+    statusEl.classList.toggle("measured", measured);
+  }
+}
+
 function renderLivePanel({ rebuildChart = true } = {}) {
   const now = Date.now();
   const telemetry = state.telemetry;
@@ -598,6 +647,12 @@ function renderLivePanel({ rebuildChart = true } = {}) {
     toggle.setAttribute("aria-pressed", String(state.activityEnabled));
     toggle.textContent = state.activityEnabled ? "Activity on" : "Activity off";
   }
+  const layerToggle = document.getElementById("layerActivityToggle");
+  if (layerToggle) {
+    layerToggle.setAttribute("aria-pressed", String(state.layerActivityEnabled));
+    layerToggle.textContent = state.layerActivityEnabled ? "Layer overlay on" : "Layer overlay off";
+  }
+  syncLayerActivity();
 }
 
 function acknowledgeActivity(kind) {
@@ -712,6 +767,18 @@ async function wireLiveTraining() {
     } catch {
       // A restrictive context may not allow storage; the toggle still works.
     }
+    renderLivePanel();
+  });
+  document.getElementById("layerActivityToggle")?.addEventListener("click", () => {
+    state.layerActivityEnabled = !state.layerActivityEnabled;
+    state.scene?.setLayerActivityEnabled(state.layerActivityEnabled);
+    state.layerActivityKey = "";
+    try {
+      window.sessionStorage.setItem("sma.brain.layerActivity", state.layerActivityEnabled ? "on" : "off");
+    } catch {
+      // A restrictive context may not allow storage; the toggle still works.
+    }
+    syncLayerActivity(true);
     renderLivePanel();
   });
   renderLivePanel();

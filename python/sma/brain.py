@@ -399,6 +399,11 @@ def _cmd_train_locked(args: argparse.Namespace, root: Path, version: str, node_r
         telemetry_interval_ms = int(os.environ.get("SMA_TELEMETRY_INTERVAL_MS", "1000"))
     except ValueError:
         telemetry_interval_ms = 1000
+    layer_activity_enabled = os.environ.get("SMA_LAYER_ACTIVITY", "").lower() in {"1", "true", "yes", "on"}
+    try:
+        layer_activity_interval_ms = int(os.environ.get("SMA_LAYER_ACTIVITY_INTERVAL_MS", "2000"))
+    except ValueError:
+        layer_activity_interval_ms = 2000
 
     def emit_telemetry(event: Dict[str, Any]) -> None:
         """Add session identity/sequence once, then hand off to the root writer."""
@@ -505,6 +510,8 @@ def _cmd_train_locked(args: argparse.Namespace, root: Path, version: str, node_r
             log=_log,
             telemetry=emit_telemetry,
             telemetry_interval_ms=telemetry_interval_ms,
+            layer_activity_enabled=layer_activity_enabled,
+            layer_activity_interval_ms=layer_activity_interval_ms,
         )
     except train_mod.NumericalFailure as exc:
         # Invariant 9: a failed run must never become the active brain. Nothing has
