@@ -110,6 +110,7 @@ test("collectDocuments: real mode records successes and labelled failures", asyn
     urls: [`${base}/page`, `${base}/private`, `${base}/binary`],
     allowPrivate: true,
     respectRobots: true,
+    fetchImpl: fetch,
   });
   assert.equal(res.capability, CAPABILITY.real);
   assert.equal(res.documents.length, 1);
@@ -126,7 +127,7 @@ test("harvest: writes corpus + failures files with capability labels", async () 
   // Harvest writes discovered domains to a registry; give it an isolated one so
   // the test can never touch the configured live registry (data/frontier).
   const domainRegistry = createDomainRegistry({ dir: mkdtempSync(path.join(tmpdir(), "sma-crawl-reg-")), forceNew: true });
-  const res = await harvest({ dir, mode: "real", urls: [`${base}/page`, `${base}/private`], allowPrivate: true, respectRobots: true, domainRegistry });
+  const res = await harvest({ dir, mode: "real", urls: [`${base}/page`, `${base}/private`], allowPrivate: true, respectRobots: true, domainRegistry, fetchImpl: fetch });
   assert.ok(existsSync(res.file));
   assert.ok(res.failuresFile && existsSync(res.failuresFile));
   const line = JSON.parse(readFileSync(res.file, "utf8").trim().split("\n")[0]);

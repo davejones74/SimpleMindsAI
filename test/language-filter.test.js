@@ -228,6 +228,7 @@ test("collectDocuments honours the filter without inventing failures", async () 
     urls: [`${base}/french`, `${base}/nonlatin`],
     allowPrivate: true,
     languageFilter: ENFORCED,
+    fetchImpl: fetch,
   });
   assert.equal(excluded.documents.length, 0);
   assert.equal(excluded.failures.length, 0, "a language skip is not a fetch failure");
@@ -241,6 +242,7 @@ test("confident English is never excluded, even under unknownPolicy=reject", asy
     urls: [`${base}/english`],
     allowPrivate: true,
     languageFilter: { ...ENFORCED, unknownPolicy: "reject" },
+    fetchImpl: fetch,
   });
   assert.equal(res.documents.length, 1);
   assert.equal(res.languageFiltered, 0);
