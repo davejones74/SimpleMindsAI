@@ -26,6 +26,10 @@
       </div>
       <div class="brain-metrics" id="brainMetrics"></div>
       <div class="brain-actions">
+        <div class="brain-mode-switch" role="group" aria-label="Visualisation mode">
+          <button id="modeBrain" type="button" class="active" data-mode="brain" aria-pressed="true" title="Cinematic overview (B)">Brain</button>
+          <button id="modeArchitecture" type="button" data-mode="architecture" aria-pressed="false" title="Precise blueprint view (A)">Architecture</button>
+        </div>
         <button id="resetView" type="button" title="Reset the camera (R)">Reset view</button>
         <button id="overview" type="button" title="Clear selection and return to the whole brain (Esc)">Overview</button>
       </div>
@@ -34,8 +38,8 @@
     <main class="brain-stage">
       <div id="scene" class="brain-scene" aria-label="Interactive 3D model of the active brain"></div>
 
-      <aside id="legend" class="brain-legend" aria-label="Component type legend">
-        <div class="brain-panel-title">Component types</div>
+      <aside id="legend" class="brain-legend" aria-label="Visual language and component type legend">
+        <div class="brain-panel-title">Visual language</div>
         <div id="legendItems" class="legend-items"></div>
       </aside>
 
@@ -55,7 +59,7 @@
           <div class="overlay-detail">Reading the exported structural blueprint.</div>
         </div>
       </div>
-      <div class="brain-hint">R reset · Esc overview · click to inspect</div>
+      <div class="brain-hint">B brain · A architecture · R reset · Esc overview · click to inspect</div>
     </main>
   </div>
 

@@ -6,7 +6,7 @@ import {
   highlightFor,
   validateBlueprint,
 } from "../src/admin/public/brain/schema.js";
-import { buildRenderPlan } from "../src/admin/public/brain/layout.js";
+import { buildRenderPlan, DEFAULT_LAYOUT } from "../src/admin/public/brain/layout.js";
 import { fitCamera } from "../src/admin/public/brain/framing.js";
 
 function component(id, type, parentId, blockIndex, extra = {}) {
@@ -198,9 +198,85 @@ test("a synthetic 36-layer 3B-scale blueprint stays bounded", () => {
   assert.ok(plan.edges.length < 2000);
   assert.equal(plan.counts.nodes, plan.counts.totalNodes);
   assert.equal(plan.counts.edges, plan.counts.totalEdges);
-  assert.ok(plan.bounds.radius > 50);
-  const blockRows = new Set(plan.nodes.filter((node) => node.type === "transformer_block").map((node) => node.position[1]));
+  assert.ok(plan.bounds.radius > 30);
+  const blockRows = new Set(plan.blocks.filter((block) => block.blockIndex != null).map((block) => block.position[1]));
   assert.ok(blockRows.size > 1, "a long model should fold into multiple rows");
+  assert.ok(plan.blocks.every((block) => block.size[0] > 0 && block.size[1] > 0 && block.size[2] > 0));
+  assert.equal(validateBlueprint(blueprint).ok, true);
+});
+
+test("regions are a deterministic three-dimensional sequence, not a flat grid", () => {
+  const blueprint = syntheticBlueprint(8);
+  const plan = buildRenderPlan(blueprint);
+  assert.equal(plan.regions.length, 8);
+  assert.equal(plan.blocks.length, plan.regions.length);
+  const positions = new Set(plan.regions.map((region) => region.position.map((value) => value.toFixed(2)).join(",")));
+  const ys = new Set(plan.regions.map((region) => region.position[1].toFixed(2)));
+  const zs = new Set(plan.regions.map((region) => region.position[2].toFixed(2)));
+  assert.equal(positions.size, 8, "each region has its own place in the volume");
+  assert.ok(ys.size > 4, "regions vary vertically");
+  assert.ok(zs.size > 4, "regions vary in depth");
+  const zSpread = Math.max(...plan.regions.map((region) => region.position[2]))
+    - Math.min(...plan.regions.map((region) => region.position[2]));
+  assert.ok(zSpread > plan.bounds.radius * 0.25, "the sequence should not be a flat plane");
+});
+
+test("structural and illustrative geometry are explicitly separated", () => {
+  const blueprint = syntheticBlueprint(4);
+  const plan = buildRenderPlan(blueprint);
+  const componentIds = new Set(blueprint.components.map((component) => component.id));
+  const connectionIds = new Set(blueprint.connections.map((connection) => connection.id));
+
+  assert.ok(plan.nodes.length > 0);
+  assert.ok(plan.edges.length > 0);
+  assert.ok(plan.synaptic.nodes.length > 0);
+  assert.ok(plan.synaptic.filaments.length > 0);
+
+  for (const node of plan.nodes) {
+    assert.equal(node.kind, "architecture");
+    assert.ok(componentIds.has(node.id), `${node.id} is not a blueprint component`);
+  }
+  for (const edge of plan.edges) {
+    assert.equal(edge.kind, "architecture");
+    assert.ok(connectionIds.has(edge.id), `${edge.id} is not a blueprint connection`);
+    assert.ok(edge.points.length > 2, "structural connections are curved polylines");
+  }
+  for (const node of plan.synaptic.nodes) {
+    assert.equal(node.kind, "illustrative");
+    assert.ok(!componentIds.has(node.id));
+    assert.match(node.id, /^synapse\./);
+  }
+  for (const filament of plan.synaptic.filaments) {
+    assert.equal(filament.kind, "illustrative");
+    assert.match(filament.id, /^filament\./);
+    assert.ok(filament.points.length > 2);
+  }
+  assert.equal(plan.counts.synapticNodes, plan.synaptic.nodes.length);
+  assert.equal(plan.counts.filaments, plan.synaptic.filaments.length);
+  assert.ok(plan.synaptic.nodes.some((node) => node.role === "core"), "the volume has an inner core");
+  assert.ok(plan.synaptic.nodes.some((node) => node.role === "field"), "the volume has satellite clusters");
+  for (const node of plan.nodes) {
+    assert.ok(["glass", "metal", "matte"].includes(node.materialClass), `${node.id} has no material family`);
+  }
+});
+
+test("the illustrative budget is independent of parameter count", () => {
+  const small = syntheticBlueprint(8, { totalParameters: 61839744 });
+  const large = syntheticBlueprint(8, { totalParameters: 3075098624 });
+  assert.deepEqual(buildRenderPlan(small), buildRenderPlan(large));
+});
+
+test("the synthetic 36-layer scene has a substantial but bounded synaptic web", () => {
+  const blueprint = syntheticBlueprint(36, { totalParameters: 3075098624 });
+  const plan = buildRenderPlan(blueprint);
+  assert.equal(plan.counts.layers, 36);
+  assert.ok(plan.synaptic.nodes.length <= DEFAULT_LAYOUT.maxSynapticNodes);
+  assert.ok(plan.synaptic.filaments.length <= DEFAULT_LAYOUT.maxFilaments);
+  assert.ok(plan.synaptic.nodes.length > 1000, "the larger model still has a rich web");
+  assert.ok(plan.synaptic.filaments.length > 800, "the larger model still has filaments");
+  const zs = new Set(plan.regions.map((region) => region.position[2].toFixed(2)));
+  assert.ok(zs.size > 20, "regions spiral through depth");
+  assert.ok(plan.bounds.radius > 30);
   assert.equal(validateBlueprint(blueprint).ok, true);
 });
 
@@ -218,7 +294,7 @@ test("camera framing fits both the small and synthetic 36-layer architecture", (
   }
   assert.ok(large.distance > small.distance);
   const portrait = fitCamera(smallPlan.bounds, { aspect: 0.6 });
-  assert.ok(portrait.distance > small.distance, "a narrow viewport must back the camera up");
+  assert.ok(portrait.distance >= small.distance, "a narrow viewport must not require a closer camera");
 });
 
 test("render safeguards cap a pathologically large blueprint", () => {
@@ -263,6 +339,38 @@ test("selecting a block highlights its children and crossing edges", () => {
   assert.ok(highlight.connectionIds.has("c.0.norm"));
   assert.ok(highlight.connectionIds.has("c.0.downres"));
   assert.equal(highlightFor(blueprint, "missing").componentIds.size, 0);
+});
+
+test("containers report boundary and internal connections rather than zero", () => {
+  const blueprint = syntheticBlueprint(2);
+
+  const block = describeSelection(blueprint, "model.layers.0");
+  assert.equal(block.isContainer, true);
+  assert.ok(block.containedComponents > 0);
+  assert.equal(block.incoming.length, 0, "the block itself has no directly attached edges");
+  assert.equal(block.outgoing.length, 0);
+  assert.ok(block.internal.length > 0, "a block has internal connections between its children");
+  assert.ok(block.interfaceIncoming.length > 0, "a block has boundary incoming connections");
+  assert.ok(block.interfaceOutgoing.length > 0, "a block has boundary outgoing connections");
+  assert.ok(block.internal.every((edge) => edge.otherId !== "model.layers.0"));
+
+  const mlp = describeSelection(blueprint, "model.layers.0.mlp");
+  assert.equal(mlp.isContainer, true);
+  assert.ok(mlp.internal.length > 0, "the MLP has child-to-child edges (gate->act, up->mul, ...)");
+  assert.ok(mlp.interfaceIncoming.length > 0);
+  assert.ok(mlp.interfaceOutgoing.length > 0);
+
+  const attn = describeSelection(blueprint, "model.layers.0.attn");
+  assert.equal(attn.isContainer, true);
+  assert.ok(attn.incoming.length > 0, "the attention core has direct incoming projections");
+  assert.ok(attn.outgoing.length > 0, "the attention core has a direct outgoing projection");
+
+  const leaf = describeSelection(blueprint, "model.layers.0.attn.q_proj");
+  assert.equal(leaf.isContainer, false);
+  assert.equal(leaf.internal.length, 0);
+  assert.equal(leaf.containedComponents, 0);
+  assert.ok(leaf.incoming.length > 0);
+  assert.ok(leaf.outgoing.length > 0);
 });
 
 test("tied and unverified metadata is surfaced, not hidden", () => {

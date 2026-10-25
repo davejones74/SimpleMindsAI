@@ -1,8 +1,19 @@
-# Brain visualisation (Phase 1)
+# Brain visualisation (Phase 1.4)
 
 A read-only, explicitly invoked exporter turns the **active** SimpleMindsAI
 checkpoint into a versioned structural blueprint. A standalone Three.js page at
-`/admin/brain` renders that blueprint as an interactive 3D model.
+`/admin/brain` renders that blueprint as an interactive, cinematic neural
+universe.
+
+The synaptic web is the primary visual language. The real transformer
+architecture remains embedded in it: structural nodes, tensor metadata and
+actual computational connections stay inspectable in **Architecture** mode.
+
+Phase 1.4 refines the art direction without changing the blueprint or the
+two-mode design: the layout is now a coherent ellipsoidal volume, structural
+nodes use a glass/metal/matte material hierarchy, lighting has cool key and
+violet/cyan accents, and the illustrative filaments are finer, tapered and
+depth-faded.
 
 The visualiser is optional. It is not part of the perpetual-learning service,
 does not run in the background, and never loads model weights.
@@ -19,6 +30,29 @@ does not run in the background, and never loads model weights.
   GPU allocation, no hooks, no training loop, no new Python dependency.
 - **The visualiser has no live telemetry.** There are no activations, gradients,
   weight deltas, or training-progress claims in the scene or inspector.
+
+## Two modes, two visual categories
+
+The page has two explicit modes:
+
+| Mode | Contents |
+|---|---|
+| **Brain** (default) | Structural nodes and genuine connections, plus a deterministic, seeded illustrative web of synaptic nodes and branched filaments. The illustrative layer supplies density and depth. |
+| **Architecture** | Only nodes and connections derived from the exported blueprint. Region rings and labels identify the transformer sequence. Illustrative filaments, field synapses and ambient dust are hidden. |
+
+The categories never mix in the authoritative data:
+
+- **Structural** entries come from `components` and `connections`. Their ids,
+  dimensions, parameter metadata and inspection behaviour are unchanged.
+- **Illustrative** entries live only in the render plan's `synaptic` collection.
+  Their ids start with `synapse.` or `filament.`; they have
+  `kind: "illustrative"` and are never inserted into `components`,
+  `connections`, parameter accounting or the inspector.
+- Decorative filaments are drawn as broken/dashed fine lines. Structural
+  connections are solid, brighter and use the connection-type palette.
+- The on-screen legend states this distinction, and Brain mode explicitly says
+  that filaments and ambient particles are artistic atmosphere, not weights,
+  activations, learned signals or information flow.
 
 ## Export
 
@@ -262,8 +296,13 @@ evidence, and even then the exporter does not read tensor data.
 ## Interaction
 
 - Drag to orbit; scroll to zoom; right-drag or shift-drag to pan.
-- Click a node or a block ring to select it. Selecting a block shows the
-  aggregate parameter/tensor counts of its contained components.
+- Switch modes with the **Brain / Architecture** control, or press `B` / `A`.
+  `?mode=architecture` opens the precise view directly.
+- Click a structural node or a layer region to select it. Selecting a region
+  shows the aggregate parameter/tensor counts of its contained components.
+- Selection illuminates the real component and its genuine blueprint
+  connections. The surrounding synaptic web is dimmed, not hidden, in Brain
+  mode.
 - The inspector lists dimensions, tensor shapes, exact/tied/derived labels,
   incoming and outgoing connections, and the parameter-verification checks.
 - Clicking a connected component moves the selection to it.
@@ -275,34 +314,64 @@ evidence, and even then the exporter does not read tensor data.
 The layout is derived from the blueprint, not from a hard-coded eight-layer
 model:
 
-- Transformer blocks are placed along a central axis.
-- Short models use one row; long models fold into deterministic rows (the
-  36-layer target becomes a readable 9 × 4 grid instead of a thin line).
-- Global embeddings and RoPE sit before the first block; the final norm and
-  LM head sit after the last.
-- Each block's norms, Q/K/V/O, attention, SwiGLU MLP, activation, product and
-  residual joins use a deterministic local arrangement.
-- Changing `numHiddenLayers`, widths or head counts changes the scene without
-  a renderer redesign.
-- Block halos are camera-facing, so they remain circular at every orbit angle
-  instead of collapsing into edge-on slivers.
+- Transformer regions are distributed along a deterministic spherical spiral
+  over an ellipsoidal shell. The sequence still runs from the first region to
+  the last, but it winds through a coherent volume instead of forming a flat
+  grid, a horseshoe or a set of rectangular compartments.
+- Each region is a local cluster in a basis aligned to the spiral. Norms,
+  Q/K/V/O, attention, the SwiGLU MLP, activation, product and residual joins use
+  semantic slots derived from the blueprint's parent/child relationships and
+  `role` metadata.
+- Global embedding, RoPE, final norm and LM head sit at the two ends of the
+  sequence, with subtle colour and size cues.
+- Satellite synaptic clusters orbit the regions they belong to; inner core
+  clusters fill the middle-distance volume. Field filaments bridge outward and
+  inward without scattering disconnected islands around the model.
+- Region tint follows a cyan-to-violet gradient along the sequence. Faint
+  circular rings trace the spiral in Brain mode; Architecture mode shows them
+  more clearly alongside region labels.
+- Positional-encoding and tied-parameter connections are real but low-priority
+  in the overview; they are dimmed in Brain mode and remain visible and
+  inspectable in Architecture mode.
+- There are no rectangular block enclosures or wireframe boxes.
+
+The material and lighting system is deliberately restrained:
+
+- Weight-bearing and container nodes use a glass or brushed-metal physical
+  material with clearcoat highlights; derived structural nodes stay matte.
+- Selected components gain a translucent glass shell and a soft halo.
+- Real blueprint connections remain solid and type-coloured. Illustrative
+  filaments are finer, dashed/dotted, tapered toward their tips, and fogged with
+  depth so long foreground strands recede.
+- A cool hemisphere/key light, cyan fill, violet rim and a low-intensity inner
+  point light provide volume without washing out the scene. Large, very faint
+  atmosphere sprites add a soft background gradient; no bloom pass is used.
 
 Performance is independent of parameter count:
 
-- Nodes are one instance per structural component, never one per parameter.
-- Node groups use `InstancedMesh`; connections are a single batched
-  `LineSegments` buffer.
-- Background particles are a fixed budget.
-- Render plans cap nodes and edges and report any omitted geometry rather than
-  freezing the browser.
-- Camera fitting projects the actual blueprint bounding box, then derives near
-  and far planes from that fit, so the same code frames the 62M prototype and
-  the planned 36-layer, ~3.075B model. The stage fills the viewport below the
-  header; it does not inherit the portal's global `main` max-width/margins.
+- Structural nodes are one instance per component, never one per parameter.
+- Structural node groups, synaptic nodes and region auras use `InstancedMesh` or
+  batched `Points`.
+- Curved structural and illustrative lines are batched into two
+  `LineSegments2` buffers. Illustrative lines are intentionally broken into
+  dashes, which also keeps their segment count bounded.
+- Budgets are fixed: at most 5,000 structural nodes, 20,000 structural
+  connections, 2,400 synaptic nodes and 2,200 illustrative filaments.
+  Omitted geometry is reported, never silently invented.
+- Background dust is a fixed budget. Fog, additive glow and soft halos replace
+  expensive post-processing; no bloom pass is required.
+- Render plans are deterministic for the same blueprint (seeded from stable
+  ids, version and counts). Rebuilding the page does not reshuffle the scene.
+- Camera fitting projects the actual blueprint bounds, then derives near and
+  far planes from that fit. Brain mode uses a closer cinematic composition;
+  Architecture mode backs up slightly so the full blueprint remains legible.
+  The stage fills the viewport below the header; it does not inherit the
+  portal's global `main` max-width/margins.
 
-The synthetic 3B test builds a 36-layer blueprint with 581 components and 768
-connections and verifies the render plan stays bounded. It does not load the
-real 3B model.
+The synthetic 3B test builds a 36-layer blueprint with 581 components and 795
+connections and verifies the render plan stays bounded: 544 structural nodes,
+2,400 synaptic nodes and 2,016 filaments in the verification run. It does not
+load the real 3B model.
 
 ## Isolation checklist
 
@@ -318,6 +387,33 @@ real 3B model.
 | Python dependencies | none added |
 | Node dependency | `three` only |
 
+## Verification screenshots
+
+All four screenshots below use the exported eight-layer blueprint (`v001`, 124
+rendered structural components, 173 connections) at the default overview
+camera.
+
+Phase 1.3 baseline:
+
+- [Brain mode](screenshots/brain-mode.png) — earlier horseshoe composition.
+- [Architecture mode](screenshots/architecture-mode.png) — earlier blueprint view.
+
+Phase 1.4 refinement:
+
+- [Brain mode](screenshots/phase-1.4-brain.png) — cohesive ellipsoidal synaptic
+  volume with glass/metal/matte nodes and refined lighting.
+- [Architecture mode](screenshots/phase-1.4-architecture.png) — same precise
+  blueprint view with the refined spatial layout.
+
+The synthetic 36-layer, ~3.075B-parameter fixture was also rendered in both
+modes. Its render plan contained 544 structural nodes, 795 structural
+connections, 2,400 synaptic nodes and 2,016 filaments, with no console or page
+errors. The browser verification used software WebGL; frame rate varied under
+that renderer, so the meaningful budget numbers are the bounded geometry counts
+and draw calls (17 in Brain mode, 30 in Architecture mode for the synthetic
+36-layer fixture, the latter including label sprites and region annotation), not
+the software-rendered FPS.
+
 ## Troubleshooting
 
 | Symptom | Cause | Fix |
@@ -329,3 +425,4 @@ real 3B model.
 | `blueprint failed schema validation` | Corrupt/edited export | Re-run the exporter |
 | Scene squeezed into a narrow central strip | The portal's global `main` max-width/margins leaked into the standalone page | The visualiser overrides `main.brain-stage` with full width, no max-width, and zero margins |
 | Blank scene / WebGL error | Browser or GPU WebGL unavailable | Use a WebGL-capable browser; the blueprint remains valid |
+| Cannot find a component in Brain mode | The decorative web is dense at the overview scale | Select the layer region, use the inspector connection chips, or switch to Architecture mode |

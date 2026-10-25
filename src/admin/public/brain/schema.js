@@ -1,17 +1,17 @@
 export const BLUEPRINT_SCHEMA = "sma/brain-blueprint@1";
 
 export const COMPONENT_COLORS = {
-  model: "#9aa7b8",
-  embedding: "#5eead4",
+  model: "#91a5c2",
+  embedding: "#67e8f9",
   positional_encoding: "#a78bfa",
   transformer_block: "#4ea1ff",
-  attention: "#f472b6",
+  attention: "#38bdf8",
   linear_projection: "#60a5fa",
-  mlp: "#f59e0b",
+  mlp: "#8b5cf6",
   activation: "#fbbf24",
   elementwise: "#fb923c",
-  normalization: "#34d399",
-  residual: "#94a3b8",
+  normalization: "#2dd4bf",
+  residual: "#93a4c0",
   output_head: "#e879f9",
   buffer: "#64748b",
 };
@@ -284,34 +284,38 @@ export function describeSelection(blueprint, componentId) {
       ? item.tensors.map((tensor) => ({ ...tensor, componentId: item.id, componentName: item.name }))
       : []
   ));
+  const inside = new Set([component.id, ...descendants.map((item) => item.id)]);
+  const makeEdge = (connection, otherId) => {
+    const other = map.get(otherId);
+    return {
+      id: connection.id,
+      otherId,
+      name: other?.name ?? otherId,
+      type: connection.type,
+      explicit: connection.explicit,
+      inferred: connection.inferred,
+      width: connection.dimensions?.width ?? null,
+      note: connection.note ?? null,
+    };
+  };
   const incoming = [];
   const outgoing = [];
+  const internal = [];
+  const interfaceIncoming = [];
+  const interfaceOutgoing = [];
   for (const connection of blueprint.connections ?? []) {
-    if (connection.to === component.id) {
-      const other = map.get(connection.from);
-      incoming.push({
-        id: connection.id,
-        otherId: connection.from,
-        name: other?.name ?? connection.from,
-        type: connection.type,
-        explicit: connection.explicit,
-        inferred: connection.inferred,
-        width: connection.dimensions?.width ?? null,
-        note: connection.note ?? null,
-      });
-    }
-    if (connection.from === component.id) {
-      const other = map.get(connection.to);
-      outgoing.push({
-        id: connection.id,
-        otherId: connection.to,
-        name: other?.name ?? connection.to,
-        type: connection.type,
-        explicit: connection.explicit,
-        inferred: connection.inferred,
-        width: connection.dimensions?.width ?? null,
-        note: connection.note ?? null,
-      });
+    if (connection.to === component.id) incoming.push(makeEdge(connection, connection.from));
+    if (connection.from === component.id) outgoing.push(makeEdge(connection, connection.to));
+    const fromInside = inside.has(connection.from);
+    const toInside = inside.has(connection.to);
+    if (fromInside && toInside) {
+      if (connection.from !== component.id && connection.to !== component.id) {
+        internal.push(makeEdge(connection, connection.from));
+      }
+    } else if (toInside) {
+      interfaceIncoming.push(makeEdge(connection, connection.from));
+    } else if (fromInside) {
+      interfaceOutgoing.push(makeEdge(connection, connection.to));
     }
   }
   const tensors = (component.tensors ?? []).map((tensor) => ({
@@ -320,6 +324,9 @@ export function describeSelection(blueprint, componentId) {
     dtype: tensor.dtype ?? null,
     elements: tensor.numel ?? null,
   }));
+  const isContainer = descendants.length > 0;
+  const inferredConnections = [...incoming, ...outgoing, ...interfaceIncoming, ...interfaceOutgoing]
+    .filter((item) => item.inferred).length;
   return {
     component,
     block,
@@ -328,13 +335,18 @@ export function describeSelection(blueprint, componentId) {
     tensors,
     descendantTensors,
     aggregate,
+    containedComponents: descendants.length,
+    isContainer,
     parameters: { ...(component.parameters ?? {}) },
     metadata: { ...(component.metadata ?? {}) },
     incoming,
     outgoing,
+    internal,
+    interfaceIncoming,
+    interfaceOutgoing,
     labels: {
       derived: component.derived === true,
-      inferredConnections: [...incoming, ...outgoing].filter((item) => item.inferred).length,
+      inferredConnections,
       tied: component.metadata?.tied === true,
     },
   };
