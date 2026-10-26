@@ -4,6 +4,7 @@ import { CAPABILITY, runCrawlBatches, seedFrontierFromConfig } from "../harness/
 import { createDiscoveryPolicy, hostOf } from "./discovery-policy.js";
 import { createDomainRegistry, canonicalDomain } from "../storage/domain-registry.js";
 import { buildAdapters, createAdapterFetchText } from "./adapters/index.js";
+import { createDiscoveryOperationGovernor, createGovernedFetchText } from "./discovery-operations.js";
 import { resolveSearchQueries } from "./mission-queries.js";
 import { classifyDiscoveryLanguage, DISCOVERY_LANGUAGE_PRIORS } from "./language-prior.js";
 
@@ -74,6 +75,8 @@ export class DiscoveryService {
     languagePrior = config.discoveryLanguagePrior,
     admissionGateway = null,
     fetchImpl = undefined,
+    discoveryDir = config.paths.discovery,
+    discoveryOperations = null,
   } = {}) {
     this.frontier = frontier ?? new Frontier({ dir: config.paths.frontier });
     this.seeds = (seeds ?? []).filter(Boolean);
@@ -102,20 +105,52 @@ export class DiscoveryService {
     this.rootCursor = 0;
     // Adapters and their network access are injectable so tests can drive the
     // whole pipeline deterministically without touching the network.
-    this.fetchText = fetchText ?? createAdapterFetchText();
+    this.fetchText = fetchText ?? createAdapterFetchText({ fetchImpl });
     this.fetchImpl = fetchImpl;
     this.admissionGateway = admissionGateway;
-    // Adapter discovery (sitemap/feed/search) performs network I/O outside the
-    // target-acquisition boundary. When the gateway is enabled those paths are
-    // disabled until they have an explicit admission integration; caller-supplied
-    // adapters are rejected rather than silently bypassing the gateway.
+    // Discovery adapters perform network I/O outside the article-acquisition
+    // boundary. In gateway mode they are allowed only through the separate
+    // durable discovery-operation governor; arbitrary caller-supplied adapters
+    // are still rejected because they could bypass that governance.
     if (admissionGateway && Array.isArray(adapters) && adapters.length > 0) {
       const err = new Error(
-        "discovery adapters are disabled while the admission gateway is enabled; no adapter admission integration exists",
+        "caller-supplied discovery adapters are not allowed while the admission gateway is enabled; use the governed built-in adapters",
       );
       err.code = "ADMISSION_PATH_DISABLED";
       throw err;
     }
+    const operationsEnabled = config.discoveryOperations?.enabled !== false;
+    const configuredAdapterNames = (adapters ?? config.crawlDiscoveryAdapters)
+      .map((a) => String(a).trim().toLowerCase())
+      .filter(Boolean)
+      .filter((name) => !admissionGateway || operationsEnabled)
+      // Search remains unavailable until a provider and a separately governed
+      // search-operation path exist. Sitemap/feed are the D1 restoration.
+      .filter((name) => !admissionGateway || name === "sitemap" || name === "feed");
+    const explicitEmptyAdapters = Array.isArray(adapters) && adapters.length === 0;
+    if (
+      admissionGateway &&
+      !explicitEmptyAdapters &&
+      configuredAdapterNames.length > 0 &&
+      !discoveryOperations
+    ) {
+      this.discoveryOperations = createDiscoveryOperationGovernor({
+        dir: discoveryDir,
+        ...config.discoveryOperations,
+        limits: {
+          timeoutMs: config.crawlTimeoutMs,
+          maxBytes: config.crawlMaxBytes,
+          maxRedirects: config.crawlMaxRedirects,
+        },
+        logger: this.log,
+      });
+    } else {
+      this.discoveryOperations = discoveryOperations;
+    }
+    this.discoveryDir = discoveryDir;
+    const adapterFetchText = this.discoveryOperations
+      ? createGovernedFetchText({ fetchText: this.fetchText, governor: this.discoveryOperations })
+      : this.fetchText;
     // Mission-driven acquisition (P4): when enabled, deterministic queries derived
     // from the mission(s) are appended to the configured search queries. They are
     // only candidates — the search adapter proposes them and this service still
@@ -140,9 +175,16 @@ export class DiscoveryService {
       corpusQueryMax,
       corpusQueryMinFreq,
     });
+    const adapterOpts = {
+      ...(admissionGateway ? { adapters: configuredAdapterNames } : {}),
+      searchQueries: this.searchQueries,
+      knownUrls: (url) => this.frontier.has(url),
+    };
     this.adapters = admissionGateway
-      ? []
-      : adapters ?? buildAdapters({ fetchText: this.fetchText, opts: { searchQueries: this.searchQueries, knownUrls: (url) => this.frontier.has(url) } });
+      ? explicitEmptyAdapters
+        ? []
+        : buildAdapters({ fetchText: adapterFetchText, opts: adapterOpts })
+      : adapters ?? buildAdapters({ fetchText: this.fetchText, opts: adapterOpts });
   }
 
   /** Reporting descriptor — must match what `collect` actually does. */
@@ -157,6 +199,7 @@ export class DiscoveryService {
       missionQueriesEnabled: this.missionQueriesEnabled,
       corpusQueriesEnabled: this.corpusQueriesEnabled,
       languagePrior: this.languagePrior,
+      discoveryOperations: this.discoveryOperations?.status() ?? null,
     };
   }
 
@@ -419,8 +462,15 @@ export class DiscoveryService {
       shadowRejected: result.shadowRejected ?? [],
       admissionRejected: result.admissionRejected ?? 0,
       admissionCapDeferred: result.admissionCapDeferred ?? 0,
+      admissionDeferred: result.admissionDeferred ?? 0,
+      admissionQuotaDeferred: result.admissionQuotaDeferred ?? 0,
       capExhausted: result.capExhausted === true,
+      quotaExhausted: result.quotaExhausted === true,
       capEpoch: result.capEpoch ?? null,
+      quotaUsed: result.quotaUsed ?? null,
+      quotaLimit: result.quotaLimit ?? null,
+      quotaRetryAfterMs: result.quotaRetryAfterMs ?? null,
+      quotaPolicyVersion: result.quotaPolicyVersion ?? null,
       frontier: frontierAfter,
       policy: this.policy.mode,
       discovery: {
@@ -429,6 +479,7 @@ export class DiscoveryService {
         roots: uniqueRoots.length,
         providerAvailable,
         bootstrap,
+        discoveryOperations: this.discoveryOperations?.status() ?? null,
       },
     };
   }

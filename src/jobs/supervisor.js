@@ -543,17 +543,32 @@ export class JobSupervisor {
       // adopts a newly activated epoch on its next authorization, so an
       // operator-run rollover resumes acquisition without a service restart.
       if (last?.admissionCapExhausted) {
-        const note = `waiting: admission cap exhausted for epoch ${last.admissionCapEpoch ?? "?"}; activate the next epoch to continue (no URL was rejected)`;
+        const quota = last.admissionQuotaExhausted === true;
+        const note = quota
+          ? `waiting: rolling admission quota exhausted; next capacity in ${Math.max(1, Math.round((last.admissionQuotaRetryAfterMs ?? config.jobs.learning.capWaitMs) / 1000))}s (no URL was rejected)`
+          : `waiting: admission cap exhausted for epoch ${last.admissionCapEpoch ?? "?"}; activate the next epoch to continue (no URL was rejected)`;
         if (note !== lastCapNote) {
           lastCapNote = note;
           await this.#safeEvent(jobId, {
             status: JOB_STATUS.WAITING,
-            phase: "waiting-for-admission-cap",
+            phase: quota ? "waiting-for-admission-quota" : "waiting-for-admission-cap",
             note,
-            meta: { waitingReason: "admission-cap-exhausted", epoch: last.admissionCapEpoch ?? null, capDeferred: last.admissionCapDeferred ?? 0 },
+            meta: quota
+              ? {
+                  waitingReason: "admission-quota-exhausted",
+                  policyVersion: last.admissionQuotaPolicyVersion ?? null,
+                  quotaUsed: last.admissionQuotaUsed ?? null,
+                  quotaLimit: last.admissionQuotaLimit ?? null,
+                  retryAfterMs: last.admissionQuotaRetryAfterMs ?? null,
+                  deferred: last.admissionQuotaDeferred ?? 0,
+                }
+              : { waitingReason: "admission-cap-exhausted", epoch: last.admissionCapEpoch ?? null, capDeferred: last.admissionCapDeferred ?? 0 },
           });
         }
-        await this.#gate(jobId, config.jobs.learning.capWaitMs);
+        const waitMs = quota
+          ? Math.max(1000, Math.min(last.admissionQuotaRetryAfterMs ?? config.jobs.learning.capWaitMs, 60 * 60 * 1000))
+          : config.jobs.learning.capWaitMs;
+        await this.#gate(jobId, waitMs);
         continue;
       }
       lastCapNote = null;
@@ -1250,6 +1265,12 @@ function summarizeLearning(r) {
     admissionCapExhausted: Boolean(r.admissionCapExhausted),
     admissionCapDeferred: r.admissionCapDeferred ?? 0,
     admissionCapEpoch: r.admissionCapEpoch ?? null,
+    admissionQuotaExhausted: Boolean(r.admissionQuotaExhausted),
+    admissionQuotaDeferred: r.admissionQuotaDeferred ?? 0,
+    admissionQuotaUsed: r.admissionQuotaUsed ?? null,
+    admissionQuotaLimit: r.admissionQuotaLimit ?? null,
+    admissionQuotaRetryAfterMs: r.admissionQuotaRetryAfterMs ?? null,
+    admissionQuotaPolicyVersion: r.admissionQuotaPolicyVersion ?? null,
     // Authoritative acquisition classification + frontier state, so the UI and
     // the supervisor agree on "work / wait / exhausted" from one source.
     acquisition: r.acquisition ?? null,

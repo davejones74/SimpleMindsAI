@@ -308,6 +308,10 @@ test("python-mode lifecycle: stale aggregate-only baseline cache is rejected and
   const outB = await executeFullRun({ registry: registryB, options, deps: depsB });
   assert.equal(counted.baseline, 1, "the stale aggregate-only entry was not used");
   assert.equal(outB.decision.decision, "inconclusive");
+  assert.equal(outB.run.status, "inconclusive", "inconclusive is persisted directly as the terminal run status");
+  assert.equal(outB.run.promotionStatus, "inconclusive");
+  assert.equal(registryB.getModel(outB.run.resultModelId).status, "inconclusive");
+  assert.equal(registryB.getActiveModel(), null);
   const repaired = loadEvalCache(registryB.dir);
   assert.ok(Array.isArray(repaired[baselineKey].perDocument) && repaired[baselineKey].perDocument.length > 0);
   await storeB.close();

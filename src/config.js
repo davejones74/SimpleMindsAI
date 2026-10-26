@@ -168,6 +168,10 @@ export const config = {
     raw: env("RAW_DIR", "data/raw"),
     chat: env("CHAT_DIR", "data/chat"), // durable conversation log (NDJSON)
     frontier: env("FRONTIER_DIR", "data/frontier"), // persistent URL frontier (discovery state)
+    discovery: env(
+      "DISCOVERY_DIR",
+      path.join(env("FRONTIER_DIR", "data/frontier"), "discovery"),
+    ), // durable discovery-operation ledger (separate from article admission)
     admission: env("ADMISSION_DIR", "data/gateway"), // durable admission decisions + sealed config
     blueprint: env("SMA_BLUEPRINT", null)
       ? path.resolve(REPO_ROOT, env("SMA_BLUEPRINT", null))
@@ -472,6 +476,25 @@ export const config = {
   admissionCapEpoch: env("ADMISSION_CAP_EPOCH", "baseline-v1"),
   admissionAckRequired: bool("ADMISSION_ACK_REQUIRED", false),
   admissionProtocolVersion: env("ADMISSION_PROTOCOL_VERSION", "baseline-v1"),
+  // Versioned rolling-window policy used by the new policy store. The legacy
+  // epoch remains active until ACTIVE_POLICY.json is explicitly installed.
+  // Storage thresholds default to 0 (disabled) until measured; do not invent a
+  // production hard stop here.
+  admissionPolicy: {
+    policyVersion: env("ADMISSION_POLICY_VERSION", "rolling-v1"),
+    quotaWindowMs: num("ADMISSION_QUOTA_WINDOW_MS", 86_400_000),
+    quotaLimit: num("ADMISSION_QUOTA_LIMIT", 50_000),
+    perDomainLimit: num("ADMISSION_PER_DOMAIN_LIMIT", 5_000),
+    perDomainWindowMs: num("ADMISSION_PER_DOMAIN_WINDOW_MS", 86_400_000),
+    rateWindowMs: num("ADMISSION_RATE_WINDOW_MS", 60_000),
+    rateLimit: num("ADMISSION_RATE_LIMIT", 2_000),
+    maxConcurrent: num("ADMISSION_MAX_CONCURRENT", 1),
+    storageMinFreeBytes: num("ADMISSION_STORAGE_MIN_FREE_BYTES", 0),
+    storageMaxDbBytes: num("ADMISSION_STORAGE_MAX_DB_BYTES", 0),
+    storageRetryMs: num("ADMISSION_STORAGE_RETRY_MS", 60_000),
+    deferralRetentionMs: num("ADMISSION_DEFERRAL_RETENTION_MS", 7 * 24 * 60 * 60 * 1000),
+    deferralMaxRows: num("ADMISSION_DEFERRAL_MAX_ROWS", 100_000),
+  },
   crawlUserAgent: env("CRAWL_USER_AGENT", "SimpleMindsAI/0.2 (+https://github.com/davejones74/SimpleMindsAI)"),
   // HTML extraction strategy for fetched pages.
   //   legacy      : the original dependency-free tag-stripper (default; no new deps)
@@ -570,6 +593,17 @@ export const config = {
   crawlDiscoveryMaxCandidates: num("CRAWL_DISCOVERY_MAX_CANDIDATES", 500),
   crawlDiscoveryMaxSitemaps: num("CRAWL_DISCOVERY_MAX_SITEMAPS", 50),
   crawlDiscoverySitemapMaxDepth: num("CRAWL_DISCOVERY_SITEMAP_MAX_DEPTH", 3),
+  // Governed discovery operations. These are adapter network calls (robots,
+  // sitemaps, feeds), separate from article admission. The ledger is durable and
+  // every request must be granted before the network call. Search is not part of
+  // this budget until a provider and a separately governed search path exist.
+  discoveryOperations: {
+    enabled: bool("DISCOVERY_OPERATIONS_ENABLED", true),
+    windowMs: num("DISCOVERY_OPERATIONS_WINDOW_MS", 24 * 60 * 60 * 1000),
+    maxPerWindow: num("DISCOVERY_OPERATIONS_MAX_PER_WINDOW", 50000),
+    maxPerDomainPerWindow: num("DISCOVERY_OPERATIONS_MAX_PER_DOMAIN", 1000),
+    maxConcurrent: num("DISCOVERY_OPERATIONS_MAX_CONCURRENT", 1),
+  },
   // Optional independent search provider. Unset => the search adapter reports
   // `unavailable` and produces nothing; it never pretends to be operational and
   // never silently requires paid credentials.

@@ -11,12 +11,14 @@ import {
   rolloverAdmissionEpoch,
 } from "../gateway/admission-epochs.js";
 import { backupAdmissionState } from "../gateway/admission-backup.js";
+import { AdmissionPolicyManager, readActivePolicyPointer } from "../gateway/admission-policy.js";
 import { Frontier } from "../frontier.js";
 
 const USAGE = `SimpleMindsAI admission epoch control
 
 Usage:
   node src/cli/admission.js status   [--admission-dir DIR] [--frontier-dir DIR]
+  node src/cli/admission.js policy-status [--admission-dir DIR] [--frontier-dir DIR]
   node src/cli/admission.js backup   --backup-root DIR [--admission-dir DIR] [--frontier-dir DIR]
   node src/cli/admission.js rollover --epoch ID --cap N [--ack-required] [--protocol-version V]
                                      [--recover-cap-rejected] [--backup-root DIR]
@@ -73,6 +75,7 @@ async function status({ admissionDir, frontierDir }) {
   return {
     admissionDir,
     frontierDir,
+    policy: readActivePolicyPointer(admissionDir),
     active: active
       ? {
           epoch: active.epoch ?? active.capEpoch ?? null,
@@ -120,6 +123,28 @@ async function main() {
 
   if (command === "status") {
     process.stdout.write(`${JSON.stringify(await status({ admissionDir, frontierDir }), null, 2)}\n`);
+    return;
+  }
+
+  if (command === "policy-status") {
+    const hasPolicy = existsSync(path.join(admissionDir, "ACTIVE_POLICY.json"));
+    const hasEpoch = existsSync(path.join(admissionDir, "ACTIVE_EPOCH.json"));
+    const hasLegacy = existsSync(path.join(admissionDir, "admission.sqlite"));
+    if (!hasPolicy && !hasEpoch && !hasLegacy) {
+      process.stdout.write(`${JSON.stringify({ mode: "none", admissionDir }, null, 2)}\n`);
+      return;
+    }
+    const manager = await AdmissionPolicyManager.open({
+      dir: admissionDir,
+      config: envConfig(admissionDir),
+      clock,
+      logger: console,
+    });
+    try {
+      process.stdout.write(`${JSON.stringify(manager.status(), null, 2)}\n`);
+    } finally {
+      manager.close();
+    }
     return;
   }
 

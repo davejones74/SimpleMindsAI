@@ -7,8 +7,8 @@ import { fetchDocument, parseRobots, robotsAllows, assertUrlAllowed, contentHash
 import { canonicalDomain, createDomainRegistry } from "../storage/domain-registry.js";
 import { assess } from "../domain/language.js";
 import { classifyDiscoveryLanguage } from "../discovery/language-prior.js";
-import { COMPLIANCE, DECISION } from "../gateway/admission-store.js";
-import { AdmissionEpochManager } from "../gateway/admission-epochs.js";
+import { COMPLIANCE, DECISION, OUTCOME } from "../gateway/admission-store.js";
+import { AdmissionPolicyManager } from "../gateway/admission-policy.js";
 import { AcquisitionGateway } from "../gateway/acquisition-gateway.js";
 import { Frontier } from "../frontier.js";
 
@@ -280,9 +280,16 @@ export async function runCrawlCycle(ctx = {}) {
     rediscoveries: 0,
     admissionRejected: 0,
     admissionCapDeferred: 0,
+    admissionDeferred: 0,
+    admissionQuotaDeferred: 0,
     admissionQuarantined: 0,
     capExhausted: false,
+    quotaExhausted: false,
     capEpoch: null,
+    quotaUsed: null,
+    quotaLimit: null,
+    quotaRetryAfterMs: null,
+    quotaPolicyVersion: null,
     errors: 0,
     documents: [],
     failures: [],
@@ -417,10 +424,32 @@ export async function runCrawlCycle(ctx = {}) {
       summary.admissionQuarantined++;
       return summary;
     }
+    if (admitted.decision === DECISION.DEFERRED || admitted.outcome === OUTCOME.DEFERRED) {
+      // Rolling quota/rate/domain/storage exhaustion is transient: no durable
+      // request decision was written. Keep the URL claimable and stop this cycle
+      // so the supervisor can back off until capacity returns.
+      await frontier.deferAdmission(canonical, {
+        reason: admitted.reason ?? "quota",
+        policyVersion: admitted.policyVersion ?? null,
+        retryAfterMs: admitted.retryAfterMs ?? null,
+        quotaUsed: admitted.quotaUsed ?? null,
+        quotaLimit: admitted.quotaLimit ?? null,
+      });
+      summary.admissionDeferred++;
+      summary.admissionQuotaDeferred++;
+      summary.quotaExhausted = true;
+      summary.capExhausted = true; // compatibility stop signal for batches
+      summary.capEpoch = admitted.capEpoch ?? null;
+      summary.quotaUsed = admitted.quotaUsed ?? null;
+      summary.quotaLimit = admitted.quotaLimit ?? null;
+      summary.quotaRetryAfterMs = admitted.retryAfterMs ?? null;
+      summary.quotaPolicyVersion = admitted.policyVersion ?? null;
+      return summary;
+    }
     if (admitted.decision === DECISION.REJECTED) {
-      // A full epoch is a lifecycle event, not a permanent verdict about the
-      // URL. Keep the work claimable for the next epoch and stop this cycle so
-      // the learner can park instead of grinding through the frontier.
+      // A full legacy epoch is a lifecycle event, not a permanent verdict about
+      // the URL. Keep the work claimable for the next epoch and stop this cycle
+      // so the learner can park instead of grinding through the frontier.
       if (admitted.reason === "cap") {
         await frontier.deferCapRejected(canonical, {
           epoch: admitted.capEpoch ?? null,
@@ -634,7 +663,14 @@ let totalPagesFetched = 0;
   let rediscoveries = 0;
   let admissionRejected = 0;
   let admissionCapDeferred = 0;
+  let admissionDeferred = 0;
+  let admissionQuotaDeferred = 0;
   let admissionQuarantined = 0;
+  let quotaExhausted = false;
+  let quotaUsed = null;
+  let quotaLimit = null;
+  let quotaRetryAfterMs = null;
+  let quotaPolicyVersion = null;
   let capExhausted = false;
   let capEpoch = null;
   const skipped = [];
@@ -683,10 +719,19 @@ let totalPagesFetched = 0;
     rediscoveries += cycleResult.rediscoveries ?? 0;
     admissionRejected += cycleResult.admissionRejected ?? 0;
     admissionCapDeferred += cycleResult.admissionCapDeferred ?? 0;
+    admissionDeferred += cycleResult.admissionDeferred ?? 0;
+    admissionQuotaDeferred += cycleResult.admissionQuotaDeferred ?? 0;
     admissionQuarantined += cycleResult.admissionQuarantined ?? 0;
     if (cycleResult.capExhausted) {
       capExhausted = true;
       capEpoch = cycleResult.capEpoch ?? capEpoch;
+    }
+    if (cycleResult.quotaExhausted) {
+      quotaExhausted = true;
+      quotaUsed = cycleResult.quotaUsed ?? quotaUsed;
+      quotaLimit = cycleResult.quotaLimit ?? quotaLimit;
+      quotaRetryAfterMs = cycleResult.quotaRetryAfterMs ?? quotaRetryAfterMs;
+      quotaPolicyVersion = cycleResult.quotaPolicyVersion ?? quotaPolicyVersion;
     }
     if (cycleResult.skipped?.length) skipped.push(...cycleResult.skipped);
     if (cycleResult.shadowRejected?.length) shadowRejected.push(...cycleResult.shadowRejected);
@@ -701,6 +746,7 @@ let totalPagesFetched = 0;
     if (
       cycleResult.pagesFetched === 0 ||
       cycleResult.capExhausted === true ||
+      cycleResult.quotaExhausted === true ||
       (config.crawlTotalBudget > 0 && totalPagesFetched >= config.crawlTotalBudget) ||
       (maxCycles > 0 && cycle >= maxCycles)
     ) {
@@ -723,9 +769,16 @@ let totalPagesFetched = 0;
     rediscoveries,
     admissionRejected,
     admissionCapDeferred,
+    admissionDeferred,
+    admissionQuotaDeferred,
     admissionQuarantined,
     capExhausted,
+    quotaExhausted,
     capEpoch,
+    quotaUsed,
+    quotaLimit,
+    quotaRetryAfterMs,
+    quotaPolicyVersion,
     skipped,
     shadowRejected,
     budgetRemaining: config.crawlTotalBudget - totalPagesFetched,
@@ -911,8 +964,15 @@ export async function harvest({
       shadowRejected: result.shadowRejected ?? [],
       admissionRejected: result.admissionRejected ?? 0,
       admissionCapDeferred: result.admissionCapDeferred ?? 0,
+      admissionDeferred: result.admissionDeferred ?? 0,
+      admissionQuotaDeferred: result.admissionQuotaDeferred ?? 0,
       capExhausted: result.capExhausted === true,
+      quotaExhausted: result.quotaExhausted === true,
       capEpoch: result.capEpoch ?? null,
+      quotaUsed: result.quotaUsed ?? null,
+      quotaLimit: result.quotaLimit ?? null,
+      quotaRetryAfterMs: result.quotaRetryAfterMs ?? null,
+      quotaPolicyVersion: result.quotaPolicyVersion ?? null,
       file: filePath,
       failuresFile: failuresPath,
     };
@@ -1001,7 +1061,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     let admissionGateway = null;
     let frontier;
     if (config.crawlMode === "real") {
-      const admissionManager = await AdmissionEpochManager.open({
+      const admissionManager = await AdmissionPolicyManager.open({
         dir: config.paths.admission,
         config: {
           capLimit: config.admissionCapLimit,

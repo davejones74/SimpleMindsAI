@@ -120,12 +120,18 @@ export class AcquisitionGateway {
     let config = store.sealedConfig;
     if (!config) throw new Error("admission store must have a sealed configuration");
     const args = { url, generation, etag, lastModified, userAgent, accept, respectRobots, maxRedirects };
+    let scope = null;
+    try {
+      scope = new URL(url).hostname.toLowerCase();
+    } catch {
+      /* identity validation below remains authoritative */
+    }
     let identity = deriveAcquisitionIdentity({ config, ...args });
-    let decision = await store.admit(identity);
+    let decision = await store.admit({ ...identity, scope });
 
-    // A cap rejection is a lifecycle event, not a permanent URL decision. If a
-    // newer epoch has already been activated, retry this same acquisition once
-    // under that epoch. The old rejection remains durable in the old store.
+    // A legacy epoch cap rejection is a lifecycle event, not a permanent URL
+    // decision. A rolling-policy store returns DEFERRED instead and needs no
+    // epoch retry.
     if (decision.decision === "REJECTED" && decision.reason === "cap" && this.#epochManager) {
       const changed = await this.#epochManager.maybeRefresh({ force: true });
       if (changed) {
@@ -133,7 +139,7 @@ export class AcquisitionGateway {
         config = store.sealedConfig;
         if (!config) throw new Error("admission store must have a sealed configuration");
         identity = deriveAcquisitionIdentity({ config, ...args });
-        decision = await store.admit(identity);
+        decision = await store.admit({ ...identity, scope });
       }
     }
 

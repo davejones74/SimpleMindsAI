@@ -23,11 +23,13 @@ const CONTROL_RE = /[\u0000-\u001f\u007f]/;
 export const DECISION = Object.freeze({
   ADMITTED: "ADMITTED",
   REJECTED: "REJECTED",
+  DEFERRED: "DEFERRED",
 });
 
 export const OUTCOME = Object.freeze({
   ADMITTED: "ADMITTED",
   REJECTED: "REJECTED",
+  DEFERRED: "DEFERRED",
   CONTRADICTORY: "CONTRADICTORY",
 });
 
@@ -94,7 +96,7 @@ function normalizeSealedConfig(value) {
   return { ...core, configHash: configHashFor(core) };
 }
 
-function configHashFor({ capLimit, capEpoch, ackRequired, protocolVersion }) {
+export function configHashFor({ capLimit, capEpoch, ackRequired, protocolVersion }) {
   return createHash("sha256")
     .update(JSON.stringify(["baseline-v1-config", capLimit, capEpoch, ackRequired, protocolVersion]))
     .digest("hex");

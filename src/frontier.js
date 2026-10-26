@@ -264,6 +264,51 @@ export class Frontier {
   }
 
   /**
+   * A rolling-quota/rate/domain/storage deferral is transient. Keep the URL
+   * claimable and retain a tiny bounded summary per URL instead of an unbounded
+   * array. The request decision is not written by the rolling store, so the same
+   * request identity can be retried when capacity returns.
+   */
+  async deferAdmission(canonical, {
+    reason = "quota",
+    policyVersion = null,
+    retryAfterMs = null,
+    quotaUsed = null,
+    quotaLimit = null,
+    at = null,
+  } = {}) {
+    const record = this.state.get(canonical);
+    if (!record) return false;
+    const now = at ?? new Date().toISOString();
+    const prior = record.admissionDeferral ?? null;
+    record.admissionDeferral = {
+      reason,
+      policyVersion,
+      retryAfterMs,
+      quotaUsed,
+      quotaLimit,
+      at: prior?.at ?? now,
+      lastAt: now,
+      count: (prior?.count ?? 0) + 1,
+      nextAttemptAt: retryAfterMs != null
+        ? new Date(new Date(now).getTime() + retryAfterMs).toISOString()
+        : null,
+    };
+    record.state = URL_STATE.QUEUED;
+    record.claimedAt = null;
+    record.completedAt = null;
+    record.nextCrawlAt = null;
+    record.nextAttemptAt = null;
+    record.rediscovery = false;
+    record.lastError = "admission-deferred";
+    record.lastErrorAt = now;
+    record.requestId = null;
+    record.payloadDigest = null;
+    await this.persist();
+    return true;
+  }
+
+  /**
    * Recover URLs terminally rejected solely because an admission epoch's cap was
    * exhausted. Never touches quarantined entries or rejections for any other
    * reason. The previous audit fields are retained on the record and in the
@@ -524,6 +569,7 @@ export class Frontier {
         ...(Array.isArray(record.capDeferrals) && record.capDeferrals.length
           ? { capDeferrals: record.capDeferrals }
           : {}),
+        ...(record.admissionDeferral ? { admissionDeferral: record.admissionDeferral } : {}),
       };
       lines.push(JSON.stringify(clean));
     }

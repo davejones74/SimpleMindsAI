@@ -1105,9 +1105,8 @@ export async function recoverPendingPromotions({ registry, store, trainer = null
 }
 
 function terminalRunStatus(decision) {
-  if (decision === "promoted" || decision === "rejected" || decision === "inconclusive" || decision === "not_evaluated") {
-    return decision;
-  }
+  if (decision === "promoted") return "promoted";
+  if (decision === "inconclusive") return "inconclusive";
   return "rejected";
 }
 

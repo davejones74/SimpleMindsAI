@@ -15,7 +15,7 @@ import { ConversationStore } from "./chat/conversation-store.js";
 import { JobSupervisor } from "./jobs/supervisor.js";
 import { Frontier } from "./frontier.js";
 import { DiscoveryService } from "./discovery/discovery-service.js";
-import { AdmissionEpochManager } from "./gateway/admission-epochs.js";
+import { AdmissionPolicyManager } from "./gateway/admission-policy.js";
 import { AcquisitionGateway } from "./gateway/acquisition-gateway.js";
 import { createDomainRegistry } from "./storage/domain-registry.js";
 import { resolvers } from "./graphql/resolvers.js";
@@ -73,14 +73,7 @@ app.get("/health", (_req, res) =>
     ok: true,
     uptime: Math.round(process.uptime()),
     articles: store.getStats().totalArticles,
-    admission: admissionManager
-      ? {
-          epoch: admissionManager.epoch,
-          capLimit: admissionManager.capLimit,
-          capUsed: admissionManager.capUsage(),
-          source: admissionManager.source,
-        }
-      : null,
+    admission: admissionManager ? admissionManager.status() : null,
   }),
 );
 app.get("/api/stats", (_req, res) => res.json(store.getStats()));
@@ -132,7 +125,7 @@ const frontier = new Frontier({ dir: config.paths.frontier });
   let admissionStore = null;
   let admissionGateway = null;
   if (config.crawlMode === "real") {
-    admissionManager = await AdmissionEpochManager.open({
+    admissionManager = await AdmissionPolicyManager.open({
       dir: config.paths.admission,
       config: {
         capLimit: config.admissionCapLimit,
@@ -145,7 +138,7 @@ const frontier = new Frontier({ dir: config.paths.frontier });
     admissionStore = admissionManager.store;
     admissionGateway = new AcquisitionGateway({ store: admissionStore, epochManager: admissionManager });
     console.log(
-      `[admission] active epoch=${admissionManager.epoch ?? "none"} cap=${admissionManager.capLimit ?? "?"} capUsed=${admissionManager.capUsage()} source=${admissionManager.source} dir=${admissionManager.directory}`,
+      `[admission] source=${admissionManager.source} policy=${admissionManager.policyId ?? "legacy"} epoch=${admissionManager.epoch ?? "none"} cap=${admissionManager.capLimit ?? "?"} capUsed=${admissionManager.capUsage()}`,
     );
   }
   const discovery =

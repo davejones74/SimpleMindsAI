@@ -27,12 +27,14 @@ export function createSitemapAdapter({
     name: "sitemap",
     kind: "root-based",
     async discover({ roots = [] } = {}) {
-      const diagnostics = { rootsTried: 0, sitemapsFetched: 0, errors: 0 };
+      const diagnostics = { rootsTried: 0, sitemapsFetched: 0, errors: 0, budgetExhausted: false };
       const candidates = [];
       const seenSitemaps = new Set();
       const seenPages = new Set();
+      const isBudgetExhausted = (err) => err?.code === "DISCOVERY_BUDGET_EXHAUSTED";
 
       for (const root of roots) {
+        if (diagnostics.budgetExhausted) break;
         const rootUrl = resolveHttpUrl(root);
         if (!rootUrl) continue;
         diagnostics.rootsTried++;
@@ -46,9 +48,14 @@ export function createSitemapAdapter({
             const abs = resolveHttpUrl(s, `${origin}/`);
             if (abs) seedSitemaps.push(abs);
           }
-        } catch {
+        } catch (err) {
+          if (isBudgetExhausted(err)) {
+            diagnostics.budgetExhausted = true;
+            break;
+          }
           // Missing/unreadable robots.txt is normal; fall through to /sitemap.xml.
         }
+        if (diagnostics.budgetExhausted) break;
         if (!seedSitemaps.length) seedSitemaps.push(`${origin}/sitemap.xml`);
 
         // 2. Bounded breadth-first walk over indexes and urlsets.
@@ -61,7 +68,11 @@ export function createSitemapAdapter({
           let xml;
           try {
             xml = await fetchText(sitemapUrl);
-          } catch {
+          } catch (err) {
+            if (isBudgetExhausted(err)) {
+              diagnostics.budgetExhausted = true;
+              break;
+            }
             diagnostics.errors++;
             continue;
           }
@@ -90,8 +101,12 @@ export function createSitemapAdapter({
 
       const operated = diagnostics.rootsTried > 0;
       return {
-        status: candidates.length ? "ok" : operated ? "idle" : "unavailable",
-        reason: candidates.length ? null : operated ? "no-sitemap-candidates" : "no-roots",
+        status: diagnostics.budgetExhausted
+          ? "budget-exhausted"
+          : candidates.length ? "ok" : operated ? "idle" : "unavailable",
+        reason: diagnostics.budgetExhausted
+          ? "discovery-budget-exhausted"
+          : candidates.length ? null : operated ? "no-sitemap-candidates" : "no-roots",
         candidates,
         diagnostics,
       };

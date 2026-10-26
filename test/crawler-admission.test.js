@@ -401,7 +401,7 @@ test("contradictory admission quarantines work without any fetch or re-enqueue",
   assert.equal(harness.store.capUsage(), 0);
 });
 
-test("discovery adapters and direct real-fetch paths cannot bypass the gateway", async (t) => {
+test("gateway mode permits governed discovery adapters but direct article paths still fail closed", async (t) => {
   const target = "https://example.test/discovery";
   const harness = await makeHarness(t, {
     capLimit: 5,
@@ -427,10 +427,16 @@ test("discovery adapters and direct real-fetch paths cannot bypass the gateway",
     adapters: null,
     admissionGateway: harness.admissionGateway,
     fetchImpl: harness.fetchImpl,
+    discoveryDir: path.join(harness.root, "discovery"),
     policy: createDiscoveryPolicy({ mode: "open" }),
     domainRegistry: registry,
   });
-  assert.deepEqual(service.adapters, [], "network-capable discovery adapters are disabled");
+  assert.deepEqual(
+    service.adapters.map((a) => a.name),
+    ["sitemap", "feed"],
+    "supported discovery adapters are governed, not disabled, when the gateway is enabled",
+  );
+  assert.ok(service.discoveryOperations, "the durable discovery-operation governor is active");
 
   assert.throws(
     () =>

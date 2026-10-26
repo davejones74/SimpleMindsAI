@@ -284,6 +284,62 @@ test("supervisor: continuous learning parks when the admission epoch is full", a
   }
 });
 
+test("supervisor: continuous learning parks on rolling quota exhaustion", async () => {
+  const store = await ArticleStore.open(tmp());
+  const registry = await RegistryStore.open(tmp());
+  let cycles = 0;
+  const sup = new JobSupervisor({
+    store,
+    registry,
+    dir: tmp(),
+    ollama: fakeOllama,
+    scorer: fakeScorer,
+    learningDeps: {
+      collectDocuments: async () => {
+        cycles += 1;
+        return {
+          mode: "real",
+          capability: "configured-fetch",
+          documents: [],
+          failures: [],
+          quotaExhausted: true,
+          admissionDeferred: 1,
+          admissionQuotaDeferred: 1,
+          quotaUsed: 50000,
+          quotaLimit: 50000,
+          quotaRetryAfterMs: 1000,
+          quotaPolicyVersion: "rolling-v1",
+          capExhausted: true,
+          capEpoch: "rolling-test-epoch",
+        };
+      },
+    },
+  });
+  await sup.init({ reconcile: false });
+  try {
+    const job = await sup.startLearning({ mode: "continuous" });
+    let current = sup.getJob(job.jobId);
+    for (let i = 0; i < 200 && !(current.progress?.admissionQuotaExhausted && current.status === JOB_STATUS.WAITING); i++) {
+      await new Promise((r) => setTimeout(r, 10));
+      current = sup.getJob(job.jobId);
+    }
+    assert.ok(cycles >= 1, "the learning cycle ran");
+    assert.equal(current.status, JOB_STATUS.WAITING);
+    assert.equal(current.phase, "waiting-for-admission-quota");
+    assert.equal(current.progress.admissionQuotaExhausted, true);
+    assert.equal(current.progress.admissionQuotaUsed, 50000);
+    assert.equal(current.progress.admissionQuotaPolicyVersion, "rolling-v1");
+
+    await sup.stop(job.jobId);
+    const done = await waitTerminal(sup, job.jobId);
+    assert.equal(done.status, JOB_STATUS.STOPPED);
+  } finally {
+    await sup.close();
+    await store.close();
+    await registry.close();
+  }
+});
+
 test("supervisor: a second job of the same kind is a conflict (409)", async () => {
   const store = await seededStore(0);
   const registry = await RegistryStore.open(tmp());

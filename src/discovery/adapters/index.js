@@ -78,11 +78,15 @@ async function defaultFetchJson(url, { timeoutMs = config.crawlTimeoutMs, allowP
 export function buildAdapters({ fetchText, opts = {} } = {}) {
   const enabled = new Set((opts.adapters ?? config.crawlDiscoveryAdapters).map((s) => String(s).trim().toLowerCase()).filter(Boolean));
   const adapters = [];
+  // Bind the adapter identity into the fetch seam so the durable discovery
+  // governor can attribute every network operation to sitemap/feed without
+  // changing each adapter's transport signature.
+  const fetchFor = (name) => (url, fetchOpts = {}) => fetchText(url, { ...fetchOpts, adapter: name });
 
-if (enabled.has("sitemap")) {
+  if (enabled.has("sitemap")) {
     adapters.push(
       createSitemapAdapter({
-        fetchText,
+        fetchText: fetchFor("sitemap"),
         maxSitemaps: opts.maxSitemaps ?? config.crawlDiscoveryMaxSitemaps,
         maxSitemapDepth: opts.sitemapMaxDepth ?? config.crawlDiscoverySitemapMaxDepth,
         maxCandidates: opts.maxCandidates ?? config.crawlDiscoveryMaxCandidates,
@@ -93,7 +97,7 @@ if (enabled.has("sitemap")) {
   if (enabled.has("feed")) {
     adapters.push(
       createFeedAdapter({
-        fetchText,
+        fetchText: fetchFor("feed"),
         feeds: opts.feeds ?? config.crawlDiscoveryFeeds,
         maxCandidates: opts.maxCandidates ?? config.crawlDiscoveryMaxCandidates,
       }),

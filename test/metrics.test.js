@@ -280,6 +280,8 @@ test("bestCheckpointForHash: does not alias the entry it returns", () => {
 test("resolveRunOutcome: prefers the promotion decision over the run status", () => {
   assert.equal(resolveRunOutcome({ status: "rejected", promotionStatus: "not_evaluated" }), RUN_OUTCOME.NOT_EVALUATED);
   assert.equal(resolveRunOutcome({ status: "promoted", promotionStatus: "promoted" }), RUN_OUTCOME.PROMOTED);
+  assert.equal(resolveRunOutcome({ status: "rejected", promotionStatus: "inconclusive" }), RUN_OUTCOME.INCONCLUSIVE);
+  assert.equal(resolveRunOutcome({ status: "inconclusive", promotionStatus: null }), RUN_OUTCOME.INCONCLUSIVE);
 });
 
 test("resolveRunOutcome: a terminal failure outranks a promotion decision", () => {
@@ -292,6 +294,15 @@ test("resolveRunOutcome: falls back to the durable run status, then in-progress"
   assert.equal(resolveRunOutcome({ status: "created" }), RUN_OUTCOME.IN_PROGRESS);
   assert.equal(resolveRunOutcome({}), RUN_OUTCOME.IN_PROGRESS);
   assert.equal(resolveRunOutcome(null), RUN_OUTCOME.IN_PROGRESS);
+});
+
+test("deriveRunEvents: inconclusive is terminal and never promotion-eligible", () => {
+  const events = deriveRunEvents([
+    { runId: "r1", status: "inconclusive", promotionStatus: "inconclusive", startedAt: "2026-10-26T00:00:00.000Z" },
+  ]);
+  assert.equal(events.length, 1);
+  assert.equal(events[0].outcome, RUN_OUTCOME.INCONCLUSIVE);
+  assert.equal(events[0].promoted, false);
 });
 
 test("deriveRunEvents: emits an event for every run, measured or not", () => {

@@ -951,7 +951,7 @@ overwrite `/var/lib/simpleminds`.
 sudo cp -r /home/dave/Repositories/SimpleMindsAI/. /opt/simpleminds/
 sudo rm -rf /opt/simpleminds/.git /opt/simpleminds/node_modules
 sudo chown -R simpleminds:simpleminds /opt/simpleminds
-cd /opt/simpleminds && sudo -u simpleminds npm ci --omit=dev
+cd /opt/simpleminds && sudo -u simpleminds env HOME=/var/lib/simpleminds npm ci --omit=dev
 ```
 
 ### Step 4 — environment file `[PLANNED]`
@@ -1147,7 +1147,7 @@ sudo chown -R simpleminds:simpleminds /opt/simpleminds
 
 # 4. Refresh Node dependencies (production only)
 cd /opt/simpleminds
-sudo -u simpleminds npm ci --omit=dev
+sudo -u simpleminds env HOME=/var/lib/simpleminds npm ci --omit=dev
 
 # 4b. Python deps — ONLY if python/requirements*.txt changed
 sudo -u simpleminds /opt/simpleminds/python/.venv/bin/pip install \
