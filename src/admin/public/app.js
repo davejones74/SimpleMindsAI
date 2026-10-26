@@ -1529,6 +1529,7 @@ function segmentsTable(m) {
 const RUN_EVENT_LABEL = {
   promoted: "Promoted",
   rejected: "Rejected",
+  inconclusive: "Inconclusive",
   not_evaluated: "Not evaluated",
   failed: "Failed",
   in_progress: "In progress",
@@ -1537,6 +1538,7 @@ const RUN_EVENT_LABEL = {
 const RUN_EVENT_BADGE = {
   promoted: "REVIEWED",
   rejected: "REJECTED",
+  inconclusive: "PENDING_REVIEW",
   not_evaluated: "PENDING_REVIEW",
   failed: "REJECTED",
   in_progress: "INGESTED",
@@ -1547,6 +1549,7 @@ const RUN_EVENT_BADGE = {
 const RUN_EVENT_FILL = {
   promoted: "var(--good)",
   rejected: "var(--bad)",
+  inconclusive: "var(--warn)",
   not_evaluated: "var(--warn)",
   failed: "var(--bad)",
   in_progress: "var(--accent)",

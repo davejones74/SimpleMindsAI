@@ -348,6 +348,7 @@ export function bestCheckpointForHash(entries, datasetHash) {
 export const RUN_OUTCOME = Object.freeze({
   PROMOTED: "promoted",
   REJECTED: "rejected",
+  INCONCLUSIVE: "inconclusive",
   NOT_EVALUATED: "not_evaluated",
   FAILED: "failed",
   IN_PROGRESS: "in_progress",
@@ -356,6 +357,7 @@ export const RUN_OUTCOME = Object.freeze({
 export const RUN_OUTCOME_LABELS = Object.freeze({
   [RUN_OUTCOME.PROMOTED]: "Promoted",
   [RUN_OUTCOME.REJECTED]: "Rejected",
+  [RUN_OUTCOME.INCONCLUSIVE]: "Inconclusive",
   [RUN_OUTCOME.NOT_EVALUATED]: "Not evaluated",
   [RUN_OUTCOME.FAILED]: "Failed",
   [RUN_OUTCOME.IN_PROGRESS]: "In progress",
@@ -397,10 +399,13 @@ export function resolveRunOutcome(run) {
   const decision = typeof run?.promotionStatus === "string" ? run.promotionStatus : null;
   if (status === "failed") return RUN_OUTCOME.FAILED;
   if (decision === RUN_OUTCOME.PROMOTED) return RUN_OUTCOME.PROMOTED;
+  if (decision === RUN_OUTCOME.INCONCLUSIVE) return RUN_OUTCOME.INCONCLUSIVE;
   if (decision === RUN_OUTCOME.NOT_EVALUATED) return RUN_OUTCOME.NOT_EVALUATED;
   if (decision === RUN_OUTCOME.REJECTED) return RUN_OUTCOME.REJECTED;
   if (status === RUN_OUTCOME.PROMOTED) return RUN_OUTCOME.PROMOTED;
+  if (status === RUN_OUTCOME.INCONCLUSIVE) return RUN_OUTCOME.INCONCLUSIVE;
   if (status === RUN_OUTCOME.REJECTED) return RUN_OUTCOME.REJECTED;
+  if (status === RUN_OUTCOME.NOT_EVALUATED) return RUN_OUTCOME.NOT_EVALUATED;
   return RUN_OUTCOME.IN_PROGRESS;
 }
 

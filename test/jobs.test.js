@@ -140,6 +140,30 @@ test("learning cycle: acquires + dedupes, and reports exhaustion honestly", asyn
   await store.close();
 });
 
+
+test("learning cycle: admission cap exhaustion is surfaced, not treated as source death", async () => {
+  const store = await ArticleStore.open(tmp());
+  const out = await runLearningCycle({
+    store,
+    ollama: fakeOllama,
+    scorer: fakeScorer,
+    collectDocuments: async () => ({
+      mode: "real",
+      capability: "configured-fetch",
+      documents: [],
+      failures: [],
+      capExhausted: true,
+      capEpoch: "gateway-test-01",
+      admissionCapDeferred: 1,
+    }),
+    maxRawDocs: 0,
+  });
+  assert.equal(out.admissionCapExhausted, true);
+  assert.equal(out.admissionCapEpoch, "gateway-test-01");
+  assert.equal(out.admissionCapDeferred, 1);
+  await store.close();
+});
+
 test("learning cycle: articles it acquires enter review, so they can become trainable", async () => {
   // The acquisition job's contract is "N TRAINABLE articles". Previously the
   // ingested articles were left to `selectionDecision`'s ~10% sampling gate, so
@@ -210,6 +234,55 @@ test("learning cycle: reviews a queued article through the teacher scorer", asyn
 });
 
 // ---------------------------------------------------------------- supervisor
+
+test("supervisor: continuous learning parks when the admission epoch is full", async () => {
+  const store = await ArticleStore.open(tmp());
+  const registry = await RegistryStore.open(tmp());
+  let cycles = 0;
+  const sup = new JobSupervisor({
+    store,
+    registry,
+    dir: tmp(),
+    ollama: fakeOllama,
+    scorer: fakeScorer,
+    learningDeps: {
+      collectDocuments: async () => {
+        cycles += 1;
+        return {
+          mode: "real",
+          capability: "configured-fetch",
+          documents: [],
+          failures: [],
+          capExhausted: true,
+          capEpoch: "gateway-test-01",
+          admissionCapDeferred: 1,
+        };
+      },
+    },
+  });
+  await sup.init({ reconcile: false });
+  try {
+    const job = await sup.startLearning({ mode: "continuous" });
+    let current = sup.getJob(job.jobId);
+    for (let i = 0; i < 200 && !(current.progress?.admissionCapExhausted && current.status === JOB_STATUS.WAITING); i++) {
+      await new Promise((r) => setTimeout(r, 10));
+      current = sup.getJob(job.jobId);
+    }
+    assert.ok(cycles >= 1, "the learning cycle ran");
+    assert.equal(current.status, JOB_STATUS.WAITING);
+    assert.equal(current.phase, "waiting-for-admission-cap");
+    assert.equal(current.progress.admissionCapExhausted, true);
+    assert.equal(current.progress.admissionCapEpoch, "gateway-test-01");
+
+    await sup.stop(job.jobId);
+    const done = await waitTerminal(sup, job.jobId);
+    assert.equal(done.status, JOB_STATUS.STOPPED);
+  } finally {
+    await sup.close();
+    await store.close();
+    await registry.close();
+  }
+});
 
 test("supervisor: a second job of the same kind is a conflict (409)", async () => {
   const store = await seededStore(0);

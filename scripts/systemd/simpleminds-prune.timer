@@ -1,5 +1,5 @@
 [Unit]
-Description=Run SimpleMindsAI prune (dry run) weekly
+Description=Run SimpleMindsAI optimizer-state pruning weekly
 
 [Timer]
 OnCalendar=Sun *-*-* 03:00

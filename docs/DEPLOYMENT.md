@@ -278,6 +278,9 @@ It also pins the data-derived training policy explicitly:
 config after restart using the command in
 [PRODUCTION.md](PRODUCTION.md#71-training-policy-knobs-verify-after-deploy).
 
+Admission epochs and the cap-rejected frontier recovery procedure are
+documented in [ADMISSION-ROLLOVER.md](ADMISSION-ROLLOVER.md).
+
 The checked-in env carries `SIMPLEMINDS_AUTH_TOKEN=<TOKEN>` as a placeholder.
 Before installing it, replace that line with the production token **outside the
 repository**; never commit a real token. Verify `/health` stays open and a

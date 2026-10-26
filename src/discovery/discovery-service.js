@@ -417,6 +417,10 @@ export class DiscoveryService {
       languageFiltered: result.languageFiltered ?? 0,
       skipped: result.skipped ?? [],
       shadowRejected: result.shadowRejected ?? [],
+      admissionRejected: result.admissionRejected ?? 0,
+      admissionCapDeferred: result.admissionCapDeferred ?? 0,
+      capExhausted: result.capExhausted === true,
+      capEpoch: result.capEpoch ?? null,
       frontier: frontierAfter,
       policy: this.policy.mode,
       discovery: {

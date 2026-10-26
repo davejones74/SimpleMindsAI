@@ -11,7 +11,7 @@ import { decidePromotionByLoss, evaluateVersionLoss } from "./loss-evaluator.js"
 import { setActiveVersion } from "./python-promotion.js";
 import { assertTrainer } from "./trainer-interface.js";
 import { modelHandle } from "./model-handle.js";
-import { baselineCacheKey, loadEvalCache, saveEvalCache } from "./eval-cache.js";
+import { baselineCacheKey, cacheEntrySatisfiesEvidence, loadEvalCache, saveEvalCache } from "./eval-cache.js";
 import { computeTrainingBudget, checkMinimumTrainingData, computeEvaluationCadence } from "./budget.js";
 
 /**
@@ -370,11 +370,18 @@ export async function executeFullRun({
           seqLen: config.promoteEvalSeqLen,
           microBatch: config.promoteEvalMicroBatch,
           device: config.studentDevice,
+          perDocument: config.promotePerDocument,
         })
       : null;
     if (pythonMode && baselineKey) {
       const cached = loadEvalCache(registry.dir)[baselineKey];
-      if (cached?.ok) baselineResult = cached;
+      if (cached?.ok && cacheEntrySatisfiesEvidence(cached, { perDocument: config.promotePerDocument })) {
+        baselineResult = cached;
+      } else if (cached?.ok) {
+        logger?.warn?.(
+          `[lifecycle] ignoring stale baseline cache entry for ${pythonBaseline.version}: per-document evidence ${config.promotePerDocument ? "missing" : "not required"}`,
+        );
+      }
     }
     if (!baselineResult) {
       baselineResult = pythonMode
@@ -391,7 +398,12 @@ export async function executeFullRun({
             evalSet,
             statusLog: () => registry.runEvent(runId, { status: "running", note: "baseline evaluation complete" }),
           });
-      if (pythonMode && baselineKey && baselineResult?.ok) {
+      if (
+        pythonMode &&
+        baselineKey &&
+        baselineResult?.ok &&
+        cacheEntrySatisfiesEvidence(baselineResult, { perDocument: config.promotePerDocument })
+      ) {
         const cache = loadEvalCache(registry.dir);
         cache[baselineKey] = baselineResult;
         saveEvalCache(registry.dir, cache);
@@ -623,9 +635,18 @@ export async function executeFullRun({
     });
 
     await registry.completeRun(runId, {
-      status: decision.decision === "promoted" ? "promoted" : "rejected",
+      // Persist the gate's actual terminal decision. Inconclusive is a real
+      // terminal outcome, not a rejection: it means there was no defensible
+      // evidence either way, and the batch must not be consumed.
+      status: terminalRunStatus(decision.decision),
       promotionStatus: decision.decision,
-      note: decision.reason ?? (decision.decision === "promoted" ? "promotion gate passed" : "promotion gate rejected candidate"),
+      note:
+        decision.reason ??
+        (decision.decision === "promoted"
+          ? "promotion gate passed"
+          : decision.decision === "inconclusive"
+            ? "promotion gate inconclusive"
+            : "promotion gate rejected candidate"),
       resultModelId: candidate.modelId,
       examplesProcessed: trainingResult.recordsProcessed ?? snapshot.manifest.recordCount,
       examplesSkipped: Math.max(0, rows.length - snapshot.manifest.recordCount),
@@ -768,7 +789,13 @@ export async function executeFullRun({
             });
           }
           await updateManifest(manifestPath, savedManifest, { consumed: false, settled: true });
-          await registry.runEvent(runId, { status: savedManifest.decision, note: "rejection deferred during crash recovery (not consumed)" });
+          await registry.runEvent(runId, {
+            status: savedManifest.decision,
+            note:
+              savedManifest.decision === "inconclusive"
+                ? "inconclusive batch deferred during crash recovery (not consumed)"
+                : "rejection deferred during crash recovery (not consumed)",
+          });
         } else if (
           savedManifest &&
           (savedManifest.decision === "promoted" || savedManifest.decision === "rejected") &&
@@ -1054,7 +1081,10 @@ export async function recoverPendingPromotions({ registry, store, trainer = null
         try {
           await registry.runEvent(m.runId, {
             status: m.decision,
-            note: "rejected batch deferred on recovery (retry policy; not consumed)",
+            note:
+              m.decision === "inconclusive"
+                ? "inconclusive batch deferred on recovery (retry policy; not consumed)"
+                : "rejected batch deferred on recovery (retry policy; not consumed)",
           });
         } catch { /* run may already be terminal */ }
         recovered.push({ runId: m.runId, decision: m.decision, deferred: true });
@@ -1072,6 +1102,13 @@ export async function recoverPendingPromotions({ registry, store, trainer = null
     }
   }
   return recovered;
+}
+
+function terminalRunStatus(decision) {
+  if (decision === "promoted" || decision === "rejected" || decision === "inconclusive" || decision === "not_evaluated") {
+    return decision;
+  }
+  return "rejected";
 }
 
 function fmt(x) {

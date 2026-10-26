@@ -295,11 +295,11 @@ test("rediscovery after terminal success creates a new generation and a new admi
   assert.equal(harness.frontier.state.get(key).generation, 2);
 });
 
-test("rejected work does not fetch and cannot be re-enqueued or retried", async (t) => {
+test("cap-rejected work does not fetch and remains claimable for the next epoch", async (t) => {
   const firstUrl = "https://example.test/first";
-  const rejectedUrl = "https://example.test/rejected";
+  const capRejectedUrl = "https://example.test/cap-rejected";
   const harness = await makeHarness(t, {
-    urls: [firstUrl, rejectedUrl],
+    urls: [firstUrl, capRejectedUrl],
     capLimit: 1,
     routes: {
       "https://example.test/robots.txt": response({ headers: { "content-type": "text/plain" }, body: ROBOTS }),
@@ -307,7 +307,7 @@ test("rejected work does not fetch and cannot be re-enqueued or retried", async 
         headers: { "content-type": "text/html; charset=utf-8" },
         body: "<html><body><p>first</p></body></html>",
       }),
-      [rejectedUrl]: response({
+      [capRejectedUrl]: response({
         headers: { "content-type": "text/html; charset=utf-8" },
         body: "<html><body><p>must not be fetched</p></body></html>",
       }),
@@ -322,7 +322,7 @@ test("rejected work does not fetch and cannot be re-enqueued or retried", async 
     allowPrivate: true,
     maxDepth: 1,
   });
-  const rejectedSummary = await runCrawlCycle({
+  const capSummary = await runCrawlCycle({
     frontier: harness.frontier,
     admissionGateway: harness.admissionGateway,
     fetchImpl: harness.fetchImpl,
@@ -331,14 +331,27 @@ test("rejected work does not fetch and cannot be re-enqueued or retried", async 
     maxDepth: 1,
   });
 
-  assert.equal(rejectedSummary.admissionRejected, 1);
-  assert.equal(targetCalls(harness.calls, rejectedUrl).length, 0);
-  const rejectedKey = [...harness.frontier.state.keys()].find((k) => k === rejectedUrl);
-  assert.equal(harness.frontier.state.get(rejectedKey).state, "rejected");
-  assert.equal(await harness.frontier.enqueue(rejectedUrl, { force: true }), null);
-  assert.equal(await harness.frontier.claimNext(), null);
-  assert.equal(await harness.frontier.markFailed(rejectedKey, { reason: "retry" }), false);
+  assert.equal(capSummary.admissionRejected, 0);
+  assert.equal(capSummary.admissionCapDeferred, 1);
+  assert.equal(capSummary.capExhausted, true);
+  assert.equal(targetCalls(harness.calls, capRejectedUrl).length, 0);
+  const capKey = [...harness.frontier.state.keys()].find((k) => k === capRejectedUrl);
+  const record = harness.frontier.state.get(capKey);
+  assert.equal(record.state, "queued", "a full epoch must not permanently reject the URL");
+  assert.equal(record.lastError, "cap-deferred");
+  assert.equal(record.capDeferrals.length, 1);
+  assert.ok(await harness.frontier.claimNext(), "the URL is retryable once a new epoch is active");
   assert.equal(harness.store.capUsage(), 1);
+});
+
+test("a non-cap gateway rejection remains terminal and cannot be re-enqueued or retried", async (t) => {
+  const harness = await makeHarness(t, { urls: ["https://example.test/terminal"], capLimit: 5 });
+  const key = [...harness.frontier.state.keys()][0];
+  await harness.frontier.markRejected(key, { reason: "robots-disallowed" });
+  assert.equal(harness.frontier.state.get(key).state, "rejected");
+  assert.equal(await harness.frontier.enqueue(key, { force: true }), null);
+  assert.equal(await harness.frontier.claimNext(), null);
+  assert.equal(await harness.frontier.markFailed(key, { reason: "retry" }), false);
 });
 
 test("contradictory admission quarantines work without any fetch or re-enqueue", async (t) => {

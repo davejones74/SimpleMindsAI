@@ -14,6 +14,8 @@ import path from "node:path";
  * cause a wrong promotion — it is purely an optimisation.
  */
 
+const CACHE_SCHEMA = "v2";
+
 export function evalCacheFile(dir) {
   return path.join(dir, "eval-cache.json");
 }
@@ -40,9 +42,59 @@ export function saveEvalCache(dir, cache) {
 
 /**
  * Deterministic cache key for one version's loss. Includes the eval-set content
- * hash and the eval hyperparameters so a re-frozen set or a config change yields
- * a fresh key (and therefore a re-evaluation) rather than a stale hit.
+ * hash, the eval hyperparameters, and whether paired per-document evidence was
+ * requested. Two losses are only interchangeable when the evidence shape is the
+ * same; an aggregate-only entry must never satisfy an enforce-mode gate that
+ * requires per-document rows.
  */
-export function baselineCacheKey({ version, evalSetHash, seqLen, microBatch, device, dtype = "float32" }) {
-  return [version, evalSetHash, seqLen, microBatch, device, dtype].join("::");
+export function baselineCacheKey({
+  version,
+  evalSetHash,
+  seqLen,
+  microBatch,
+  device,
+  dtype = "float32",
+  perDocument = false,
+}) {
+  return [
+    CACHE_SCHEMA,
+    version,
+    evalSetHash,
+    seqLen,
+    microBatch,
+    device,
+    dtype,
+    perDocument ? "per-document" : "aggregate",
+  ].join("::");
+}
+
+/**
+ * True only when a cached evaluation carries the evidence the current run
+ * requires. A valid cache hit for an enforce-mode gate must contain at least one
+ * finite per-document loss with a positive token weight.
+ */
+export function cacheEntrySatisfiesEvidence(entry, { perDocument = false } = {}) {
+  if (!entry || entry.ok !== true) return false;
+  if (!perDocument) return true;
+  if (!Array.isArray(entry.perDocument) || entry.perDocument.length === 0) return false;
+  return entry.perDocument.some(
+    (row) => Number.isFinite(Number(row?.loss)) && Number(row?.tokens) > 0,
+  );
+}
+
+/**
+ * Remove cache entries that fail `predicate(key, entry)`. Returns the removed
+ * keys. Used to physically retire stale aggregate-only entries; key-version
+ * invalidation already makes them unreachable, so this is hygiene/audit.
+ */
+export function pruneEvalCache(dir, predicate) {
+  const cache = loadEvalCache(dir);
+  const removed = [];
+  for (const [key, entry] of Object.entries(cache)) {
+    if (predicate(key, entry)) continue;
+    removed.push(key);
+    delete cache[key];
+  }
+  if (removed.length) saveEvalCache(dir, cache);
+  return { removed, remaining: Object.keys(cache).length };
 }

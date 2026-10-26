@@ -15,7 +15,7 @@ import { ConversationStore } from "./chat/conversation-store.js";
 import { JobSupervisor } from "./jobs/supervisor.js";
 import { Frontier } from "./frontier.js";
 import { DiscoveryService } from "./discovery/discovery-service.js";
-import { AdmissionStore } from "./gateway/admission-store.js";
+import { AdmissionEpochManager } from "./gateway/admission-epochs.js";
 import { AcquisitionGateway } from "./gateway/acquisition-gateway.js";
 import { createDomainRegistry } from "./storage/domain-registry.js";
 import { resolvers } from "./graphql/resolvers.js";
@@ -67,7 +67,22 @@ if (config.authToken) {
 
 app.use("/graphql", expressMiddleware(server, { context: async () => ({ store, registry, governance, changeFeed }) }));
 
-app.get("/health", (_req, res) => res.json({ ok: true, uptime: Math.round(process.uptime()), articles: store.getStats().totalArticles }));
+let admissionManager = null;
+app.get("/health", (_req, res) =>
+  res.json({
+    ok: true,
+    uptime: Math.round(process.uptime()),
+    articles: store.getStats().totalArticles,
+    admission: admissionManager
+      ? {
+          epoch: admissionManager.epoch,
+          capLimit: admissionManager.capLimit,
+          capUsed: admissionManager.capUsage(),
+          source: admissionManager.source,
+        }
+      : null,
+  }),
+);
 app.get("/api/stats", (_req, res) => res.json(store.getStats()));
 app.post("/api/ingest", async (req, res) => {
   // curl -X POST localhost:4000/api/ingest -H "content-type: application/json" -d "{\"text\":\"...\",\"domain\":\"howto\"}"
@@ -117,7 +132,7 @@ const frontier = new Frontier({ dir: config.paths.frontier });
   let admissionStore = null;
   let admissionGateway = null;
   if (config.crawlMode === "real") {
-    admissionStore = await AdmissionStore.open({
+    admissionManager = await AdmissionEpochManager.open({
       dir: config.paths.admission,
       config: {
         capLimit: config.admissionCapLimit,
@@ -125,8 +140,13 @@ const frontier = new Frontier({ dir: config.paths.frontier });
         ackRequired: config.admissionAckRequired,
         protocolVersion: config.admissionProtocolVersion,
       },
+      logger: console,
     });
-    admissionGateway = new AcquisitionGateway({ store: admissionStore });
+    admissionStore = admissionManager.store;
+    admissionGateway = new AcquisitionGateway({ store: admissionStore, epochManager: admissionManager });
+    console.log(
+      `[admission] active epoch=${admissionManager.epoch ?? "none"} cap=${admissionManager.capLimit ?? "?"} capUsed=${admissionManager.capUsage()} source=${admissionManager.source} dir=${admissionManager.directory}`,
+    );
   }
   const discovery =
     config.crawlMode === "real"
@@ -171,6 +191,7 @@ const httpServer = app.listen(config.port, config.host, () =>
 for (const signal of ["SIGINT", "SIGTERM"]) {
   process.on(signal, async () => {
     await supervisor.close().catch(() => {});
+    admissionManager?.close?.();
     httpServer.close(() => process.exit(0));
   });
 }

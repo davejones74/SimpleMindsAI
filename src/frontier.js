@@ -1,9 +1,9 @@
-import { mkdir, writeFile, readFile, rename, unlink, copyFile } from "node:fs/promises";
+import { appendFile, mkdir, writeFile, readFile, rename, unlink, copyFile } from "node:fs/promises";
 import path from "node:path";
 import { contentHashFor } from "./harness/fetcher.js";
 
 const FRONTIER_DIR = "data/frontier";
-const FRONTIER_FILE = "frontier.ndjson";
+export const FRONTIER_FILE = "frontier.ndjson";
 
 // Canonical URL: lowercase scheme+host, sort path segments, preserve query params as-is
 // (no removal, no reordering assumption). Deterministic form for deduplication.
@@ -223,6 +223,146 @@ export class Frontier {
     return this.#markTerminal(canonical, URL_STATE.QUARANTINED, { reason, requestId, payloadDigest });
   }
 
+  /**
+   * A cap rejection is not a terminal frontier decision. The request was
+   * refused only because the current sealed epoch is full; the URL remains
+   * valid work for the next epoch. Preserve the rejection in an audit trail and
+   * return the URL to QUEUED without incrementing fetch retries.
+   */
+  async deferCapRejected(canonical, { epoch = null, reason = "cap", at = null } = {}) {
+    const record = this.state.get(canonical);
+    if (!record) return false;
+    const now = at ?? new Date().toISOString();
+    const entry = {
+      type: "cap-deferred",
+      at: now,
+      epoch,
+      reason,
+      previousState: record.state,
+      previousLastError: record.lastError ?? null,
+      previousLastErrorAt: record.lastErrorAt ?? null,
+      previousCompletedAt: record.completedAt ?? null,
+      previousRequestId: record.requestId ?? null,
+      previousPayloadDigest: record.payloadDigest ?? null,
+      previousGeneration: record.generation ?? 0,
+    };
+    record.capDeferrals = Array.isArray(record.capDeferrals) ? record.capDeferrals : [];
+    record.capDeferrals.push(entry);
+    record.state = URL_STATE.QUEUED;
+    record.claimedAt = null;
+    record.completedAt = null;
+    record.nextCrawlAt = null;
+    record.nextAttemptAt = null;
+    record.rediscovery = false;
+    record.lastError = "cap-deferred";
+    record.lastErrorAt = now;
+    // A new epoch derives a new request identity from the URL + generation.
+    record.requestId = null;
+    record.payloadDigest = null;
+    await this.persist();
+    return true;
+  }
+
+  /**
+   * Recover URLs terminally rejected solely because an admission epoch's cap was
+   * exhausted. Never touches quarantined entries or rejections for any other
+   * reason. The previous audit fields are retained on the record and in the
+   * recovery ledger; the durable rewrite is a single Frontier.persist().
+   */
+  async recoverCapRejected({ epoch = null, reason = "admission-cap-exhausted", now = Date.now(), dryRun = false, auditFile = "cap-recovery.ndjson", includeUrls = false } = {}) {
+    if (!this.initialized) await this.init();
+    const at = new Date(now).toISOString();
+    const candidates = [];
+    for (const [canonical, record] of this.state.entries()) {
+      if (record.state !== URL_STATE.REJECTED || record.lastError !== "cap") continue;
+      candidates.push({
+        canonical,
+        url: record.url,
+        previousState: record.state,
+        previousLastError: record.lastError,
+        previousLastErrorAt: record.lastErrorAt ?? null,
+        previousCompletedAt: record.completedAt ?? null,
+        previousRequestId: record.requestId ?? null,
+        previousPayloadDigest: record.payloadDigest ?? null,
+        previousGeneration: record.generation ?? 0,
+        previousRetries: record.retries ?? 0,
+      });
+    }
+    const urls = candidates.map((c) => c.url);
+    const urlSample = urls.slice(0, 10);
+    if (dryRun || candidates.length === 0) {
+      return { recovered: candidates.length, dryRun, at, epoch, urlSample, ...(includeUrls ? { urls } : {}) };
+    }
+
+    const batch = {
+      type: "cap-recovery",
+      at,
+      epoch,
+      reason,
+      count: candidates.length,
+      urls: candidates.map((c) => ({ url: c.url, previousCompletedAt: c.previousCompletedAt, previousRequestId: c.previousRequestId })),
+    };
+    await this.#appendRecoveryLedger(auditFile, batch);
+
+    for (const candidate of candidates) {
+      const record = this.state.get(candidate.canonical);
+      if (!record) continue;
+      record.recoveryHistory = Array.isArray(record.recoveryHistory) ? record.recoveryHistory : [];
+      record.recoveryHistory.push({
+        type: "cap-rejected-recovery",
+        at,
+        epoch,
+        reason,
+        previousState: candidate.previousState,
+        previousLastError: candidate.previousLastError,
+        previousLastErrorAt: candidate.previousLastErrorAt,
+        previousCompletedAt: candidate.previousCompletedAt,
+        previousRequestId: candidate.previousRequestId,
+        previousPayloadDigest: candidate.previousPayloadDigest,
+        previousGeneration: candidate.previousGeneration,
+        previousRetries: candidate.previousRetries,
+      });
+      record.state = URL_STATE.QUEUED;
+      record.claimedAt = null;
+      record.completedAt = null;
+      record.nextCrawlAt = null;
+      record.nextAttemptAt = null;
+      record.rediscovery = false;
+      record.lastError = null;
+      record.lastErrorAt = null;
+      record.retries = 0;
+      // The new epoch derives a fresh request identity. The old identity is
+      // preserved in recoveryHistory.
+      record.requestId = null;
+      record.payloadDigest = null;
+    }
+    await this.persist();
+    return {
+      recovered: candidates.length,
+      dryRun: false,
+      at,
+      epoch,
+      urlSample,
+      auditFile,
+      ...(includeUrls ? { urls } : {}),
+    };
+  }
+
+  async #appendRecoveryLedger(auditFile, record) {
+    const file = path.join(this.dir, auditFile);
+    await mkdir(this.dir, { recursive: true });
+    await appendFile(file, `${JSON.stringify(record)}\n`, "utf8");
+  }
+
+  /** Count URLs currently terminal for the admission cap (diagnostics only). */
+  capRejectedCount() {
+    let count = 0;
+    for (const record of this.state.values()) {
+      if (record.state === URL_STATE.REJECTED && record.lastError === "cap") count += 1;
+    }
+    return count;
+  }
+
   async #markTerminal(canonical, state, { reason = null, requestId = undefined, payloadDigest = undefined } = {}) {
     const record = this.state.get(canonical);
     if (!record) return false;
@@ -378,6 +518,12 @@ export class Frontier {
         generation: record.generation ?? 0,
         requestId: record.requestId ?? null,
         payloadDigest: record.payloadDigest ?? null,
+        ...(Array.isArray(record.recoveryHistory) && record.recoveryHistory.length
+          ? { recoveryHistory: record.recoveryHistory }
+          : {}),
+        ...(Array.isArray(record.capDeferrals) && record.capDeferrals.length
+          ? { capDeferrals: record.capDeferrals }
+          : {}),
       };
       lines.push(JSON.stringify(clean));
     }

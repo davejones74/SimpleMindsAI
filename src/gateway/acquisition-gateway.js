@@ -82,19 +82,25 @@ export function deriveAcquisitionIdentity({
  */
 export class AcquisitionGateway {
   #store;
+  #epochManager;
 
-  constructor({ store } = {}) {
-    if (!store || typeof store.admit !== "function") {
+  constructor({ store, epochManager = null } = {}) {
+    if ((!store || typeof store.admit !== "function") && !epochManager) {
       throw new TypeError("AdmissionStore instance is required");
     }
-    if (!store.sealedConfig) {
+    const effectiveStore = epochManager?.store ?? store;
+    if (!effectiveStore?.sealedConfig) {
       throw new Error("admission store must have a sealed configuration");
     }
-    this.#store = store;
+    if (epochManager && typeof epochManager.maybeRefresh !== "function") {
+      throw new TypeError("epochManager must expose maybeRefresh()");
+    }
+    this.#store = effectiveStore;
+    this.#epochManager = epochManager;
   }
 
   get store() {
-    return this.#store;
+    return this.#epochManager?.store ?? this.#store;
   }
 
   async authorize({
@@ -107,20 +113,30 @@ export class AcquisitionGateway {
     respectRobots = true,
     maxRedirects = 5,
   } = {}) {
-    const config = this.#store.sealedConfig;
+    // Adopt an operator-run rollover even when the service was not restarted.
+    if (this.#epochManager) await this.#epochManager.maybeRefresh();
+
+    let store = this.store;
+    let config = store.sealedConfig;
     if (!config) throw new Error("admission store must have a sealed configuration");
-    const identity = deriveAcquisitionIdentity({
-      config,
-      url,
-      generation,
-      etag,
-      lastModified,
-      userAgent,
-      accept,
-      respectRobots,
-      maxRedirects,
-    });
-    const decision = await this.#store.admit(identity);
+    const args = { url, generation, etag, lastModified, userAgent, accept, respectRobots, maxRedirects };
+    let identity = deriveAcquisitionIdentity({ config, ...args });
+    let decision = await store.admit(identity);
+
+    // A cap rejection is a lifecycle event, not a permanent URL decision. If a
+    // newer epoch has already been activated, retry this same acquisition once
+    // under that epoch. The old rejection remains durable in the old store.
+    if (decision.decision === "REJECTED" && decision.reason === "cap" && this.#epochManager) {
+      const changed = await this.#epochManager.maybeRefresh({ force: true });
+      if (changed) {
+        store = this.store;
+        config = store.sealedConfig;
+        if (!config) throw new Error("admission store must have a sealed configuration");
+        identity = deriveAcquisitionIdentity({ config, ...args });
+        decision = await store.admit(identity);
+      }
+    }
+
     return {
       ...decision,
       requestId: identity.requestId,

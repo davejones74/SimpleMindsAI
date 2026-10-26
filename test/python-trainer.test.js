@@ -8,6 +8,7 @@ import { ArticleStore } from "../src/storage/article-store.js";
 import { executeFullRun } from "../src/training/lifecycle.js";
 import { NoBaselineError, pythonTrainer, resolvePythonBaseline } from "../src/training/python-trainer.js";
 import { REPO_ROOT } from "../src/brain/python-cli.js";
+import { loadEvalCache, saveEvalCache } from "../src/training/eval-cache.js";
 
 const tmp = () => path.join(mkdtempSync(path.join(tmpdir(), "sma-py-")));
 
@@ -268,6 +269,64 @@ test("python-mode lifecycle: a worse candidate is rejected and the pointer stays
   assert.equal(registry.getActiveModel(), null);
   await store.close();
   await registry.close();
+});
+
+test("python-mode lifecycle: stale aggregate-only baseline cache is rejected and refreshed", async () => {
+  const options = { paths: { snapshots: tmp(), models: tmp(), plans: tmp(), evaluation: tmp() } };
+  const lossFor = (v) => ({ version: v, loss: 1.4, datasetHash: "EVALSET", ok: true });
+
+  // Warm a real per-document cache with an inconclusive (equal-loss) run.
+  const registryA = await RegistryStore.open(tmp());
+  const storeA = await seededStore();
+  await executeFullRun({
+    registry: registryA,
+    options,
+    deps: pythonRunDeps({ store: storeA, lossFor, onActivate: () => { throw new Error("must not activate"); } }),
+  });
+  const cacheA = loadEvalCache(registryA.dir);
+  const baselineKey = Object.keys(cacheA).find((key) => cacheA[key]?.version === "v001");
+  assert.ok(baselineKey, "the baseline evaluation was cached");
+  assert.ok(Array.isArray(cacheA[baselineKey].perDocument) && cacheA[baselineKey].perDocument.length > 0);
+  await storeA.close();
+  await registryA.close();
+
+  // A stale aggregate-only entry under the SAME key must be ignored, forcing a
+  // fresh parent evaluation and repairing the cache.
+  const registryB = await RegistryStore.open(tmp());
+  const storeB = await seededStore();
+  const stale = JSON.parse(JSON.stringify(cacheA));
+  delete stale[baselineKey].perDocument;
+  delete stale[baselineKey].blockCount;
+  delete stale[baselineKey].tokensSeen;
+  saveEvalCache(registryB.dir, stale);
+  const counted = { baseline: 0 };
+  const depsB = pythonRunDeps({ store: storeB, lossFor, onActivate: () => { throw new Error("must not activate"); } });
+  depsB.evaluateLoss = async ({ version }) => {
+    if (version === "v001") counted.baseline += 1;
+    return withPaired(lossFor(version));
+  };
+  const outB = await executeFullRun({ registry: registryB, options, deps: depsB });
+  assert.equal(counted.baseline, 1, "the stale aggregate-only entry was not used");
+  assert.equal(outB.decision.decision, "inconclusive");
+  const repaired = loadEvalCache(registryB.dir);
+  assert.ok(Array.isArray(repaired[baselineKey].perDocument) && repaired[baselineKey].perDocument.length > 0);
+  await storeB.close();
+  await registryB.close();
+
+  // The same cache with per-document evidence is a valid hit: no parent eval.
+  const registryC = await RegistryStore.open(tmp());
+  const storeC = await seededStore();
+  saveEvalCache(registryC.dir, cacheA);
+  const countedC = { baseline: 0 };
+  const depsC = pythonRunDeps({ store: storeC, lossFor, onActivate: () => { throw new Error("must not activate"); } });
+  depsC.evaluateLoss = async ({ version }) => {
+    if (version === "v001") countedC.baseline += 1;
+    return withPaired(lossFor(version));
+  };
+  await executeFullRun({ registry: registryC, options, deps: depsC });
+  assert.equal(countedC.baseline, 0, "a per-document cache hit skips the parent evaluation");
+  await storeC.close();
+  await registryC.close();
 });
 
 test("python-mode lifecycle: an unevaluable candidate never activates and closes the run terminally", async () => {

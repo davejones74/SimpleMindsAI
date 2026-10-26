@@ -892,7 +892,7 @@ def cmd_prune_status(args: argparse.Namespace) -> Dict[str, Any]:
 
     log = store.runs_prune_log_path(root)
     last_success = None
-    last_error = None
+    last_unconfirmed = None
     if log.is_file():
         for line in log.read_text(encoding="utf-8").splitlines():
             line = line.strip()
@@ -902,11 +902,13 @@ def cmd_prune_status(args: argparse.Namespace) -> Dict[str, Any]:
                 rec = json.loads(line)
             except json.JSONDecodeError:
                 continue
-            if rec.get("schema") == "sma/pruned-runs@1":
+            schema = rec.get("schema")
+            if schema == "sma/pruned-runs@1":
+                # An outcome record proves the intent that preceded it completed.
                 last_success = rec
-            elif rec.get("schema") == "sma/prune-runs-intent@1":
-                if last_success is None or rec.get("at", "") > last_success.get("at", ""):
-                    last_error = rec
+                last_unconfirmed = None
+            elif schema == "sma/prune-runs-intent@1":
+                last_unconfirmed = rec
 
     return {
         "ok": True,
@@ -926,7 +928,7 @@ def cmd_prune_status(args: argparse.Namespace) -> Dict[str, Any]:
         "retainedCount": len(plan["retained"]) if plan else 0,
         "candidateCount": plan["pruneCount"] if plan else 0,
         "lastSuccessfulPrune": last_success,
-        "lastPlannedButUnconfirmed": last_error,
+        "lastPlannedButUnconfirmed": last_unconfirmed,
         "policy": {
             "keep": args.keep,
             "sufficient": (eligible == 0) or (store_bytes < fs.total * 0.5),

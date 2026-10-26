@@ -174,6 +174,11 @@ export async function runLearningCycle(ctx) {
     corpusCeiling,
     failures: result.failures ?? [],
     sourceExhausted,
+    // A full admission epoch is a lifecycle wait, never a reason to mark the
+    // frontier URL rejected. The supervisor parks until a rollover is activated.
+    admissionCapExhausted: result.capExhausted === true,
+    admissionCapDeferred: result.admissionCapDeferred ?? 0,
+    admissionCapEpoch: result.capEpoch ?? null,
     // Recovery-driven progress: what can still become training material without
     // replaying the corpus, and the honest "no eligible unconsumed" signal.
     recovery,

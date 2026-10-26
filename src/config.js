@@ -674,6 +674,10 @@ export const config = {
       // restart; the in-memory timer is only an optimisation.
       waitBackoffBaseMs: num("LEARNING_WAIT_BACKOFF_BASE_MS", 60_000),
       waitBackoffMaxMs: num("LEARNING_WAIT_BACKOFF_MAX_MS", 3_600_000),
+      // When the active admission epoch is full, park instead of treating cap
+      // rejections as permanent URL decisions. The gateway adopts a newly
+      // activated epoch on its next authorization, so this wait is temporary.
+      capWaitMs: num("LEARNING_CAP_WAIT_MS", 60_000),
     },
     training: {
       // A one-shot run refuses to start below this many eligible articles

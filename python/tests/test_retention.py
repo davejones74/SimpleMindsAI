@@ -22,10 +22,11 @@ import shutil
 import socket
 import time
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
-from sma import store
+from sma import brain, store
 
 
 def make_version(root: Path, version: str, *, parent: str | None = None, committed: bool = True) -> Path:
@@ -408,6 +409,36 @@ def test_prune_runs_writes_a_durable_log(store_root):
     assert records[0]["plannedBytes"] == 1000
     assert records[1]["removedCount"] == 1
     assert records[1]["reclaimedBytes"] == 1000
+
+
+def _prune_status(root: Path) -> dict:
+    return brain.cmd_prune_status(
+        SimpleNamespace(out=str(root), keep=1, warn_pct=80.0, crit_pct=90.0)
+    )
+
+
+def test_prune_status_reports_a_completed_prune_as_confirmed(store_root):
+    for i in range(1, 5):
+        make_version(store_root, f"v{i:03d}")
+        _write_resume_state(store_root, f"v{i:03d}", 1000)
+    store.prune_runs(store_root, keep=1, active="v004", confirm=True)
+
+    status = _prune_status(store_root)
+    assert status["lastSuccessfulPrune"]["removedCount"] == 3
+    assert status["lastPlannedButUnconfirmed"] is None
+
+
+def test_prune_status_keeps_an_intent_without_an_outcome_unconfirmed(store_root):
+    make_version(store_root, "v001")
+    log = store.runs_prune_log_path(store_root)
+    log.write_text(
+        json.dumps({"schema": "sma/prune-runs-intent@1", "pruneCount": 1}) + "\n",
+        encoding="utf-8",
+    )
+
+    status = _prune_status(store_root)
+    assert status["lastSuccessfulPrune"] is None
+    assert status["lastPlannedButUnconfirmed"]["pruneCount"] == 1
 
 
 # ------------------------------------------------- prune-runs safety (fail-closed)

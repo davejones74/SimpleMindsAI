@@ -457,6 +457,7 @@ export class JobSupervisor {
     let targetMilestoneLogged = false;
     let acquisitionWaitAttempt = 0;
     let lastWaitReason = null;
+    let lastCapNote = null;
     const startedAt = this.clock();
     const continuous = job.mode === "continuous";
     // A recovered WAITING job resumes at its persisted deadline: the deadline is
@@ -519,10 +520,11 @@ export class JobSupervisor {
       const trainableGrew = prevTrainable === null ? true : (last?.trainable ?? 0) > prevTrainable;
       prevTrainable = last?.trainable ?? prevTrainable;
       if (acquired || trainableGrew) noProgressStreak = 0;
-      else if (last?.reviewWaiting) {
+      else if (last?.reviewWaiting || last?.admissionCapExhausted) {
         // The pass made no acquisition only because the review backlog is in
-        // cooldown (or another worker holds REVIEW.lock). That is a TEMPORARY
-        // wait, not a stall: it must never consume the no-progress budget.
+        // cooldown (or another worker holds REVIEW.lock), or because the active
+        // admission epoch is full. Both are TEMPORARY waits, not stalls, and
+        // must never consume the no-progress budget.
       } else noProgressStreak++;
       try {
         await this.#progress(jobId, { cycle, noProgressStreak, ...summarizeLearning(last) }, { force: true });
@@ -536,6 +538,26 @@ export class JobSupervisor {
         if (this.#shouldStop(jobId)) { outcome = "stopped"; break; }
         continue;
       }
+      // Admission cap exhaustion is a lifecycle wait, not a source failure and
+      // not a reason to mark frontier URLs rejected. Park here; the gateway
+      // adopts a newly activated epoch on its next authorization, so an
+      // operator-run rollover resumes acquisition without a service restart.
+      if (last?.admissionCapExhausted) {
+        const note = `waiting: admission cap exhausted for epoch ${last.admissionCapEpoch ?? "?"}; activate the next epoch to continue (no URL was rejected)`;
+        if (note !== lastCapNote) {
+          lastCapNote = note;
+          await this.#safeEvent(jobId, {
+            status: JOB_STATUS.WAITING,
+            phase: "waiting-for-admission-cap",
+            note,
+            meta: { waitingReason: "admission-cap-exhausted", epoch: last.admissionCapEpoch ?? null, capDeferred: last.admissionCapDeferred ?? 0 },
+          });
+        }
+        await this.#gate(jobId, config.jobs.learning.capWaitMs);
+        continue;
+      }
+      lastCapNote = null;
+
       // Automatic network pause: a whole pass fetched nothing and every failure
       // was a connectivity error. Hold and retry on resume instead of falsely
       // declaring "source exhausted" — the sources are fine, they were unreachable.
@@ -1225,6 +1247,9 @@ function summarizeLearning(r) {
     corpusCeiling: r.corpusCeiling ?? null,
     failures: r.failures?.length ?? 0,
     sourceExhausted: r.sourceExhausted,
+    admissionCapExhausted: Boolean(r.admissionCapExhausted),
+    admissionCapDeferred: r.admissionCapDeferred ?? 0,
+    admissionCapEpoch: r.admissionCapEpoch ?? null,
     // Authoritative acquisition classification + frontier state, so the UI and
     // the supervisor agree on "work / wait / exhausted" from one source.
     acquisition: r.acquisition ?? null,

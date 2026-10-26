@@ -14,6 +14,8 @@
     "curate": "node src/services/curator.js --file data/raw/sample.ndjson",
     "score": "node src/reward/reward-scorer.js",
     "review": "node src/cli/review.js",
+    "admission": "node src/cli/admission.js",
+    "eval-cache": "node src/cli/eval-cache.js",
     "plan": "node src/services/planner.js",
     "init:brain": "node src/cli/init-brain.js",
     "train": "node src/cli/train.js",

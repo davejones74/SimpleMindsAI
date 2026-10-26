@@ -7,7 +7,8 @@ import { fetchDocument, parseRobots, robotsAllows, assertUrlAllowed, contentHash
 import { canonicalDomain, createDomainRegistry } from "../storage/domain-registry.js";
 import { assess } from "../domain/language.js";
 import { classifyDiscoveryLanguage } from "../discovery/language-prior.js";
-import { AdmissionStore, COMPLIANCE, DECISION } from "../gateway/admission-store.js";
+import { COMPLIANCE, DECISION } from "../gateway/admission-store.js";
+import { AdmissionEpochManager } from "../gateway/admission-epochs.js";
 import { AcquisitionGateway } from "../gateway/acquisition-gateway.js";
 import { Frontier } from "../frontier.js";
 
@@ -278,7 +279,10 @@ export async function runCrawlCycle(ctx = {}) {
     notModified: 0,
     rediscoveries: 0,
     admissionRejected: 0,
+    admissionCapDeferred: 0,
     admissionQuarantined: 0,
+    capExhausted: false,
+    capEpoch: null,
     errors: 0,
     documents: [],
     failures: [],
@@ -414,6 +418,19 @@ export async function runCrawlCycle(ctx = {}) {
       return summary;
     }
     if (admitted.decision === DECISION.REJECTED) {
+      // A full epoch is a lifecycle event, not a permanent verdict about the
+      // URL. Keep the work claimable for the next epoch and stop this cycle so
+      // the learner can park instead of grinding through the frontier.
+      if (admitted.reason === "cap") {
+        await frontier.deferCapRejected(canonical, {
+          epoch: admitted.capEpoch ?? null,
+          reason: "cap",
+        });
+        summary.admissionCapDeferred++;
+        summary.capExhausted = true;
+        summary.capEpoch = admitted.capEpoch ?? null;
+        return summary;
+      }
       await frontier.markRejected(canonical, {
         reason: admitted.reason ?? "gateway-rejected",
         requestId: admitted.requestId,
@@ -616,7 +633,10 @@ let totalPagesFetched = 0;
   let notModified = 0;
   let rediscoveries = 0;
   let admissionRejected = 0;
+  let admissionCapDeferred = 0;
   let admissionQuarantined = 0;
+  let capExhausted = false;
+  let capEpoch = null;
   const skipped = [];
   const shadowRejected = [];
 
@@ -662,7 +682,12 @@ let totalPagesFetched = 0;
     notModified += cycleResult.notModified ?? 0;
     rediscoveries += cycleResult.rediscoveries ?? 0;
     admissionRejected += cycleResult.admissionRejected ?? 0;
+    admissionCapDeferred += cycleResult.admissionCapDeferred ?? 0;
     admissionQuarantined += cycleResult.admissionQuarantined ?? 0;
+    if (cycleResult.capExhausted) {
+      capExhausted = true;
+      capEpoch = cycleResult.capEpoch ?? capEpoch;
+    }
     if (cycleResult.skipped?.length) skipped.push(...cycleResult.skipped);
     if (cycleResult.shadowRejected?.length) shadowRejected.push(...cycleResult.shadowRejected);
 
@@ -675,6 +700,7 @@ let totalPagesFetched = 0;
     // - No new links discovered in a cycle (source exhausted)
     if (
       cycleResult.pagesFetched === 0 ||
+      cycleResult.capExhausted === true ||
       (config.crawlTotalBudget > 0 && totalPagesFetched >= config.crawlTotalBudget) ||
       (maxCycles > 0 && cycle >= maxCycles)
     ) {
@@ -696,7 +722,10 @@ let totalPagesFetched = 0;
     notModified,
     rediscoveries,
     admissionRejected,
+    admissionCapDeferred,
     admissionQuarantined,
+    capExhausted,
+    capEpoch,
     skipped,
     shadowRejected,
     budgetRemaining: config.crawlTotalBudget - totalPagesFetched,
@@ -880,6 +909,10 @@ export async function harvest({
       languageFiltered: result.languageFiltered ?? 0,
       skipped: result.skipped ?? [],
       shadowRejected: result.shadowRejected ?? [],
+      admissionRejected: result.admissionRejected ?? 0,
+      admissionCapDeferred: result.admissionCapDeferred ?? 0,
+      capExhausted: result.capExhausted === true,
+      capEpoch: result.capEpoch ?? null,
       file: filePath,
       failuresFile: failuresPath,
     };
@@ -968,7 +1001,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     let admissionGateway = null;
     let frontier;
     if (config.crawlMode === "real") {
-      const admissionStore = await AdmissionStore.open({
+      const admissionManager = await AdmissionEpochManager.open({
         dir: config.paths.admission,
         config: {
           capLimit: config.admissionCapLimit,
@@ -976,8 +1009,9 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
           ackRequired: config.admissionAckRequired,
           protocolVersion: config.admissionProtocolVersion,
         },
+        logger: console,
       });
-      admissionGateway = new AcquisitionGateway({ store: admissionStore });
+      admissionGateway = new AcquisitionGateway({ store: admissionManager.store, epochManager: admissionManager });
       frontier = new Frontier({ dir: config.paths.frontier });
     }
     const res = await harvest({ languageFilter: config.languageFilter, admissionGateway, frontier });
