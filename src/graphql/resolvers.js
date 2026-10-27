@@ -25,6 +25,9 @@ const authToDomain = (v) => (v ? String(v).toLowerCase() : undefined);
 export const resolvers = {
   Article: {
     importance: (a) => impToEnum(a.importance),
+    importanceSource: (a) => a.importanceSource ?? "default",
+    importanceDecidedBy: (a) => (a.importanceDecidedBy ? authToEnum(a.importanceDecidedBy) : null),
+    importanceReviewId: (a) => a.importanceReviewId ?? null,
     suggestedImportance: (a) => (a.suggestedImportance ? impToEnum(a.suggestedImportance) : null),
     decidedBy: (a) => (a.decidedBy ? authToEnum(a.decidedBy) : null),
     reviewCount: (a, _, { store }) => (typeof a.reviewCount === "number" ? a.reviewCount : store.reviewsFor(a.articleId).length),

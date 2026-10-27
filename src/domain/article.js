@@ -28,6 +28,35 @@ export const IMPORTANCE = Object.freeze({
 });
 export const IMPORTANCE_LEVELS = Object.freeze([IMPORTANCE.NORMAL, IMPORTANCE.IMPORTANT, IMPORTANCE.CRITICAL]);
 
+/**
+ * Provenance of an article's canonical importance.
+ *
+ *   default    — never classified (the ingest default); eligible for the first
+ *                automated classification from a critic suggestion.
+ *   teacher    — assigned automatically from a critic/teacher suggestion.
+ *   automation — assigned automatically by a non-teacher automated path.
+ *   operator   — assigned by a human; ALWAYS wins and is never auto-overwritten.
+ *
+ * The canonical `article.importance` is the single authoritative classification;
+ * `suggestedImportance` remains advisory evidence of the critic's recommendation.
+ */
+export const IMPORTANCE_SOURCE = Object.freeze({
+  DEFAULT: "default",
+  TEACHER: "teacher",
+  AUTOMATION: "automation",
+  OPERATOR: "operator",
+});
+
+/** True when an importance value was set by a human operator (never auto-overwritten). */
+export function isOperatorImportance(article) {
+  return Boolean(article) && (article.importanceSource === IMPORTANCE_SOURCE.OPERATOR || article.importanceDecidedBy === AUTHORITY.HUMAN);
+}
+
+/** True when an article has no classification yet (ingest default). */
+export function isUnclassifiedImportance(article) {
+  return !article || !article.importanceSource || article.importanceSource === IMPORTANCE_SOURCE.DEFAULT;
+}
+
 export const STATUS = Object.freeze({
   INGESTED: "INGESTED",
   PENDING_REVIEW: "PENDING_REVIEW",

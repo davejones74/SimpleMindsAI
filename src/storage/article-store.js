@@ -7,12 +7,15 @@ import {
   QUARANTINE_REASON,
   STATUS,
   VERDICT,
+  IMPORTANCE_SOURCE,
   contentHash,
   inDeferralCooldown,
   isImportance,
+  isOperatorImportance,
   isQuarantineReason,
   isStatus,
   isTrainable,
+  isUnclassifiedImportance,
   normalizeImportance,
 } from "../domain/article.js";
 import { canonicalDomain } from "../storage/domain-registry.js";
@@ -206,7 +209,13 @@ export class ArticleStore {
       if (rec.actor) a.decidedBy = rec.actor === AUTHORITY.AUTOMATION ? a.decidedBy : rec.actor;
     } else if (rec.type === "importance") {
       a.importance = rec.to;
-      a.importanceSource = rec.actor === AUTHORITY.TEACHER ? a.importanceSource : "operator";
+      // The event carries its own source so replay reconstructs the SAME
+      // provenance and never re-derives it from the actor (the old inference
+      // marked any non-teacher event as an operator decision). Legacy events
+      // without `source` fall back to an actor-based mapping for compatibility.
+      a.importanceSource = rec.source ?? (rec.actor === AUTHORITY.HUMAN ? "operator" : rec.actor === AUTHORITY.TEACHER ? "teacher" : "automation");
+      a.importanceDecidedBy = rec.actor ?? null;
+      a.importanceReviewId = rec.reviewId ?? a.importanceReviewId ?? null;
     } else if (rec.type === "suggested-importance") {
       a.suggestedImportance = rec.to;
     } else if (rec.type === "review-requested") {
@@ -379,7 +388,13 @@ const rec = {
       category: category ?? domain ?? "general",
       tags: Array.isArray(tags) ? tags : [],
       importance: imp,
-      importanceSource: importance ? "operator" : "default",
+      // An operator-supplied importance at ingest is authoritative; otherwise the
+      // article starts `default` and is eligible for the first automated critic
+      // classification (see recordReview). `importanceDecidedBy`/`ReviewId`
+      // record WHICH authority/provenance set the canonical value.
+      importanceSource: importance ? IMPORTANCE_SOURCE.OPERATOR : IMPORTANCE_SOURCE.DEFAULT,
+      importanceDecidedBy: importance ? AUTHORITY.HUMAN : null,
+      importanceReviewId: null,
       suggestedImportance: null,
       status: selected ? STATUS.PENDING_REVIEW : STATUS.INGESTED,
       origin,
@@ -506,6 +521,24 @@ const rec = {
     if (!article) throw new Error(`unknown article: ${articleId}`);
     const decision = evaluateVerdict(article, { verdict, score, authority, reason }, this.policy);
 
+    // Autonomous INITIAL importance classification. The critic's STRUCTURED
+    // `suggestedImportance` becomes the canonical `importance` only when ALL of:
+    //   - the suggestion is one of the validated values (never free text);
+    //   - the review is not a human action;
+    //   - the article has no operator decision (operator authority always wins);
+    //   - the article is still unclassified (ingest default).
+    // Approval is deliberately irrelevant: this uses the importance field, never
+    // the verdict, so an approved article is not auto-promoted to Important and a
+    // rejected one is not suppressed from classification.
+    const suggestionValid = isImportance(suggestedImportance);
+    const shouldApplyImportance =
+      suggestionValid &&
+      authority !== AUTHORITY.HUMAN &&
+      !isOperatorImportance(article) &&
+      isUnclassifiedImportance(article);
+    const importanceSource =
+      authority === AUTHORITY.TEACHER ? IMPORTANCE_SOURCE.TEACHER : IMPORTANCE_SOURCE.AUTOMATION;
+
     const review = {
       reviewId: `rv_${randomUUID().slice(0, 12)}`,
       articleId,
@@ -517,7 +550,12 @@ const rec = {
       reviewerVersion,
       rubricVersion,
       guardrailResult,
+      // The critic's raw recommendation is retained as EVIDENCE regardless of
+      // whether it became the canonical classification.
       suggestedImportance: suggestedImportance ?? null,
+      // Did this review set the canonical importance, and what is it now?
+      importanceApplied: shouldApplyImportance,
+      resultingImportance: shouldApplyImportance ? suggestedImportance : article.importance,
       reviewCycleId,
       criticTemperature,
       criticPromptVersion,
@@ -538,9 +576,9 @@ const rec = {
     this.reviews.set(articleId, arr);
     await this.#persist("reviews", review);
 
-    // A suggested importance is advisory for teachers, authoritative for humans.
-    if (isImportance(suggestedImportance) && authority !== AUTHORITY.HUMAN) {
-      await this.#event({ type: "suggested-importance", articleId, to: suggestedImportance, actor: AUTHORITY.TEACHER });
+    // Record the advisory suggestion (evidence) for any non-human review.
+    if (suggestionValid && authority !== AUTHORITY.HUMAN) {
+      await this.#event({ type: "suggested-importance", articleId, to: suggestedImportance, actor: authority });
     }
 
     if (decision.apply) {
@@ -551,6 +589,22 @@ const rec = {
         to: decision.status,
         actor: decision.decidedBy ?? authority,
         reason: decision.reason,
+      });
+    }
+
+    // Persist the autonomous classification with explicit provenance (source,
+    // authority, and the review that produced it). This is a separate concern
+    // from approval/trainability and never changes status, retries or replay.
+    if (shouldApplyImportance) {
+      await this.#event({
+        type: "importance",
+        articleId,
+        from: article.importance,
+        to: suggestedImportance,
+        actor: authority,
+        source: importanceSource,
+        reviewId: review.reviewId,
+        reason: `initial classification from ${authority} suggestedImportance`,
       });
     }
     article.reviewCycleId = reviewCycleId ?? article.reviewCycleId;
@@ -575,12 +629,24 @@ const rec = {
   }
 
   // --------------------------------------------------------- operator acts
-  async setImportance(articleId, importance, { actor = AUTHORITY.HUMAN } = {}) {
+  async setImportance(articleId, importance, { actor = AUTHORITY.HUMAN, reason = null } = {}) {
     this.#assertWritable();
     if (!isImportance(importance)) throw new Error(`invalid importance: ${importance}`);
     const article = this.articles.get(articleId);
     if (!article) throw new Error(`unknown article: ${articleId}`);
-    await this.#event({ type: "importance", articleId, from: article.importance, to: importance, actor });
+    // Source is explicit, not inferred: a human sets `operator`, a teacher
+    // `teacher`, anything else `automation`. An operator decision is final.
+    const source =
+      actor === AUTHORITY.HUMAN ? IMPORTANCE_SOURCE.OPERATOR : actor === AUTHORITY.TEACHER ? IMPORTANCE_SOURCE.TEACHER : IMPORTANCE_SOURCE.AUTOMATION;
+    await this.#event({
+      type: "importance",
+      articleId,
+      from: article.importance,
+      to: importance,
+      actor,
+      source,
+      reason: reason ?? (actor === AUTHORITY.HUMAN ? "operator override" : "importance assigned"),
+    });
     article.updatedAt = new Date().toISOString();
     return { ...article };
   }
@@ -980,6 +1046,12 @@ const rec = {
   getStats() {
     const byStatus = Object.fromEntries(Object.values(STATUS).map((s) => [s, 0]));
     const byImportance = Object.fromEntries(["Normal", "Important", "Critical"].map((i) => [i, 0]));
+    // Provenance of the canonical importance: default / teacher / automation /
+    // operator. Lets an operator distinguish an AI initial classification from a
+    // human override (and see how much of the corpus is still unclassified).
+    const byImportanceSource = Object.fromEntries(
+      Object.values(IMPORTANCE_SOURCE).map((s) => [s, 0]),
+    );
     const byDomain = new Map();
     let trainable = 0;
     let deferredFresh = 0;
@@ -988,6 +1060,8 @@ const rec = {
     for (const a of this.articles.values()) {
       byStatus[a.status] = (byStatus[a.status] ?? 0) + 1;
       byImportance[a.importance] = (byImportance[a.importance] ?? 0) + 1;
+      const source = a.importanceSource ?? IMPORTANCE_SOURCE.DEFAULT;
+      byImportanceSource[source] = (byImportanceSource[source] ?? 0) + 1;
       byDomain.set(a.domain, (byDomain.get(a.domain) ?? 0) + 1);
       if (isTrainable(a)) trainable++;
       if (a.replayOnly === true) retainedForReplay++;
@@ -1002,6 +1076,7 @@ const rec = {
       totalArticles: total,
       byStatus,
       byImportance,
+      byImportanceSource,
       byDomain: [...byDomain.entries()].sort((a, b) => b[1] - a[1]).map(([domain, count]) => ({ domain, count })),
       pendingReview: byStatus[STATUS.PENDING_REVIEW] ?? 0,
       reviewed: byStatus[STATUS.REVIEWED] ?? 0,

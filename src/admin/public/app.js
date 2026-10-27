@@ -388,6 +388,9 @@ function renderDashboard() {
         <div class="small" style="margin-top:8px">
           Normal ${fmt(a.byImportance.Normal)} · Important ${fmt(a.byImportance.Important)} · Critical ${fmt(a.byImportance.Critical)}
         </div>
+        <div class="small muted" style="margin-top:4px">
+          classification source: default ${fmt(a.byImportanceSource?.default)} · teacher ${fmt(a.byImportanceSource?.teacher)} · automation ${fmt(a.byImportanceSource?.automation)} · operator ${fmt(a.byImportanceSource?.operator)}
+        </div>
       </div>
     </div>
     <div class="cols">
@@ -618,7 +621,7 @@ function articleTable() {
         <td class="wrap" style="max-width:420px"><a href="#" data-open="${esc(x.articleId)}">${esc((x.text ?? "").slice(0, 110))}${(x.text ?? "").length > 110 ? "…" : ""}</a>
           <div class="small muted">${esc(x.articleId)}</div></td>
         <td>${esc(x.domain ?? "—")}</td>
-        <td>${badge(x.importance.toUpperCase(), x.importance)}${x.suggestedImportance ? ` ${badge(`suggested ${String(x.suggestedImportance).toUpperCase()}`, `sugg: ${x.suggestedImportance}`)}` : ""}</td>
+        <td><span title="source: ${esc(x.importanceSource ?? "default")}${x.importanceDecidedBy ? ` (${esc(x.importanceDecidedBy)})` : ""}">${badge(x.importance.toUpperCase(), x.importance)}</span>${x.suggestedImportance ? ` ${badge(`suggested ${String(x.suggestedImportance).toUpperCase()}`, `sugg: ${x.suggestedImportance}`)}` : ""}</td>
         <td>${badge(x.status, x.status)}</td>
         <td>${x.trainable ? "✔" : "—"}</td>
         <td class="small muted">${when(x.createdAt)}</td>
@@ -705,6 +708,9 @@ function articleDetail(a) {
         ${a.fetchedContentHash ? `<br>fetched hash <code>${esc(a.fetchedContentHash)}</code>${a.fetchedContentHash === a.contentHash ? " (matches stored)" : ""}` : ""}
         ${a.fetchedAt ? `<br>fetched ${when(a.fetchedAt)}` : ""}
       </div>` : ""}
+      <div class="small muted" style="margin-top:8px">
+        importance source: <strong>${esc(a.importanceSource ?? "default")}</strong>${a.importanceDecidedBy ? ` · decided by ${esc(a.importanceDecidedBy)}` : ""}${a.importanceReviewId ? ` · review ${esc(a.importanceReviewId)}` : ""}${a.suggestedImportance ? ` · critic suggested ${esc(a.suggestedImportance)}` : ""}
+      </div>
       <div class="toolbar" style="margin-top:12px">
         <label class="small muted">Importance</label>
         <select id="dImp" ${roAttr()}>${["NORMAL", "IMPORTANT", "CRITICAL"].map((v) => `<option ${a.importance.toUpperCase() === v ? "selected" : ""}>${v}</option>`).join("")}</select>

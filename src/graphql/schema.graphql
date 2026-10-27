@@ -55,8 +55,10 @@ type Article {
   domain: String
   tags: [String!]!
   importance: ArticleImportance!
-  importanceSource: String
-  suggestedImportance: ArticleImportance   # advisory only; never applied by AI
+  importanceSource: String                 # default | teacher | automation | operator
+  importanceDecidedBy: ReviewAuthority     # authority that set the canonical importance
+  importanceReviewId: ID                   # review that produced an automated classification
+  suggestedImportance: ArticleImportance   # advisory critic recommendation; evidence only
   status: ArticleStatus!
   origin: String
   source: String
