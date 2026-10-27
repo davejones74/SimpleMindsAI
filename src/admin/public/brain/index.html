@@ -30,6 +30,7 @@
           <button id="modeBrain" type="button" class="active" data-mode="brain" aria-pressed="true" title="Cinematic overview (B)">Brain</button>
           <button id="modeArchitecture" type="button" data-mode="architecture" aria-pressed="false" title="Precise blueprint view (A)">Architecture</button>
         </div>
+        <button id="livingToggle" type="button" class="living-toggle-button" aria-expanded="false" aria-controls="livingPanel" title="Cinematic and reduced-motion controls">Living</button>
         <button id="resetView" type="button" title="Reset the camera (R)">Reset view</button>
         <button id="overview" type="button" title="Clear selection and return to the whole brain (Esc)">Overview</button>
       </div>
@@ -37,6 +38,52 @@
 
     <main class="brain-stage">
       <div id="scene" class="brain-scene" aria-label="Interactive 3D model of the active brain"></div>
+
+      <aside id="livingPanel" class="brain-living hidden" aria-label="Living brain visual controls">
+        <div class="living-head">
+          <div>
+            <div class="brain-panel-title">Living brain</div>
+            <div id="livingSummary" class="living-summary mood-ambient">Cinematic · Ambient only</div>
+          </div>
+          <button id="livingClose" class="panel-collapse" type="button" aria-label="Close living brain controls" title="Close living brain controls">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+          </button>
+        </div>
+        <label class="living-row living-check">
+          <span>Cinematic motion <small>slow light and drift</small></span>
+          <input id="cinematicToggle" type="checkbox" checked />
+        </label>
+        <label class="living-row living-check">
+          <span>Illustrative signals <small>travelling pulses</small></span>
+          <input id="signalsToggle" type="checkbox" checked />
+        </label>
+        <label class="living-row living-check">
+          <span>Speculative attention <small>violet arcs, not measured</small></span>
+          <input id="attentionToggle" type="checkbox" checked />
+        </label>
+        <label class="living-range">
+          <span>Ambient density <output id="ambientDensityValue">100%</output></span>
+          <input id="ambientDensity" type="range" min="0" max="160" step="5" value="100" />
+        </label>
+        <label class="living-range">
+          <span>Animation intensity <output id="animationIntensityValue">100%</output></span>
+          <input id="animationIntensity" type="range" min="30" max="160" step="5" value="100" />
+        </label>
+        <label class="living-range">
+          <span>Animation speed <output id="animationSpeedValue">100%</output></span>
+          <input id="animationSpeed" type="range" min="25" max="250" step="5" value="100" />
+        </label>
+        <label class="living-row living-check living-reduced">
+          <span>Reduced motion <small>gentle ambient only</small></span>
+          <input id="reducedMotionToggle" type="checkbox" />
+        </label>
+        <p id="livingNote" class="living-note">Ambient and illustrative motion continue independently of telemetry.</p>
+        <div class="living-actions">
+          <button id="livingReset" type="button">Reset defaults</button>
+          <span class="living-key"><i class="legend-swatch pulse"></i> illustrative pulse</span>
+          <span class="living-key"><i class="legend-swatch attention"></i> speculative</span>
+        </div>
+      </aside>
 
       <aside id="legend" class="brain-legend" aria-label="Visual language and component type legend">
         <div class="brain-panel-title">Visual language</div>

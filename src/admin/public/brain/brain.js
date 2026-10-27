@@ -16,6 +16,12 @@ import {
   telemetryDisplayStatus,
   telemetryFromSnapshot,
 } from "./telemetry.js";
+import {
+  DEFAULT_EFFECT_SETTINGS,
+  effectSummary,
+  normalizeEffectSettings,
+  telemetryMood,
+} from "./cinematic.js";
 
 const API = "/api/admin/brain/blueprint";
 const ADMIN_API = "/api/admin";
@@ -34,6 +40,17 @@ const layerActivityPreference = (() => {
     return false;
   }
 })();
+const reducedMotionQuery = window.matchMedia?.("(prefers-reduced-motion: reduce)") ?? null;
+const prefersReducedMotion = reducedMotionQuery?.matches === true;
+const effectPreference = (() => {
+  try {
+    const raw = window.sessionStorage.getItem("sma.brain.effects");
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+})();
+const initialEffects = normalizeEffectSettings(effectPreference, { prefersReducedMotion });
 const state = {
   blueprint: null,
   summary: null,
@@ -45,6 +62,9 @@ const state = {
   activityEnabled: activityPreference,
   layerActivityEnabled: layerActivityPreference,
   layerActivityKey: "",
+  effects: initialEffects,
+  displayStatus: "unavailable",
+  previousDisplayStatus: null,
   liveTimer: null,
   telemetryStream: null,
 };
@@ -89,6 +109,105 @@ function initPanelCollapse() {
       setPanelCollapsed(panelId, !panel.classList.contains("collapsed"));
     });
   }
+}
+
+function persistEffects() {
+  try {
+    window.sessionStorage.setItem("sma.brain.effects", JSON.stringify(state.effects));
+  } catch {
+    // Storage may be unavailable; the controls still work for this view.
+  }
+}
+
+function updateEffects(patch, { persist = true } = {}) {
+  state.effects = normalizeEffectSettings({ ...state.effects, ...patch }, { prefersReducedMotion });
+  if (persist) persistEffects();
+  state.scene?.setEffectSettings(state.effects);
+  renderLivingPanel();
+  if (state.blueprint) renderLegend(state.blueprint);
+  return state.effects;
+}
+
+function renderLivingPanel() {
+  if (!state.effects) return;
+  const effects = state.effects;
+  const setChecked = (id, value) => {
+    const element = document.getElementById(id);
+    if (element) element.checked = value === true;
+  };
+  const setRange = (id, value, outputId) => {
+    const element = document.getElementById(id);
+    if (element) element.value = String(Math.round(value * 100));
+    const output = document.getElementById(outputId);
+    if (output) output.textContent = `${Math.round(value * 100)}%`;
+  };
+  setChecked("cinematicToggle", effects.cinematic);
+  setChecked("signalsToggle", effects.signals);
+  setChecked("attentionToggle", effects.attention);
+  setChecked("reducedMotionToggle", effects.reducedMotion);
+  setRange("ambientDensity", effects.ambientDensity, "ambientDensityValue");
+  setRange("animationIntensity", effects.intensity, "animationIntensityValue");
+  setRange("animationSpeed", effects.speed, "animationSpeedValue");
+  const mood = telemetryMood(state.displayStatus);
+  const summary = document.getElementById("livingSummary");
+  if (summary) {
+    summary.textContent = `${effectSummary(effects)} · ${mood.label}`;
+    summary.className = `living-summary mood-${mood.key}`;
+  }
+  const note = document.getElementById("livingNote");
+  if (note) {
+    note.textContent = state.displayStatus === "live"
+      ? "Live telemetry paces event acknowledgements. Ambient motion remains illustrative."
+      : `${mood.label}. Ambient and illustrative motion continue independently of telemetry.`;
+  }
+}
+
+function wireLivingControls() {
+  const toggle = document.getElementById("livingToggle");
+  const panel = document.getElementById("livingPanel");
+  const setPanel = (open) => {
+    panel?.classList.toggle("hidden", !open);
+    toggle?.setAttribute("aria-expanded", String(open));
+    toggle?.classList.toggle("active", open);
+  };
+  toggle?.addEventListener("click", () => setPanel(panel?.classList.contains("hidden") !== false));
+  document.getElementById("livingClose")?.addEventListener("click", () => setPanel(false));
+  document.getElementById("cinematicToggle")?.addEventListener("change", (event) => {
+    updateEffects({ cinematic: event.target.checked });
+  });
+  document.getElementById("signalsToggle")?.addEventListener("change", (event) => {
+    updateEffects({ signals: event.target.checked });
+  });
+  document.getElementById("attentionToggle")?.addEventListener("change", (event) => {
+    updateEffects({ attention: event.target.checked });
+  });
+  document.getElementById("reducedMotionToggle")?.addEventListener("change", (event) => {
+    updateEffects({ reducedMotion: event.target.checked });
+  });
+  for (const [id, key] of [
+    ["ambientDensity", "ambientDensity"],
+    ["animationIntensity", "intensity"],
+    ["animationSpeed", "speed"],
+  ]) {
+    document.getElementById(id)?.addEventListener("input", (event) => {
+      updateEffects({ [key]: Number(event.target.value) / 100 });
+    });
+  }
+  document.getElementById("livingReset")?.addEventListener("click", () => {
+    try {
+      window.sessionStorage.removeItem("sma.brain.effects");
+    } catch {
+      // Storage may be unavailable; reset still applies for this view.
+    }
+    state.effects = normalizeEffectSettings(
+      { ...DEFAULT_EFFECT_SETTINGS, reducedMotion: prefersReducedMotion },
+      { prefersReducedMotion },
+    );
+    state.scene?.setEffectSettings(state.effects);
+    renderLivingPanel();
+    if (state.blueprint) renderLegend(state.blueprint);
+  });
+  renderLivingPanel();
 }
 
 const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({
@@ -198,21 +317,29 @@ function renderLegend(blueprint) {
         </div>
       `;
     });
+  const planCounts = state.scene?.plan?.counts ?? null;
   const key = `
     <div class="legend-key">
       <div class="legend-row"><span class="legend-swatch structural"></span><span>Structural component</span></div>
       <div class="legend-row"><span class="legend-swatch connection"></span><span>Blueprint connection</span></div>
       ${state.mode === "brain" ? `
         <div class="legend-row"><span class="legend-swatch filament"></span><span>Illustrative filament</span></div>
-        <div class="legend-row"><span class="legend-swatch ambient"></span><span>Ambient particle</span></div>
+        <div class="legend-row"><span class="legend-swatch pulse"></span><span>Illustrative travelling pulse</span></div>
+        ${state.effects?.attention !== false ? `<div class="legend-row"><span class="legend-swatch attention"></span><span>Speculative attention arc</span></div>` : ""}
+        <div class="legend-row"><span class="legend-swatch ambient"></span><span>Ambient particle / nebula</span></div>
+        ${state.layerActivityEnabled ? `<div class="legend-row"><span class="legend-swatch measured"></span><span>Measured layer gradient RMS</span></div>` : ""}
       ` : ""}
     </div>
   `;
+  const countsLine = state.mode === "brain" && planCounts
+    ? `<p class="legend-meta">Illustrative ${formatInt(planCounts.illustrativeNodes)} nodes · ${formatInt(planCounts.illustrativeFilaments)} filaments · ${formatInt(planCounts.attentionArcs)} speculative arcs · ${formatInt((planCounts.ambientStars ?? 0) + (planCounts.ambientClusters ?? 0) + (planCounts.ambientWisps ?? 0))} ambient objects</p>`
+    : "";
   const note = state.mode === "brain"
-    ? `<p class="legend-note">Dashed filaments and ambient particles are artistic atmosphere. They are not parameters, weights, activations or architectural connections.</p>`
-    : `<p class="legend-note">Architecture mode hides the illustrative web. Every node and connection shown here comes from the exported blueprint. Low-priority positional links brighten when a related component is selected.</p>`;
+    ? `<p class="legend-note"><strong>Actual architecture</strong> is the glass/metal nodes and solid blueprint edges. Filaments, travelling pulses, speculative attention arcs, nebulae and ambient dust are <em>illustrative atmosphere</em>, not weights, activations or measured signals. Live telemetry is shown separately below.</p>`
+    : `<p class="legend-note">Architecture mode hides every illustrative and ambient layer. Every node and connection shown here comes from the exported blueprint. Low-priority positional links brighten when a related component is selected.</p>`;
   document.getElementById("legendItems").innerHTML = key
     + (rows.join("") || `<div class="empty-note">No components.</div>`)
+    + countsLine
     + note;
 }
 
@@ -263,7 +390,7 @@ function renderIntro() {
       <dt>Verification</dt><dd>${esc(verification.status ?? "unknown")}</dd>
       <dt>Weights loaded</dt><dd>${state.blueprint?.source?.weightsLoaded === false ? "no" : "unknown"}</dd>
     </dl>
-    <p class="small muted">Only structural metadata is shown. There are no live activations, gradients or training telemetry in this view.</p>
+    <p class="small muted">This inspector shows structural metadata only. Live training telemetry and the optional per-layer gradient RMS overlay are shown in the Live training panel; the legend separates measured activity from illustrative motion.</p>
     ${checksHtml}
   `;
 }
@@ -475,6 +602,9 @@ async function loadBlueprint() {
       initialMode: state.mode,
       activityEnabled: state.activityEnabled,
       layerActivityEnabled: state.layerActivityEnabled,
+      effects: state.effects,
+      prefersReducedMotion,
+      telemetryStatus: state.displayStatus,
       onSelect: (componentId) => {
         if (componentId) setPanelCollapsed("inspector", false);
         renderInspector(componentId);
@@ -482,9 +612,12 @@ async function loadBlueprint() {
     });
     state.scene.setMode(state.mode);
     state.scene.setActivityEnabled(state.activityEnabled);
+    state.scene.setEffectSettings(state.effects);
+    state.scene.setTelemetryStatus(state.displayStatus);
     syncLayerActivity(true);
     updateModeButtons();
     renderLegend(blueprint);
+    renderLivingPanel();
     renderWarnings(blueprint, state.scene.plan.warnings);
     hideOverlay();
   } catch (err) {
@@ -518,6 +651,21 @@ function liveStatusClass(status) {
   return ["live", "stale", "disconnected", "unavailable", "connecting", "failed", "completed", "stopped", "paused", "waiting", "pause-requested", "stop-requested", "stopping"].includes(status)
     ? status
     : "unavailable";
+}
+
+function syncTelemetryVisual(displayStatus) {
+  const previous = state.displayStatus;
+  state.previousDisplayStatus = previous;
+  state.displayStatus = displayStatus;
+  state.scene?.setTelemetryStatus(displayStatus);
+  if (previous && previous !== displayStatus) {
+    if (displayStatus === "failed") {
+      acknowledgeActivity("failure");
+    } else if (displayStatus === "live" && (previous === "failed" || previous === "disconnected")) {
+      acknowledgeActivity("recovery");
+    }
+  }
+  renderLivingPanel();
 }
 
 function metricHtml(label, value, className = "") {
@@ -627,6 +775,7 @@ function renderLivePanel({ rebuildChart = true } = {}) {
     statusEl.textContent = LIVE_STATUS_LABEL[displayStatus] ?? "No telemetry";
     statusEl.className = `live-status ${liveStatusClass(displayStatus)}`;
   }
+  syncTelemetryVisual(displayStatus);
   const connectionEl = document.getElementById("liveConnection");
   if (connectionEl) {
     const connection = telemetry.connection ?? "connecting";
@@ -779,6 +928,8 @@ function connectTelemetryStream() {
       if (!result.accepted) return;
       if (result.kind === "checkpoint") {
         acknowledgeActivity("checkpoint");
+      } else if (result.kind === "evaluation") {
+        acknowledgeActivity("evaluation");
       } else if (result.kind === "snapshot" && result.point && result.point.step !== previousStep) {
         acknowledgeActivity("step");
       }
@@ -825,6 +976,7 @@ async function wireLiveTraining() {
     }
     syncLayerActivity(true);
     renderLivePanel();
+    if (state.blueprint) renderLegend(state.blueprint);
   });
   renderLivePanel();
   await loadTelemetrySnapshot();
@@ -836,6 +988,7 @@ async function wireLiveTraining() {
 
 function wireControls() {
   initPanelCollapse();
+  wireLivingControls();
   document.getElementById("resetView").addEventListener("click", () => state.scene?.resetView());
   document.getElementById("overview").addEventListener("click", () => state.scene?.clear());
   for (const button of document.querySelectorAll("[data-mode]")) {

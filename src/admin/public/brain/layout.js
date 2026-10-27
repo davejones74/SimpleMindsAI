@@ -8,9 +8,16 @@ export const DEFAULT_LAYOUT = {
   maxEdges: 20000,
   // The illustrative web has its own fixed budget. It adds visual density, not
   // model detail, and is generated deterministically from the blueprint's
-  // stable ids and a fixed seed.
-  maxSynapticNodes: 2400,
-  maxFilaments: 2200,
+  // stable ids and a fixed seed. Phase 1.8 roughly doubles these populations.
+  maxSynapticNodes: 4200,
+  maxFilaments: 3800,
+  // Deep-space decoration is deliberately separate from both the architecture
+  // and the illustrative web. None of these entries has an architecture id or
+  // contributes to any component, connection or parameter count.
+  maxAmbientStars: 3600,
+  maxAmbientClusters: 18,
+  maxAmbientWisps: 110,
+  maxAttentionArcs: 28,
   layerSpacing: 8.4,
   clusterScale: 1.0,
 };
@@ -96,6 +103,33 @@ const FILAMENT_COLORS = [
 
 const REGION_TINTS = ["#38bdf8", "#6d8cff", "#a78bfa", "#c084fc"];
 
+const AMBIENT_STAR_COLORS = [
+  "#dff3ff",
+  "#dff3ff",
+  "#bfe8ff",
+  "#bfe8ff",
+  "#9ad8ff",
+  "#9ad8ff",
+  "#7dd3fc",
+  "#a5b4fc",
+  "#c4b5fd",
+  "#f0abfc",
+  "#fde68a",
+];
+
+const NEBULA_COLORS = [
+  "#0e7490",
+  "#0891b2",
+  "#1d4ed8",
+  "#4338ca",
+  "#6d28d9",
+  "#9333ea",
+  "#be185d",
+  "#0f766e",
+];
+
+const ATTENTION_COLORS = ["#c084fc", "#a78bfa", "#e879f9", "#818cf8", "#67e8f9"];
+
 function mixHex(first, second, t) {
   const parse = (hex) => [1, 3, 5].map((offset) => parseInt(hex.slice(offset, offset + 2), 16));
   const a = parse(first);
@@ -103,6 +137,15 @@ function mixHex(first, second, t) {
   return `#${a.map((value, index) => (
     Math.round(value + (b[index] - value) * t).toString(16).padStart(2, "0")
   )).join("")}`;
+}
+
+function hexToRgb(hex) {
+  const value = parseInt(hex.slice(1), 16);
+  return [
+    ((value >> 16) & 255) / 255,
+    ((value >> 8) & 255) / 255,
+    (value & 255) / 255,
+  ];
 }
 
 function regionTint(index, count) {
@@ -338,8 +381,8 @@ function pickColor(random, palette) {
 function buildSynapticWeb({ nodes, regions, baseBounds, config, seed, layerCount }) {
   const regionCount = regions.length;
   const budget = Math.max(
-    720,
-    Math.min(config.maxSynapticNodes, Math.round(regionCount * 95 + 640)),
+    960,
+    Math.min(config.maxSynapticNodes, Math.round(regionCount * 122 + 760)),
   );
   const random = seededRandom(seed ^ 0x51a1f00d);
   const regionShare = Math.floor(budget * 0.6);
@@ -423,8 +466,8 @@ function buildSynapticWeb({ nodes, regions, baseBounds, config, seed, layerCount
   const center = baseBounds.center;
   const fieldRadius = Math.max(baseBounds.radius, 1);
   const fieldNodes = [];
-  const shellClusterCount = Math.max(8, Math.min(30, 8 + Math.floor(regionCount * 0.6)));
-  const coreClusterCount = Math.max(4, Math.min(12, 4 + Math.floor(regionCount * 0.25)));
+  const shellClusterCount = Math.max(12, Math.min(36, 12 + Math.floor(regionCount * 0.8)));
+  const coreClusterCount = Math.max(6, Math.min(14, 6 + Math.floor(regionCount * 0.3)));
   const fieldClusters = [];
 
   for (let index = 0; index < shellClusterCount; index += 1) {
@@ -664,6 +707,184 @@ function buildSynapticWeb({ nodes, regions, baseBounds, config, seed, layerCount
   return { nodes: synapticNodes, filaments };
 }
 
+// Deep-space decoration. Stars, nebula centres and far cosmic wisps form three
+// depth layers around the brain. They are deterministic, budgeted and carry no
+// architectural ids, so density can grow without silently adding model detail.
+function buildAmbientField({ baseBounds, config, seed, layerCount }) {
+  const random = seededRandom(seed ^ 0x0a3f19c7);
+  const center = baseBounds.center;
+  const radius = Math.max(baseBounds.radius, 1);
+  const starCount = Math.max(
+    1400,
+    Math.min(config.maxAmbientStars, Math.round(3200 + layerCount * 50)),
+  );
+  const positions = new Float32Array(starCount * 3);
+  const colors = new Float32Array(starCount * 3);
+  const sizes = new Float32Array(starCount);
+  const phases = new Float32Array(starCount);
+
+  for (let index = 0; index < starCount; index += 1) {
+    const direction = unitVector(random);
+    // A slightly flattened shell gives the surrounding universe a galactic
+    // plane rather than a perfectly uniform bubble of noise.
+    const distance = radius * (1.28 + random() ** 0.72 * 4.9);
+    positions[index * 3] = center[0] + direction[0] * distance;
+    positions[index * 3 + 1] = center[1] + direction[1] * distance * 0.82;
+    positions[index * 3 + 2] = center[2] + direction[2] * distance;
+    const rgb = hexToRgb(pickColor(random, AMBIENT_STAR_COLORS));
+    const brightness = 0.28 + random() ** 1.4 * 0.72;
+    colors[index * 3] = rgb[0] * brightness;
+    colors[index * 3 + 1] = rgb[1] * brightness;
+    colors[index * 3 + 2] = rgb[2] * brightness;
+    sizes[index] = 0.4 + random() ** 2.6 * 1.7;
+    phases[index] = random();
+  }
+
+  const cloudCount = Math.min(
+    config.maxAmbientClusters,
+    Math.max(10, Math.round(10 + layerCount * 0.5)),
+  );
+  const clouds = [];
+  for (let index = 0; index < cloudCount; index += 1) {
+    const direction = unitVector(random);
+    const distance = radius * (1.65 + random() * 2.9);
+    const position = [
+      center[0] + direction[0] * distance,
+      center[1] + direction[1] * distance * 0.74,
+      center[2] + direction[2] * distance,
+    ];
+    clouds.push({
+      id: `ambient.cloud.${index}`,
+      kind: "ambient",
+      position,
+      size: radius * (0.5 + random() * 1.25),
+      color: pickColor(random, NEBULA_COLORS),
+      opacity: 0.055 + random() * 0.105,
+      phase: random() * Math.PI * 2,
+      drift: [(random() - 0.5) * 0.55, (random() - 0.5) * 0.34, (random() - 0.5) * 0.55],
+    });
+  }
+
+  const wispCount = Math.min(
+    config.maxAmbientWisps,
+    Math.max(56, Math.round(56 + layerCount * 1.5)),
+  );
+  const wisps = [];
+  let wispGuard = 0;
+  while (wisps.length < wispCount && wispGuard < wispCount * 24) {
+    wispGuard += 1;
+    const firstDirection = unitVector(random);
+    const secondDirection = unitVector(random);
+    const firstDistance = radius * (1.5 + random() * 2.7);
+    const secondDistance = radius * (1.5 + random() * 2.8);
+    const start = [
+      center[0] + firstDirection[0] * firstDistance,
+      center[1] + firstDirection[1] * firstDistance * 0.78,
+      center[2] + firstDirection[2] * firstDistance,
+    ];
+    const target = [
+      center[0] + secondDirection[0] * secondDistance,
+      center[1] + secondDirection[1] * secondDistance * 0.78,
+      center[2] + secondDirection[2] * secondDistance,
+    ];
+    const separation = length(sub(target, start));
+    if (separation < radius * 0.3) continue;
+    const index = wisps.length;
+    const direction = perpendicularTo(sub(target, start), hashString(`ambient.wisp.${index}`));
+    const bow = scaleVector(direction, separation * (0.08 + random() * 0.16));
+    const controlA = add(lerp(start, target, 0.33), bow);
+    const controlB = add(lerp(start, target, 0.67), scaleVector(bow, 0.7));
+    const points = [];
+    const segments = 6 + Math.floor(random() * 4);
+    for (let step = 0; step <= segments; step += 1) {
+      const t = step / segments;
+      const inverse = 1 - t;
+      points.push([
+        inverse ** 3 * start[0] + 3 * inverse ** 2 * t * controlA[0] + 3 * inverse * t ** 2 * controlB[0] + t ** 3 * target[0],
+        inverse ** 3 * start[1] + 3 * inverse ** 2 * t * controlA[1] + 3 * inverse * t ** 2 * controlB[1] + t ** 3 * target[1],
+        inverse ** 3 * start[2] + 3 * inverse ** 2 * t * controlA[2] + 3 * inverse * t ** 2 * controlB[2] + t ** 3 * target[2],
+      ]);
+    }
+    wisps.push({
+      id: `ambient.wisp.${index}`,
+      kind: "ambient",
+      points,
+      color: pickColor(random, index % 7 === 0 ? NEBULA_COLORS : AMBIENT_STAR_COLORS),
+      intensity: 0.12 + random() * 0.22,
+    });
+  }
+
+  return {
+    stars: { count: starCount, positions, colors, sizes, phases },
+    clouds,
+    wisps,
+  };
+}
+
+// Speculative, attention-inspired arcs. They deliberately connect distant
+// regions without claiming to be measured attention. The ids and kind make the
+// distinction explicit, and they never enter the structural graph.
+function buildAttentionArcs({ regions, baseBounds, config, seed }) {
+  const regionCount = regions.length;
+  if (regionCount < 2) return [];
+  const random = seededRandom(seed ^ 0x5eeda77e);
+  const arcCount = Math.min(config.maxAttentionArcs, Math.max(6, regionCount * 2));
+  const center = baseBounds.center;
+  const radius = Math.max(baseBounds.radius, 1);
+  const arcs = [];
+  const used = new Set();
+  let guard = 0;
+  while (arcs.length < arcCount && guard < arcCount * 12) {
+    guard += 1;
+    const firstIndex = Math.floor(random() * regionCount);
+    const gap = 2 + Math.floor(random() * Math.max(1, regionCount - 3));
+    const secondIndex = (firstIndex + gap) % regionCount;
+    if (firstIndex === secondIndex) continue;
+    const pair = [firstIndex, secondIndex].sort((a, b) => a - b).join(":");
+    if (used.has(pair)) continue;
+    used.add(pair);
+    const first = regions[firstIndex];
+    const second = regions[secondIndex];
+    const start = first.position;
+    const target = second.position;
+    const separation = length(sub(target, start));
+    if (separation < 1e-3) continue;
+    const middle = lerp(start, target, 0.5);
+    const outwardRaw = sub(middle, center);
+    const outward = length(outwardRaw) > 1e-4 ? normalize(outwardRaw) : unitVector(random);
+    const perpendicular = perpendicularTo(sub(target, start), hashString(`attention.${pair}`));
+    const bowDirection = normalize(add(outward, scaleVector(perpendicular, (random() - 0.5) * 1.6)));
+    const bow = radius * (0.12 + random() * 0.2);
+    const controlA = add(lerp(start, target, 0.28), scaleVector(bowDirection, bow * (0.7 + random() * 0.7)));
+    const controlB = add(lerp(start, target, 0.72), scaleVector(bowDirection, bow * (0.5 + random() * 0.7)));
+    const points = [];
+    const segments = 20;
+    for (let step = 0; step <= segments; step += 1) {
+      const t = step / segments;
+      const inverse = 1 - t;
+      points.push([
+        inverse ** 3 * start[0] + 3 * inverse ** 2 * t * controlA[0] + 3 * inverse * t ** 2 * controlB[0] + t ** 3 * target[0],
+        inverse ** 3 * start[1] + 3 * inverse ** 2 * t * controlA[1] + 3 * inverse * t ** 2 * controlB[1] + t ** 3 * target[1],
+        inverse ** 3 * start[2] + 3 * inverse ** 2 * t * controlA[2] + 3 * inverse * t ** 2 * controlB[2] + t ** 3 * target[2],
+      ]);
+    }
+    arcs.push({
+      id: `attention.${arcs.length}`,
+      kind: "speculative",
+      fromRegionId: first.id,
+      toRegionId: second.id,
+      fromBlockIndex: first.blockIndex,
+      toBlockIndex: second.blockIndex,
+      points,
+      color: pickColor(random, ATTENTION_COLORS),
+      intensity: 0.22 + random() * 0.28,
+      phase: random(),
+      speed: 0.085 + random() * 0.12,
+    });
+  }
+  return arcs;
+}
+
 function boundsOver(points, extraRadius = 0) {
   let minX = Infinity;
   let minY = Infinity;
@@ -875,10 +1096,23 @@ export function buildRenderPlan(blueprint, options = {}) {
     seed,
     layerCount,
   });
+  const ambient = buildAmbientField({
+    baseBounds,
+    config,
+    seed,
+    layerCount,
+  });
+  const attention = buildAttentionArcs({
+    regions,
+    baseBounds,
+    config,
+    seed,
+  });
 
   // Camera framing follows the architecture and the near-field web. The
-  // far-field synaptic clusters are atmosphere; they may drift beyond the frame
-  // just as ambient dust does, but they never pull the camera off the model.
+  // far-field synaptic clusters, deep-space field and speculative arcs are
+  // atmosphere; they may drift beyond the frame just as ambient dust does, but
+  // they never pull the camera off the model.
   const framingPoints = [
     ...structuralPoints,
     ...synaptic.nodes.filter((node) => node.role !== "field").map((node) => node.position),
@@ -900,6 +1134,8 @@ export function buildRenderPlan(blueprint, options = {}) {
     // diagnostics. No rectangular enclosure is rendered from it any more.
     blocks: regions,
     synaptic,
+    ambient,
+    attention,
     bounds,
     counts: {
       nodes: limitedNodes.length,
@@ -912,6 +1148,16 @@ export function buildRenderPlan(blueprint, options = {}) {
       filaments: synaptic.filaments.length,
       illustrativeNodes: synaptic.nodes.length,
       illustrativeFilaments: synaptic.filaments.length,
+      attentionArcs: attention.length,
+      ambientStars: ambient.stars.count,
+      ambientClusters: ambient.clouds.length,
+      ambientWisps: ambient.wisps.length,
+      decorativeObjects: synaptic.nodes.length
+        + synaptic.filaments.length
+        + attention.length
+        + ambient.stars.count
+        + ambient.clouds.length
+        + ambient.wisps.length,
     },
     warnings,
   };

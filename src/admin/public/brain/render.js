@@ -6,6 +6,13 @@ import { LineMaterial } from "three/addons/lines/LineMaterial.js";
 import { highlightFor } from "./schema.js";
 import { buildRenderPlan } from "./layout.js";
 import { fitCamera } from "./framing.js";
+import {
+  activityVisualSpec,
+  effectiveMotion,
+  effectVisibility,
+  normalizeEffectSettings,
+  telemetryMood,
+} from "./cinematic.js";
 
 const MODES = new Set(["brain", "architecture"]);
 
@@ -71,6 +78,56 @@ function makeGlowTexture() {
   return texture;
 }
 
+/**
+ * Soft, deterministic nebula cloud. White-ish blobs tinted by the sprite's
+ * colour; no image load and no render pass. Three variants are enough to keep
+ * the deep field from looking stamped.
+ */
+function makeNebulaTexture(seed) {
+  const size = 256;
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  const context = canvas.getContext("2d");
+  const random = seededRandom(seed);
+  context.clearRect(0, 0, size, size);
+  context.globalCompositeOperation = "lighter";
+  for (let index = 0; index < 10; index += 1) {
+    const x = size * (0.24 + random() * 0.52);
+    const y = size * (0.26 + random() * 0.48);
+    const radius = size * (0.16 + random() * 0.34);
+    const gradient = context.createRadialGradient(x, y, 0, x, y, radius);
+    const alpha = 0.08 + random() * 0.16;
+    gradient.addColorStop(0, `rgba(255,255,255,${alpha})`);
+    gradient.addColorStop(0.45, `rgba(226,240,255,${alpha * 0.45})`);
+    gradient.addColorStop(1, "rgba(0,0,0,0)");
+    context.fillStyle = gradient;
+    context.fillRect(0, 0, size, size);
+  }
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+function makeRingTexture() {
+  const size = 128;
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  const context = canvas.getContext("2d");
+  const gradient = context.createRadialGradient(64, 64, 30, 64, 64, 62);
+  gradient.addColorStop(0, "rgba(255,255,255,0)");
+  gradient.addColorStop(0.56, "rgba(255,255,255,0)");
+  gradient.addColorStop(0.74, "rgba(255,255,255,0.75)");
+  gradient.addColorStop(0.84, "rgba(255,255,255,0.36)");
+  gradient.addColorStop(1, "rgba(255,255,255,0)");
+  context.fillStyle = gradient;
+  context.fillRect(0, 0, size, size);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
 function makeLabelTexture(text, options = {}) {
   const width = options.width ?? 256;
   const height = options.height ?? 96;
@@ -105,6 +162,13 @@ function colorToRgb(hex) {
   return [color.r, color.g, color.b];
 }
 
+function randomUnitVector(random) {
+  const theta = random() * Math.PI * 2;
+  const z = random() * 2 - 1;
+  const radial = Math.sqrt(Math.max(0, 1 - z * z));
+  return [radial * Math.cos(theta), radial * Math.sin(theta), z];
+}
+
 function disposeObject(root, seen = new Set()) {
   root.traverse((object) => {
     if (object.geometry && !seen.has(object.geometry)) {
@@ -128,10 +192,146 @@ function disposeObject(root, seen = new Set()) {
   });
 }
 
+function prepareSignalLanes(lanes) {
+  const prepared = [];
+  for (const lane of lanes) {
+    const points = lane?.points;
+    if (!Array.isArray(points) || points.length < 2) continue;
+    const lengths = new Float32Array(points.length);
+    let total = 0;
+    for (let index = 1; index < points.length; index += 1) {
+      const dx = points[index][0] - points[index - 1][0];
+      const dy = points[index][1] - points[index - 1][1];
+      const dz = points[index][2] - points[index - 1][2];
+      total += Math.hypot(dx, dy, dz);
+      lengths[index] = total;
+    }
+    if (total < 1e-4) continue;
+    prepared.push({ lane, points, lengths, total });
+  }
+  return prepared;
+}
+
+function samplePreparedLane(lane, t) {
+  const distance = ((t % 1) + 1) % 1 * lane.total;
+  let segment = 1;
+  while (segment < lane.lengths.length - 1 && lane.lengths[segment] < distance) segment += 1;
+  const previous = lane.lengths[segment - 1] ?? 0;
+  const span = Math.max(1e-6, lane.lengths[segment] - previous);
+  const local = Math.min(1, Math.max(0, (distance - previous) / span));
+  const from = lane.points[segment - 1];
+  const to = lane.points[segment] ?? from;
+  return [
+    from[0] + (to[0] - from[0]) * local,
+    from[1] + (to[1] - from[1]) * local,
+    from[2] + (to[2] - from[2]) * local,
+  ];
+}
+
+/**
+ * A bounded field of luminous motes travelling along prepared polylines. The
+ * geometry is allocated once; each frame only writes positions. A pulse is
+ * illustrative motion along an illustrative lane, never a measured signal.
+ */
+function createPulseField(lanes, count, options = {}) {
+  const prepared = prepareSignalLanes(lanes);
+  const positions = new Float32Array(count * 3);
+  const colors = new Float32Array(count * 3);
+  const state = [];
+  if (!prepared.length || count <= 0) {
+    return {
+      points: null,
+      material: null,
+      update() {},
+      setPaused() {},
+    };
+  }
+  const random = seededRandom(options.seed ?? 0x51a1f00d);
+  const minSpeed = options.minSpeed ?? 0.055;
+  const maxSpeed = options.maxSpeed ?? 0.16;
+  for (let index = 0; index < count; index += 1) {
+    const lane = prepared[Math.floor(random() * prepared.length)];
+    const rgb = colorToRgb(lane.lane.color ?? "#67e8f9");
+    const brightness = 0.72 + random() * 0.55;
+    colors[index * 3] = Math.min(1, rgb[0] * brightness);
+    colors[index * 3 + 1] = Math.min(1, rgb[1] * brightness);
+    colors[index * 3 + 2] = Math.min(1, rgb[2] * brightness);
+    state.push({
+      lane,
+      t: random(),
+      speed: lane.lane.speed ?? (minSpeed + random() * (maxSpeed - minSpeed)),
+      phase: random() * Math.PI * 2,
+    });
+    const position = samplePreparedLane(lane, state[index].t);
+    positions[index * 3] = position[0];
+    positions[index * 3 + 1] = position[1];
+    positions[index * 3 + 2] = position[2];
+  }
+  const geometry = new THREE.BufferGeometry();
+  const positionAttribute = new THREE.BufferAttribute(positions, 3);
+  positionAttribute.setUsage(THREE.DynamicDrawUsage);
+  geometry.setAttribute("position", positionAttribute);
+  geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+  const material = new THREE.PointsMaterial({
+    size: options.size ?? 0.55,
+    map: options.texture,
+    transparent: true,
+    opacity: options.opacity ?? 0.8,
+    vertexColors: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    sizeAttenuation: true,
+    toneMapped: false,
+    fog: false,
+  });
+  const points = new THREE.Points(geometry, material);
+  points.frustumCulled = false;
+  points.renderOrder = options.renderOrder ?? 4;
+
+  let visible = true;
+  function update(dt, speedScale = 1, gain = 1) {
+    if (!visible) return;
+    for (let index = 0; index < state.length; index += 1) {
+      const pulse = state[index];
+      pulse.t += dt * pulse.speed * speedScale;
+      if (pulse.t > 1) pulse.t -= Math.floor(pulse.t);
+      const position = samplePreparedLane(pulse.lane, pulse.t);
+      positions[index * 3] = position[0];
+      positions[index * 3 + 1] = position[1];
+      positions[index * 3 + 2] = position[2];
+    }
+    positionAttribute.needsUpdate = true;
+    material.opacity = (options.opacity ?? 0.8) * gain;
+    material.size = (options.size ?? 0.55) * (0.85 + 0.3 * Math.min(1.4, gain));
+  }
+
+  return {
+    points,
+    material,
+    geometry,
+    update,
+    setVisible(next) {
+      visible = next === true;
+      points.visible = visible;
+    },
+    get visible() {
+      return visible;
+    },
+  };
+}
+
 export function createBrainScene(container, blueprint, options = {}) {
   if (!window.WebGLRenderingContext) throw new Error("WebGL is not available in this browser");
   const plan = buildRenderPlan(blueprint, options);
   const initialMode = MODES.has(options.initialMode) ? options.initialMode : "brain";
+  let effectSettings = normalizeEffectSettings(options.effects ?? {}, {
+    prefersReducedMotion: options.prefersReducedMotion === true,
+  });
+  let telemetryStatus = options.telemetryStatus ?? "unavailable";
+  let telemetryVisual = telemetryMood(telemetryStatus);
+  let telemetryEnergy = telemetryVisual.energy;
+  let highlightDim = 1;
+  const motion = effectiveMotion(effectSettings);
   console.info("[brain] render plan", {
     nodes: plan.counts.nodes,
     edges: plan.counts.edges,
@@ -139,6 +339,9 @@ export function createBrainScene(container, blueprint, options = {}) {
     regions: plan.regions.length,
     synapticNodes: plan.counts.synapticNodes,
     filaments: plan.counts.filaments,
+    attentionArcs: plan.counts.attentionArcs,
+    ambientStars: plan.counts.ambientStars,
+    ambientClusters: plan.counts.ambientClusters,
     bounds: plan.bounds,
     warnings: plan.warnings,
   });
@@ -227,17 +430,26 @@ export function createBrainScene(container, blueprint, options = {}) {
   const root = new THREE.Group();
   scene.add(root);
   const glowTexture = makeGlowTexture();
+  const ringTexture = makeRingTexture();
+  const nebulaTextures = [
+    makeNebulaTexture(0x4b1d3a),
+    makeNebulaTexture(0x91c0ffee),
+    makeNebulaTexture(0x1badb002),
+  ];
 
   // Large, very faint camera-facing glows sit behind the structure. They give
   // the volume an atmospheric gradient without a full-screen post effect.
   const atmosphereGroup = new THREE.Group();
   root.add(atmosphereGroup);
   const atmosphereSpecs = [
-    { color: 0x1d4ed8, opacity: 0.055, scale: plan.bounds.radius * 2.7, offset: [0, 0, -plan.bounds.radius * 0.55] },
-    { color: 0x6d28d9, opacity: 0.04, scale: plan.bounds.radius * 2.15, offset: [-plan.bounds.radius * 0.45, plan.bounds.radius * 0.18, plan.bounds.radius * 0.35] },
-    { color: 0x0891b2, opacity: 0.05, scale: plan.bounds.radius * 1.9, offset: [plan.bounds.radius * 0.42, -plan.bounds.radius * 0.14, -plan.bounds.radius * 0.25] },
-    { color: 0x67e8f9, opacity: 0.035, scale: plan.bounds.radius * 1.15, offset: [0, 0, 0] },
+    { color: 0x1d4ed8, opacity: 0.06, scale: plan.bounds.radius * 2.8, offset: [0, 0, -plan.bounds.radius * 0.58], phase: 0.2 },
+    { color: 0x6d28d9, opacity: 0.045, scale: plan.bounds.radius * 2.25, offset: [-plan.bounds.radius * 0.48, plan.bounds.radius * 0.2, plan.bounds.radius * 0.36], phase: 1.7 },
+    { color: 0x0891b2, opacity: 0.052, scale: plan.bounds.radius * 2.0, offset: [plan.bounds.radius * 0.44, -plan.bounds.radius * 0.16, -plan.bounds.radius * 0.26], phase: 3.1 },
+    { color: 0x67e8f9, opacity: 0.036, scale: plan.bounds.radius * 1.2, offset: [0, 0, 0], phase: 2.4 },
+    { color: 0xbe185d, opacity: 0.026, scale: plan.bounds.radius * 1.7, offset: [plan.bounds.radius * 0.18, plan.bounds.radius * 0.4, plan.bounds.radius * 0.3], phase: 4.6 },
+    { color: 0x0f766e, opacity: 0.032, scale: plan.bounds.radius * 1.55, offset: [-plan.bounds.radius * 0.22, -plan.bounds.radius * 0.38, -plan.bounds.radius * 0.24], phase: 5.3 },
   ];
+  const atmosphereSprites = [];
   for (const spec of atmosphereSpecs) {
     const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
       map: glowTexture,
@@ -258,6 +470,7 @@ export function createBrainScene(container, blueprint, options = {}) {
     sprite.scale.set(spec.scale, spec.scale, 1);
     sprite.renderOrder = 0;
     atmosphereGroup.add(sprite);
+    atmosphereSprites.push({ sprite, baseOpacity: spec.opacity, phase: spec.phase });
   }
 
   // ------------------------------------------------------- structural nodes
@@ -420,18 +633,21 @@ export function createBrainScene(container, blueprint, options = {}) {
   // ------------------------------------------------------------ region auras
   const regionHaloPositions = new Float32Array(plan.regions.length * 3);
   const regionHaloColors = new Float32Array(plan.regions.length * 3);
+  const regionBaseRgb = [];
   plan.regions.forEach((region, index) => {
     regionHaloPositions[index * 3] = region.position[0];
     regionHaloPositions[index * 3 + 1] = region.position[1];
     regionHaloPositions[index * 3 + 2] = region.position[2];
     const rgb = colorToRgb(region.color);
+    regionBaseRgb.push(rgb);
     regionHaloColors[index * 3] = rgb[0] * 0.75;
     regionHaloColors[index * 3 + 1] = rgb[1] * 0.75;
     regionHaloColors[index * 3 + 2] = rgb[2] * 0.75;
   });
   const regionHaloGeometry = new THREE.BufferGeometry();
   regionHaloGeometry.setAttribute("position", new THREE.BufferAttribute(regionHaloPositions, 3));
-  regionHaloGeometry.setAttribute("color", new THREE.BufferAttribute(regionHaloColors, 3));
+  const regionHaloColorAttribute = new THREE.BufferAttribute(regionHaloColors, 3);
+  regionHaloGeometry.setAttribute("color", regionHaloColorAttribute);
   const averageRegionRadius = plan.regions.length
     ? plan.regions.reduce((total, region) => total + region.radius, 0) / plan.regions.length
     : 4;
@@ -688,7 +904,7 @@ export function createBrainScene(container, blueprint, options = {}) {
   const synapticMaterial = new THREE.MeshBasicMaterial({
     color: 0xffffff,
     transparent: true,
-    opacity: 0.78,
+    opacity: 0.5,
     blending: THREE.AdditiveBlending,
     depthWrite: false,
     toneMapped: false,
@@ -732,7 +948,7 @@ export function createBrainScene(container, blueprint, options = {}) {
     size: Math.max(0.35, Math.min(1.4, plan.bounds.radius * 0.03)),
     map: glowTexture,
     transparent: true,
-    opacity: 0.32,
+    opacity: 0.22,
     vertexColors: true,
     blending: THREE.AdditiveBlending,
     depthWrite: false,
@@ -778,7 +994,7 @@ export function createBrainScene(container, blueprint, options = {}) {
     filamentLineMaterial = new LineMaterial({
       vertexColors: true,
       transparent: true,
-      opacity: 0.52,
+      opacity: 0.36,
       linewidth: 0.9,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
@@ -796,19 +1012,105 @@ export function createBrainScene(container, blueprint, options = {}) {
     synapticGroup.add(filamentLines);
   }
 
+  // ---------------------------------------------------- illustrative signals
+  // Travelling motes make the web feel computationally active. They follow
+  // illustrative filaments only; the legend says so explicitly.
+  const signalsGroup = new THREE.Group();
+  signalsGroup.visible = false;
+  root.add(signalsGroup);
+  const signalField = createPulseField(
+    plan.synaptic.filaments,
+    Math.min(340, Math.max(96, Math.round(132 + plan.counts.layers * 6))),
+    {
+      seed: 0x51a1f00d,
+      texture: glowTexture,
+      size: Math.max(0.34, plan.bounds.radius * 0.014),
+      opacity: 0.78,
+      minSpeed: 0.05,
+      maxSpeed: 0.17,
+      renderOrder: 5,
+    },
+  );
+  if (signalField.points) signalsGroup.add(signalField.points);
+
+  // ------------------------------------------ speculative attention field
+  // Long violet arcs connect distant regions. They are intentionally distinct
+  // from measured data and from the structural graph, and can be switched off.
+  const attentionGroup = new THREE.Group();
+  attentionGroup.visible = false;
+  root.add(attentionGroup);
+  let attentionLineMaterial = null;
+  let attentionPulses = null;
+  if (plan.attention.length) {
+    const attentionPositions = [];
+    const attentionColors = [];
+    for (const arc of plan.attention) {
+      const rgb = colorToRgb(arc.color);
+      const intensity = arc.intensity ?? 0.3;
+      for (let index = 0; index < arc.points.length - 1; index += 1) {
+        const from = arc.points[index];
+        const to = arc.points[index + 1];
+        const taper = 0.55 + 0.45 * Math.sin(((index + 1) / arc.points.length) * Math.PI);
+        attentionPositions.push(from[0], from[1], from[2], to[0], to[1], to[2]);
+        const r = Math.min(1, rgb[0] * intensity * taper);
+        const g = Math.min(1, rgb[1] * intensity * taper);
+        const b = Math.min(1, rgb[2] * intensity * taper);
+        attentionColors.push(r, g, b, r, g, b);
+      }
+    }
+    const attentionGeometry = new LineSegmentsGeometry();
+    attentionGeometry.setPositions(new Float32Array(attentionPositions));
+    attentionGeometry.setColors(new Float32Array(attentionColors));
+    const dashSize = Math.max(0.2, plan.bounds.radius * 0.011);
+    attentionLineMaterial = new LineMaterial({
+      vertexColors: true,
+      transparent: true,
+      opacity: 0.34,
+      linewidth: 0.9,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      worldUnits: false,
+      toneMapped: false,
+      fog: false,
+      dashed: true,
+      dashSize,
+      gapSize: dashSize * 0.9,
+    });
+    const attentionLines = new LineSegments2(attentionGeometry, attentionLineMaterial);
+    attentionLines.computeLineDistances();
+    attentionLines.renderOrder = 3;
+    attentionGroup.add(attentionLines);
+    attentionPulses = createPulseField(
+      plan.attention,
+      Math.min(64, Math.max(18, plan.attention.length * 2)),
+      {
+        seed: 0x5eeda77e,
+        texture: glowTexture,
+        size: Math.max(0.4, plan.bounds.radius * 0.016),
+        opacity: 0.86,
+        minSpeed: 0.035,
+        maxSpeed: 0.11,
+        renderOrder: 5,
+      },
+    );
+    if (attentionPulses.points) attentionGroup.add(attentionPulses.points);
+  }
+
   // ---------------------------------------------------------- ambient dust
-  const dustCount = 1300;
+  // Roughly doubled from the Phase 1.5 scene. Positions are generated once and
+  // never allocated per frame.
+  const dustCount = 2700;
   const dustPositions = new Float32Array(dustCount * 3);
   const dustColors = new Float32Array(dustCount * 3);
   const dustRandom = seededRandom(0x0d0577);
   for (let index = 0; index < dustCount; index += 1) {
     const theta = dustRandom() * Math.PI * 2;
     const phi = Math.acos(2 * dustRandom() - 1);
-    const radius = plan.bounds.radius * (1.05 + dustRandom() * 1.7);
+    const radius = plan.bounds.radius * (0.92 + dustRandom() * 2.15);
     dustPositions[index * 3] = plan.bounds.center[0] + radius * Math.sin(phi) * Math.cos(theta);
     dustPositions[index * 3 + 1] = plan.bounds.center[1] + radius * Math.cos(phi);
     dustPositions[index * 3 + 2] = plan.bounds.center[2] + radius * Math.sin(phi) * Math.sin(theta);
-    const tint = 0.08 + dustRandom() * 0.18;
+    const tint = 0.08 + dustRandom() * 0.2;
     dustColors[index * 3] = tint * (0.4 + dustRandom() * 0.35);
     dustColors[index * 3 + 1] = tint * (0.7 + dustRandom() * 0.3);
     dustColors[index * 3 + 2] = tint;
@@ -817,9 +1119,9 @@ export function createBrainScene(container, blueprint, options = {}) {
   dustGeometry.setAttribute("position", new THREE.BufferAttribute(dustPositions, 3));
   dustGeometry.setAttribute("color", new THREE.BufferAttribute(dustColors, 3));
   const dustMaterial = new THREE.PointsMaterial({
-    size: Math.max(0.035, plan.bounds.radius * 0.0035),
+    size: Math.max(0.035, plan.bounds.radius * 0.0034),
     transparent: true,
-    opacity: 0.42,
+    opacity: 0.44,
     vertexColors: true,
     blending: THREE.AdditiveBlending,
     depthWrite: false,
@@ -830,6 +1132,142 @@ export function createBrainScene(container, blueprint, options = {}) {
   const dust = new THREE.Points(dustGeometry, dustMaterial);
   dust.frustumCulled = false;
   root.add(dust);
+
+  // ---------------------------------------------------------- deep-space field
+  // Three bounded layers give the brain a universe: a twinkling stellar shell,
+  // luminous nebula masses and faint far-field wisps. Their counts come from the
+  // layout plan and are never derived from parameters or tensor counts.
+  const deepGroup = new THREE.Group();
+  deepGroup.visible = false;
+  root.add(deepGroup);
+
+  const starData = plan.ambient.stars;
+  const starGeometry = new THREE.BufferGeometry();
+  const starPositionAttribute = new THREE.BufferAttribute(starData.positions, 3);
+  const starColorAttribute = new THREE.BufferAttribute(starData.colors, 3);
+  starGeometry.setAttribute("position", starPositionAttribute);
+  starGeometry.setAttribute("aColor", starColorAttribute);
+  starGeometry.setAttribute("aSize", new THREE.BufferAttribute(starData.sizes, 1));
+  starGeometry.setAttribute("aPhase", new THREE.BufferAttribute(starData.phases, 1));
+  const starMaterial = new THREE.ShaderMaterial({
+    uniforms: {
+      uTime: { value: 0 },
+      uPixelRatio: { value: renderer.getPixelRatio() },
+      uScale: { value: Math.max(6, plan.bounds.radius * 1.65) },
+      uDensity: { value: 1 },
+      uIntensity: { value: 0.9 },
+    },
+    vertexShader: `
+      uniform float uTime;
+      uniform float uPixelRatio;
+      uniform float uScale;
+      uniform float uDensity;
+      attribute vec3 aColor;
+      attribute float aSize;
+      attribute float aPhase;
+      varying vec3 vColor;
+      varying float vTwinkle;
+      void main() {
+        vec3 p = position;
+        float angle = uTime * (0.0015 + aPhase * 0.0035);
+        float c = cos(angle);
+        float s = sin(angle);
+        p.xz = mat2(c, -s, s, c) * p.xz;
+        vec4 mv = modelViewMatrix * vec4(p, 1.0);
+        gl_Position = projectionMatrix * mv;
+        float dist = max(-mv.z, 0.001);
+        float scaled = aSize * uScale * uDensity / dist;
+        gl_PointSize = clamp(scaled * uPixelRatio, 0.55, 9.0);
+        vColor = aColor;
+        vTwinkle = 0.55 + 0.45 * sin(uTime * 0.7 + aPhase * 6.28318);
+      }
+    `,
+    fragmentShader: `
+      uniform float uIntensity;
+      varying vec3 vColor;
+      varying float vTwinkle;
+      void main() {
+        vec2 offset = gl_PointCoord - vec2(0.5);
+        float distanceToCentre = length(offset);
+        float core = smoothstep(0.5, 0.05, distanceToCentre);
+        float halo = smoothstep(0.5, 0.0, distanceToCentre) * 0.32;
+        float alpha = (core + halo) * vTwinkle * uIntensity;
+        gl_FragColor = vec4(vColor, alpha);
+      }
+    `,
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    toneMapped: false,
+  });
+  const starField = new THREE.Points(starGeometry, starMaterial);
+  starField.frustumCulled = false;
+  starField.renderOrder = -4;
+  deepGroup.add(starField);
+
+  const nebulaSprites = [];
+  plan.ambient.clouds.forEach((cloud, index) => {
+    const texture = nebulaTextures[index % nebulaTextures.length];
+    const material = new THREE.SpriteMaterial({
+      map: texture,
+      color: cloud.color,
+      transparent: true,
+      opacity: cloud.opacity,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      depthTest: true,
+      toneMapped: false,
+      fog: false,
+    });
+    const sprite = new THREE.Sprite(material);
+    sprite.position.set(cloud.position[0], cloud.position[1], cloud.position[2]);
+    sprite.scale.set(cloud.size, cloud.size * 0.72, 1);
+    sprite.renderOrder = -3;
+    deepGroup.add(sprite);
+    nebulaSprites.push({
+      sprite,
+      cloud,
+      baseOpacity: cloud.opacity,
+      baseScale: cloud.size,
+    });
+  });
+
+  const wispPositions = [];
+  const wispColors = [];
+  for (const wisp of plan.ambient.wisps) {
+    const rgb = colorToRgb(wisp.color);
+    const intensity = wisp.intensity ?? 0.2;
+    for (let index = 0; index < wisp.points.length - 1; index += 1) {
+      const from = wisp.points[index];
+      const to = wisp.points[index + 1];
+      const taper = 0.45 + 0.55 * (1 - index / Math.max(1, wisp.points.length - 2));
+      wispPositions.push(from[0], from[1], from[2], to[0], to[1], to[2]);
+      const r = Math.min(1, rgb[0] * intensity * taper);
+      const g = Math.min(1, rgb[1] * intensity * taper);
+      const b = Math.min(1, rgb[2] * intensity * taper);
+      wispColors.push(r, g, b, r, g, b);
+    }
+  }
+  let wispLineMaterial = null;
+  if (wispPositions.length) {
+    const wispGeometry = new LineSegmentsGeometry();
+    wispGeometry.setPositions(new Float32Array(wispPositions));
+    wispGeometry.setColors(new Float32Array(wispColors));
+    wispLineMaterial = new LineMaterial({
+      vertexColors: true,
+      transparent: true,
+      opacity: 0.22,
+      linewidth: 0.75,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      worldUnits: false,
+      toneMapped: false,
+      fog: false,
+    });
+    const wispLines = new LineSegments2(wispGeometry, wispLineMaterial);
+    wispLines.renderOrder = -2;
+    deepGroup.add(wispLines);
+  }
 
   // -------------------------------------------------------------- selection
   const selectionHalo = new THREE.Sprite(new THREE.SpriteMaterial({
@@ -868,9 +1306,10 @@ export function createBrainScene(container, blueprint, options = {}) {
   scene.add(selectionShell);
 
   // ------------------------------------------------------- observed activity
-  // A fixed-size pool of transient acknowledgements. These are deliberately
-  // separate from structural nodes, blueprint edges and the illustrative web:
-  // they acknowledge a real telemetry event and never claim per-layer activity.
+  // Fixed-size pools acknowledge genuine telemetry events. They are separate
+  // from structural nodes, blueprint edges and the illustrative web, and never
+  // claim per-layer activity. No effect is scheduled by a timer, so an idle
+  // brain emits nothing here.
   const activityGroup = new THREE.Group();
   activityGroup.visible = false;
   scene.add(activityGroup);
@@ -879,7 +1318,7 @@ export function createBrainScene(container, blueprint, options = {}) {
     plan.bounds.center[1] + plan.bounds.radius * 0.92,
     plan.bounds.center[2],
   );
-  const ACTIVITY_POOL_SIZE = 4;
+  const ACTIVITY_POOL_SIZE = 6;
   const activityEffects = [];
   for (let index = 0; index < ACTIVITY_POOL_SIZE; index += 1) {
     const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
@@ -899,14 +1338,94 @@ export function createBrainScene(container, blueprint, options = {}) {
     activityGroup.add(sprite);
     activityEffects.push({ sprite, startedAt: 0, duration: 0, baseScale: 1 });
   }
+
+  const BURST_POOL_SIZE = 190;
+  const burstPositions = new Float32Array(BURST_POOL_SIZE * 3);
+  const burstColors = new Float32Array(BURST_POOL_SIZE * 3);
+  const burstParticles = [];
+  for (let index = 0; index < BURST_POOL_SIZE; index += 1) {
+    burstParticles.push({
+      active: false,
+      age: 0,
+      life: 1,
+      position: [0, 0, 0],
+      velocity: [0, 0, 0],
+      color: [0, 0, 0],
+    });
+  }
+  const burstGeometry = new THREE.BufferGeometry();
+  const burstPositionAttribute = new THREE.BufferAttribute(burstPositions, 3);
+  burstPositionAttribute.setUsage(THREE.DynamicDrawUsage);
+  const burstColorAttribute = new THREE.BufferAttribute(burstColors, 3);
+  burstColorAttribute.setUsage(THREE.DynamicDrawUsage);
+  burstGeometry.setAttribute("position", burstPositionAttribute);
+  burstGeometry.setAttribute("color", burstColorAttribute);
+  const burstMaterial = new THREE.PointsMaterial({
+    size: Math.max(0.55, plan.bounds.radius * 0.022),
+    map: glowTexture,
+    transparent: true,
+    opacity: 0.9,
+    vertexColors: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    sizeAttenuation: true,
+    toneMapped: false,
+    fog: false,
+  });
+  const burstPoints = new THREE.Points(burstGeometry, burstMaterial);
+  burstPoints.frustumCulled = false;
+  burstPoints.renderOrder = 9;
+  burstPoints.visible = false;
+  activityGroup.add(burstPoints);
+
+  const RING_POOL_SIZE = 6;
+  const ringEffects = [];
+  for (let index = 0; index < RING_POOL_SIZE; index += 1) {
+    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: ringTexture,
+      color: 0xfbbf24,
+      transparent: true,
+      opacity: 0,
+      blending: THREE.AdditiveBlending,
+      depthTest: false,
+      depthWrite: false,
+      toneMapped: false,
+      fog: false,
+    }));
+    sprite.position.copy(activityAnchor);
+    sprite.visible = false;
+    sprite.renderOrder = 9;
+    activityGroup.add(sprite);
+    ringEffects.push({ sprite, active: false, age: 0, delay: 0, duration: 1, baseScale: 1, peak: 0.8 });
+  }
+
+  const burstRandom = seededRandom(0x9e3779b9);
+  let burstCursor = 0;
+  let ringCursor = 0;
   let activityEnabled = options.activityEnabled !== false;
   let lastStepAckAt = -Infinity;
+  let lastEvaluationAckAt = -Infinity;
+  let eventFlare = { strength: 0, color: new THREE.Color(0x67e8f9) };
+  const syncFlares = [];
+  let nextSyncAt = 6;
 
   function clearActivity() {
     for (const effect of activityEffects) {
       effect.sprite.visible = false;
       effect.sprite.material.opacity = 0;
     }
+    for (const particle of burstParticles) {
+      particle.active = false;
+      particle.color = [0, 0, 0];
+    }
+    for (const ring of ringEffects) {
+      ring.active = false;
+      ring.sprite.visible = false;
+      ring.sprite.material.opacity = 0;
+    }
+    syncFlares.length = 0;
+    eventFlare.strength = 0;
+    burstPoints.visible = false;
     activityGroup.visible = false;
   }
 
@@ -916,33 +1435,103 @@ export function createBrainScene(container, blueprint, options = {}) {
     return activityEnabled;
   }
 
+  function spawnBurst(origin, spec) {
+    const rgb = colorToRgb(spec.color);
+    const reduced = effectSettings.reducedMotion === true;
+    const count = reduced ? Math.min(18, spec.particles) : spec.particles;
+    for (let index = 0; index < count; index += 1) {
+      const particle = burstParticles[burstCursor % BURST_POOL_SIZE];
+      burstCursor += 1;
+      const direction = randomUnitVector(burstRandom);
+      const speed = plan.bounds.radius * (0.035 + burstRandom() * 0.075) * (reduced ? 0.35 : 1);
+      particle.active = true;
+      particle.age = 0;
+      particle.life = 0.75 + burstRandom() * 0.85;
+      const jitter = plan.bounds.radius * 0.012;
+      particle.position = [
+        origin.x + (burstRandom() - 0.5) * jitter,
+        origin.y + (burstRandom() - 0.5) * jitter,
+        origin.z + (burstRandom() - 0.5) * jitter,
+      ];
+      particle.velocity = [
+        direction[0] * speed,
+        direction[1] * speed,
+        direction[2] * speed,
+      ];
+      const brightness = 0.55 + burstRandom() * 0.45;
+      particle.color = [rgb[0] * brightness, rgb[1] * brightness, rgb[2] * brightness];
+    }
+    burstPoints.visible = true;
+  }
+
+  function spawnRings(origin, spec) {
+    if (effectSettings.reducedMotion === true) return;
+    for (let index = 0; index < spec.rings; index += 1) {
+      const ring = ringEffects[ringCursor % RING_POOL_SIZE];
+      ringCursor += 1;
+      ring.active = true;
+      ring.age = 0;
+      ring.delay = index * 0.18;
+      ring.duration = (spec.duration / 1000) * (0.7 + index * 0.16);
+      ring.baseScale = plan.bounds.radius * (0.34 + index * 0.12);
+      ring.peak = 0.62 - index * 0.12;
+      ring.sprite.material.color.set(spec.ringColor);
+      ring.sprite.material.opacity = 0;
+      ring.sprite.position.copy(origin);
+      ring.sprite.scale.setScalar(ring.baseScale * 0.25);
+      ring.sprite.visible = true;
+    }
+  }
+
   /**
-   * Acknowledge one genuine event. `step` is a restrained local status glow;
-   * `checkpoint` is a distinct amber ring-like acknowledgement. No effect is
-   * scheduled by a timer, so an idle brain emits nothing.
+   * Acknowledge one genuine event. Step and evaluation bursts are restrained;
+   * a checkpoint adds an amber shockwave; failure and recovery have distinct
+   * colours. None of these effects identifies a measured layer.
    */
   function notifyActivity({ kind = "step" } = {}) {
     if (!activityEnabled || mode !== "brain") return false;
     const now = performance.now();
-    if (kind === "step" && now - lastStepAckAt < 450) return false;
+    if (kind === "step" && now - lastStepAckAt < 380) return false;
+    if (kind === "evaluation" && now - lastEvaluationAckAt < 700) return false;
     if (kind === "step") lastStepAckAt = now;
-    const checkpoint = kind === "checkpoint";
+    if (kind === "evaluation") lastEvaluationAckAt = now;
+    const spec = activityVisualSpec(kind);
+    const checkpointLike = kind === "checkpoint";
     const effect = activityEffects.find((item) => !item.sprite.visible)
       ?? activityEffects.reduce((oldest, item) => (item.startedAt < oldest.startedAt ? item : oldest), activityEffects[0]);
     effect.startedAt = now;
-    effect.duration = checkpoint ? 1500 : 900;
-    effect.baseScale = plan.bounds.radius * (checkpoint ? 0.13 : 0.07);
-    effect.peakOpacity = checkpoint ? 0.9 : 0.65;
-    effect.sprite.material.color.set(checkpoint ? 0xfbbf24 : 0x67e8f9);
+    effect.duration = spec.duration;
+    effect.baseScale = plan.bounds.radius * (checkpointLike ? 0.13 : 0.075);
+    effect.peakOpacity = checkpointLike ? 0.9 : 0.62;
+    effect.sprite.material.color.set(spec.color);
     effect.sprite.material.opacity = effect.peakOpacity;
     effect.sprite.position.copy(activityAnchor);
     effect.sprite.scale.setScalar(effect.baseScale);
     effect.sprite.visible = true;
     activityGroup.visible = true;
+
+    // Step acknowledgements originate at the neutral status anchor, not inside
+    // a transformer region, so a global training event cannot look like a
+    // measured per-layer signal.
+    spawnBurst(activityAnchor, spec);
+    spawnRings(
+      new THREE.Vector3(
+        plan.bounds.center[0],
+        plan.bounds.center[1],
+        plan.bounds.center[2],
+      ),
+      spec,
+    );
+    if (kind !== "step" && kind !== "evaluation") {
+      eventFlare.strength = Math.max(eventFlare.strength, checkpointLike ? 0.9 : 0.55);
+      eventFlare.color.set(spec.color);
+      triggerStepScan(spec.color, checkpointLike ? 0.9 : 0.55);
+    }
+    telemetryEnergy = Math.min(1.8, telemetryEnergy + spec.energy);
     return true;
   }
 
-  function updateActivity(now) {
+  function updateActivity(now, dt) {
     if (!activityEnabled || mode !== "brain") {
       if (activityGroup.visible) clearActivity();
       return;
@@ -961,7 +1550,283 @@ export function createBrainScene(container, blueprint, options = {}) {
       effect.sprite.material.opacity = (1 - t) * (1 - t) * effect.peakOpacity;
       effect.sprite.scale.setScalar(effect.baseScale * (1 + eased * 1.6));
     }
+
+    let anyBurst = false;
+    for (let index = 0; index < burstParticles.length; index += 1) {
+      const particle = burstParticles[index];
+      if (!particle.active) {
+        burstColors[index * 3] = 0;
+        burstColors[index * 3 + 1] = 0;
+        burstColors[index * 3 + 2] = 0;
+        continue;
+      }
+      particle.age += dt;
+      if (particle.age >= particle.life) {
+        particle.active = false;
+        burstColors[index * 3] = 0;
+        burstColors[index * 3 + 1] = 0;
+        burstColors[index * 3 + 2] = 0;
+        continue;
+      }
+      anyBurst = true;
+      const drag = Math.pow(0.12, dt);
+      particle.velocity[0] *= drag;
+      particle.velocity[1] *= drag;
+      particle.velocity[2] *= drag;
+      particle.position[0] += particle.velocity[0] * dt;
+      particle.position[1] += particle.velocity[1] * dt;
+      particle.position[2] += particle.velocity[2] * dt;
+      burstPositions[index * 3] = particle.position[0];
+      burstPositions[index * 3 + 1] = particle.position[1];
+      burstPositions[index * 3 + 2] = particle.position[2];
+      const fade = Math.pow(1 - particle.age / particle.life, 1.6);
+      burstColors[index * 3] = particle.color[0] * fade;
+      burstColors[index * 3 + 1] = particle.color[1] * fade;
+      burstColors[index * 3 + 2] = particle.color[2] * fade;
+    }
+    burstPositionAttribute.needsUpdate = true;
+    burstColorAttribute.needsUpdate = true;
+    burstPoints.visible = anyBurst;
+    any = any || anyBurst;
+
+    for (const ring of ringEffects) {
+      if (!ring.active) continue;
+      ring.age += dt;
+      const t = (ring.age - ring.delay) / Math.max(0.001, ring.duration);
+      if (t >= 1) {
+        ring.active = false;
+        ring.sprite.visible = false;
+        ring.sprite.material.opacity = 0;
+        continue;
+      }
+      if (t < 0) {
+        ring.sprite.visible = false;
+        continue;
+      }
+      any = true;
+      ring.sprite.visible = true;
+      ring.sprite.material.opacity = Math.pow(1 - t, 1.8) * ring.peak;
+      ring.sprite.scale.setScalar(ring.baseScale * (0.3 + t * 2.5));
+    }
+
     activityGroup.visible = any;
+  }
+
+  // ---------------------------------------------------------- living regions
+  // Regions breathe on a slow shared rhythm. Checkpoint/failure flares and the
+  // occasional discovered "sync" between distant endpoints add punctuation.
+  // The wave is an acknowledgement of the sequence as a whole; it never labels
+  // a region with a measured value.
+  const regionScratchColor = new THREE.Color();
+  let stepScan = { active: false, position: 0, strength: 0, color: new THREE.Color(0x67e8f9) };
+
+  function updateRegionPulse(simTime, motion, dt) {
+    const regionCount = plan.regions.length;
+    if (!regionCount) return;
+    eventFlare.strength = Math.max(0, eventFlare.strength - dt * 0.55);
+    if (stepScan.active) {
+      stepScan.position += dt * 0.22;
+      if (stepScan.position > 1.2) stepScan.active = false;
+    }
+    for (const flare of syncFlares) flare.strength = Math.max(0, flare.strength - dt * 0.8);
+    while (syncFlares.length && syncFlares[0].strength <= 0) syncFlares.shift();
+
+    for (let index = 0; index < regionCount; index += 1) {
+      const region = plan.regions[index];
+      const base = regionBaseRgb[index];
+      const blockFraction = regionCount <= 1 ? 0 : index / (regionCount - 1);
+      const phase = (region.blockIndex ?? index) * 0.58;
+      const breath = 0.76 + 0.24 * Math.sin(simTime * 0.62 + phase) * motion.amplitude;
+      let gain = breath * (0.72 + telemetryEnergy * 0.32) * highlightDim;
+      let red = base[0];
+      let green = base[1];
+      let blue = base[2];
+
+      if (eventFlare.strength > 0) {
+        const amount = eventFlare.strength * 0.55;
+        red += (eventFlare.color.r - red) * amount;
+        green += (eventFlare.color.g - green) * amount;
+        blue += (eventFlare.color.b - blue) * amount;
+        gain += eventFlare.strength * 0.35;
+      }
+      if (stepScan.active) {
+        const distance = blockFraction - stepScan.position;
+        const band = Math.exp(-(distance * distance) / 0.012) * stepScan.strength;
+        if (band > 0.001) {
+          red += (stepScan.color.r - red) * band * 0.65;
+          green += (stepScan.color.g - green) * band * 0.65;
+          blue += (stepScan.color.b - blue) * band * 0.65;
+          gain += band * 0.6;
+        }
+      }
+      for (const flare of syncFlares) {
+        if (flare.index !== index) continue;
+        const amount = Math.min(0.85, flare.strength);
+        red += (flare.color.r - red) * amount;
+        green += (flare.color.g - green) * amount;
+        blue += (flare.color.b - blue) * amount;
+        gain += amount * 0.4;
+      }
+
+      regionScratchColor.setRGB(
+        Math.min(1, red * gain),
+        Math.min(1, green * gain),
+        Math.min(1, blue * gain),
+      );
+      regionHaloColors[index * 3] = regionScratchColor.r;
+      regionHaloColors[index * 3 + 1] = regionScratchColor.g;
+      regionHaloColors[index * 3 + 2] = regionScratchColor.b;
+    }
+    regionHaloColorAttribute.needsUpdate = true;
+    regionHaloMaterial.size = Math.max(5, Math.min(20, averageRegionRadius * (1.55 + 0.2 * Math.sin(simTime * 0.4))));
+  }
+
+  function triggerStepScan(color = 0x67e8f9, strength = 0.8) {
+    stepScan = {
+      active: true,
+      position: 0,
+      strength,
+      color: new THREE.Color(color),
+    };
+  }
+
+  // --------------------------------------------------- cinematic appearance
+  const syncRandom = seededRandom(0x5a17c0de);
+  const moodTint = new THREE.Color(0x818cf8);
+  const ambientDensity = () => Math.max(0, Math.min(1.6, effectSettings.ambientDensity));
+  const densityGain = () => {
+    const density = ambientDensity();
+    return density <= 0 ? 0 : 0.5 + Math.min(1.2, density) * 0.55;
+  };
+
+  function refreshCinematicAppearance() {
+    const visibility = effectVisibility(effectSettings, mode, {
+      layerActivity: layerActivityEnabled && Boolean(layerActivityData),
+    });
+    const density = ambientDensity();
+    const starFraction = density <= 0 ? 0 : Math.min(1, density);
+    deepGroup.visible = visibility.deepSpace;
+    dust.visible = visibility.decorative;
+    synapticGroup.visible = visibility.synaptic;
+    signalsGroup.visible = visibility.signals && Boolean(signalField.points);
+    attentionGroup.visible = visibility.attention && plan.attention.length > 0;
+    atmosphereGroup.visible = visibility.atmosphere;
+    regionHalo.visible = visibility.decorative;
+    if (signalField.points) signalField.setVisible(visibility.signals);
+    if (attentionPulses?.points) attentionPulses.setVisible(visibility.attention);
+    if (!visibility.layerActivity) layerActivityPoints.visible = false;
+    else if (layerActivityEnabled && layerActivityData) updateLayerActivityColors();
+    starMaterial.uniforms.uDensity.value = 0.55 + starFraction * 0.85;
+    starGeometry.setDrawRange(0, Math.max(0, Math.floor(plan.ambient.stars.count * starFraction)));
+    dustGeometry.setDrawRange(0, Math.max(0, Math.floor(dustCount * Math.min(1, density))));
+    for (const entry of nebulaSprites) entry.sprite.visible = visibility.deepSpace && density > 0;
+    if (wispLineMaterial) wispLineMaterial.visible = visibility.deepSpace && density > 0;
+  }
+
+  function setEffectSettings(next = {}) {
+    effectSettings = normalizeEffectSettings({ ...effectSettings, ...next }, {
+      prefersReducedMotion: effectSettings.reducedMotion,
+    });
+    Object.assign(motion, effectiveMotion(effectSettings));
+    if (effectSettings.reducedMotion === true) {
+      // Clear transient bursts so switching to reduced motion takes effect at
+      // once, while leaving all independent toggles and telemetry untouched.
+      for (const particle of burstParticles) particle.active = false;
+      for (const ring of ringEffects) {
+        ring.active = false;
+        ring.sprite.visible = false;
+        ring.sprite.material.opacity = 0;
+      }
+    }
+    refreshCinematicAppearance();
+    updateDiagnostics();
+    return effectSettings;
+  }
+
+  function setTelemetryStatus(status) {
+    telemetryStatus = typeof status === "string" ? status : "unavailable";
+    telemetryVisual = telemetryMood(telemetryStatus);
+    refreshCinematicAppearance();
+    updateDiagnostics();
+    return telemetryVisual;
+  }
+
+  function updateMood(dt) {
+    const target = telemetryVisual.energy;
+    telemetryEnergy += (target - telemetryEnergy) * Math.min(1, dt * 1.8);
+    moodTint.set(telemetryVisual.tint);
+    innerLight.color.lerp(moodTint, Math.min(1, dt * 0.8));
+    // A failed/stale run dims and cools the glow; live training raises it
+    // gently. No full-screen flash is used.
+    innerLight.intensity = 140 * (0.68 + telemetryEnergy * 0.38) * densityGain();
+  }
+
+  function updateAmbient(simTime, dt, motion) {
+    const density = ambientDensity();
+    const gain = densityGain();
+    const energy = 0.72 + telemetryEnergy * 0.36;
+    const pulse = 0.72 + telemetryVisual.pulseGain * 0.3;
+    starMaterial.uniforms.uTime.value = simTime;
+    starMaterial.uniforms.uIntensity.value = 0.9
+      * effectSettings.intensity
+      * effectSettings.intensity
+      * gain
+      * telemetryVisual.ambientGain
+      * highlightDim;
+    dust.rotation.y = simTime * 0.0055 * motion.drift;
+    dust.rotation.x = Math.sin(simTime * 0.045) * 0.012 * motion.drift;
+    dustMaterial.opacity = 0.44 * gain * telemetryVisual.ambientGain * highlightDim * energy;
+    for (const entry of nebulaSprites) {
+      const cloud = entry.cloud;
+      const wave = 0.72 + 0.28 * Math.sin(simTime * 0.09 + cloud.phase);
+      entry.sprite.material.opacity = entry.baseOpacity * wave * gain * highlightDim * energy;
+      const scale = entry.baseScale * (1 + 0.035 * Math.sin(simTime * 0.055 + cloud.phase));
+      entry.sprite.scale.set(scale, scale * 0.72, 1);
+      entry.sprite.position.set(
+        cloud.position[0] + Math.sin(simTime * 0.02 + cloud.phase) * cloud.drift[0] * plan.bounds.radius * 0.04,
+        cloud.position[1] + Math.cos(simTime * 0.017 + cloud.phase) * cloud.drift[1] * plan.bounds.radius * 0.04,
+        cloud.position[2] + Math.sin(simTime * 0.019 + cloud.phase * 1.7) * cloud.drift[2] * plan.bounds.radius * 0.04,
+      );
+    }
+    if (wispLineMaterial) {
+      wispLineMaterial.opacity = 0.22 * density * gain * highlightDim * (0.8 + telemetryEnergy * 0.25);
+    }
+    if (filamentLineMaterial) {
+      const selected = highlightDim < 1;
+      filamentLineMaterial.opacity = (selected ? 0.12 : 0.36) * (0.45 + density * 0.5) * pulse * (0.8 + telemetryEnergy * 0.25);
+    }
+    synapticMaterial.opacity = (highlightDim < 1 ? 0.34 : 0.5) * (0.45 + density * 0.42) * pulse;
+    synapticGlowMaterial.opacity = (highlightDim < 1 ? 0.14 : 0.22) * (0.55 + density * 0.36) * pulse;
+    if (signalField.points) {
+      signalField.update(dt, motion.speed * (0.78 + telemetryEnergy * 0.3), (0.75 + density * 0.3) * highlightDim);
+    }
+    for (const entry of atmosphereSprites) {
+      entry.sprite.material.opacity = entry.baseOpacity * (0.75 + telemetryEnergy * 0.4) * (0.75 + 0.25 * Math.sin(simTime * 0.11 + entry.phase)) * highlightDim;
+    }
+  }
+
+  function updateAttention(simTime, dt, motion) {
+    if (!attentionPulses?.points) return;
+    const gain = (0.8 + ambientDensity() * 0.25) * highlightDim * (0.8 + telemetryVisual.pulseGain * 0.3);
+    attentionPulses.update(dt, motion.speed * (0.85 + telemetryEnergy * 0.25), gain);
+    if (attentionLineMaterial) {
+      attentionLineMaterial.opacity = 0.34 * (0.6 + ambientDensity() * 0.45) * highlightDim * (0.8 + telemetryEnergy * 0.25);
+    }
+    if (!motion.attention || simTime < nextSyncAt) return;
+    // Intermittent synchronisation: two distant regions flare together while a
+    // speculative arc is already carrying motes. This is artistic, not a
+    // measured attention map.
+    const arc = plan.attention[Math.floor(syncRandom() * plan.attention.length)];
+    nextSyncAt = simTime + 10 + syncRandom() * 16;
+    for (const blockIndex of [arc.fromBlockIndex, arc.toBlockIndex]) {
+      const index = plan.regions.findIndex((region) => region.blockIndex === blockIndex);
+      if (index < 0) continue;
+      syncFlares.push({
+        index,
+        strength: 0.85,
+        color: new THREE.Color(arc.color),
+      });
+    }
   }
 
   // ------------------------------------------------------------ interaction
@@ -1041,12 +1906,14 @@ export function createBrainScene(container, blueprint, options = {}) {
     }
 
     if (filamentLineMaterial) {
-      filamentLineMaterial.opacity = highlight ? 0.14 : 0.52;
+      filamentLineMaterial.opacity = highlight ? 0.12 : 0.36;
     }
-    synapticMaterial.opacity = highlight ? 0.5 : 0.8;
-    synapticGlowMaterial.opacity = highlight ? 0.2 : 0.32;
+    synapticMaterial.opacity = highlight ? 0.34 : 0.5;
+    synapticGlowMaterial.opacity = highlight ? 0.14 : 0.22;
     glowMaterial.opacity = highlight ? (brain ? 0.34 : 0.26) : (brain ? 0.42 : 0.3);
     regionHaloMaterial.opacity = highlight ? 0.09 : 0.2;
+    highlightDim = highlight ? 0.58 : 1;
+    refreshCinematicAppearance();
 
     let selectedNode = null;
     let selectedRegion = null;
@@ -1087,10 +1954,6 @@ export function createBrainScene(container, blueprint, options = {}) {
 
   function applyMode() {
     const brain = mode === "brain";
-    synapticGroup.visible = brain;
-    dust.visible = brain;
-    regionHalo.visible = brain;
-    atmosphereGroup.visible = brain;
     architectureGroup.visible = !brain;
     if (!brain) {
       clearActivity();
@@ -1099,6 +1962,7 @@ export function createBrainScene(container, blueprint, options = {}) {
       updateLayerActivityColors();
     }
     if (regionRingMaterial) regionRingMaterial.opacity = brain ? 0.26 : 0.45;
+    refreshCinematicAppearance();
     applyHighlight(selectedId);
   }
 
@@ -1210,6 +2074,13 @@ export function createBrainScene(container, blueprint, options = {}) {
       regions: plan.regions.length,
       synapticNodes: plan.counts.synapticNodes,
       filaments: plan.counts.filaments,
+      attentionArcs: plan.counts.attentionArcs,
+      ambientStars: plan.counts.ambientStars,
+      ambientClusters: plan.counts.ambientClusters,
+      ambientWisps: plan.counts.ambientWisps,
+      decorativeObjects: plan.counts.decorativeObjects,
+      effects: { ...effectSettings },
+      telemetryStatus,
       regionScreens: plan.regions.map((region) => {
         const projected = new THREE.Vector3(region.position[0], region.position[1], region.position[2]).project(camera);
         return {
@@ -1273,16 +2144,24 @@ export function createBrainScene(container, blueprint, options = {}) {
   applyMode();
   applyHighlight(null);
 
-  const animate = () => {
+  let previousFrameAt = performance.now();
+  let simTime = 0;
+  const animate = (now = performance.now()) => {
     if (disposed) return;
     frame = requestAnimationFrame(animate);
+    const dt = Math.min(0.05, Math.max(0, (now - previousFrameAt) / 1000));
+    previousFrameAt = now;
+    simTime += dt * motion.speed;
     if (focusActive) {
       camera.position.lerp(focusPosition, 0.075);
       controls.target.lerp(focusTarget, 0.09);
       if (camera.position.distanceToSquared(focusPosition) < 0.02) focusActive = false;
     }
-    dust.rotation.y += 0.000035;
-    updateActivity(performance.now());
+    updateMood(dt);
+    updateAmbient(simTime, dt, motion);
+    updateAttention(simTime, dt, motion);
+    updateRegionPulse(simTime, motion, dt);
+    updateActivity(now, dt);
     controls.update();
     renderer.render(scene, camera);
   };
@@ -1323,9 +2202,17 @@ export function createBrainScene(container, blueprint, options = {}) {
     setActivityEnabled,
     setLayerActivity,
     setLayerActivityEnabled,
+    setEffectSettings,
+    setTelemetryStatus,
     dispose,
     get activityEnabled() {
       return activityEnabled;
+    },
+    get effectSettings() {
+      return { ...effectSettings };
+    },
+    get telemetryStatus() {
+      return telemetryStatus;
     },
     get layerActivityEnabled() {
       return layerActivityEnabled;

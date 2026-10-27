@@ -24,8 +24,8 @@ reviewed changes remain uncommitted and unpushed.
   policy path.
 - Live health reports `source="policy"`, `policyId="rolling-v1"`,
   `capLimit=50000`, `capUsed=500`, `remaining=49500`.
-- `simpleminds-perpetual.timer` remains inactive; `job-32` and `job-33` remain
-  stopped.
+- At migration completion the perpetual timer and jobs were stopped. They were
+  subsequently enabled/started separately at `22:33`; see section 9.1.
 - No training, evaluation, promotion, model change, epoch creation, or
   commit/push occurred.
 - Storage guard thresholds remain **disabled at 0/0**. The proposed 100 GiB
@@ -195,8 +195,9 @@ admission.policy.storage.ok=true
 ```
 
 `systemctl` reports `ActiveState=active`, `SubState=running`, `Result=success`,
-`NRestarts=0`; no journal error entries were recorded after the start.
-`simpleminds-perpetual.timer` is inactive and both jobs remain stopped.
+`NRestarts=0`; no journal error entries were recorded after the start. At
+activation time `simpleminds-perpetual.timer` was inactive and both jobs were
+stopped.
 
 ## 7. Deferred/retry evidence
 
@@ -249,9 +250,50 @@ before proposing any threshold with explicit approval.
 - Legacy `ACTIVE_EPOCH.json`, root DB, and active epoch DB are intact.
 - Source DB hashes match the pre-change backup.
 - Production environment file was not modified.
-- No job or perpetual timer was started.
+- No job or perpetual timer was started during migration/activation; worker
+  activation is recorded separately below.
 - No training/evaluation/promotion was run.
 - No git commit or push was made.
+
+### 9.1 Post-deployment worker activation
+
+At `22:33:25` the operator requested
+`systemctl enable --now simpleminds-perpetual.timer`. The timer is enabled and
+active; it runs the one-shot `simpleminds-perpetual.service` each minute. The
+one-shot service does not create managed job IDs; the new managed jobs were
+created through the authenticated admin API in **continuous** mode:
+
+| Job | Kind | Mode | Parameters | State after monitoring |
+|---|---|---|---|---|
+| `job-34` | learning | continuous | target 100, max raw docs 0, max cycles 0 | running; first cycle harvested 1 document, ingested 11, reviewed 11, trainable 35 |
+| `job-35` | training | continuous | parent active, min eligible 40 | waiting at 35/40 eligible |
+
+The learning worker used the rolling policy successfully. At the first-cycle
+check (about `22:40`):
+
+- target admissions rose from 920 to **970** (50 new admissions after
+  activation);
+- live health reported `source="policy"`, `policyId="rolling-v1"`,
+  **550 / 50,000 used**, remaining **49,450**, deferrals 0;
+- target attempts 970, conflicts 0, deferrals 0;
+- target WAL was 1,491,472 bytes while the worker was writing;
+- no `SQLITE_BUSY`, `SQLITE_LOCKED`, `database is locked`, or
+  `database table is locked` entries appeared in the service journal, job log,
+  or job events.
+
+A later check at about `22:41` showed **982 admissions** and **562 / 50,000**
+used, confirming continued rolling-policy writes while the service and timer
+were running. No lock errors appeared.
+
+The learning job's cycle progress reports `admissionQuotaUsed=null` because the
+per-cycle quota fields are populated on quota exhaustion; the live health and
+target DB/queries above are the authoritative quota observations.
+
+The timer's one-shot perpetual cycles are currently failing before training
+because the corpus has only about 1,459 unique tokens, below the 1,700 minimum
+(`training corpus has ... unique token(s), below the minimum of 1700`). This is
+a corpus-size gate, not an admission database lock; the timer remains active and
+will retry each minute while the continuous learner adds material.
 
 ## 10. Rollback
 
@@ -288,8 +330,10 @@ manifests with privileged access if needed.
 
 ## 12. Follow-up
 
-- Keep continuous learning/jobs and the perpetual timer stopped until separately
-  authorized.
-- Monitor `/health` admission policy status and deferral counts.
+- The perpetual timer is enabled and `job-34`/`job-35` are running in continuous
+  mode; monitor the training-token gate and the rolling quota/deferral counts.
+- The timer's one-shot cycles will fail at the corpus token minimum until enough
+  eligible material is accumulated; this is not a DB-lock failure. Do not
+  bypass the gate without an explicit decision.
 - Measure target DB/WAL growth before proposing storage thresholds.
 - The reviewed changes remain uncommitted; commit/push only on explicit request.

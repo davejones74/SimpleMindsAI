@@ -1,9 +1,89 @@
-# Brain visualisation (Phase 1.5)
+# Brain visualisation (Phase 1.8)
 
 A read-only, explicitly invoked exporter turns the **active** SimpleMindsAI
 checkpoint into a versioned structural blueprint. A standalone Three.js page at
 `/admin/brain` renders that blueprint as an interactive, cinematic neural
 universe.
+
+Phase 1.8 turns the same architecture into a **cinematic living brain**. The
+organic spiral, branching filaments and glass/metal structural nodes are
+retained, but they now sit inside a substantially richer deep-space field and
+carry a multi-timescale animation language. The phase adds no model state, no
+new service and no training-side behaviour: it remains a read-only observer.
+
+## Phase 1.8 — cinematic living brain
+
+The scene is layered so density never becomes uniform noise:
+
+| Layer | Contents | Category |
+|---|---|---|
+| Architecture | Real transformer nodes, blueprints connections, region rings and labels | **Actual architecture** |
+| Illustrative web | Deterministic synaptic nodes, branched filaments and travelling pulses | **Illustrative** |
+| Speculative attention | Long curved arcs that occasionally synchronise distant regions | **Speculative attention** |
+| Deep space | 3,600 twinkling stars, 14–18 nebula masses, 68–110 far-field wisps, 2,700 dust motes | **Ambient activity** |
+| Live telemetry | Step and checkpoint acknowledgements, optional per-block gradient RMS | **Measured / event** |
+
+The decorative populations are roughly doubled from Phase 1.5 while staying
+inside fixed budgets. They are generated from the blueprint's stable ids and a
+fixed seed; rebuilding the page does not reshuffle the universe. Adding
+decoration never changes a component, connection, transformer-block or
+parameter count.
+
+### Coherent animation rather than unrelated flashing
+
+- **Slow:** stars twinkle, nebula masses drift and breathe, dust rotates at a
+  different rate, and the inner light changes temperature with telemetry state.
+- **Medium:** regions breathe on a shared sequence rhythm; illustrative pulses
+  travel along branched filaments; speculative attention arcs drift and carry
+  slower violet motes. Every 10–26 seconds, two distant regions flare in a
+  clearly labelled speculative synchronisation.
+- **Event-driven:** a real training snapshot advances the step acknowledgement,
+  a checkpoint adds amber rings and a gold sequence wave, evaluation adds a
+  violet acknowledgement, and failure/recovery change the ambient mood. Step
+  bursts originate at a neutral status anchor rather than inside a transformer
+  region, so a global training event cannot look like a measured per-layer
+  signal.
+
+The live panel distinguishes **live**, **stale**, **disconnected**,
+**completed** and **failed** telemetry. Ambient and illustrative motion
+continues in every state; stale or disconnected data is never rendered as a
+live measurement. The optional gradient overlay remains independently
+controlled and `TRAIN_LAYER_ACTIVITY=false` remains the default.
+
+### Controls and defaults
+
+The **Living** popover provides independent controls, all persisted per browser
+session:
+
+- **Cinematic motion** — slow drift, breathing and travelling light.
+- **Illustrative signals** — pulses along illustrative filaments.
+- **Speculative attention** — violet arcs, labelled as not measured.
+- **Ambient density** — 0–160% of the fixed ambient/illustrative populations.
+- **Animation intensity** and **Animation speed** — bounded multipliers.
+- **Reduced motion** — disables travelling pulses, rings, rotation and strobing;
+  keeps a very slow ambient drift. The OS `prefers-reduced-motion` setting is
+  the default when available.
+
+The dramatic presentation is enabled by default: cinematic motion, signals,
+speculative attention, ambient density and the full population are on. The
+existing **Activity on/off** control still governs telemetry acknowledgements,
+and **Layer overlay off** still governs the genuine gradient measurement. No
+control silently disables an unrelated layer.
+
+### Honesty in the scene
+
+The legend separates four visible categories:
+
+1. Glass/metal nodes and solid edges — **actual architecture**.
+2. Dashed filaments and travelling motes — **illustrative**.
+3. Violet dashed arcs — **speculative attention**, not a measured attention map
+   and not a gradient.
+4. Ambient particles/nebula — **ambient activity**.
+
+When the gradient overlay is enabled, its swatch is added only while measured
+per-block gradient RMS is actually being displayed. Architecture mode hides
+every illustrative, speculative and ambient layer; it remains a precise
+blueprint view.
 
 The synaptic web is the primary visual language. The real transformer
 architecture remains embedded in it: structural nodes, tensor metadata and
@@ -48,22 +128,26 @@ The page has two explicit modes:
 
 | Mode | Contents |
 |---|---|
-| **Brain** (default) | Structural nodes and genuine connections, plus a deterministic, seeded illustrative web of synaptic nodes and branched filaments. The illustrative layer supplies density and depth. |
-| **Architecture** | Only nodes and connections derived from the exported blueprint. Region rings and labels identify the transformer sequence. Illustrative filaments, field synapses and ambient dust are hidden. |
+| **Brain** (default) | Structural nodes and genuine connections, plus a deterministic illustrative web, travelling pulses, speculative attention arcs and a deep-space ambient field. The decorative layers supply density, depth and motion. |
+| **Architecture** | Only nodes and connections derived from the exported blueprint. Region rings and labels identify the transformer sequence. Every illustrative, speculative and ambient layer is hidden. |
 
 The categories never mix in the authoritative data:
 
 - **Structural** entries come from `components` and `connections`. Their ids,
   dimensions, parameter metadata and inspection behaviour are unchanged.
 - **Illustrative** entries live only in the render plan's `synaptic` collection.
-  Their ids start with `synapse.` or `filament.`; they have
-  `kind: "illustrative"` and are never inserted into `components`,
-  `connections`, parameter accounting or the inspector.
+  **Speculative** arcs live in `attention`; **ambient** entries live in
+  `ambient` (stars, clouds, wisps). All of them use explicit `kind` values and
+  ids prefixed `synapse.`, `filament.`, `attention.` or `ambient.`; they are
+  never inserted into `components`, `connections`, parameter accounting or the
+  inspector.
 - Decorative filaments are drawn as broken/dashed fine lines. Structural
   connections are solid, brighter and use the connection-type palette.
+  Speculative attention arcs use a distinct violet dashed style.
 - The on-screen legend states this distinction, and Brain mode explicitly says
-  that filaments and ambient particles are artistic atmosphere, not weights,
-  activations, learned signals or information flow.
+  that filaments, travelling pulses, speculative attention arcs and ambient
+  particles are artistic atmosphere, not weights, activations, measured
+  attention, learned signals or information flow.
 
 ## Live training telemetry (Phase 1.5)
 
@@ -441,14 +525,19 @@ Performance is independent of parameter count:
 - Structural nodes are one instance per component, never one per parameter.
 - Structural node groups, synaptic nodes and region auras use `InstancedMesh` or
   batched `Points`.
-- Curved structural and illustrative lines are batched into two
-  `LineSegments2` buffers. Illustrative lines are intentionally broken into
+- Curved structural, illustrative, speculative and far-field lines are batched
+  into `LineSegments2` buffers. Illustrative lines are intentionally broken into
   dashes, which also keeps their segment count bounded.
 - Budgets are fixed: at most 5,000 structural nodes, 20,000 structural
-  connections, 2,400 synaptic nodes and 2,200 illustrative filaments.
-  Omitted geometry is reported, never silently invented.
-- Background dust is a fixed budget. Fog, additive glow and soft halos replace
-  expensive post-processing; no bloom pass is required.
+  connections, 4,200 synaptic nodes, 3,800 illustrative filaments, 3,600
+  ambient stars, 18 nebula masses, 110 far-field wisps and 28 speculative
+  attention arcs. Omitted geometry is reported, never silently invented.
+- Background dust is a fixed budget (2,700 points). Fog, additive glow and soft
+  halos replace expensive post-processing; no bloom pass is required.
+- Travelling pulses and event bursts use fixed pools (up to 340 filament motes,
+  64 attention motes, 190 burst particles and 6 shockwave sprites). They write
+  into preallocated typed arrays; no per-frame allocation or unbounded timer
+  grows with telemetry or training duration.
 - Live telemetry costs one short stderr line per configured interval, one
   bounded server history and at most one coalesced SSE publication per interval.
   It creates no browser object per parameter or tensor.
@@ -462,8 +551,10 @@ Performance is independent of parameter count:
 
 The synthetic 3B test builds a 36-layer blueprint with 581 components and 795
 connections and verifies the render plan stays bounded: 544 structural nodes,
-2,400 synaptic nodes and 2,016 filaments in the verification run. It does not
-load the real 3B model.
+4,200 synaptic nodes, 3,528 illustrative filaments, 3,600 ambient stars, 18
+nebula masses, 110 far-field wisps and 28 speculative attention arcs. The
+decorative totals are independent of parameter count and never alter the
+reported 3,075,098,624 parameters. It does not load the real 3B model.
 
 ## Isolation checklist
 
@@ -481,9 +572,14 @@ load the real 3B model.
 
 ## Verification screenshots
 
-All four screenshots below use the exported eight-layer blueprint (`v001`, 124
-rendered structural components, 173 connections) at the default overview
-camera.
+The Phase 1.3, 1.4 and 1.8 eight-layer screenshots use the exported eight-layer
+blueprint (`v001`, 124 rendered structural components, 173 connections) at the
+default overview camera. For Phase 1.8 the blueprint was re-exported read-only
+from the repository's committed `v001` metadata into a temporary store; the
+repository fixture has no safetensors payload, so the honest "manifest-only"
+warning is visible. Live training telemetry in those screenshots is simulated by
+a local harness. The 36-layer screenshot uses the synthetic fixture. These are
+not production GPU measurements.
 
 Phase 1.3 baseline:
 
@@ -497,14 +593,48 @@ Phase 1.4 refinement:
 - [Architecture mode](screenshots/phase-1.4-architecture.png) â€” same precise
   blueprint view with the refined spatial layout.
 
-The synthetic 36-layer, ~3.075B-parameter fixture was also rendered in both
-modes. Its render plan contained 544 structural nodes, 795 structural
-connections, 2,400 synaptic nodes and 2,016 filaments, with no console or page
-errors. The browser verification used software WebGL; frame rate varied under
-that renderer, so the meaningful budget numbers are the bounded geometry counts
-and draw calls (17 in Brain mode, 30 in Architecture mode for the synthetic
-36-layer fixture, the latter including label sprites and region annotation), not
-the software-rendered FPS.
+Phase 1.8 cinematic living brain (browser harness, software WebGL):
+
+- [Brain mode](screenshots/phase-1.8-brain.png) — real v001 eight-layer blueprint
+  metadata with simulated live telemetry, deep-space field, travelling pulses
+  and a checkpoint acknowledgement. The amber warning reports the fixture's
+  missing safetensors payload; it is not hidden for the screenshot.
+- [Living controls](screenshots/phase-1.8-controls.png) — independent effect
+  controls and the live/stale/ambient status.
+- [Architecture mode](screenshots/phase-1.8-architecture.png) — every
+  illustrative, speculative and ambient layer hidden.
+- [Synthetic 36-layer](screenshots/phase-1.8-synthetic-36.png) — 544 structural
+  nodes, 4,200 synaptic nodes, 3,528 filaments and 28 speculative arcs.
+
+The synthetic 36-layer, ~3.075B-parameter fixture was rendered in both modes
+with no console or page errors. Its render plan contained 544 structural nodes,
+~687 structural connections in the local fixture (the unit fixture uses 795),
+4,200 synaptic nodes, 3,528 filaments, 3,600 stars, 28 speculative arcs and
+11,484 total decorative objects. The browser verification used software WebGL;
+frame rate varied under that renderer, so the meaningful budget numbers are the
+bounded geometry counts and draw calls (47 in Brain mode, 30 in Architecture
+mode for the synthetic fixture, the latter including label sprites and region
+annotation), not the software-rendered FPS. The eight-layer captures reported 37–41
+Brain-mode draw calls and no exceptions.
+
+## Phase 1.8 verification
+
+| Check | Result |
+|---|---|
+| Node test suite | `npm test` — **673 tests, 666 pass, 0 fail, 7 skipped** |
+| New cinematic tests | `node --test test/brain-cinematic.test.js` — **11 pass** |
+| Blueprint/layout tests | 8-layer and synthetic 36-layer plans deterministic and bounded |
+| Architecture isolation | decorative planning does not mutate the blueprint or its 61,839,744-parameter accounting; 36-layer plan still reports 3,075,098,624 |
+| Telemetry states | unavailable, stale and reconnected states all retain illustrative/ambient motion while measured status remains distinct |
+| Browser inspection | headless Chromium 157, WebGL 2.0 via SwiftShader; real v001 eight-layer metadata (124 nodes, 173 connections), local 8-layer fixture and synthetic 36-layer scene all loaded with no console errors or exceptions |
+| Event effects | live harness drove step snapshots, evaluation and checkpoint acknowledgements; checkpoint rings and sequence wave observed and captured |
+| Reduced motion | control reaches the renderer (`reducedMotion=true`), hides travelling pulses/rings and keeps gentle ambient drift |
+| Production | no training job, service, model pointer, registry, dataset or GPU allocation was touched |
+
+Frame timings from the headless software renderer are not representative of a
+production GPU and are deliberately not reported as such. The bounded geometry
+counts and draw calls above are the meaningful performance evidence from this
+environment.
 
 ## Troubleshooting
 
