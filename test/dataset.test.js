@@ -168,6 +168,27 @@ test("replay and validation rows are appended without consuming fresh slots", as
   await store.close();
 });
 
+test("replay-only material re-enters as replay, never as fresh", async () => {
+  const store = await ArticleStore.open(tmpDir());
+  const freshIds = [];
+  for (let i = 0; i < 2; i++) {
+    const a = await store.ingestArticle({ text: `Fresh delta article ${i} with enough prose to train on.`, domain: "reasoning" });
+    await store.recordReview({ articleId: a.articleId, verdict: "approve", authority: "human" });
+    freshIds.push(a.articleId);
+  }
+  const replayOnly = await store.ingestArticle({ text: "Exhausted article that must survive for replay, not deletion.", domain: "reasoning" });
+  await store.recordReview({ articleId: replayOnly.articleId, verdict: "approve", authority: "human" });
+  await store.deferArticles([replayOnly.articleId], { runId: "run-1", reason: "rejected", maxRetries: 1 });
+
+  const out = collectRowsFromArticles(store, { limit: 10, replayPercent: 50 });
+  assert.deepEqual(out.freshArticleIds, freshIds, "replay-only material is never the fresh delta");
+  assert.deepEqual(out.replayArticleIds, [replayOnly.articleId], "exhausted material is retained and replayed");
+  const replayRows = out.rows.filter((r) => r.corpusRole === "replay");
+  assert.equal(replayRows.length, 1);
+  assert.equal(replayRows[0].articleId, replayOnly.articleId);
+  await store.close();
+});
+
 test("RETIRED articles are never collected, even with corpus backfill", async () => {
   const store = await ArticleStore.open(tmpDir());
   const a = await store.ingestArticle({ text: "An article that will be retired by review.", domain: "general" });

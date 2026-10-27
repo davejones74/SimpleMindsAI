@@ -16,7 +16,9 @@ import { preScreen } from "../domain/review-gates.js";
  * byte-for-byte reproducible. The file is never rewritten.
  *
  * Fresh input is REVIEWED-and-unconsumed. A bounded replay share of consumed
- * REVIEWED rows and separately-packed validation rows may be appended. There is
+ * REVIEWED rows and separately-packed validation rows may be appended. The
+ * replay share is SIZED by estimated training tokens (not article counts), and
+ * the authoritative tokenizer-measured share is recorded by the trainer. There is
  * deliberately NO reward-based synthetic cap: the training unit is continuous
  * article text and the training signal is next-token prediction, so there is no
  * reward in the signal to hack and no echo-chamber failure mode to cap. Synthetic share is
@@ -177,16 +179,24 @@ export function collectRowsFromArticles(
   let fresh = 0;
   let retained = 0;
 
-  const drain = (consumed, target) => {
+  const drain = (consumed, target, { replayOnlyOnly = false } = {}) => {
     const out = [];
     let cursor = null;
     let guard = 0;
     while (out.length < target && guard++ < 200) {
-      const { items, nextCursor } = store.articlesPage({ after: cursor, limit: 200, status: "REVIEWED", consumed });
+      const { items, nextCursor } = store.articlesPage({
+        after: cursor,
+        limit: 200,
+        status: "REVIEWED",
+        consumed,
+        ...(replayOnlyOnly ? { replayOnly: true } : {}),
+      });
       for (const a of items) {
-        // For the unconsumed group, `isTrainable` also excludes RETIRED/deferred
-        // edges; a consumed row is REVIEWED by the status filter above.
-        if (!consumed && !isTrainable(a)) continue;
+        // For the unconsumed FRESH group, `isTrainable` excludes RETIRED,
+        // cooldown and replayOnly edges. The replay-only drain selects unconsumed
+        // REVIEWED rows whose fresh retries are exhausted (they re-enter only
+        // through the replay pool); a consumed row is REVIEWED by status filter.
+        if (!consumed && !replayOnlyOnly && !isTrainable(a)) continue;
         out.push(a);
         if (out.length >= target) break;
       }
@@ -197,14 +207,18 @@ export function collectRowsFromArticles(
   };
 
   const allFresh = drain(false, limit);
-  // Reserve roughly 20% of the training budget for replay. When the legacy
-  // full-backfill switch is on, fresh rows win the whole budget and retained
-  // rows fill only the remainder, preserving the historical semantics.
+  // Replay is sized by ESTIMATED TRAINING TOKENS, not by article count: the
+  // fresh delta wins the whole row budget, and replay rows are selected (from
+  // the consumed/retained pool) until their estimated token mass reaches the
+  // configured share of the fresh stream, then trimmed to fit the row cap. The
+  // Python packer reports the AUTHORITATIVE token share afterwards, so the
+  // selection can only target the proportion — never silently claim it.
+  //
+  // When the legacy full-backfill switch is on, fresh rows still win the whole
+  // budget and retained rows fill only the remainder, preserving the historical
+  // semantics.
   const pct = includeConsumed ? 100 : Math.max(0, Math.min(99, Number(replayPercent) || 0));
-  const freshTarget = pct > 0 && !includeConsumed
-    ? Math.max(1, Math.floor(limit * (1 - pct / 100)))
-    : limit;
-  const chosenFresh = allFresh.slice(0, freshTarget);
+  const chosenFresh = allFresh.slice(0, limit);
   for (const a of chosenFresh) {
     rows.push(rowForArticle(a));
     fresh += 1;
@@ -220,20 +234,28 @@ export function collectRowsFromArticles(
       retained += 1;
     }
   } else {
-    const needReplay = pct > 0 && rows.length < limit;
+    const needReplay = pct > 0;
     const needValidation = validationBlocks > 0;
     if (needReplay || needValidation) {
       const poolLimit = Math.max(512, limit * 4);
-      // Reused (consumed) rows were admitted under older policies. Re-check the
-      // SAME deterministic gates on the text before they can re-enter training:
+      // The replay reservoir is consumed REVIEWED material plus replay-only
+      // material whose fresh retries were exhausted (W3): rejected candidate
+      // weights never delete the source knowledge. Re-check the SAME
+      // deterministic gates on the text before any of it can re-enter training:
       // a historical non-English or corrupted article must not bypass the policy
-      // merely because it was consumed before the gate existed.
-      const pool = drain(true, poolLimit).filter(reuseEligible);
+      // merely because it was consumed (or deferred) before the gate existed.
+      const pool = [
+        ...drain(true, poolLimit),
+        ...drain(false, poolLimit, { replayOnlyOnly: true }),
+      ].filter(reuseEligible);
       if (needReplay) {
         replayRows = selectReplayRows(chosenFresh.map(rowForArticle), pool, {
           replayPercent: pct,
-          maxRows: limit - rows.length,
+          maxRows: limit,
         });
+        // Fresh wins the row budget; replay is trimmed to the remaining slots
+        // so the snapshot never exceeds `limit` training rows.
+        replayRows = replayRows.slice(0, Math.max(0, limit - rows.length));
       }
       const replayIds = new Set(replayRows.map((r) => r.articleId));
       for (const a of replayRows) {
@@ -247,17 +269,6 @@ export function collectRowsFromArticles(
           excludeIds: replayIds,
         });
       }
-    }
-  }
-
-  // If replay was unavailable, use the reserved space for fresh material rather
-  // than shipping a corpus with an artificial hole in it.
-  if (!includeConsumed && rows.length < limit && allFresh.length > chosenFresh.length) {
-    for (const a of allFresh.slice(chosenFresh.length)) {
-      if (rows.length >= limit) break;
-      rows.push(rowForArticle(a));
-      fresh += 1;
-      freshArticleIds.push(a.articleId);
     }
   }
 

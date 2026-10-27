@@ -419,6 +419,7 @@ function stagingRunDeps({
       onActivate(v);
       return { version: v };
     },
+    measureGenerationQuality: async ({ version: v }) => ({ version: v, ok: true, aggregate: { meanRep1: 0.9, maxRun: 2 }, samples: [] }),
   };
 }
 
@@ -492,7 +493,8 @@ test("staging: a rejected candidate is never published and is discarded with its
     assert.equal(a.deferralRetries, 1, "each rejected article records one deferral");
     assert.equal(a.deferredRunId, out.run.runId, "the deferral names the run that rejected it");
     assert.equal(a.status, "REVIEWED", "one rejection defers, it does not retire");
-    assert.equal(a.trainable, true, "deferred material stays eligible for a later run");
+    assert.equal(a.replayOnly, undefined, "one rejection does not exhaust the fresh retries");
+    assert.ok(a.deferredUntil, "one rejection sets a cooldown deadline");
   }
   await store.close();
   await registry.close();

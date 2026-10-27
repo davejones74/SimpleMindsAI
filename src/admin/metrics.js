@@ -410,6 +410,54 @@ export function resolveRunOutcome(run) {
 }
 
 /**
+ * Durable learning-contribution summary.
+ *
+ * The 94% objective is knowledge contribution over TIME, not candidate
+ * acceptance. This function measures two DISTINCT facts and never conflates
+ * them: (a) "the article appeared in a training batch" (any run, any decision)
+ * and (b) "the article contributed to a PROMOTED model". A rejected run trains
+ * on material and then discards its weights; that is exposure, not
+ * contribution. Both are unioned by article id across the contribution ledger.
+ *
+ * Pure: no I/O, no store access. The caller supplies the ledger rows and the
+ * eligible-corpus size.
+ *
+ * @param {Array} contributions   rows from ArticleStore#listContributions()
+ * @param {number} [eligibleUniqueArticles=0] size of the REVIEWED corpus
+ * @returns summary object
+ */
+export function computeContributionSummary({ contributions = [], eligibleUniqueArticles = 0 } = {}) {
+  const rows = Array.isArray(contributions) ? contributions : [];
+  const union = (sets) => new Set([].concat(...sets));
+  const freshByRun = rows.map((r) => r.freshArticleIds ?? []);
+  const replayByRun = rows.map((r) => r.replayArticleIds ?? []);
+  const promoted = rows.filter((r) => r.decision === "promoted");
+  const batchFresh = union(freshByRun).size;
+  const batchReplay = union(replayByRun).size;
+  const batchUnique = union([...freshByRun, ...replayByRun]).size;
+  const promotedFresh = union(promoted.map((r) => r.freshArticleIds ?? [])).size;
+  const promotedReplay = union(promoted.map((r) => r.replayArticleIds ?? [])).size;
+  const promotedUnique = union(promoted.flatMap((r) => [...(r.freshArticleIds ?? []), ...(r.replayArticleIds ?? [])])).size;
+  const sum = (key) => rows.reduce((n, r) => n + (Number.isFinite(Number(r[key])) ? Number(r[key]) : 0), 0);
+  const coverage = (unique) => (eligibleUniqueArticles > 0 ? unique / eligibleUniqueArticles : null);
+  return {
+    totalRuns: rows.length,
+    promotedRuns: promoted.length,
+    rejectedRuns: rows.filter((r) => r.decision !== "promoted").length,
+    // Exposure (appeared in any training batch), by role and combined.
+    batch: { freshUnique: batchFresh, replayUnique: batchReplay, unique: batchUnique, coverage: coverage(batchUnique) },
+    // Contribution (reached a promoted model), by role and combined.
+    promoted: { freshUnique: promotedFresh, replayUnique: promotedReplay, unique: promotedUnique, coverage: coverage(promotedUnique) },
+    // Token accounting across the ledger.
+    freshTokensConsumed: sum("trainTokensSeen") > 0 ? sum("trainTokensSeen") - sum("replayTokensSeen") : null,
+    replayTokensConsumed: sum("replayTokensSeen"),
+    trainTokensSeen: sum("trainTokensSeen"),
+    validationTokensSeen: sum("validationTokensSeen"),
+    eligibleUniqueArticles,
+  };
+}
+
+/**
  * Turn persisted runs (+ their durable candidate models) into graph events.
  *
  * `models` supplies the durable model-event score, which survives a restart

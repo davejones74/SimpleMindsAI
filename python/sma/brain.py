@@ -512,6 +512,7 @@ def _cmd_train_locked(args: argparse.Namespace, root: Path, version: str, node_r
             telemetry_interval_ms=telemetry_interval_ms,
             layer_activity_enabled=layer_activity_enabled,
             layer_activity_interval_ms=layer_activity_interval_ms,
+            select_best=getattr(args, "select_best", True),
         )
     except train_mod.NumericalFailure as exc:
         # Invariant 9: a failed run must never become the active brain. Nothing has
@@ -589,6 +590,9 @@ def _cmd_train_locked(args: argparse.Namespace, root: Path, version: str, node_r
                 "tokenizerHash": train_state["packing"]["tokenizerHash"],
                 "stepsCompleted": train_state["stepsCompleted"],
                 "tokensSeen": train_state["tokensSeen"],
+                "selectBest": bool(train_state.get("selectBest", False)),
+                "selectedStep": train_state.get("selectedStep"),
+                "selectedValidationLoss": train_state.get("selectedValidationLoss"),
                 "createdAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             },
         )
@@ -675,6 +679,9 @@ def _cmd_train_locked(args: argparse.Namespace, root: Path, version: str, node_r
         "finalTrainLoss": result.finalTrainLoss,
         "initialValidationLoss": result.initialValidationLoss,
         "finalValidationLoss": result.finalValidationLoss,
+        "selectBest": bool(train_state.get("selectBest", False)),
+        "selectedStep": result.selectedStep,
+        "selectedValidationLoss": result.selectedValidationLoss,
         "stepsCompleted": train_state["stepsCompleted"],
         "tokensSeen": result.tokensSeen,
         "datasetHash": train_state["packing"]["datasetHash"],
@@ -1357,6 +1364,108 @@ def cmd_generate(args: argparse.Namespace) -> Dict[str, Any]:
     }
 
 
+# A small, fixed set of held-out prompts for generation quality. Deliberately
+# disjoint from the frozen evaluation set, so scoring generation quality never
+# trains against (or leaks) promotion evidence.
+QUALITY_PROMPTS = [
+    "The capital of France is",
+    "Water boils at a temperature of",
+    "The first law of thermodynamics states that",
+    "A steam engine converts heat into",
+    "Photosynthesis uses light to produce",
+]
+
+
+def repetition_metrics(tokenizer: Any, text: str) -> Dict[str, Any]:
+    """Deterministic repetition indicators over tokenizer token ids.
+
+    Degenerate generation ("The 6 is a 6" and worse) is characterised by a low
+    unique-token ratio, a low unique-bigram ratio and a long run of a single
+    repeated token. These three numbers make that measurable and comparable
+    across the lineage without any sampling or model judgement.
+    """
+    ids = tokenizer(str(text or ""), add_special_tokens=False).input_ids
+    n = len(ids)
+    if n == 0:
+        return {"tokens": 0, "unique1": 0, "unique2": 0, "rep1": None, "rep2": None, "maxRun": 0}
+    unique1 = len(set(ids))
+    bigrams = [(ids[i], ids[i + 1]) for i in range(n - 1)]
+    unique2 = len(set(bigrams))
+    max_run = 1
+    run = 1
+    for i in range(1, n):
+        if ids[i] == ids[i - 1]:
+            run += 1
+            max_run = max(max_run, run)
+        else:
+            run = 1
+    return {
+        "tokens": n,
+        "unique1": unique1,
+        "unique2": unique2,
+        "rep1": unique1 / n,
+        "rep2": unique2 / (n - 1) if n > 1 else None,
+        "maxRun": max_run,
+    }
+
+
+def cmd_generate_quality(args: argparse.Namespace) -> Dict[str, Any]:
+    """Generation-quality report: a regression check, never a promotion gate.
+
+    Loads a committed version and greedily decodes the fixed held-out prompts,
+    then reports deterministic repetition indicators so a lineage that drifts
+    into degenerate output ("The 6 is a 6") is visible in the ledger rather than
+    discovered in chat.
+    """
+    from . import store
+
+    root = Path(args.out)
+    device = _resolve_device(args.device)
+    model, tokenizer, version_dir = _load_version_for_serving(root, args.version, device)
+    model.eval()
+
+    samples = []
+    for prompt in QUALITY_PROMPTS:
+        result = generate_text(
+            model,
+            tokenizer,
+            prompt=prompt,
+            max_new_tokens=int(args.max_new_tokens),
+            temperature=0.0,
+            top_p=0.95,
+            seed=0,
+            device=device,
+        )
+        metrics = repetition_metrics(tokenizer, result["text"])
+        samples.append({"prompt": prompt, "text": result["text"], **metrics})
+
+    n = len(samples) or 1
+    mean = lambda key: sum(s[key] for s in samples if s[key] is not None) / max(1, sum(1 for s in samples if s[key] is not None)) if any(s[key] is not None for s in samples) else None
+
+    manifest = store.read_json(version_dir / "init-manifest.json")
+    try:
+        artifact = store.artifact_name(manifest)
+    except ValueError:
+        artifact = None
+
+    return {
+        "ok": True,
+        "verb": "generate-quality",
+        "version": args.version,
+        "artifactName": artifact,
+        "device": device,
+        "promptCount": len(samples),
+        "aggregate": {
+            "totalTokens": sum(s["tokens"] for s in samples),
+            "meanRep1": mean("rep1"),
+            "meanRep2": mean("rep2"),
+            "maxRun": max((s["maxRun"] for s in samples), default=0),
+            "meanLength": sum(s["tokens"] for s in samples) / n,
+        },
+        "samples": samples,
+    }
+
+
 def cmd_diff(args: argparse.Namespace) -> Dict[str, Any]:
     """Check 10: versions are comparable and the diff is explainable.
 
@@ -1626,6 +1735,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="version whose train state to continue from; pair with a larger --steps",
     )
     sp.add_argument(
+        "--select-best",
+        dest="select_best",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="publish the best held-out-validation checkpoint instead of the final step",
+    )
+    sp.add_argument(
         "--stage-only",
         dest="stage_only",
         action="store_true",
@@ -1704,6 +1820,13 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--seed", type=int, default=0)
     sp.add_argument("--device", default="auto", help="auto | cpu | cuda")
     sp.set_defaults(func=cmd_generate)
+
+    sp = sub.add_parser("generate-quality", help="repetition regression check over fixed held-out prompts")
+    common(sp)
+    sp.add_argument("--version", required=True, help="committed version to measure")
+    sp.add_argument("--max-new-tokens", type=int, default=32)
+    sp.add_argument("--device", default="auto", help="auto | cpu | cuda")
+    sp.set_defaults(func=cmd_generate_quality)
 
     sp = sub.add_parser("diff", help="explain the difference between two versions (check 10)")
     common(sp)

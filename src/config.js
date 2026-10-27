@@ -418,12 +418,23 @@ export const config = {
   // tiny corpus cannot be repeated indefinitely.
   trainTargetEpochs: num("TRAIN_TARGET_EPOCHS", 2),
   trainMaxSteps: num("TRAIN_MAX_STEPS", 400),
+  // Best-checkpoint selection: publish the step with the lowest in-training
+  // held-out validation loss instead of always the final step. The frozen eval
+  // set remains the promotion gate; this only chooses WHICH weights become the
+  // candidate. Disable with TRAIN_SELECT_BEST=0 to restore final-step publish.
+  trainSelectBest: bool("TRAIN_SELECT_BEST", true),
   // Minimum usable training corpus (unique tokenizer tokens, excluding the
   // held-out validation stream). Below this a run is skipped/deferred instead
   // of training on a near-empty batch. 0 disables the gate.
   trainMinUniqueTokens: num("TRAIN_MIN_UNIQUE_TOKENS", 1700),
   // Replay share of the training corpus by token estimate. 0 disables replay.
   trainReplayPercent: num("TRAIN_REPLAY_PERCENT", 20),
+  // Rejected-run cooldown: a rejected batch is deferred for an escalating
+  // window before it may be selected as fresh again, so the identical batch is
+  // not retried on every poll. `base` doubles per rejection, capped at `max`.
+  // A rejection defers the batch; it never retires the source knowledge.
+  trainDeferralCooldownBaseMs: num("TRAIN_DEFERRAL_COOLDOWN_BASE_MS", 6 * 60 * 60 * 1000),
+  trainDeferralCooldownMaxMs: num("TRAIN_DEFERRAL_COOLDOWN_MAX_MS", 24 * 60 * 60 * 1000),
   trainSeqLen: num("TRAIN_SEQ_LEN", 128),
   trainMicroBatch: num("TRAIN_MICRO_BATCH", 2),
   trainGradAccum: num("TRAIN_GRAD_ACCUM", 2),
@@ -726,9 +737,10 @@ export const config = {
       // 0 disables the surface/warn guard.
       maxConsecutiveRejections: num("TRAIN_MAX_CONSECUTIVE_REJECTIONS", 5),
       // Maximum number of deferral retries for a rejected batch before articles
-      // are transitioned to the explicit `retired` state. Default 2: after two
-      // unsuccessful attempts the batch is retired and excluded from future
-      // selection, preserving fresh material for subsequent cycles.
+      // are moved OUT of the fresh delta and INTO the replay pool (`replayOnly`).
+      // A training rejection is a rejection of candidate WEIGHTS, never of the
+      // SOURCE KNOWLEDGE: the material is never retired, never deleted, and can
+      // be replayed under an improved strategy. Default 2 fresh attempts.
       maxRejectedRetries: num("TRAIN_MAX_REJECTED_RETRIES", 2),
     },
   },

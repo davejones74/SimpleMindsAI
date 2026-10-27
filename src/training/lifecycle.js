@@ -13,6 +13,7 @@ import { assertTrainer } from "./trainer-interface.js";
 import { modelHandle } from "./model-handle.js";
 import { baselineCacheKey, cacheEntrySatisfiesEvidence, loadEvalCache, saveEvalCache } from "./eval-cache.js";
 import { computeTrainingBudget, checkMinimumTrainingData, computeEvaluationCadence } from "./budget.js";
+import { evaluateGenerationQuality } from "./generation-quality.js";
 
 /**
  * Perpetual Training lifecycle — ONE TrainingRun from cradle to grave
@@ -88,6 +89,7 @@ export async function executeFullRun({
     evaluateLoss = evaluateVersionLoss, // Python loss gate (injectable for tests)
     setActive = setActiveVersion,       // move the serving pointer (injectable)
     worker = null,         // student worker to reload after a promotion
+    measureGenerationQuality = evaluateGenerationQuality, // repetition check (injectable)
   } = deps;
 
   const commitConsumption =
@@ -162,6 +164,7 @@ export async function executeFullRun({
   let decision = null;
   let manifest = null;
   let manifestPath = null;
+  let generationQuality = null;
   try {
     // ---- immutable evaluation set (frozen on first load) ----
     evalSet = await loadEvaluationSet({
@@ -275,6 +278,19 @@ export async function executeFullRun({
           microBatch: config.trainMicroBatch,
           gradAccum: config.trainGradAccum,
         });
+      }
+    }
+    // The replay share is SIZED by token estimate in Node but only MEASURED by
+    // the tokenizer here. Record the measured share on the run (never silently
+    // claim the target was hit) and warn when it overshoots the configured cap,
+    // so a corpus where fresh material is dwarfed by the replay pool is visible.
+    if (pythonMode && corpusPreflight && Number.isFinite(corpusPreflight.trainTokensSeen) && corpusPreflight.trainTokensSeen > 0) {
+      const measuredReplayShare = (Number(corpusPreflight.replayTokensSeen) || 0) / corpusPreflight.trainTokensSeen;
+      const cap = (Number(config.trainReplayPercent) || 0) / 100;
+      if (Number.isFinite(measuredReplayShare) && cap > 0 && measuredReplayShare > cap + 0.02) {
+        logger?.warn?.(
+          `[lifecycle] replay token share ${(measuredReplayShare * 100).toFixed(1)}% exceeds configured TRAIN_REPLAY_PERCENT=${config.trainReplayPercent}% (measured, not enforced)`,
+        );
       }
     }
     // The fixed cadence was sized for 60-step runs. Tighten it to the ACTUAL
@@ -578,6 +594,23 @@ export async function executeFullRun({
         });
         if (worker) await worker.reload();
       }
+      // Repetition regression check, recorded (never gated): after the pointer
+      // moves, measure the newly active model's generation quality so a
+      // degenerate-output drift ("The 6 is a 6") is visible in the ledger. Only
+      // the real (staging-capable) trainer drives this; fake trainers in tests
+      // inject a measurement seam instead of spawning Python.
+      if (stagingSupported) {
+        try {
+          generationQuality = await measureGenerationQuality({
+            version: trainingResult.version,
+            store: config.pythonStore ?? undefined,
+            bin: config.pythonBin ?? undefined,
+            device: config.studentDevice,
+          });
+        } catch (err) {
+          logger?.warn?.(`[lifecycle] generation-quality check for ${trainingResult.version} failed: ${err.message}`);
+        }
+      }
       manifest = await updateManifest(manifestPath, manifest, {
         consumed: false,
         published,
@@ -607,13 +640,16 @@ export async function executeFullRun({
     const bookkeepingIds =
       snapshot.manifest.freshArticleIds ?? snapshot.manifest.articleIds ?? snapshot.rows.map((r) => r.articleId);
     if ((decision.decision === "rejected" || decision.decision === "inconclusive") && typeof store.deferArticles === "function") {
-      // Increment the deferral retry count for every article in the rejected or
-      // inconclusive run; the store retires those whose limit is exhausted so
-      // future runs never reconsider them.
+      // Defer the batch with a cooldown so it is not immediately retried with
+      // the same companion material. The candidate WEIGHTS were rejected; the
+      // SOURCE KNOWLEDGE is not retired — once its fresh retries are exhausted it
+      // moves to the replay pool, still learnable under an improved strategy.
       await store.deferArticles(bookkeepingIds, {
         runId,
         reason: decision.reason ?? `${decision.decision} by promotion gate`,
         maxRetries: config.jobs.training.maxRejectedRetries,
+        cooldownBaseMs: config.trainDeferralCooldownBaseMs,
+        cooldownMaxMs: config.trainDeferralCooldownMaxMs,
       });
     } else if (decision.decision === "promoted" && typeof store.clearDeferral === "function") {
       // Articles consumed by the promoted model are owned by the active
@@ -622,6 +658,29 @@ export async function executeFullRun({
         bookkeepingIds.filter((id) => store.getArticle?.(id)?.consumedAt),
         { runId },
       );
+    }
+
+    // Record the run's ACTUAL learning contribution, durably. This is the source
+    // of truth for "appeared in a batch" vs "contributed to the active model":
+    // fresh rows are the run's real input; replay rows are historical material
+    // the run sampled; and the decision records whether either reached a
+    // published model. Best-effort — a ledger write must never fail a valid run.
+    if (typeof store.recordTrainingContribution === "function") {
+      try {
+        await store.recordTrainingContribution({
+          runId,
+          decision: decision.decision,
+          version: pythonMode ? trainingResult.version ?? null : null,
+          parentVersion: pythonMode ? trainingResult.parentVersion ?? null : null,
+          freshArticleIds: snapshot.manifest.freshArticleIds ?? [],
+          replayArticleIds: snapshot.manifest.replayArticleIds ?? [],
+          trainTokensSeen: trainingResult.trainTokensSeen ?? null,
+          replayTokensSeen: trainingResult.replayTokensSeen ?? null,
+          validationTokensSeen: trainingResult.validationTokensSeen ?? null,
+        });
+      } catch (err) {
+        logger?.warn?.(`[lifecycle] contribution record for ${runId} failed: ${err.message}`);
+      }
     }
 
     // ---- persist the decision on the model, then close the run ----
@@ -707,6 +766,26 @@ export async function executeFullRun({
               trainingResult.corpusSplit?.shortfall ?? corpusPreflight?.validationShortfall ?? null,
           }
         : null,
+      // Which checkpoint the trainer published (best-checkpoint selection vs the
+      // final step). Recorded so the promotion decision is attributable to a
+      // specific training step, not just "the run".
+      checkpointSelection: pythonMode
+        ? {
+            selectBest: trainingResult.selectBest ?? null,
+            selectedStep: trainingResult.selectedStep ?? null,
+            selectedValidationLoss: trainingResult.selectedValidationLoss ?? null,
+            finalStep: trainingResult.stepsCompleted ?? null,
+          }
+        : null,
+      // Repetitive-generation check on the promoted model (recorded, never gated).
+      generationQuality: generationQuality
+        ? {
+            version: generationQuality.version,
+            ok: generationQuality.ok === true,
+            aggregate: generationQuality.aggregate ?? null,
+            error: generationQuality.error ?? null,
+          }
+        : null,
       activatedVersion: pythonMode && decision.decision === "promoted" ? trainingResult.version : null,
       // Run linkage: Node run -> frozen dataset -> Python execution -> committed
       // candidate. Checkpoint path/version stay a secondary integrity check.
@@ -786,6 +865,8 @@ export async function executeFullRun({
               runId,
               reason: savedManifest.deferralReason ?? `${savedManifest.decision} by promotion gate`,
               maxRetries: config.jobs.training.maxRejectedRetries,
+              cooldownBaseMs: config.trainDeferralCooldownBaseMs,
+              cooldownMaxMs: config.trainDeferralCooldownMaxMs,
             });
           }
           await updateManifest(manifestPath, savedManifest, { consumed: false, settled: true });
@@ -1068,13 +1149,16 @@ export async function recoverPendingPromotions({ registry, store, trainer = null
         // Rejected / inconclusive: the retry policy says the batch must NOT be
         // consumed. Defer it (idempotent per run) so it stays eligible for a
         // bounded retry alongside new material, then settle the manifest so it
-        // is not re-scanned forever. `deferArticles` retires exhausted batches.
+        // is not re-scanned forever. `deferArticles` moves exhausted batches to
+        // the replay pool rather than retiring them.
         const ids = m.snapshotArticleIds ?? [];
         if (typeof store?.deferArticles === "function") {
           await store.deferArticles(ids, {
             runId: m.runId,
             reason: m.deferralReason ?? `${m.decision} by promotion gate`,
             maxRetries: config.jobs.training.maxRejectedRetries,
+            cooldownBaseMs: config.trainDeferralCooldownBaseMs,
+            cooldownMaxMs: config.trainDeferralCooldownMaxMs,
           });
         }
         await updateManifest(manifestPath, m, { settled: true, consumed: false, activated: false });

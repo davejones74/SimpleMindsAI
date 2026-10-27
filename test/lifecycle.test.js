@@ -57,6 +57,11 @@ test("full run: baseline eval -> train -> candidate eval -> promoted, consumptio
   // exactly-once consumption happened AFTER training + eval succeeded
   assert.equal(store.getStats().uniqueConsumed, 3);
   assert.equal(store.getStats().trainable, 0);
+  // The run recorded its actual learning contribution, durably.
+  const contributions = store.listContributions();
+  assert.equal(contributions.length, 1);
+  assert.equal(contributions[0].decision, "promoted");
+  assert.equal(contributions[0].freshArticleIds.length, 3);
   await store.close();
   await registry.close();
 });
@@ -141,8 +146,9 @@ test("chain: second run trains FROM the promoted model as its baseline", async (
 // ------------------------------------------------- deferral / retirement
 //
 // A rejected run must NOT consume its batch: the material is DEFERRED with a
-// retry count so a later run can retry it alongside new articles, and is
-// RETIRED only once the configured retry budget is exhausted. Every transition
+// retry count and a cooldown so a later run can retry it alongside new
+// articles. Once the retry budget is exhausted the material is moved to the
+// REPLAY POOL (`replayOnly`) — never RETIRED, never deleted. Every transition
 // is an appended article-store event, so it survives a restart.
 
 const rejectedRun = (registry, store) =>
@@ -161,16 +167,19 @@ test("rejected run defers its batch durably instead of consuming it", async () =
 
   const stats = store.getStats();
   assert.equal(stats.uniqueConsumed, 0, "a rejection never consumes");
-  assert.equal(stats.trainable, 3, "deferred material stays eligible");
-  assert.equal(stats.retired, 0);
+  assert.equal(stats.retired, 0, "a rejection never retires source knowledge");
+  assert.equal(stats.deferredFresh, 3, "deferred material is tracked in cooldown");
+  assert.equal(stats.trainable, 0, "deferred material is in cooldown, not immediately re-selectable");
 
   for (const a of store.articlesPage({ limit: 50 }).items) {
     assert.equal(a.deferralRetries, 1);
     assert.equal(a.deferredRunId, out.run.runId);
     assert.match(a.deferredReason, /improvement|rejected/);
+    assert.equal(a.replayOnly, undefined);
+    assert.ok(a.deferredUntil && Date.parse(a.deferredUntil) > Date.now(), "a rejection sets a cooldown deadline");
   }
 
-  // Restart recovery: the counters come back from the event log, not memory.
+  // Restart recovery: the counters and cooldown come back from the event log.
   const dir = store.dir;
   await store.close();
   const reopened = await ArticleStore.open(dir);
@@ -178,15 +187,20 @@ test("rejected run defers its batch durably instead of consuming it", async () =
     assert.equal(a.deferralRetries, 1, "the retry count replays from the log");
     assert.equal(a.deferredRunId, out.run.runId);
     assert.equal(a.status, "REVIEWED");
+    assert.ok(a.deferredUntil, "the cooldown replays from the log");
   }
-  assert.equal(reopened.getStats().trainable, 3);
+  assert.equal(reopened.getStats().trainable, 0);
+  assert.equal(reopened.getStats().deferredFresh, 3);
   await reopened.close();
   await registry.close();
 });
 
-test("a second rejection exhausts the retry budget and retires the batch", async () => {
-  const prev = config.jobs.training.maxRejectedRetries;
+test("a second rejection exhausts the retry budget and moves the batch to the replay pool", async () => {
+  const prevRetries = config.jobs.training.maxRejectedRetries;
+  const prevCooldown = config.trainDeferralCooldownBaseMs;
   config.jobs.training.maxRejectedRetries = 2;
+  // A zero cooldown lets the second run proceed immediately in the test.
+  config.trainDeferralCooldownBaseMs = 0;
   const registry = await RegistryStore.open(tmp());
   const store = await seededStore();
   try {
@@ -195,34 +209,39 @@ test("a second rejection exhausts the retry budget and retires the batch", async
     assert.equal(second.decision.decision, "rejected");
 
     const stats = store.getStats();
-    assert.equal(stats.retired, 3, "retired material is its own visible category");
-    assert.equal(stats.trainable, 0, "retired material is no longer eligible");
+    assert.equal(stats.retired, 0, "source knowledge is never retired on a training rejection");
+    assert.equal(stats.trainable, 0, "replay-pool material is no longer the fresh delta");
+    assert.equal(stats.retainedForReplay, 3, "exhausted batches are retained for replay");
     assert.equal(stats.uniqueConsumed, 0);
-    assert.equal(stats.totalArticles, 3, "retirement hides nothing from the ledger");
+    assert.equal(stats.totalArticles, 3, "replay-pool hides nothing from the ledger");
 
     for (const a of store.articlesPage({ limit: 50 }).items) {
-      assert.equal(a.status, "RETIRED");
+      assert.equal(a.status, "REVIEWED");
+      assert.equal(a.replayOnly, true);
       assert.equal(a.deferralRetries, 2);
-      assert.equal(a.deferredReason, "max-retries-exceeded");
-      assert.equal(a.deferredRunId, null);
+      assert.match(a.deferredReason, /rejected|improvement/);
       assert.equal(a.trainable, false);
     }
-    // Still addressable by status, and absent from the active queues.
-    assert.equal(store.articlesPage({ limit: 50, status: "RETIRED" }).items.length, 3);
+    // Still addressable by status, absent from the fresh queues, present in the
+    // replay pool.
+    assert.equal(store.articlesPage({ limit: 50, status: "RETIRED" }).items.length, 0);
     assert.equal(store.reviewQueue({ limit: 50 }).items.length, 0);
     assert.equal(store.trainablePage({ limit: 50 }).items.length, 0);
+    assert.equal(store.articlesPage({ limit: 50, replayOnly: true }).items.length, 3);
 
-    // A further run has nothing left to train on — reported, never fabricated.
+    // A further run has nothing fresh left to train on — reported, never fabricated.
     await assert.rejects(rejectedRun(registry, store), /dataset empty after snapshot guards/);
 
     const dir = store.dir;
     await store.close();
     const reopened = await ArticleStore.open(dir);
-    assert.equal(reopened.getStats().retired, 3, "retirement replays from the log");
+    assert.equal(reopened.getStats().retired, 0, "replay-pool membership replays from the log");
     assert.equal(reopened.getStats().trainable, 0);
+    assert.equal(reopened.getStats().retainedForReplay, 3);
     await reopened.close();
   } finally {
-    config.jobs.training.maxRejectedRetries = prev;
+    config.jobs.training.maxRejectedRetries = prevRetries;
+    config.trainDeferralCooldownBaseMs = prevCooldown;
     await registry.close();
   }
 });
@@ -238,41 +257,50 @@ test("re-driving the same rejected run does not inflate the retry count", async 
   assert.equal(again.skipped.length, 3);
   for (const a of store.articlesPage({ limit: 50 }).items) assert.equal(a.deferralRetries, 1);
 
-  // A DIFFERENT run is a genuine second attempt, and exhausts the budget.
+  // A DIFFERENT run is a genuine second attempt, and exhausts the budget: the
+  // material moves to the replay pool instead of being retired.
   const next = await store.deferArticles(ids, { runId: "run-2", reason: "rejected", maxRetries: 2 });
-  assert.equal(next.retired.length, 3);
-  // A retired article is never deferred again.
+  assert.equal(next.replayPool.length, 3);
+  // A replay-pool article is never deferred again.
   const after = await store.deferArticles(ids, { runId: "run-3", reason: "rejected", maxRetries: 2 });
   assert.deepEqual(after.deferred, []);
-  assert.deepEqual(after.retired, []);
+  assert.deepEqual(after.replayPool, []);
+  assert.equal(after.skipped.length, 3);
   await store.close();
 });
 
 test("a promoted run clears the deferral state of the batch it consumed", async () => {
+  const prevCooldown = config.trainDeferralCooldownBaseMs;
+  // Zero cooldown lets the deferred batch be re-selected immediately.
+  config.trainDeferralCooldownBaseMs = 0;
   const registry = await RegistryStore.open(tmp());
   const store = await seededStore();
+  try {
+    await rejectedRun(registry, store);
+    for (const a of store.articlesPage({ limit: 50 }).items) assert.equal(a.deferralRetries, 1);
 
-  await rejectedRun(registry, store);
-  for (const a of store.articlesPage({ limit: 50 }).items) assert.equal(a.deferralRetries, 1);
+    const promoted = await executeFullRun({
+      registry,
+      options: { paths: { snapshots: tmp(), models: tmp(), plans: tmp(), evaluation: tmp() } },
+      deps: { store, trainer: stubTrainer(), complete: exactComplete, evalSeed: async () => EVAL_SEED },
+    });
+    assert.equal(promoted.decision.decision, "promoted");
+    assert.equal(store.getStats().uniqueConsumed, 3);
 
-  const promoted = await executeFullRun({
-    registry,
-    options: { paths: { snapshots: tmp(), models: tmp(), plans: tmp(), evaluation: tmp() } },
-    deps: { store, trainer: stubTrainer(), complete: exactComplete, evalSeed: async () => EVAL_SEED },
-  });
-  assert.equal(promoted.decision.decision, "promoted");
-  assert.equal(store.getStats().uniqueConsumed, 3);
-
-  const dir = store.dir;
-  await store.close();
-  const reopened = await ArticleStore.open(dir);
-  for (const a of reopened.articlesPage({ limit: 50 }).items) {
-    assert.equal(a.deferralRetries, 0, "the clearing is durable, not in-memory");
-    assert.equal(a.deferredRunId, null);
-    assert.equal(a.deferredReason, null);
+    const dir = store.dir;
+    await store.close();
+    const reopened = await ArticleStore.open(dir);
+    for (const a of reopened.articlesPage({ limit: 50 }).items) {
+      assert.equal(a.deferralRetries, 0, "the clearing is durable, not in-memory");
+      assert.equal(a.deferredRunId, null);
+      assert.equal(a.deferredReason, null);
+      assert.equal(a.deferredUntil, null, "the cooldown is cleared too");
+    }
+    await reopened.close();
+  } finally {
+    config.trainDeferralCooldownBaseMs = prevCooldown;
+    await registry.close();
   }
-  await reopened.close();
-  await registry.close();
 });
 
 test("an undersized frozen eval set warns on the run record without gating promotion", async () => {

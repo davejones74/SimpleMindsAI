@@ -12,6 +12,7 @@ import {
   bestCheckpointForHash,
   classifyTrend,
   computeChartScales,
+  computeContributionSummary,
   deriveRunEvents,
   deriveSeries,
   downsample,
@@ -152,6 +153,14 @@ export function attachAdmin({ app, store, registry, governance, chat, conversati
         snapshotCount: w.services.registry.listSnapshots().length,
         evaluationCount: w.services.registry.listEvaluations().length,
       },
+      // Actual learning contribution: "appeared in a batch" vs "contributed to
+      // a promoted model", plus retained-after-rejection material. This is the
+      // honest measure of the knowledge-contribution objective, never a claim
+      // that every trained article influenced the active brain.
+      contribution: computeContributionSummary({
+        contributions: typeof w.services.store.listContributions === "function" ? w.services.store.listContributions() : [],
+        eligibleUniqueArticles: stats.reviewed ?? 0,
+      }),
       evaluation: evaluationAdvisories(w.services.registry),
       mission: { primary: w.mission.primary(), secondary: w.mission.secondary() },
       strategy: w.strategy.active(),

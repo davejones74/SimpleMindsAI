@@ -139,6 +139,7 @@ export function pythonTrainer({
   valBlocks = config.trainValBlocks,
   evalEvery = config.trainEvalEvery,
   computeDtype = config.trainComputeDtype,
+  selectBest = config.trainSelectBest,
   timeoutMs = config.trainTimeoutMs,
   run = runPython,
   version = config.pythonTrainerVersion,
@@ -221,6 +222,10 @@ export function pythonTrainer({
         "--compute-dtype", resolvedDtype,
         "--device", device,
       ];
+      // Best-checkpoint selection is a selection policy, not a hyperparameter:
+      // disable it explicitly when configured off, otherwise the Python default
+      // (enabled) applies.
+      if (selectBest === false) args.push("--no-select-best");
       if (runId) args.push("--run-id", String(runId));
       // Commit-on-promotion: build the checkpoint but leave it UNPUBLISHED
       // (`vNNN.tmp`); the lifecycle publishes it only on a real promotion.
@@ -277,6 +282,9 @@ export function pythonTrainer({
         initialTrainLoss: out.initialTrainLoss ?? null,
         finalTrainLoss: out.finalTrainLoss ?? null,
         finalValidationLoss: out.finalValidationLoss ?? null,
+        selectBest: out.selectBest ?? null,
+        selectedStep: out.selectedStep ?? null,
+        selectedValidationLoss: out.selectedValidationLoss ?? null,
         avgLoss: out.finalTrainLoss ?? null,
         tokensSeen: out.tokensSeen ?? null,
         blockCount: out.blockCount ?? null,

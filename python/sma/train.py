@@ -315,6 +315,11 @@ class TrainResult:
     stopReason: Optional[str]
     history: List[Dict[str, Any]] = field(default_factory=list)
     validationHistory: List[Dict[str, Any]] = field(default_factory=list)
+    # Best-checkpoint selection: the step whose held-out (in-training) validation
+    # loss was lowest, and that loss. When selection is disabled or no validation
+    # was ever measurable, both are None and the final step is published.
+    selectedStep: Optional[int] = None
+    selectedValidationLoss: Optional[float] = None
 
 
 def _finite(t: torch.Tensor) -> bool:
@@ -515,6 +520,7 @@ def train(
     telemetry_interval_ms: int = 1000,
     layer_activity_enabled: bool = False,
     layer_activity_interval_ms: int = 2000,
+    select_best: bool = True,
 ) -> tuple[TrainResult, Dict[str, Any], "torch.optim.Optimizer"]:
     """Run real optimization.
 
@@ -684,6 +690,18 @@ def train(
     log(f"initial train loss {initial_train_loss:.4f} (uniform = ln(V))")
     if initial_validation_loss is not None:
         log(f"initial validation loss {initial_validation_loss:.4f}")
+
+    # Best-checkpoint selection. The candidate that gets published is the TRAINED
+    # step with the LOWEST held-out (in-training) validation loss, not the final
+    # step: a schedule whose validation drifts back up after a mid-run minimum
+    # must not ship the degraded tail. The opening (parent) state is NOT a
+    # candidate — the least-bad trained checkpoint is still a trained checkpoint,
+    # and the frozen evaluation set remains the promotion GATE (in-training
+    # validation is only the SELECTION criterion). Best weights are held on the
+    # CPU as fp32 masters (one extra ~248 MB copy for the 62M model).
+    best_validation_loss = None
+    best_step = None
+    best_state = None
 
     # Seed the validation curve with the opening point. On a resume the carried
     # history already ends on the boundary this segment opens from (its final
@@ -878,6 +896,17 @@ def train(
             periodic_val = evaluate()
             if periodic_val is not None:
                 validation_history.append({"step": step, "loss": periodic_val})
+                if select_best and (best_validation_loss is None or periodic_val < best_validation_loss):
+                    best_validation_loss = periodic_val
+                    best_step = step
+                    # `state_dict()` (not `named_parameters()`) so the tied
+                    # `lm_head.weight` alias is present and load_state_dict can
+                    # restore strict; values are detached CPU clones so they are
+                    # a true snapshot, not a live reference to the model.
+                    best_state = {
+                        name: tensor.detach().to("cpu").clone()
+                        for name, tensor in model.state_dict().items()
+                    }
                 emit_telemetry(
                     "evaluation",
                     step=step + 1,
@@ -901,6 +930,42 @@ def train(
             tokensSeen=tokens_seen,
         )
 
+    # Publish the best-checkpoint weights. The final step is also a trained
+    # candidate, evaluated just above. `best_state` holds the argmin among the
+    # periodic samples (or None when no periodic sample yet improved, or when
+    # selection is disabled). If the final step is the best observed, the live
+    # model already holds its weights and no restore is needed; otherwise
+    # restore the saved mid-run snapshot so the caller snapshots and saves
+    # exactly the weights that won.
+    selected_step = None
+    selected_validation_loss = None
+    if select_best and final_validation_loss is not None:
+        if best_validation_loss is None or final_validation_loss < best_validation_loss:
+            # Final step wins; it is already resident.
+            best_validation_loss = final_validation_loss
+            best_step = completed - 1
+            best_state = None
+        selected_step = best_step
+        selected_validation_loss = best_validation_loss
+        if best_state is not None:
+            model.load_state_dict(best_state)
+            log(
+                f"best-checkpoint selection: publishing step {best_step} "
+                f"(validation {best_validation_loss:.4f}) over the final step "
+                f"({final_validation_loss:.4f})"
+            )
+        else:
+            log(
+                f"best-checkpoint selection: final step {best_step} is best "
+                f"(validation {best_validation_loss:.4f})"
+            )
+    elif select_best and best_state is not None and not stopped_early:
+        # No final validation (should not happen when not stopped early), but a
+        # periodic sample was recorded; restore it rather than the unseen tail.
+        selected_step = best_step
+        selected_validation_loss = best_validation_loss
+        model.load_state_dict(best_state)
+
     result = TrainResult(
         version=new_version,
         parentVersion=parent_version,
@@ -919,6 +984,8 @@ def train(
         stopReason=stop_reason,
         history=history,
         validationHistory=validation_history,
+        selectedStep=selected_step,
+        selectedValidationLoss=selected_validation_loss,
     )
 
     train_state = {
@@ -931,6 +998,12 @@ def train(
         "corpusSplit": split,
         "stepsCompleted": completed,
         "tokensSeen": tokens_seen,
+        # Whether the published weights are the best-checkpoint (and which step)
+        # or the final step. Recorded so a reader can tell a selected checkpoint
+        # from a final-step publish after the fact.
+        "selectBest": bool(select_best),
+        "selectedStep": selected_step,
+        "selectedValidationLoss": selected_validation_loss,
         # The sample order and its cursor are part of the resume state. Without
         # them a resumed run silently restarts the shuffle, so "resumed" and
         # "retrained from the same corpus" become indistinguishable in the record.

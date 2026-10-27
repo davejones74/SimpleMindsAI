@@ -13,6 +13,7 @@ import {
   resolveRunOutcome,
   deriveRunEvents,
   computeChartScales,
+  computeContributionSummary,
 } from "../src/admin/metrics.js";
 
 const DEFAULTS = { minPoints: 3, improveDrop: 0.01, worsenRise: 0.05, overfitValRise: 0.02 };
@@ -460,4 +461,39 @@ test("deriveSeries: duplicate steps are collapsed (the later sample wins)", () =
     validationHistory: [{ step: 0, loss: 5 }, { step: 0, loss: 4.99 }, { step: 1, loss: 4.9 }],
   });
   assert.deepEqual(s.validationSeries.map((p) => p.step), [0, 1]);
+});
+
+// ------------------------------------------------------- learning contribution
+
+test("computeContributionSummary separates batch exposure from promoted contribution", () => {
+  const rows = [
+    { runId: "run-1", decision: "promoted", freshArticleIds: ["a1", "a2"], replayArticleIds: ["r1"], trainTokensSeen: 2000, replayTokensSeen: 500, validationTokensSeen: 800 },
+    { runId: "run-2", decision: "rejected", freshArticleIds: ["a3"], replayArticleIds: ["r2"], trainTokensSeen: 1000, replayTokensSeen: 300, validationTokensSeen: 400 },
+    { runId: "run-3", decision: "promoted", freshArticleIds: ["a2"], replayArticleIds: ["r1"], trainTokensSeen: 1500, replayTokensSeen: 400, validationTokensSeen: 600 },
+  ];
+  const s = computeContributionSummary({ contributions: rows, eligibleUniqueArticles: 10 });
+  assert.equal(s.totalRuns, 3);
+  assert.equal(s.promotedRuns, 2);
+  assert.equal(s.rejectedRuns, 1);
+  // Batch exposure unions across every run; promoted contribution unions only
+  // promoted runs. These must be DIFFERENT numbers.
+  assert.equal(s.batch.unique, 5); // a1,a2,a3 + r1,r2
+  assert.equal(s.promoted.unique, 3); // a1,a2 + r1
+  assert.equal(s.promoted.freshUnique, 2);
+  assert.equal(s.promoted.replayUnique, 1);
+  assert.equal(s.promoted.coverage, 0.3);
+  assert.equal(s.batch.coverage, 0.5);
+  assert.equal(s.eligibleUniqueArticles, 10);
+  assert.equal(s.replayTokensConsumed, 1200);
+  assert.equal(s.trainTokensSeen, 4500);
+});
+
+test("computeContributionSummary is safe on empty and legacy ledgers", () => {
+  assert.deepEqual(computeContributionSummary(), {
+    totalRuns: 0, promotedRuns: 0, rejectedRuns: 0,
+    batch: { freshUnique: 0, replayUnique: 0, unique: 0, coverage: null },
+    promoted: { freshUnique: 0, replayUnique: 0, unique: 0, coverage: null },
+    freshTokensConsumed: null, replayTokensConsumed: 0, trainTokensSeen: 0, validationTokensSeen: 0,
+    eligibleUniqueArticles: 0,
+  });
 });

@@ -755,3 +755,61 @@ def test_layer_measurement_does_not_change_training_updates(small_model, tokeniz
     assert before.keys() == after.keys()
     for name in before:
         assert torch.equal(before[name], after[name]), f"layer measurement changed {name}"
+
+
+# ---------------------------------------------------- best-checkpoint selection
+
+
+def test_best_checkpoint_selects_the_minimum_validation_step(small_model, tokenizer):
+    """With selection enabled and periodic validation, the published step is the
+    argmin of the in-training validation curve, recorded with its loss, and the
+    train state records the selection policy so it is reconstructible later."""
+    model, _config, _sizes = small_model
+    result, state, _opt = train_mod.train(
+        model=model.float(),
+        tokenizer=tokenizer,
+        documents=data_mod.load_documents([FIXTURE_CORPUS]),
+        cfg=_cfg(steps=6, evalEvery=1),
+        parent_version="v001",
+        new_version="v002",
+        tokenizer_path=FIXTURE_CORPUS,
+        device="cpu",
+        select_best=True,
+    )
+    assert state["selectBest"] is True
+    assert result.selectedStep is not None
+    assert 0 <= result.selectedStep < result.steps
+    # The recorded selected loss must equal the minimum recorded validation loss.
+    vals = [entry["loss"] for entry in state["validationHistory"]]
+    assert result.selectedValidationLoss == pytest.approx(min(vals))
+    assert state["selectedStep"] == result.selectedStep
+
+
+def test_best_checkpoint_disabled_publishes_the_final_step(small_model, tokenizer):
+    model, _config, _sizes = small_model
+    result, state, _opt = train_mod.train(
+        model=model.float(),
+        tokenizer=tokenizer,
+        documents=data_mod.load_documents([FIXTURE_CORPUS]),
+        cfg=_cfg(steps=4, evalEvery=1),
+        parent_version="v001",
+        new_version="v002",
+        tokenizer_path=FIXTURE_CORPUS,
+        device="cpu",
+        select_best=False,
+    )
+    assert state["selectBest"] is False
+    assert result.selectedStep is None
+    assert result.selectedValidationLoss is None
+
+
+def test_repetition_metrics_flags_degenerate_output(tokenizer):
+    from sma import brain as brain_mod
+
+    degenerate = brain_mod.repetition_metrics(tokenizer, "6 6 6 6 6 6 6 6")
+    varied = brain_mod.repetition_metrics(tokenizer, "The capital of France is Paris and it is a large city")
+    assert degenerate["tokens"] > 0
+    assert degenerate["rep1"] < varied["rep1"], "a repetitive stream has a lower unique-1-gram ratio"
+    assert degenerate["rep2"] is None or degenerate["rep2"] <= varied["rep2"] or degenerate["rep2"] < 1.0
+    assert degenerate["maxRun"] >= 1
+    assert varied["maxRun"] >= 1

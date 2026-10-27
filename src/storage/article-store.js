@@ -8,6 +8,7 @@ import {
   STATUS,
   VERDICT,
   contentHash,
+  inDeferralCooldown,
   isImportance,
   isQuarantineReason,
   isStatus,
@@ -49,6 +50,11 @@ const COLLECTIONS = {
   // content hash. Lets the acquisition path skip re-curating an unchanged
   // source, and records which article(s) each raw source produced.
   rawSources: "raw-sources.ndjson",
+  // Durable learning-contribution ledger: one row per COMPLETED training run
+  // recording which articles contributed (fresh vs replay) and the decision.
+  // This is what makes "cumulative exposure across promoted models" a measurable
+  // fact rather than a claim that "the article appeared in a batch".
+  contributions: "training-contribution.ndjson",
 };
 
 /** Old pair-based files. Detected read-only, never loaded as a source of truth. */
@@ -99,6 +105,7 @@ export class ArticleStore {
     this.events = []; // audit trail
     this.consumption = []; // durable appearances
     this.rawSources = new Map(); // fetchedContentHash -> { sourceUrl, firstSeenAt, curatedAt, articleIds:[] }
+    this.contributions = []; // durable per-run learning-contribution ledger
 
     this.#streams = {};
     if (!readOnly) {
@@ -172,6 +179,9 @@ export class ArticleStore {
         articleIds: rec.articleIds ?? [],
       });
     }
+    for (const rec of await lines(COLLECTIONS.contributions)) {
+      this.contributions.push(rec);
+    }
   }
 
   #awaitWrite(ws, chunk) {
@@ -208,10 +218,21 @@ export class ArticleStore {
       a.deferralRetries = Number.isFinite(rec.retries) ? rec.retries : (a.deferralRetries ?? 0) + 1;
       a.deferredRunId = rec.retired ? null : rec.runId ?? null;
       a.deferredReason = rec.reason ?? null;
+      a.deferredUntil = rec.deferredUntil ?? null;
+    } else if (rec.type === "replay-only") {
+      // Fresh retries exhausted: the article is moved OUT of the fresh delta
+      // and INTO the replay pool. It is never deleted and never RETIRED — a
+      // rejected candidate's source knowledge survives for future replay under
+      // an improved training strategy.
+      a.replayOnly = true;
+      a.deferralRetries = Number.isFinite(rec.retries) ? rec.retries : (a.deferralRetries ?? 0);
+      a.deferredReason = rec.reason ?? a.deferredReason ?? null;
+      a.deferredUntil = null;
     } else if (rec.type === "deferral-cleared") {
       a.deferralRetries = 0;
       a.deferredRunId = null;
       a.deferredReason = null;
+      a.deferredUntil = null;
     } else if (rec.type === "quarantine") {
       // Reversible holding state. The reason is carried ON the event so a
       // replay reconstructs the audit trail without any in-memory-only field,
@@ -410,7 +431,7 @@ const rec = {
    * Paginated read with optional filters. Cursor is an articleId; filtering may
    * skip pages, which is acceptable for a prototype and flagged in the README.
    */
-  articlesPage({ after = null, limit = 100, status, importance, consumed, domain, order = "asc" } = {}) {
+  articlesPage({ after = null, limit = 100, status, importance, consumed, domain, replayOnly, trainableOnly = false, order = "asc" } = {}) {
     // Insertion order is recency order (articles are appended as they are
     // curated), so `order: "desc"` walks the tail first to surface the newest
     // material. The cursor is the last id returned; the next page resumes on
@@ -432,9 +453,11 @@ const rec = {
       if (status && rec.status !== status) continue;
       if (importance && rec.importance !== importance) continue;
       if (consumed !== undefined && Boolean(rec.consumedAt) !== consumed) continue;
+      if (replayOnly !== undefined && Boolean(rec.replayOnly) !== replayOnly) continue;
       if (domain && rec.domain !== domain) continue;
       rec.reviewCount = (this.reviews.get(rec.articleId) ?? []).length;
       rec.trainable = isTrainable(rec);
+      if (trainableOnly && !rec.trainable) continue;
       items.push(rec);
       nextCursor = rec.articleId;
     }
@@ -442,7 +465,7 @@ const rec = {
   }
 
   trainablePage({ after = null, limit = 100 } = {}) {
-    return this.articlesPage({ after, limit, status: STATUS.REVIEWED, consumed: false });
+    return this.articlesPage({ after, limit, status: STATUS.REVIEWED, consumed: false, trainableOnly: true });
   }
 
   reviewQueue({ after = null, limit = 100 } = {}) {
@@ -796,26 +819,86 @@ const rec = {
     return { consumed, skipped };
   }
 
+  /**
+   * Record one training run's actual learning contribution, durably.
+   *
+   * This is the ledger that lets the system REPORT exposure honestly: "this
+   * article appeared in a training batch" (any decision) vs "this article
+   * contributed to a promoted model" (decision === "promoted"). Both are
+   * measurable here; neither is inferred from consumption alone (replay rows are
+   * never re-consumed, so consumption understates what a run actually trained
+   * on). Appended, never mutated; idempotent per run.
+   */
+  async recordTrainingContribution({
+    runId,
+    decision,
+    version = null,
+    parentVersion = null,
+    freshArticleIds = [],
+    replayArticleIds = [],
+    trainTokensSeen = null,
+    replayTokensSeen = null,
+    validationTokensSeen = null,
+  } = {}) {
+    this.#assertWritable();
+    if (!runId) throw new Error("recordTrainingContribution requires a runId");
+    if (this.contributions.some((c) => c.runId === runId && c.decision === decision)) {
+      return { recorded: false, duplicate: true };
+    }
+    const rec = {
+      schema: "sma/training-contribution@1",
+      runId,
+      decision: decision ?? null,
+      version: version ?? null,
+      parentVersion: parentVersion ?? null,
+      freshArticleIds: Array.isArray(freshArticleIds) ? freshArticleIds : [],
+      replayArticleIds: Array.isArray(replayArticleIds) ? replayArticleIds : [],
+      trainTokensSeen: Number.isFinite(Number(trainTokensSeen)) ? Number(trainTokensSeen) : null,
+      replayTokensSeen: Number.isFinite(Number(replayTokensSeen)) ? Number(replayTokensSeen) : null,
+      validationTokensSeen: Number.isFinite(Number(validationTokensSeen)) ? Number(validationTokensSeen) : null,
+      at: new Date().toISOString(),
+    };
+    this.contributions.push(rec);
+    await this.#persist("contributions", rec);
+    return { recorded: true, duplicate: false };
+  }
+
+  /** The durable per-run learning-contribution ledger (read-only view). */
+  listContributions() {
+    return [...this.contributions];
+  }
+
   // ----------------------------------------------------- deferral / retire
   /**
    * Durable deferral of a batch a training run rejected.
    *
    * A rejected run must NOT consume its articles — they stay eligible so a
    * later run can retry them alongside new material. Each deferral is an
-   * appended event carrying the RESULTING retry count, so replaying the log
-   * after a restart reconstructs exactly the same counters (no in-memory-only
-   * state). Once the count reaches `maxRetries` the article is moved to the
-   * explicit `RETIRED` status and is never selected again.
+   * appended event carrying the RESULTING retry count and a cooldown deadline,
+   * so replaying the log after a restart reconstructs exactly the same counters
+   * and timers (no in-memory-only state).
+   *
+   * Rejection of candidate WEIGHTS is never a rejection of SOURCE KNOWLEDGE:
+   * once `maxRetries` is reached the article is NOT retired. It is moved to the
+   * replay pool (`replayOnly`) — still REVIEWED, still addressable, excluded
+   * from the fresh delta but still sampled as historical material so it can
+   * contribute again under an improved training strategy. Retiring on a
+   * training rejection was the exact bug this replaces.
    *
    * Idempotent per run: re-driving the same rejected run (crash recovery)
    * finds `deferredRunId === runId` and does nothing, so a retry can never
-   * inflate the counter or retire an article early.
+   * inflate the counter or escalate an article early.
    */
-  async deferArticles(articleIds = [], { runId = null, reason = null, maxRetries = 2 } = {}) {
+  async deferArticles(
+    articleIds = [],
+    { runId = null, reason = null, maxRetries = 2, cooldownBaseMs = 6 * 60 * 60 * 1000, cooldownMaxMs = 24 * 60 * 60 * 1000, now = Date.now() } = {},
+  ) {
     this.#assertWritable();
     const limit = Number.isFinite(Number(maxRetries)) ? Number(maxRetries) : 0;
+    const base = Number.isFinite(Number(cooldownBaseMs)) ? Number(cooldownBaseMs) : 0;
+    const cap = Number.isFinite(Number(cooldownMaxMs)) ? Number(cooldownMaxMs) : base;
     const deferred = [];
-    const retired = [];
+    const replayPool = [];
     const skipped = [];
     for (const articleId of articleIds ?? []) {
       const article = this.articles.get(articleId);
@@ -827,37 +910,44 @@ const rec = {
         skipped.push({ articleId, reason: "already-retired" });
         continue;
       }
+      if (article.replayOnly === true) {
+        skipped.push({ articleId, reason: "already-replay-pool" });
+        continue;
+      }
       if (runId && article.deferredRunId === runId) {
         skipped.push({ articleId, reason: "already-deferred-by-run" });
         continue;
       }
       const retries = (article.deferralRetries ?? 0) + 1;
-      const retire = limit > 0 && retries >= limit;
-      await this.#event({
-        type: "deferral",
-        articleId,
-        runId: runId ?? null,
-        retries,
-        retired: retire,
-        reason: retire ? "max-retries-exceeded" : reason ?? "rejected by training run",
-        actor: AUTHORITY.AUTOMATION,
-      });
-      if (retire) {
+      const exhausted = limit > 0 && retries >= limit;
+      if (exhausted) {
         await this.#event({
-          type: "status",
+          type: "replay-only",
           articleId,
-          from: article.status,
-          to: STATUS.RETIRED,
+          runId: runId ?? null,
+          retries,
+          reason: reason ?? "rejected by training run",
           actor: AUTHORITY.AUTOMATION,
-          reason: "max-retries-exceeded",
         });
-        retired.push(articleId);
+        replayPool.push(articleId);
       } else {
+        const delay = Math.min(base * 2 ** (retries - 1), cap || base || 0);
+        const deferredUntil = new Date(now + delay).toISOString();
+        await this.#event({
+          type: "deferral",
+          articleId,
+          runId: runId ?? null,
+          retries,
+          retired: false,
+          reason: reason ?? "rejected by training run",
+          deferredUntil,
+          actor: AUTHORITY.AUTOMATION,
+        });
         deferred.push(articleId);
       }
       article.updatedAt = new Date().toISOString();
     }
-    return { deferred, retired, skipped };
+    return { deferred, replayPool, skipped };
   }
 
   /**
@@ -871,7 +961,7 @@ const rec = {
     for (const articleId of articleIds ?? []) {
       const article = this.articles.get(articleId);
       if (!article) continue;
-      const hasState = Boolean(article.deferredRunId) || Boolean(article.deferredReason) || (article.deferralRetries ?? 0) > 0;
+      const hasState = Boolean(article.deferredRunId) || Boolean(article.deferredReason) || (article.deferralRetries ?? 0) > 0 || Boolean(article.deferredUntil);
       if (!hasState) continue;
       await this.#event({
         type: "deferral-cleared",
@@ -892,12 +982,16 @@ const rec = {
     const byImportance = Object.fromEntries(["Normal", "Important", "Critical"].map((i) => [i, 0]));
     const byDomain = new Map();
     let trainable = 0;
+    let deferredFresh = 0;
+    let retainedForReplay = 0;
     let quarantineReleased = 0;
     for (const a of this.articles.values()) {
       byStatus[a.status] = (byStatus[a.status] ?? 0) + 1;
       byImportance[a.importance] = (byImportance[a.importance] ?? 0) + 1;
       byDomain.set(a.domain, (byDomain.get(a.domain) ?? 0) + 1);
       if (isTrainable(a)) trainable++;
+      if (a.replayOnly === true) retainedForReplay++;
+      if (inDeferralCooldown(a)) deferredFresh++;
       if (a.quarantineReleasedAt) quarantineReleased++;
     }
     const scores = [];
@@ -919,6 +1013,11 @@ const rec = {
       // Quarantined material is likewise visible as its own reversible category.
       quarantined: byStatus[STATUS.QUARANTINED] ?? 0,
       trainable,
+      // Articles currently in a rejected-run cooldown (still REVIEWED, not yet
+      // re-selectable as fresh), and articles whose fresh retries are exhausted
+      // and now live in the replay pool (never retired, never deleted).
+      deferredFresh,
+      retainedForReplay,
       // Progress accounting (Slice 6). `trainable` is the ONLY source of training
       // material (reviewed + unconsumed + not retired); the corpus is never
       // replayed. `recoverable` is the size of the pipeline that can still become

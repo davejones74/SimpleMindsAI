@@ -93,11 +93,35 @@ export function isQuarantineReason(v) {
 }
 
 /**
- * The single trainability predicate. Nothing else may decide this. Pending,
- * rejected, ingested, and already-consumed articles are all excluded.
+ * True while an article is deferred after a rejected training run and its
+ * cooldown has not yet elapsed. Deferral is a *delay*, not a verdict: once the
+ * deadline passes the article is eligible again.
  */
-export function isTrainable(article) {
-  return Boolean(article) && article.status === STATUS.REVIEWED && !article.consumedAt && article.status !== STATUS.RETIRED;
+export function inDeferralCooldown(article, now = Date.now()) {
+  if (!article?.deferredUntil) return false;
+  const until = Date.parse(article.deferredUntil);
+  return Number.isFinite(until) && until > now;
+}
+
+/**
+ * The single trainability predicate. Nothing else may decide this. Pending,
+ * rejected, ingested, and already-consumed articles are all excluded, as are
+ * articles whose rejected-run cooldown has not elapsed and articles whose fresh
+ * retries are exhausted (`replayOnly` — they remain learnable via replay, never
+ * deleted, but are no longer treated as the fresh delta).
+ */
+export function isTrainable(article, now = Date.now()) {
+  return Boolean(article) && article.status === STATUS.REVIEWED && !article.consumedAt && article.status !== STATUS.RETIRED && article.replayOnly !== true && !inDeferralCooldown(article, now);
+}
+
+/**
+ * Membership of the replay pool: REVIEWED material that has either already been
+ * consumed by a promoted model, or exhausted its fresh retries (`replayOnly`).
+ * Retired and quarantined material is excluded. This is the historical-training
+ * reservoir a run samples from to retain earlier learning alongside new input.
+ */
+export function isReplayPool(article) {
+  return Boolean(article) && article.status === STATUS.REVIEWED && article.status !== STATUS.RETIRED && (Boolean(article.consumedAt) || article.replayOnly === true);
 }
 
 /** Normalise an importance value, defaulting to Normal (never throws on read). */
