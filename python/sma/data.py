@@ -20,13 +20,17 @@ import hashlib
 import json
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
-from typing import Any, Dict, List, Sequence
+from typing import Any, Dict, List, Optional, Sequence
 
 import torch
 
 # Recorded in train state. A different value is a different corpus.
 PACKING_STRATEGY = "concatenate-chunk-v1"
+PACKING_STRATEGY_EOS = "concatenate-chunk-v2-eos"
 SEPARATOR_TOKEN = "\n\n"
+DOCUMENT_BOUNDARY_SEPARATOR = "separator"
+DOCUMENT_BOUNDARY_EOS = "eos"
+DOCUMENT_BOUNDARIES = (DOCUMENT_BOUNDARY_SEPARATOR, DOCUMENT_BOUNDARY_EOS)
 
 
 class InsufficientCorpusError(ValueError):
@@ -35,6 +39,14 @@ class InsufficientCorpusError(ValueError):
     This is an *operator* condition (too little reviewed material for the chosen
     `--seq-len`), not a training fault. Callers distinguish it from a numerical
     failure so a continuous job can wait for more material instead of crashing.
+    """
+
+
+class InsufficientValidationError(ValueError):
+    """The requested validation policy cannot produce a valid holdout.
+
+    This is deliberately fatal. A silent fallback to tail splitting would make
+    the run look valid while validating on a weaker, potentially leaky split.
     """
 
 
@@ -52,6 +64,8 @@ class PackRecord:
     articles: List[Dict[str, Any]]
     datasetHash: str
     tokenizerHash: str
+    documentBoundary: str = DOCUMENT_BOUNDARY_SEPARATOR
+    eosTokenId: Optional[int] = None
     # Role accounting, recorded per pack so a run can prove how much of the
     # corpus was fresh, replay or held-out validation. `tokensSeen` is the sum
     # over documents and excludes separators; role counts are the same unit.
@@ -117,6 +131,7 @@ def pack(
     documents: Sequence[Dict[str, str]],
     sequence_length: int,
     tokenizer_path: Path,
+    document_boundary: str = DOCUMENT_BOUNDARY_SEPARATOR,
 ) -> tuple[torch.Tensor, PackRecord]:
     """Tokenize, concatenate, chunk. Returns blocks and its reconstruction record.
 
@@ -128,6 +143,17 @@ def pack(
     """
     if sequence_length <= 0:
         raise ValueError("sequence_length must be positive")
+    if document_boundary not in DOCUMENT_BOUNDARIES:
+        raise ValueError(
+            f"unknown document boundary {document_boundary!r}; expected one of {DOCUMENT_BOUNDARIES}"
+        )
+    eos_id = getattr(tokenizer, "eos_token_id", None)
+    if eos_id is None:
+        eos_token = getattr(tokenizer, "eos_token", None)
+        if eos_token:
+            eos_id = tokenizer.convert_tokens_to_ids(eos_token)
+    if document_boundary == DOCUMENT_BOUNDARY_EOS and (eos_id is None or int(eos_id) < 0):
+        raise ValueError("document boundary 'eos' requested but the tokenizer has no valid eos_token_id")
 
     for doc in documents:
         actual = _sha256_text(doc["text"])
@@ -157,10 +183,19 @@ def pack(
 
     sep_ids = tokenizer(SEPARATOR_TOKEN, add_special_tokens=False).input_ids
     stream: List[int] = []
-    for index, ids in enumerate(pieces):
-        if index:
-            stream.extend(sep_ids)
-        stream.extend(ids)
+    if document_boundary == DOCUMENT_BOUNDARY_EOS:
+        for ids in pieces:
+            stream.extend(ids)
+            stream.append(int(eos_id))
+        strategy = PACKING_STRATEGY_EOS
+        recorded_separator = "<eos>"
+    else:
+        for index, ids in enumerate(pieces):
+            if index:
+                stream.extend(sep_ids)
+            stream.extend(ids)
+        strategy = PACKING_STRATEGY
+        recorded_separator = SEPARATOR_TOKEN
 
     total = len(stream)
     usable = (total // sequence_length) * sequence_length
@@ -175,9 +210,11 @@ def pack(
         )
 
     record = PackRecord(
-        strategy=PACKING_STRATEGY,
+        strategy=strategy,
         sequenceLength=sequence_length,
-        separator=SEPARATOR_TOKEN,
+        separator=recorded_separator,
+        documentBoundary=document_boundary,
+        eosTokenId=int(eos_id) if document_boundary == DOCUMENT_BOUNDARY_EOS else None,
         documentCount=len(documents),
         blockCount=int(blocks.shape[0]),
         tokensSeen=seen,
@@ -262,12 +299,37 @@ def _merge_pack_records(
             ",".join(d["contentHash"] for d in documents).encode("utf-8")
         ).hexdigest(),
         tokenizerHash=train_record.tokenizerHash,
+        documentBoundary=train_record.documentBoundary,
+        eosTokenId=train_record.eosTokenId,
         roleTokenCounts=role_tokens,
         roleDocumentCounts=role_docs,
         trainBlockCount=train_record.blockCount,
         validationBlockCount=val_used,
     )
     return merged, train_record.blockCount, val_used
+
+
+def _split_hash(
+    train_articles: Sequence[Dict[str, Any]],
+    validation_articles: Sequence[Dict[str, Any]],
+    *,
+    policy: str,
+    train_blocks: int,
+    validation_blocks: int,
+    dataset_hash: str,
+) -> str:
+    """Deterministic identity of a partition, independent of dict ordering."""
+    payload = {
+        "policy": policy,
+        "train": sorted({str(a.get("contentHash")) for a in train_articles}),
+        "validation": sorted({str(a.get("contentHash")) for a in validation_articles}),
+        "trainBlocks": int(train_blocks),
+        "validationBlocks": int(validation_blocks),
+        "datasetHash": dataset_hash,
+    }
+    return hashlib.sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
 
 
 def pack_for_training(
@@ -278,6 +340,8 @@ def pack_for_training(
     validation_blocks: int,
     *,
     on_warning=None,
+    document_boundary: str = DOCUMENT_BOUNDARY_SEPARATOR,
+    validation_policy: str = "legacy-tail-split",
 ) -> tuple[torch.Tensor, torch.Tensor, PackRecord, Dict[str, Any]]:
     """Pack a snapshot into training and validation streams.
 
@@ -289,9 +353,15 @@ def pack_for_training(
     train_docs, validation_docs = split_documents_by_role(documents)
     if not train_docs:
         raise InsufficientCorpusError("corpus has no training documents")
+    if validation_policy not in ("document-source-disjoint", "legacy-tail-split"):
+        raise ValueError(f"unknown validation policy {validation_policy!r}")
+    if validation_policy == "document-source-disjoint" and not validation_docs:
+        raise InsufficientValidationError(
+            "document-source-disjoint validation requested but the corpus has no validation documents"
+        )
     if validation_docs:
         train_blocks, train_record = pack(
-            tokenizer, train_docs, sequence_length, tokenizer_path
+            tokenizer, train_docs, sequence_length, tokenizer_path, document_boundary
         )
         if validation_blocks <= 0:
             return train_blocks, train_blocks[:0], train_record, {
@@ -305,23 +375,45 @@ def pack_for_training(
             }
         try:
             val_all_blocks, val_record = pack(
-                tokenizer, validation_docs, sequence_length, tokenizer_path
+                tokenizer, validation_docs, sequence_length, tokenizer_path, document_boundary
             )
         except InsufficientCorpusError:
             val_all_blocks, val_record = None, None
+        if validation_policy == "document-source-disjoint" and (
+            val_record is None or val_all_blocks is None or val_all_blocks.shape[0] == 0
+        ):
+            raise InsufficientValidationError(
+                "validation documents could not form a block; refusing to fall back to tail splitting"
+            )
         if val_record is not None and val_all_blocks is not None and val_all_blocks.shape[0] > 0:
-            val_blocks = val_all_blocks[: min(validation_blocks, val_all_blocks.shape[0])]
+            requested = int(validation_blocks) if int(validation_blocks) > 0 else int(val_all_blocks.shape[0])
+            if validation_policy == "document-source-disjoint" and val_all_blocks.shape[0] < requested:
+                raise InsufficientValidationError(
+                    f"validation documents form {val_all_blocks.shape[0]} block(s), "
+                    f"but {requested} requested; refusing to fall back to tail splitting"
+                )
+            val_blocks = val_all_blocks[: min(requested, val_all_blocks.shape[0])]
             record, train_blocks_used, val_used = _merge_pack_records(
-                train_record, val_record, validation_blocks, documents=documents
+                train_record, val_record, requested, documents=documents
+            )
+            split_hash = _split_hash(
+                train_record.articles,
+                val_record.articles,
+                policy=validation_policy,
+                train_blocks=train_blocks_used,
+                validation_blocks=val_used,
+                dataset_hash=record.datasetHash,
             )
             return train_blocks, val_blocks, record, {
                 "mode": "role-appended",
-                "requestedValidationBlocks": int(validation_blocks),
+                "validationPolicy": validation_policy,
+                "requestedValidationBlocks": requested,
                 "actualValidationBlocks": val_used,
                 "trainBlockCount": train_blocks_used,
                 "trainTokensSeen": train_record.tokensSeen,
                 "validationTokensSeen": val_record.tokensSeen,
-                "shortfall": max(0, int(validation_blocks) - val_used),
+                "shortfall": max(0, requested - val_used),
+                "splitHash": split_hash,
             }
         if on_warning:
             on_warning(
@@ -348,7 +440,11 @@ def pack_for_training(
             "validationTokensSeen": 0,
             "shortfall": int(validation_blocks),
         }
-    blocks, record = pack(tokenizer, documents, sequence_length, tokenizer_path)
+    if validation_policy == "document-source-disjoint":
+        raise InsufficientValidationError(
+            "document-source-disjoint validation requested but the corpus has no validation documents"
+        )
+    blocks, record = pack(tokenizer, documents, sequence_length, tokenizer_path, document_boundary)
     train_blocks, val_blocks = train_validation_split(blocks, validation_blocks)
     record = PackRecord(
         **{
@@ -359,6 +455,7 @@ def pack_for_training(
     )
     return train_blocks, val_blocks, record, {
         "mode": "tail-split",
+        "validationPolicy": validation_policy,
         "requestedValidationBlocks": int(validation_blocks),
         "actualValidationBlocks": int(val_blocks.shape[0]),
         "trainBlockCount": int(train_blocks.shape[0]),
@@ -368,6 +465,14 @@ def pack_for_training(
         ),
         "validationTokensSeen": record.roleTokenCounts.get("validation", 0),
         "shortfall": max(0, int(validation_blocks) - int(val_blocks.shape[0])),
+        "splitHash": _split_hash(
+            record.articles,
+            [],
+            policy=validation_policy,
+            train_blocks=int(train_blocks.shape[0]),
+            validation_blocks=int(val_blocks.shape[0]),
+            dataset_hash=record.datasetHash,
+        ),
     }
 
 

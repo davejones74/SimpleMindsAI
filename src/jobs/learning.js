@@ -2,7 +2,7 @@ import { collectDocuments } from "../harness/crawler.js";
 import { config } from "../config.js";
 import { throwIfAborted } from "./cancel.js";
 import { reviewPendingArticles } from "./review-pass.js";
-import { classifyAcquisition } from "../discovery/acquisition-state.js";
+import { ACQUISITION_STATE, classifyAcquisition } from "../discovery/acquisition-state.js";
 
 /**
  * One acquisition cycle: harvest configured sources → curate (teacher) →
@@ -126,10 +126,42 @@ export async function runLearningCycle(ctx) {
   const reviewWaiting = reviewResult.locked || reviewResult.waiting;
 
   const stats = store.getStats();
-  // Exhaustion is detected, never assumed: a pass that ingests nothing (all
-  // deduped, no documents, or every fetch failed) has no more material to give.
+  // The AUTHORITATIVE acquisition classification, derived from the frontier +
+  // discovery report. This — not a raw-document count — is what decides whether
+  // we are out of sources. Collectors that do not participate in the
+  // frontier/discovery pipeline (fixtures, injected test harvesters) provide no
+  // report at all, so there is genuinely nothing to classify: leave it null and
+  // let the supervisor's no-progress guard handle a stalled fixture source.
+  const hasAcquisitionReport = Boolean(result.frontier || result.discovery);
+  const acquisition = hasAcquisitionReport
+    ? classifyAcquisition({
+        frontier: result.frontier ?? null,
+        discovery: result.discovery ?? null,
+        ingested,
+      })
+    : null;
+  // Distinct, non-overlapping conditions:
+  //   - sourceExhausted      : the authoritative classifier says EXHAUSTED (no
+  //                            claimable work and no viable discovery provider).
+  //                            A pass that merely fetched no useful documents
+  //                            while claimable work remains is NOT exhaustion.
+  //   - admission*Exhausted  : a transient quota/epoch wait (tracked separately;
+  //                            never reported as source death).
+  //   - noUsefulDocuments    : work is claimable but this pass produced nothing
+  //                            usable (e.g. all skipped/deferred) — a transient
+  //                            harvest state, not exhaustion.
+  const admissionQuotaExhausted = result.quotaExhausted === true;
+  const admissionCapExhausted = result.capExhausted === true || admissionQuotaExhausted;
+  // A pass that fetched at least one document is never "exhausted" — the source
+  // just yielded nothing NEW this cycle, which the no-progress guard handles.
   const sourceExhausted =
-    ingested === 0 && (rawDocs === 0 || deduped > 0 || (result.failures?.length ?? 0) > 0 || skippedUnchanged > 0);
+    Boolean(acquisition) &&
+    acquisition.state === ACQUISITION_STATE.EXHAUSTED &&
+    rawDocs === 0 &&
+    !admissionCapExhausted &&
+    !admissionQuotaExhausted;
+  const noUsefulDocuments =
+    Boolean(acquisition) && acquisition.state === ACQUISITION_STATE.WORK && rawDocs === 0 && ingested === 0;
   // The fixture "source" is a hard-coded document set, so its ceiling is known
   // up front. Surfacing it lets the operator see that a multi-article target is
   // unreachable on fixtures instead of reading "completed" as "acquired".
@@ -174,12 +206,15 @@ export async function runLearningCycle(ctx) {
     corpusCeiling,
     failures: result.failures ?? [],
     sourceExhausted,
+    // Claimable work exists but this pass produced no usable documents: a
+    // transient harvest state, reported separately from source exhaustion.
+    noUsefulDocuments,
     // A full admission quota/epoch is a lifecycle wait, never a reason to mark
     // the frontier URL rejected. Rolling quota exhaustion is transient.
-    admissionCapExhausted: result.capExhausted === true || result.quotaExhausted === true,
+    admissionCapExhausted,
     admissionCapDeferred: result.admissionCapDeferred ?? result.admissionDeferred ?? 0,
     admissionCapEpoch: result.capEpoch ?? null,
-    admissionQuotaExhausted: result.quotaExhausted === true,
+    admissionQuotaExhausted,
     admissionQuotaDeferred: result.admissionQuotaDeferred ?? result.admissionDeferred ?? 0,
     admissionQuotaUsed: result.quotaUsed ?? null,
     admissionQuotaLimit: result.quotaLimit ?? null,
@@ -198,6 +233,6 @@ export async function runLearningCycle(ctx) {
     // classification derived from it — the single source of truth the supervisor
     // and UI use to decide "work / wait / exhausted".
     frontier: result.frontier ?? null,
-    acquisition: classifyAcquisition({ frontier: result.frontier ?? null, discovery: result.discovery ?? null, ingested }),
+    acquisition,
   };
 }

@@ -44,6 +44,8 @@ def _cfg(**overrides):
         validationBlocks=1,
         spikeWarmup=1000,
         computeDtype="float32",
+        validationPolicy="legacy-tail-split",
+        allowLegacyValidation=True,
     )
     base.update(overrides)
     return train_mod.TrainConfig(**base)
@@ -461,14 +463,20 @@ def test_corpus_info_sizes_a_snapshot_without_loading_the_model(tmp_path, tokeni
     tiny.write_text('{"articleId": "x", "text": "too short"}\n', encoding="utf-8")
 
     undersized = brain.cmd_corpus_info(
-        argparse.Namespace(out=str(root), parent="v001", corpus=[str(tiny)], seq_len=4096)
+        argparse.Namespace(
+            out=str(root), parent="v001", corpus=[str(tiny)], seq_len=4096,
+            validation_policy="legacy-tail-split",
+        )
     )
     assert undersized["ok"] is False
     assert undersized["code"] == "INSUFFICIENT_CORPUS"
     assert undersized["blockCount"] == 0
 
     healthy = brain.cmd_corpus_info(
-        argparse.Namespace(out=str(root), parent="v001", corpus=[str(FIXTURE_CORPUS)], seq_len=16)
+        argparse.Namespace(
+            out=str(root), parent="v001", corpus=[str(FIXTURE_CORPUS)], seq_len=16,
+            validation_policy="legacy-tail-split",
+        )
     )
     assert healthy["ok"] is True
     assert healthy["blockCount"] >= 1

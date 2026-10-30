@@ -36,6 +36,10 @@ export async function evaluateGenerationQuality({
       aggregate: out?.aggregate ?? null,
       samples: Array.isArray(out?.samples) ? out.samples : [],
       promptCount: out?.promptCount ?? 0,
+      promptBankVersion: out?.promptBankVersion ?? null,
+      promptIds: Array.isArray(out?.promptIds) ? out.promptIds : [],
+      decoding: out?.decoding ?? null,
+      modelFingerprint: out?.modelFingerprint ?? out?.artifactName ?? null,
       error: out?.ok ? null : "generate-quality failed",
     };
   } catch (err) {

@@ -428,3 +428,110 @@ test("estimatedLossStdErr shrinks with more tokens and is null without them", ()
   assert.equal(estimatedLossStdErr(0, 3), null);
   assert.equal(estimatedLossStdErr(1000, 0), null);
 });
+
+
+async function consumedStore() {
+  const store = await seededStore();
+  await store.markConsumed(store.articlesPage({ limit: 50 }).items.map((a) => a.articleId), { runId: "run_old" });
+  return store;
+}
+
+test("corpus-only policy is opt-in: the default lifecycle still refuses no-fresh material", async () => {
+  const previous = config.snapshotIncludeConsumed;
+  config.snapshotIncludeConsumed = true;
+  const registry = await RegistryStore.open(tmp());
+  const store = await consumedStore();
+  const options = { paths: { snapshots: tmp(), models: tmp(), plans: tmp(), evaluation: tmp() } };
+  try {
+    await assert.rejects(
+      executeFullRun({
+        registry,
+        options,
+        deps: { store, trainer: stubTrainer(), complete: exactComplete, evalSeed: async () => EVAL_SEED },
+      }),
+      (err) => err.code === "NO_ELIGIBLE_MATERIAL",
+    );
+    assert.equal(registry.listRuns().length, 0);
+    assert.equal(store.getStats().uniqueConsumed, 3);
+  } finally {
+    config.snapshotIncludeConsumed = previous;
+    await store.close();
+    await registry.close();
+  }
+});
+
+test("allowCorpusOnly trains from retained REVIEWED material without consuming articles", async () => {
+  const previous = config.snapshotIncludeConsumed;
+  config.snapshotIncludeConsumed = true;
+  const registry = await RegistryStore.open(tmp());
+  const store = await consumedStore();
+  const options = { paths: { snapshots: tmp(), models: tmp(), plans: tmp(), evaluation: tmp() } };
+  try {
+    const out = await executeFullRun({
+      registry,
+      options: { ...options, allowCorpusOnly: true },
+      deps: {
+        store,
+        trainer: stubTrainer(),
+        complete: exactComplete,
+        evalSeed: async () => EVAL_SEED,
+        setActive: async (version) => ({ version, skipped: true }),
+      },
+    });
+    assert.equal(out.run.corpusPolicy, "accumulated-reviewed-corpus");
+    assert.equal(out.run.status, "promoted");
+    assert.deepEqual(out.snapshot.manifest.freshArticleIds, []);
+    assert.equal(out.snapshot.manifest.corpusPolicy, "accumulated-reviewed-corpus");
+    assert.equal(out.snapshot.rows.length, 3);
+    assert.equal(store.getStats().uniqueConsumed, 3, "corpus-only promotion consumes no articles");
+    assert.equal(store.getStats().trainable, 0);
+  } finally {
+    config.snapshotIncludeConsumed = previous;
+    await store.close();
+    await registry.close();
+  }
+});
+
+test("allowCorpusOnly still refuses an empty corpus and a failing trainer leaves no consumption", async () => {
+  const previous = config.snapshotIncludeConsumed;
+  config.snapshotIncludeConsumed = true;
+  const registry = await RegistryStore.open(tmp());
+  const empty = await ArticleStore.open(tmp());
+  const options = { paths: { snapshots: tmp(), models: tmp(), plans: tmp(), evaluation: tmp() } };
+  try {
+    await assert.rejects(
+      executeFullRun({
+        registry,
+        options: { ...options, allowCorpusOnly: true },
+        deps: { store: empty, trainer: stubTrainer(), complete: exactComplete, evalSeed: async () => EVAL_SEED },
+      }),
+      (err) => err.code === "NO_ELIGIBLE_MATERIAL",
+    );
+  } finally {
+    await empty.close();
+  }
+
+  const store = await consumedStore();
+  try {
+    await assert.rejects(
+      executeFullRun({
+        registry,
+        options: { ...options, allowCorpusOnly: true },
+        deps: {
+          store,
+          trainer: { kind: "stub", version: "x", async train() { throw new Error("corpus-only failure"); } },
+          complete: exactComplete,
+          evalSeed: async () => EVAL_SEED,
+        },
+      }),
+      /corpus-only failure/,
+    );
+    assert.equal(store.getStats().uniqueConsumed, 3);
+    assert.equal(registry.listRuns().at(-1).corpusPolicy, "accumulated-reviewed-corpus");
+    assert.equal(registry.listRuns().at(-1).status, "failed");
+  } finally {
+    config.snapshotIncludeConsumed = previous;
+    await store.close();
+    await registry.close();
+  }
+});

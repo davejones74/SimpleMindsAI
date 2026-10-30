@@ -13,12 +13,16 @@ export function computeTrainingBudget({
   maxSteps,
   microBatch,
   gradAccum,
+  minSteps = 0,
+  seqLen = null,
 } = {}) {
   const blocks = Number(trainBlockCount);
   const epochs = Number(targetEpochs);
   const cap = Number(maxSteps);
   const micro = Number(microBatch);
   const accum = Number(gradAccum);
+  const minimum = Math.max(0, Number(minSteps) || 0);
+  const sequenceLength = Number(seqLen);
   const effectiveBatchSize = micro * accum;
 
   if (!Number.isInteger(blocks) || blocks <= 0) {
@@ -37,6 +41,10 @@ export function computeTrainingBudget({
   const requestedSteps = Math.max(1, Math.ceil((epochs * blocks) / effectiveBatchSize));
   const steps = Math.min(requestedSteps, Math.floor(cap));
   const effectiveEpochs = (steps * effectiveBatchSize) / blocks;
+  const meetsMinimum = minimum <= 0 || steps >= minimum;
+  const tokensPlanned = Number.isFinite(sequenceLength) && sequenceLength > 0
+    ? steps * effectiveBatchSize * sequenceLength
+    : null;
 
   return {
     trainBlockCount: blocks,
@@ -50,6 +58,14 @@ export function computeTrainingBudget({
     capReason: requestedSteps > steps
       ? `requested ${requestedSteps} step(s) for ${epochs} epoch(s) exceeded TRAIN_MAX_STEPS=${Math.floor(cap)}`
       : null,
+    minSteps: minimum,
+    meetsMinimum,
+    minimumShortfall: Math.max(0, minimum - steps),
+    sequenceLength: Number.isFinite(sequenceLength) && sequenceLength > 0 ? sequenceLength : null,
+    tokensPlanned,
+    minimumReason: meetsMinimum
+      ? null
+      : `planned ${steps} step(s) is below TRAIN_MIN_STEPS=${minimum}; wait for a larger corpus or a higher cap`,
   };
 }
 

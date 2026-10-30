@@ -37,12 +37,40 @@ async function seededStore(n = 3) {
 // retires its batch once the retry budget is exhausted (see
 // `test/lifecycle.test.js`), which would empty the store mid-streak and hide the
 // breaker this test exists to exercise.
-function reusableStore(base, trainable) {
+function reusableStore(base, trainable, { freshPerCall = false } = {}) {
+  let freshSeq = 0;
   return new Proxy(base, {
     get(target, prop) {
       if (prop === "markConsumed") return async () => ({ consumed: [], skipped: [] });
       if (prop === "deferArticles") return async () => ({ deferred: [], retired: [], skipped: [] });
       if (prop === "getStats") return () => ({ ...target.getStats(), trainable });
+      if (freshPerCall && prop === "articlesPage") {
+        return (args = {}) => {
+          const page = target.articlesPage(args);
+          if (args.consumed !== false || args.status !== "REVIEWED") return page;
+          freshSeq += 1;
+          const articleId = `art_resilience_fresh_${freshSeq}`;
+          const text = `Fresh prospective resilience article ${freshSeq} with enough prose for a validation holdout.`;
+          return {
+            ...page,
+            nextCursor: null,
+            items: [
+              ...page.items,
+              {
+                articleId,
+                text,
+                rawText: text,
+                contentHash: `hash_${articleId}`,
+                status: "REVIEWED",
+                importance: "Normal",
+                origin: "curated",
+                domain: "reasoning",
+                createdAt: new Date().toISOString(),
+              },
+            ],
+          };
+        };
+      }
       const v = Reflect.get(target, prop, target);
       return typeof v === "function" ? v.bind(target) : v;
     },
@@ -91,12 +119,21 @@ function rejectingTrainerFactory() {
   });
 }
 
-const rejectingEval = async ({ version }) => ({
-  version,
-  loss: version === "v001" ? 1.0 : 2.0, // candidate always worse => rejected
-  datasetHash: "EVAL",
-  ok: true,
-});
+const rejectingEval = async ({ version }) => {
+  const loss = version === "v001" ? 1.0 : 2.0; // candidate always worse => rejected
+  return {
+    version,
+    loss,
+    datasetHash: "EVAL",
+    ok: true,
+    blockCount: 459,
+    tokensSeen: 6000,
+    evaluationSet: { datasetHash: "EVAL", blockCount: 459, tokensSeen: 6000 },
+    // The enforce-mode gate needs paired per-document evidence to distinguish a
+    // rejection from "inconclusive because no evidence was supplied".
+    perDocument: Array.from({ length: 30 }, (_, i) => ({ articleId: `a${i}`, group: `g${i}`, tokens: 200, loss })),
+  };
+};
 
 test("continuous training keeps running through a rejection streak instead of stopping", async () => {
   const prevMax = config.jobs.training.maxConsecutiveRejections;
@@ -104,7 +141,7 @@ test("continuous training keeps running through a rejection streak instead of st
   config.jobs.training.maxConsecutiveRejections = 3;
   config.jobs.pollIntervalMs = 5;
   try {
-    const store = reusableStore(await seededStore(3), 3);
+    const store = reusableStore(await seededStore(3), 3, { freshPerCall: true });
     const registry = await RegistryStore.open(tmp());
     const jobDir = tmp();
     let activateCalls = 0;

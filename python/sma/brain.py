@@ -37,6 +37,64 @@ DEFAULT_EXPORT = Path("data/exports")
 DEFAULT_REPO_MODELS = Path("../models")
 
 
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for chunk in iter(lambda: handle.read(1 << 20), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _python_code_fingerprint() -> Dict[str, Any]:
+    """Hash the actual Python trainer source, not a version label."""
+    package = Path(__file__).parent
+    files = sorted(p for p in package.glob("*.py") if p.is_file())
+    digest = hashlib.sha256()
+    for path in files:
+        digest.update(path.name.encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(path.read_bytes())
+        digest.update(b"\0")
+    return {
+        "version": "sma/python-trainer-fingerprint@1",
+        "algorithm": "sha256",
+        "files": [p.name for p in files],
+        "fileCount": len(files),
+        "digest": digest.hexdigest(),
+    }
+
+
+def _manifest_weight_fingerprint(manifest: Dict[str, Any]) -> str | None:
+    tensors = (manifest or {}).get("tensorHashesAfterTraining", {}).get("tensors") \
+        or (manifest or {}).get("tensors")
+    if not tensors:
+        return None
+    entries = []
+    for name in sorted(tensors):
+        value = tensors[name]
+        entries.append([name, value.get("dtype") if isinstance(value, dict) else None,
+                        value.get("sha256") if isinstance(value, dict) else value])
+    payload = {"tensorCount": len(entries), "entries": entries}
+    return hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
+
+
+def _runtime_measurements() -> Dict[str, Any]:
+    runtime: Dict[str, Any] = {}
+    try:
+        import resource
+        runtime["peakRssKb"] = int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)
+    except Exception:
+        runtime["peakRssKb"] = None
+    try:
+        import torch
+        if torch.cuda.is_available():
+            runtime["cudaMaxMemoryAllocatedBytes"] = int(torch.cuda.max_memory_allocated())
+            runtime["cudaMaxMemoryReservedBytes"] = int(torch.cuda.max_memory_reserved())
+    except Exception:
+        pass
+    return runtime
+
+
 def _log(msg: str) -> None:
     print(f"[sma] {msg}", file=sys.stderr, flush=True)
 
@@ -465,6 +523,10 @@ def _cmd_train_locked(args: argparse.Namespace, root: Path, version: str, node_r
         validationBlocks=args.val_blocks,
         seed=args.seed,
         computeDtype=args.compute_dtype,
+        documentBoundary=getattr(args, "document_boundary", "separator"),
+        validationPolicy=getattr(args, "validation_policy", "document-source-disjoint"),
+        allowLegacyValidation=getattr(args, "allow_legacy_validation", False),
+        requireProspectiveValidation=getattr(args, "require_prospective_validation", False),
         logEvery=args.log_every,
         spikeFactor=args.spike_factor,
         maxSpikeConsecutive=args.spike_consecutive,
@@ -527,6 +589,18 @@ def _cmd_train_locked(args: argparse.Namespace, root: Path, version: str, node_r
             "error": str(exc),
             "kind": "numerical_failure",
         }
+    except data_mod.InsufficientValidationError as exc:
+        _log(f"INSUFFICIENT VALIDATION, nothing published: {exc}")
+        emit_telemetry({"type": "failed", "kind": "insufficient_validation", "error": str(exc)})
+        return {
+            "ok": False,
+            "verb": "train",
+            "published": False,
+            "parentVersion": parent,
+            "error": str(exc),
+            "kind": "insufficient_validation",
+            "code": "INSUFFICIENT_VALIDATION",
+        }
     except data_mod.InsufficientCorpusError as exc:
         # Too little reviewed material for the chosen --seq-len. This is an
         # operator condition, not a training fault: nothing has been written, so
@@ -542,6 +616,33 @@ def _cmd_train_locked(args: argparse.Namespace, root: Path, version: str, node_r
             "kind": "insufficient_corpus",
             "code": "INSUFFICIENT_CORPUS",
         }
+    except train_mod.TrainingStepsBelowMinimum as exc:
+        _log(f"INSUFFICIENT TRAINING STEPS, nothing published: {exc}")
+        emit_telemetry({"type": "failed", "kind": "insufficient_training_steps", "error": str(exc)})
+        return {
+            "ok": False,
+            "verb": "train",
+            "published": False,
+            "parentVersion": parent,
+            "error": str(exc),
+            "kind": "insufficient_training_steps",
+            "code": "INSUFFICIENT_TRAINING_STEPS",
+        }
+
+    corpus_files = [
+        {"path": str(Path(p)), "sha256": _sha256_file(Path(p))}
+        for p in args.corpus
+    ]
+    runtime = _runtime_measurements()
+    runtime["wallSeconds"] = result.wallSeconds
+    train_state["corpusFiles"] = corpus_files
+    train_state["runtime"] = runtime
+
+    min_steps = int(getattr(args, "min_steps", 0) or 0)
+    if min_steps > 0 and result.steps < min_steps:
+        raise train_mod.TrainingStepsBelowMinimum(
+            f"completed {result.steps} step(s), below the required minimum of {min_steps}; nothing published"
+        )
 
     after_params = train_mod.named_parameter_snapshots(model)
     after_buffers = train_mod.named_buffer_snapshots(model)
@@ -588,6 +689,18 @@ def _cmd_train_locked(args: argparse.Namespace, root: Path, version: str, node_r
                 "checkpointDtype": str(next(model.parameters()).dtype).replace("torch.", ""),
                 "datasetHash": train_state["packing"]["datasetHash"],
                 "tokenizerHash": train_state["packing"]["tokenizerHash"],
+                "corpusFiles": corpus_files,
+                "parentWeightFingerprint": _manifest_weight_fingerprint(
+                    store.read_json(parent_dir / "init-manifest.json")
+                ),
+                "trainerCodeFingerprint": _python_code_fingerprint(),
+                "trainingSeed": int(train_state["config"].get("seed", 0)),
+                "validationSplit": {
+                    "policy": train_state.get("corpusSplit", {}).get("validationPolicy"),
+                    "splitHash": train_state.get("corpusSplit", {}).get("splitHash"),
+                    "mode": train_state.get("corpusSplit", {}).get("mode"),
+                },
+                "runtime": runtime,
                 "stepsCompleted": train_state["stepsCompleted"],
                 "tokensSeen": train_state["tokensSeen"],
                 "selectBest": bool(train_state.get("selectBest", False)),
@@ -675,6 +788,16 @@ def _cmd_train_locked(args: argparse.Namespace, root: Path, version: str, node_r
         "staged": stage_only,
         "device": device,
         "checkpointDtype": str(next(model.parameters()).dtype).replace("torch.", ""),
+        "wallSeconds": result.wallSeconds,
+        "runtime": runtime,
+        "corpusFiles": corpus_files,
+        "parentWeightFingerprint": _manifest_weight_fingerprint(
+            store.read_json(parent_dir / "init-manifest.json")
+        ),
+        "trainerCodeFingerprint": _python_code_fingerprint(),
+        "trainingSeed": int(train_state["config"].get("seed", 0)),
+        "validationPolicy": train_state.get("corpusSplit", {}).get("validationPolicy"),
+        "splitHash": train_state.get("corpusSplit", {}).get("splitHash"),
         "initialTrainLoss": result.initialTrainLoss,
         "finalTrainLoss": result.finalTrainLoss,
         "initialValidationLoss": result.initialValidationLoss,
@@ -685,6 +808,8 @@ def _cmd_train_locked(args: argparse.Namespace, root: Path, version: str, node_r
         "stepsCompleted": train_state["stepsCompleted"],
         "tokensSeen": result.tokensSeen,
         "datasetHash": train_state["packing"]["datasetHash"],
+        "documentBoundary": train_state["packing"].get("documentBoundary"),
+        "eosTokenId": train_state["packing"].get("eosTokenId"),
         "blockCount": train_state["packing"]["blockCount"],
         "trainBlockCount": train_state["packing"].get("trainBlockCount"),
         "validationBlockCount": train_state["packing"].get("validationBlockCount"),
@@ -1279,6 +1404,8 @@ def generate_text(
     temperature: float = 0.0,
     top_p: float = 0.95,
     seed: Optional[int] = 0,
+    repetition_penalty: float = 1.0,
+    no_repeat_ngram_size: int = 0,
     device: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Run one generation pass and return the decoded result.
@@ -1289,6 +1416,10 @@ def generate_text(
     import torch
 
     gen_kwargs: Dict[str, Any] = {"max_new_tokens": int(max_new_tokens)}
+    if repetition_penalty and float(repetition_penalty) > 1.0:
+        gen_kwargs["repetition_penalty"] = float(repetition_penalty)
+    if no_repeat_ngram_size and int(no_repeat_ngram_size) > 0:
+        gen_kwargs["no_repeat_ngram_size"] = int(no_repeat_ngram_size)
     if temperature and temperature > 0:
         if seed is not None:
             torch.manual_seed(seed)
@@ -1313,6 +1444,8 @@ def generate_text(
         "mode": mode,
         "promptTokens": prompt_tokens,
         "generatedTokens": int(new_tokens.shape[0]),
+        "repetitionPenalty": float(repetition_penalty) if repetition_penalty else 1.0,
+        "noRepeatNgramSize": int(no_repeat_ngram_size) if no_repeat_ngram_size else 0,
     }
 
 
@@ -1338,6 +1471,8 @@ def cmd_generate(args: argparse.Namespace) -> Dict[str, Any]:
         temperature=args.temperature,
         top_p=args.top_p,
         seed=args.seed,
+        repetition_penalty=getattr(args, "repetition_penalty", 1.0),
+        no_repeat_ngram_size=getattr(args, "no_repeat_ngram_size", 0),
         device=device,
     )
 
@@ -1361,6 +1496,8 @@ def cmd_generate(args: argparse.Namespace) -> Dict[str, Any]:
         "text": result["text"],
         "promptTokens": result["promptTokens"],
         "generatedTokens": result["generatedTokens"],
+        "repetitionPenalty": result["repetitionPenalty"],
+        "noRepeatNgramSize": result["noRepeatNgramSize"],
     }
 
 
@@ -1425,7 +1562,7 @@ def cmd_generate_quality(args: argparse.Namespace) -> Dict[str, Any]:
     model.eval()
 
     samples = []
-    for prompt in QUALITY_PROMPTS:
+    for promptIndex, prompt in enumerate(QUALITY_PROMPTS):
         result = generate_text(
             model,
             tokenizer,
@@ -1434,10 +1571,24 @@ def cmd_generate_quality(args: argparse.Namespace) -> Dict[str, Any]:
             temperature=0.0,
             top_p=0.95,
             seed=0,
+            repetition_penalty=getattr(args, "repetition_penalty", 1.0),
+            no_repeat_ngram_size=getattr(args, "no_repeat_ngram_size", 0),
             device=device,
         )
         metrics = repetition_metrics(tokenizer, result["text"])
-        samples.append({"prompt": prompt, "text": result["text"], **metrics})
+        samples.append({
+            "promptId": f"quality-v1-{promptIndex + 1:02d}",
+            "prompt": prompt,
+            "text": result["text"],
+            "maxNewTokens": int(args.max_new_tokens),
+            "temperature": 0.0,
+            "topP": 0.95,
+            "seed": 0,
+            "generatedTokens": result.get("generatedTokens"),
+            "repetitionPenalty": result["repetitionPenalty"],
+            "noRepeatNgramSize": result["noRepeatNgramSize"],
+            **metrics,
+        })
 
     n = len(samples) or 1
     mean = lambda key: sum(s[key] for s in samples if s[key] is not None) / max(1, sum(1 for s in samples if s[key] is not None)) if any(s[key] is not None for s in samples) else None
@@ -1453,6 +1604,17 @@ def cmd_generate_quality(args: argparse.Namespace) -> Dict[str, Any]:
         "verb": "generate-quality",
         "version": args.version,
         "artifactName": artifact,
+        "modelFingerprint": artifact,
+        "promptBankVersion": "quality-prompts-v1",
+        "promptIds": [sample["promptId"] for sample in samples],
+        "decoding": {
+            "temperature": 0.0,
+            "topP": 0.95,
+            "seed": 0,
+            "maxNewTokens": int(args.max_new_tokens),
+            "repetitionPenalty": getattr(args, "repetition_penalty", 1.0),
+            "noRepeatNgramSize": getattr(args, "no_repeat_ngram_size", 0),
+        },
         "device": device,
         "promptCount": len(samples),
         "aggregate": {
@@ -1620,7 +1782,22 @@ def cmd_corpus_info(args: argparse.Namespace) -> Dict[str, Any]:
             tokenizer_file,
             int(getattr(args, "val_blocks", 0) or 0),
             on_warning=_log,
+            document_boundary=getattr(args, "document_boundary", "separator"),
+            validation_policy=getattr(args, "validation_policy", "document-source-disjoint"),
         )
+    except data_mod.InsufficientValidationError as exc:
+        _log(f"INSUFFICIENT VALIDATION: {exc}")
+        return {
+            "ok": False,
+            "verb": "corpus-info",
+            "code": "INSUFFICIENT_VALIDATION",
+            "error": str(exc),
+            "parentVersion": parent,
+            "documentCount": len(documents),
+            "blockCount": 0,
+            "trainBlockCount": 0,
+            "trainTokensSeen": 0,
+        }
     except data_mod.InsufficientCorpusError as exc:
         _log(f"INSUFFICIENT CORPUS: {exc}")
         return {
@@ -1645,6 +1822,8 @@ def cmd_corpus_info(args: argparse.Namespace) -> Dict[str, Any]:
         "blockCount": record.blockCount,
         "trainBlockCount": int(train_blocks.shape[0]),
         "validationBlockCount": int(val_blocks.shape[0]),
+        "documentBoundary": record.documentBoundary,
+        "eosTokenId": record.eosTokenId,
         "tokensSeen": record.tokensSeen,
         "trainTokensSeen": split["trainTokensSeen"],
         "validationTokensSeen": split["validationTokensSeen"],
@@ -1704,11 +1883,41 @@ def build_parser() -> argparse.ArgumentParser:
         "section on loss instability before picking a value.",
     )
     sp.add_argument("--steps", type=int, default=60)
+    sp.add_argument(
+        "--min-steps",
+        dest="min_steps",
+        type=int,
+        default=0,
+        help="refuse to publish a run that completed fewer than this many optimizer steps (0 disables)",
+    )
     sp.add_argument("--seq-len", type=int, default=128)
+    sp.add_argument(
+        "--document-boundary",
+        dest="document_boundary",
+        choices=["separator", "eos"],
+        default="separator",
+        help="separator keeps concatenate-chunk-v1; eos inserts the tokenizer EOS after every document",
+    )
     sp.add_argument("--micro-batch", type=int, default=2)
     sp.add_argument("--grad-accum", type=int, default=2)
     sp.add_argument("--warmup", type=int, default=10)
     sp.add_argument("--val-blocks", type=int, default=2)
+    sp.add_argument(
+        "--validation-policy",
+        choices=["document-source-disjoint", "legacy-tail-split"],
+        default="document-source-disjoint",
+        help="document-source-disjoint fails closed when no validation rows can be packed",
+    )
+    sp.add_argument(
+        "--allow-legacy-validation",
+        action="store_true",
+        help="explicit opt-in for isolated fixtures using legacy tail splitting",
+    )
+    sp.add_argument(
+        "--require-prospective-validation",
+        action="store_true",
+        help="assert validation came from a prospective Node partition",
+    )
     sp.add_argument("--grad-clip", type=float, default=1.0, help="0 disables clipping")
     sp.add_argument("--spike-factor", type=float, default=2.5, help="0 disables spike detection")
     sp.add_argument(
@@ -1758,6 +1967,17 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--corpus", required=True, nargs="+", help="fixture .txt or .jsonl")
     sp.add_argument("--seq-len", type=int, default=128)
     sp.add_argument("--val-blocks", type=int, default=0)
+    sp.add_argument(
+        "--validation-policy",
+        choices=["document-source-disjoint", "legacy-tail-split"],
+        default="document-source-disjoint",
+    )
+    sp.add_argument(
+        "--document-boundary",
+        dest="document_boundary",
+        choices=["separator", "eos"],
+        default="separator",
+    )
     sp.add_argument("--out", default=str(store_root()))
     sp.set_defaults(func=cmd_corpus_info)
 
@@ -1790,6 +2010,13 @@ def build_parser() -> argparse.ArgumentParser:
     source.add_argument("--corpus", nargs="+", help="fixture .txt or .jsonl path(s)")
     source.add_argument("--eval-set", dest="eval_set", help="frozen eval-set .jsonl path")
     sp.add_argument("--seq-len", type=int, default=128)
+    sp.add_argument(
+        "--document-boundary",
+        dest="document_boundary",
+        choices=["separator", "eos"],
+        default="separator",
+        help="separator keeps concatenate-chunk-v1; eos inserts the tokenizer EOS after every document",
+    )
     sp.add_argument("--micro-batch", type=int, default=2)
     sp.add_argument("--device", default="auto", help="auto | cpu | cuda")
     sp.add_argument(
@@ -1815,6 +2042,10 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--version", required=True, help="committed version to generate from")
     sp.add_argument("--prompt", required=True)
     sp.add_argument("--max-new-tokens", type=int, default=32)
+    sp.add_argument("--repetition-penalty", dest="repetition_penalty", type=float, default=1.0,
+                    help="1.0 disables; values >1 penalise repeated tokens")
+    sp.add_argument("--no-repeat-ngram-size", dest="no_repeat_ngram_size", type=int, default=0,
+                    help="0 disables; e.g. 3 forbids repeating any 3-token sequence")
     sp.add_argument("--temperature", type=float, default=0.0, help="0 = greedy")
     sp.add_argument("--top-p", type=float, default=0.95)
     sp.add_argument("--seed", type=int, default=0)
@@ -1825,6 +2056,10 @@ def build_parser() -> argparse.ArgumentParser:
     common(sp)
     sp.add_argument("--version", required=True, help="committed version to measure")
     sp.add_argument("--max-new-tokens", type=int, default=32)
+    sp.add_argument("--repetition-penalty", dest="repetition_penalty", type=float, default=1.0,
+                    help="1.0 disables; values >1 penalise repeated tokens")
+    sp.add_argument("--no-repeat-ngram-size", dest="no_repeat_ngram_size", type=int, default=0,
+                    help="0 disables; e.g. 3 forbids repeating any 3-token sequence")
     sp.add_argument("--device", default="auto", help="auto | cpu | cuda")
     sp.set_defaults(func=cmd_generate_quality)
 
@@ -1836,6 +2071,13 @@ def build_parser() -> argparse.ArgumentParser:
     source.add_argument("--corpus", nargs="+", help="optional corpus to compare eval loss on")
     source.add_argument("--eval-set", dest="eval_set", help="optional frozen eval-set .jsonl")
     sp.add_argument("--seq-len", type=int, default=128)
+    sp.add_argument(
+        "--document-boundary",
+        dest="document_boundary",
+        choices=["separator", "eos"],
+        default="separator",
+        help="separator keeps concatenate-chunk-v1; eos inserts the tokenizer EOS after every document",
+    )
     sp.add_argument("--micro-batch", type=int, default=2)
     sp.add_argument("--tolerance", type=float, default=1e-9, help="parameter materiality floor")
     sp.add_argument("--device", default="auto", help="auto | cpu | cuda")

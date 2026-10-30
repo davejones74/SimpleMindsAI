@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { config } from "../config.js";
 import { createHash } from "node:crypto";
 import { collectRowsFromArticles, buildSnapshot } from "../dataset/snapshot.js";
+import { buildPartition, InsufficientValidationError } from "../dataset/partition.js";
 import { loadEvaluationSet, makeEvalGuard } from "../dataset/evaluation-set.js";
 import { validateCurriculum, fallbackCurriculum } from "../curriculum/validation.js";
 import { Evaluator, decidePromotion } from "./evaluator.js";
@@ -96,8 +97,34 @@ export async function executeFullRun({
     markConsumed ?? ((ids, runId) => store.markConsumed(ids, { runId }));
 
   const limit = options.snapshotLimit ?? config.snapshotLimit;
+  // Corpus-only retraining is an EXPLICIT candidate workflow. It is never the
+  // default: normal production learning still requires a fresh delta. When
+  // enabled, the snapshot is built from accumulated REVIEWED material and the
+  // run consumes no articles because there are no fresh ids.
+  const corpusOnly = options.allowCorpusOnly === true;
+  const validationPolicy = options.validationPolicy ?? config.trainValidationPolicy;
+  const requireProspectiveValidation = options.requireProspectiveValidation ?? config.trainValidationRequireProspective;
+  const corpusPolicy = corpusOnly ? "accumulated-reviewed-corpus" : "fresh-delta";
   const t = assertTrainer(trainer);
   const pythonMode = t.kind === "python";
+  if (pythonMode) {
+    if (validationPolicy !== "document-source-disjoint") {
+      const err = new Error(
+        `production Python training requires TRAIN_VALIDATION_POLICY=document-source-disjoint ` +
+          `(got ${validationPolicy})`,
+      );
+      err.code = "INVALID_VALIDATION_POLICY";
+      throw err;
+    }
+    if (requireProspectiveValidation !== true) {
+      const err = new Error(
+        "production Python training requires TRAIN_VALIDATION_REQUIRE_PROSPECTIVE=true; " +
+          "historical exposure must not be relabelled as prospective",
+      );
+      err.code = "PROSPECTIVE_VALIDATION_REQUIRED";
+      throw err;
+    }
+  }
   // The legacy token-F1 evaluator is only constructed for the stub path; the
   // real brain is scored by the Python loss gate on the same frozen eval set.
   const evaluator = pythonMode
@@ -174,21 +201,79 @@ export async function executeFullRun({
     });
 
     // ---- immutable, capped, leak-guarded snapshot ----
-    const { rows, freshArticleIds, replayArticleIds, validationArticleIds } = collectRowsFromArticles(store, {
+    const collected = collectRowsFromArticles(store, {
       limit,
       replayPercent: config.trainReplayPercent,
       validationBlocks: config.trainValBlocks,
       validationSeqLen: config.trainSeqLen,
+      corpusMode: config.trainCorpusMode,
+      deferValidationPartition: pythonMode && validationPolicy === "document-source-disjoint",
     });
+    const { rows } = collected;
+    let { freshArticleIds, replayArticleIds, validationArticleIds } = collected;
+    const corpusStats = collected.stats;
     // Refuse BEFORE baking an artifact when there is nothing to collect: a
     // continuous job treats this as a wait condition and polls, so an empty
     // snapshot manifest must not be appended on every cycle.
     if (!rows.length) throw noEligibleMaterial();
     // Corpus backfill (SNAPSHOT_INCLUDE_CONSUMED) may pad the snapshot with
     // already-consumed articles, but an incremental run must still be driven by
-    // NEW material. With no fresh rows this is corpus-only retraining, which is
-    // a separate, explicit workflow — never an implicit side effect here.
-    if (!freshArticleIds.length) throw noEligibleMaterial();
+    // NEW material. Corpus-only retraining is a separate, explicit workflow;
+    // ordinary lifecycle calls keep the fresh-delta guard unchanged.
+    if (!freshArticleIds.length && !corpusOnly) throw noEligibleMaterial();
+
+    let partition = null;
+    if (pythonMode && validationPolicy === "document-source-disjoint") {
+      const priorSnapshots = typeof registry.listSnapshots === "function" ? registry.listSnapshots() : [];
+      const priorArticleIds = new Set();
+      for (const prior of priorSnapshots) {
+        for (const id of prior.articleIds ?? []) priorArticleIds.add(id);
+      }
+      // Historical exposure is broader than snapshots: the article store's
+      // durable consumption and contribution ledgers record material that
+      // appeared in completed training runs even when the snapshot record is not
+      // available in this workspace. Missing ledgers are reported as uncertainty,
+      // never as proof that material was unseen.
+      for (const record of store.consumption ?? []) {
+        if (record?.articleId) priorArticleIds.add(record.articleId);
+      }
+      for (const record of store.contributions ?? []) {
+        for (const id of [...(record.freshArticleIds ?? []), ...(record.replayArticleIds ?? [])]) {
+          if (id) priorArticleIds.add(id);
+        }
+      }
+      const freshIds = new Set(freshArticleIds);
+      const historicalArticleIds = new Set(priorArticleIds);
+      for (const row of rows) {
+        if (!freshIds.has(row.articleId)) historicalArticleIds.add(row.articleId);
+      }
+      // Keep the Node-held validation cohort aligned with the trainer's
+      // requested validation blocks. An explicit token target overrides this;
+      // the fraction is used only when neither is configured.
+      const derivedValidationTokens = config.trainValidationTargetTokens > 0
+        ? config.trainValidationTargetTokens
+        : Math.max(0, config.trainValBlocks * config.trainSeqLen);
+      partition = buildPartition({
+        rows,
+        splitSeed: config.trainValidationSeed,
+        validationFraction: derivedValidationTokens > 0 ? 0 : config.trainValidationFraction,
+        validationTargetTokens: derivedValidationTokens,
+        minValidationTokens: config.trainMinValidationTokens,
+        minValidationClusters: config.trainMinValidationClusters,
+        historicalArticleIds,
+        requireProspective: requireProspectiveValidation,
+      });
+      const validationIds = new Set(partition.validationArticleIds);
+      for (const row of rows) {
+        if (validationIds.has(row.articleId)) row.corpusRole = "validation";
+        else if (row.corpusRole === "validation") delete row.corpusRole;
+      }
+      validationArticleIds = partition.validationArticleIds;
+      // Validation rows are reserved, not consumed. Removing them from the fresh
+      // set also prevents a later promotion from consuming the holdout.
+      freshArticleIds = freshArticleIds.filter((id) => !validationIds.has(id));
+      if (!freshArticleIds.length && !corpusOnly) throw noEligibleMaterial();
+    }
 
     snapshot = await buildSnapshot({
       registry,
@@ -198,6 +283,10 @@ export async function executeFullRun({
       evalGuard: makeEvalGuard(evalSet),
       replayArticleIds,
       validationArticleIds,
+      partition,
+      corpusMode: config.trainCorpusMode,
+      corpusStats,
+      corpusPolicy,
     });
 
     // The evaluation leak guard can still empty a non-empty collection (every
@@ -277,7 +366,16 @@ export async function executeFullRun({
           maxSteps: config.trainMaxSteps,
           microBatch: config.trainMicroBatch,
           gradAccum: config.trainGradAccum,
+          minSteps: config.trainMinSteps,
+          seqLen: config.trainSeqLen,
         });
+        if (!trainingBudget.meetsMinimum) {
+          const err = new Error(trainingBudget.minimumReason);
+          err.code = "INSUFFICIENT_TRAINING_STEPS";
+          err.trainingBudget = trainingBudget;
+          err.corpusStats = corpusStats;
+          throw err;
+        }
       }
     }
     // The replay share is SIZED by token estimate in Node but only MEASURED by
@@ -326,6 +424,21 @@ export async function executeFullRun({
       evaluationSetSize: evalSet.size,
       evaluationWarnings: evalSet.warnings ?? [],
       trainingBudget,
+      corpusMode: config.trainCorpusMode,
+      corpusPolicy,
+      corpusStats,
+      candidateIdentity: options.candidateIdentity ?? null,
+      validationPolicy,
+      partition: partition
+        ? {
+            policyVersion: partition.policyVersion,
+            clusterPolicyVersion: partition.clusterPolicyVersion,
+            splitSeed: partition.splitSeed,
+            splitHash: partition.splitHash,
+            exposure: partition.exposure,
+            stats: partition.stats,
+          }
+        : null,
       corpusPreflight: corpusPreflight
         ? {
             trainBlockCount: corpusPreflight.trainBlockCount ?? null,
@@ -355,6 +468,18 @@ export async function executeFullRun({
     manifest = {
       runId,
       status: "created",
+      candidateIdentity: options.candidateIdentity ?? null,
+      validationPolicy,
+      partition: partition
+        ? {
+            policyVersion: partition.policyVersion,
+            clusterPolicyVersion: partition.clusterPolicyVersion,
+            splitSeed: partition.splitSeed,
+            splitHash: partition.splitHash,
+            exposure: partition.exposure,
+            stats: partition.stats,
+          }
+        : null,
       snapshotArticleIds: snapshot.rows.map((r) => r.articleId),
       evaluationSetHash: computeFileHash(evalSet.file),
       // Written as soon as the candidate version exists; the durable link that
@@ -387,6 +512,7 @@ export async function executeFullRun({
           microBatch: config.promoteEvalMicroBatch,
           device: config.studentDevice,
           perDocument: config.promotePerDocument,
+          codeFingerprint: options.candidateIdentity?.trainer?.fingerprint ?? null,
         })
       : null;
     if (pythonMode && baselineKey) {
@@ -433,6 +559,7 @@ export async function executeFullRun({
         modelId: baselineModel.modelId,
         result: baselineResult,
         evalSet,
+        identity: options.candidateIdentity ?? null,
       });
     }
 
@@ -454,13 +581,33 @@ export async function executeFullRun({
         // Data-derived budget when the preflight could size the corpus; the
         // adapter falls back to its fixed legacy default when it could not.
         steps: trainingBudget?.steps ?? null,
+        minSteps: trainingBudget?.minSteps ?? 0,
+        documentBoundary: config.trainDocumentBoundary,
         valBlocks: config.trainValBlocks,
         evalEvery: effectiveEvalEvery,
         targetEpochs: config.trainTargetEpochs,
         maxSteps: config.trainMaxSteps,
         trainBlockCount: trainingBudget?.trainBlockCount ?? null,
+        seed: config.trainSeed,
+        validationPolicy,
       },
     });
+
+    if (pythonMode && trainingBudget && trainingBudget.minSteps > 0) {
+      const actualSteps = Number(trainingResult.stepsCompleted ?? 0);
+      if (actualSteps < trainingBudget.minSteps) {
+        if (stagingSupported && trainingResult.staged === true) {
+          await discardRejected(t, trainingResult.version, runId, options, logger);
+        }
+        const err = new Error(
+          `training completed ${actualSteps} step(s), below the required minimum of ${trainingBudget.minSteps}; candidate discarded`,
+        );
+        err.code = "INSUFFICIENT_TRAINING_STEPS";
+        err.actualSteps = actualSteps;
+        err.requiredSteps = trainingBudget.minSteps;
+        throw err;
+      }
+    }
 
     // Persist the candidate version the MOMENT it exists. Everything after this
     // (evaluation, decision, publish, activate, consumption) is recoverable from
@@ -511,6 +658,9 @@ export async function executeFullRun({
           evalSet,
           statusLog: () => registry.runEvent(runId, { status: "evaluating", note: "candidate evaluation complete" }),
         });
+    // ---- deterministic promote/reject ----
+    decision = pythonMode ? decidePromotionByLoss(baselineResult, candidateResult, {}) : decidePromotion(baselineResult, candidateResult, config);
+
     if (pythonMode) {
       await recordPythonEvaluation(registry, {
         runId,
@@ -519,11 +669,12 @@ export async function executeFullRun({
         modelId: candidate.modelId,
         result: candidateResult,
         evalSet,
+        identity: options.candidateIdentity ?? null,
+        baselineResult,
+        decision,
+        trainingResult,
       });
     }
-
-    // ---- deterministic promote/reject ----
-    decision = pythonMode ? decidePromotionByLoss(baselineResult, candidateResult, {}) : decidePromotion(baselineResult, candidateResult, config);
 
     // Commit-on-promotion: with a staging-capable trainer the candidate is an
     // unpublished `vNNN.tmp` right now. It is promoted into an immutable `vNNN`
@@ -745,8 +896,12 @@ export async function executeFullRun({
                 ? (trainingResult.stepsCompleted * trainingBudget.effectiveBatchSize) /
                   trainingBudget.trainBlockCount
                 : null,
+            tokensPresented: trainingResult.tokensSeen ?? null,
+            uniqueTokens: trainingResult.trainTokensSeen ?? null,
+            optimizerState: "fresh",
           }
         : null,
+      corpusPolicy,
       corpusAccounting: pythonMode
         ? {
             freshDocumentCount: trainingResult.freshDocumentCount ?? corpusPreflight?.freshDocumentCount ?? null,
@@ -764,6 +919,12 @@ export async function executeFullRun({
             corpusSplitMode: trainingResult.corpusSplit?.mode ?? corpusPreflight?.corpusSplitMode ?? null,
             validationShortfall:
               trainingResult.corpusSplit?.shortfall ?? corpusPreflight?.validationShortfall ?? null,
+            corpusMode: config.trainCorpusMode,
+            corpusStats: corpusStats ?? null,
+            documentBoundary: trainingResult.documentBoundary ?? config.trainDocumentBoundary,
+            eosTokenId: trainingResult.eosTokenId ?? null,
+            tokensPresented: trainingResult.tokensSeen ?? null,
+            uniqueTokens: trainingResult.trainTokensSeen ?? null,
           }
         : null,
       // Which checkpoint the trainer published (best-checkpoint selection vs the
@@ -783,6 +944,12 @@ export async function executeFullRun({
             version: generationQuality.version,
             ok: generationQuality.ok === true,
             aggregate: generationQuality.aggregate ?? null,
+            samples: generationQuality.samples ?? [],
+            promptCount: generationQuality.promptCount ?? null,
+            promptBankVersion: generationQuality.promptBankVersion ?? null,
+            promptIds: generationQuality.promptIds ?? [],
+            decoding: generationQuality.decoding ?? null,
+            modelFingerprint: generationQuality.modelFingerprint ?? null,
             error: generationQuality.error ?? null,
           }
         : null,
@@ -1058,12 +1225,96 @@ export function estimatedLossStdErr(tokensSeen, sigma = config.evalLossTokenStd)
   return s / Math.sqrt(n);
 }
 
-async function recordPythonEvaluation(registry, { runId, kind, version, modelId = null, result, evalSet }) {
+async function recordPythonEvaluation(registry, {
+  runId,
+  kind,
+  version,
+  modelId = null,
+  result,
+  evalSet,
+  identity = null,
+  baselineResult = null,
+  decision = null,
+  trainingResult = null,
+}) {
   if (!registry || typeof registry.recordEvaluation !== "function") return null;
   const evaluationSet = result?.evaluationSet ?? null;
   try {
+    const evalRunId = `${runId}:${kind}`;
+    const manifestHash = evalSet?.manifest
+      ? createHash("sha256").update(JSON.stringify(evalSet.manifest)).digest("hex")
+      : null;
+    const items = (evalSet?.items ?? []).map((item) => ({
+      articleId: item.articleId ?? null,
+      promptId: item.promptId ?? null,
+      contentHash: item.contentHash ?? null,
+    }));
+    const comparisonInputs = baselineResult && result
+      ? {
+          parent: {
+            version: baselineResult.version ?? null,
+            datasetHash: baselineResult.datasetHash ?? null,
+            perDocument: baselineResult.perDocument ?? [],
+            groups: baselineResult.groups ?? [],
+          },
+          candidate: {
+            version: version ?? null,
+            datasetHash: result.datasetHash ?? null,
+            perDocument: result.perDocument ?? [],
+            groups: result.groups ?? [],
+          },
+        }
+      : null;
+    const evidence = {
+      schema: "sma/eval-evidence@1",
+      evalRunId,
+      kind,
+      createdAt: new Date().toISOString(),
+      evaluationSet: {
+        datasetId: evalSet?.datasetId ?? null,
+        datasetVersion: evalSet?.datasetVersion ?? null,
+        file: evalSet?.file ?? null,
+        fileHash: evalSet?.file ? computeFileHash(evalSet.file) : null,
+        manifestHash,
+        items,
+      },
+      metric: evaluationSet
+        ? {
+            name: "causal-cross-entropy",
+            strategy: evaluationSet.strategy ?? null,
+            sequenceLength: evaluationSet.sequenceLength ?? config.promoteEvalSeqLen,
+            microBatch: config.promoteEvalMicroBatch,
+            computeDtype: "float32",
+          }
+        : null,
+      metricSignature: result?.metricSignature ?? null,
+      model: {
+        version: version ?? null,
+        modelId,
+        fingerprint: identity?.candidateKey ?? null,
+        parentWeightFingerprint: identity?.parent?.weightFingerprint ?? null,
+      },
+      candidateIdentity: identity,
+      trainingSeed: identity?.training?.seed ?? trainingResult?.trainingSeed ?? null,
+      codeFingerprint: identity?.trainer?.fingerprint ?? trainingResult?.trainerCodeFingerprint?.digest ?? null,
+      evaluationLoss: Number.isFinite(result?.loss) ? result.loss : null,
+      perDocument: result?.perDocument ?? [],
+      groups: result?.groups ?? [],
+      comparisonInputs,
+      paired: decision?.paired ?? null,
+      bootstrap: decision?.paired
+        ? {
+            method: decision.paired.method ?? null,
+            methodVersion: decision.paired.methodVersion ?? null,
+            bootstrapSeed: decision.paired.bootstrapSeed ?? null,
+            ciLevel: decision.paired.level ?? config.promoteCiLevel,
+            samples: decision.paired.samples ?? config.promoteBootstrapSamples,
+            minGroups: config.promoteMinGroups,
+          }
+        : null,
+    };
     return await registry.recordEvaluation({
-      evalRunId: `${runId}:${kind}`,
+      evalRunId,
       runId,
       kind,
       version: version ?? null,
@@ -1074,13 +1325,7 @@ async function recordPythonEvaluation(registry, { runId, kind, version, modelId 
       error: result?.ok === true ? null : (result?.error ?? null),
       datasetHash: result?.datasetHash ?? evaluationSet?.datasetHash ?? null,
       metricSignature: result?.metricSignature ?? null,
-      metric: {
-        name: "causal-cross-entropy",
-        strategy: evaluationSet?.strategy ?? null,
-        sequenceLength: evaluationSet?.sequenceLength ?? config.promoteEvalSeqLen,
-        microBatch: config.promoteEvalMicroBatch,
-        computeDtype: "float32",
-      },
+      metric: evidence.metric,
       tokenizerHash: evaluationSet?.tokenizerHash ?? null,
       documentCount: evaluationSet?.documentCount ?? null,
       blockCount: evaluationSet?.blockCount ?? null,
@@ -1088,7 +1333,12 @@ async function recordPythonEvaluation(registry, { runId, kind, version, modelId 
       lossStdErr: estimatedLossStdErr(evaluationSet?.tokensSeen),
       evaluationSetId: evalSet?.datasetId ?? null,
       evaluationSetVersion: evalSet?.datasetVersion ?? null,
-      evaluationSetHash: evalSet?.contentHash ?? null,
+      evaluationSetHash: evalSet?.file ? computeFileHash(evalSet.file) : null,
+      candidateIdentity: identity,
+      trainingSeed: evidence.trainingSeed,
+      codeFingerprint: evidence.codeFingerprint,
+      paired: decision?.paired ?? null,
+      evidence,
     });
   } catch (err) {
     // records are provenance, not the gate

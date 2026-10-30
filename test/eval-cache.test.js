@@ -47,6 +47,11 @@ test("baselineCacheKey is deterministic and varies with every loss-affecting inp
     "evidence shape (aggregate vs per-document)",
   );
   assert.notEqual(baselineCacheKey({ ...base, dtype: "float16" }), baselineCacheKey(base), "compute dtype");
+  assert.notEqual(
+    baselineCacheKey({ ...base, codeFingerprint: "code-a" }),
+    baselineCacheKey({ ...base, codeFingerprint: "code-b" }),
+    "trainer code fingerprint",
+  );
 });
 
 test("cacheEntrySatisfiesEvidence rejects aggregate-only data when per-document evidence is required", () => {

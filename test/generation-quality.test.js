@@ -32,12 +32,21 @@ test("evaluateGenerationQuality maps the python payload and fails closed on erro
     run: async () => ({
       ok: true,
       aggregate: { meanRep1: 0.75, maxRun: 2 },
-      samples: [{ prompt: "p", text: "x", tokens: 1, rep1: 1, maxRun: 1 }],
+      samples: [{ promptId: "quality-v1-01", prompt: "p", text: "x", tokens: 1, rep1: 1, maxRun: 1 }],
       promptCount: 1,
+      promptBankVersion: "quality-prompts-v1",
+      promptIds: ["quality-v1-01"],
+      decoding: { temperature: 0, maxNewTokens: 32, seed: 0 },
+      modelFingerprint: "artifact-fingerprint",
     }),
   });
   assert.equal(good.ok, true);
   assert.equal(good.aggregate.meanRep1, 0.75);
+  assert.equal(good.samples[0].promptId, "quality-v1-01");
+  assert.equal(good.promptBankVersion, "quality-prompts-v1");
+  assert.deepEqual(good.promptIds, ["quality-v1-01"]);
+  assert.equal(good.decoding.maxNewTokens, 32);
+  assert.equal(good.modelFingerprint, "artifact-fingerprint");
 
   const bad = await evaluateGenerationQuality({
     version: "v9",

@@ -402,6 +402,14 @@ export const config = {
   // (see `freshArticleIds` in the manifest); the leak guard and hash-sealing
   // are unchanged.
   snapshotIncludeConsumed: bool("SNAPSHOT_INCLUDE_CONSUMED", false),
+  // Corpus text mode. `fragment` is the historical curated-text path. `raw-text`
+  // uses the fetched source text, cleans boilerplate, and falls back to the
+  // curated text when raw text is unavailable or not prose. Only REVIEWED
+  // material enters either mode.
+  trainCorpusMode: oneOf("TRAIN_CORPUS_MODE", "fragment", ["fragment", "raw-text"]),
+  trainCorpusMinChars: num("TRAIN_CORPUS_MIN_CHARS", 1000),
+  trainCorpusMinSentenceRatio: num("TRAIN_CORPUS_MIN_SENTENCE_RATIO", 0.4),
+  trainCorpusCommonLineDocs: num("TRAIN_CORPUS_COMMON_LINE_DOCS", 10),
   workers: num("WORKERS", 2),
   runLockStaleMs: num("RUN_LOCK_STALE_MS", 10 * 60 * 1000),
 
@@ -418,6 +426,10 @@ export const config = {
   // tiny corpus cannot be repeated indefinitely.
   trainTargetEpochs: num("TRAIN_TARGET_EPOCHS", 2),
   trainMaxSteps: num("TRAIN_MAX_STEPS", 400),
+  // A run that cannot reach this many optimizer steps is refused/deferred
+  // rather than publishing a nominally-new model from a tiny update. 0 disables
+  // the minimum. Production sets this explicitly.
+  trainMinSteps: num("TRAIN_MIN_STEPS", 0),
   // Best-checkpoint selection: publish the step with the lowest in-training
   // held-out validation loss instead of always the final step. The frozen eval
   // set remains the promotion gate; this only chooses WHICH weights become the
@@ -436,12 +448,38 @@ export const config = {
   trainDeferralCooldownBaseMs: num("TRAIN_DEFERRAL_COOLDOWN_BASE_MS", 6 * 60 * 60 * 1000),
   trainDeferralCooldownMaxMs: num("TRAIN_DEFERRAL_COOLDOWN_MAX_MS", 24 * 60 * 60 * 1000),
   trainSeqLen: num("TRAIN_SEQ_LEN", 128),
+  trainDocumentBoundary: oneOf("TRAIN_DOCUMENT_BOUNDARY", "separator", ["separator", "eos"]),
   trainMicroBatch: num("TRAIN_MICRO_BATCH", 2),
   trainGradAccum: num("TRAIN_GRAD_ACCUM", 2),
   trainWarmup: num("TRAIN_WARMUP", 10),
   // Held-out validation blocks for monitoring. These are packed from appended
   // consumed rows when available, so they do not consume training material.
   trainValBlocks: num("TRAIN_VAL_BLOCKS", 32),
+  // Deterministic training seed. It is part of the candidate identity and is
+  // recorded in provenance; it is NOT a manually maintained version label.
+  trainSeed: num("TRAIN_SEED", 0),
+  // Validation partitioning. Production default is fail-closed document/source
+  // disjoint assignment before tokenisation. `legacy-tail-split` exists only for
+  // isolated legacy fixtures/tests and must never be the production default.
+  // Production-reachable configuration accepts only the fail-closed policy.
+  // Legacy tail splitting remains available to explicit isolated Python/fixture
+  // callers, but cannot be selected through the Node production configuration.
+  trainValidationPolicy: oneOf("TRAIN_VALIDATION_POLICY", "document-source-disjoint", ["document-source-disjoint"]),
+  trainValidationFraction: num("TRAIN_VALIDATION_FRACTION", 0.05),
+  trainValidationTargetTokens: num("TRAIN_VALIDATION_TARGET_TOKENS", 0),
+  trainMinValidationTokens: num("TRAIN_MIN_VALIDATION_TOKENS", 0),
+  trainMinValidationClusters: num("TRAIN_MIN_VALIDATION_CLUSTERS", 1),
+  trainValidationSeed: num("TRAIN_VALIDATION_SEED", 0),
+  trainValidationRequireProspective: bool("TRAIN_VALIDATION_REQUIRE_PROSPECTIVE", true),
+  // Corpus quality / diversity controls. Caps default to disabled (0); they are
+  // configurable hypotheses, not fixed scientific truths.
+  trainCorpusMaxFallbackTokenShare: num("TRAIN_CORPUS_MAX_FALLBACK_TOKEN_SHARE", 0),
+  trainMaxSourceTokenShare: num("TRAIN_MAX_SOURCE_TOKEN_SHARE", 0),
+  trainMaxPublisherTokenShare: num("TRAIN_MAX_PUBLISHER_TOKEN_SHARE", 0),
+  trainMergeSourceRawText: bool("TRAIN_MERGE_SOURCE_RAW_TEXT", true),
+  trainSupportedLanguages: env("TRAIN_SUPPORTED_LANGUAGES", "en"),
+  trainLanguageMinConfidence: num("TRAIN_LANGUAGE_MIN_CONFIDENCE", 0.8),
+  trainLanguageUnknownPolicy: oneOf("TRAIN_LANGUAGE_UNKNOWN_POLICY", "allow", ["allow", "reject"]),
   trainComputeDtype: env("TRAIN_COMPUTE_DTYPE", "bfloat16"), // bfloat16 | float32
   // Periodic held-out validation loss during training (record validation loss
   // every N steps so a validation *curve* exists for the Observatory). 0 keeps

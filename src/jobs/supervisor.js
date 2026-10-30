@@ -619,55 +619,55 @@ export class JobSupervisor {
         outcome = "no-source-configured";
         break;
       }
-      if (last.sourceExhausted) {
-        // The authoritative acquisition classification decides whether a
-        // perpetual job keeps cycling, waits (bounded backoff, persisted), or —
-        // for a bounded job — reports a terminal `sources-exhausted` with the
-        // reason attached. A continuous job must NEVER terminate merely because
-        // no immediate work is available.
-        const acq = last.acquisition ?? { state: ACQUISITION_STATE.EXHAUSTED, reason: "no acquisition report" };
-        if (acq.state !== ACQUISITION_STATE.WORK) {
-          if (continuous) {
-            lastWaitReason = acq.reason;
-            const now = this.clock();
-            const deadline = backoffDeadline(acquisitionWaitAttempt, {
-              baseMs: config.jobs.learning.waitBackoffBaseMs,
-              maxMs: config.jobs.learning.waitBackoffMaxMs,
-              now,
-            });
-            // Honor a frontier-scheduled retry/rediscovery deadline: wake when it
-            // is due, but never sleep longer than the configured maximum (so a
-            // stale far-future deadline cannot park the job indefinitely).
-            let waitDelayMs = deadline.delayMs;
-            let nextAttemptAt = deadline.nextAttemptAt;
-            const dueTs = acq.nextDueAt ? Date.parse(acq.nextDueAt) : NaN;
-            if (Number.isFinite(dueTs) && dueTs > now) {
-              const target = Math.min(dueTs, now + config.jobs.learning.waitBackoffMaxMs);
-              waitDelayMs = Math.max(waitDelayMs, target - now);
-              nextAttemptAt = now + waitDelayMs;
-            }
-            await this.#safeEvent(jobId, {
-              status: JOB_STATUS.WAITING,
-              phase: `waiting-for-acquisition:${acq.state}`,
-              note: `waiting: ${acq.reason}`,
-              meta: {
-                waitingReason: acq.reason,
-                acquisitionState: acq.state,
-                nextAttemptAt: new Date(nextAttemptAt).toISOString(),
-                diagnostics: { frontier: last?.frontier ?? null, discovery: last?.discovery ?? null },
-              },
-            });
-            acquisitionWaitAttempt++;
-            noProgressStreak = 0; // a scheduled wait is not a stall
-            await this.#gate(jobId, waitDelayMs);
-            continue;
-          }
-          outcome = "sources-exhausted";
+      // The AUTHORITATIVE acquisition classification — not the raw-document
+      // count — decides whether a perpetual job keeps cycling, waits (bounded
+      // backoff, persisted), or (for a bounded job) reports a terminal
+      // `sources-exhausted` with the reason attached. `WORK` continues even when
+      // a pass produced no usable documents; a continuous job must NEVER
+      // terminate merely because no immediate work is available.
+      const acquisition = last?.acquisition ?? null;
+      if (acquisition && acquisition.state !== ACQUISITION_STATE.WORK) {
+        const acq = acquisition;
+        if (continuous) {
           lastWaitReason = acq.reason;
-          break;
+          const now = this.clock();
+          const deadline = backoffDeadline(acquisitionWaitAttempt, {
+            baseMs: config.jobs.learning.waitBackoffBaseMs,
+            maxMs: config.jobs.learning.waitBackoffMaxMs,
+            now,
+          });
+          // Honor a frontier-scheduled retry/rediscovery deadline: wake when it
+          // is due, but never sleep longer than the configured maximum (so a
+          // stale far-future deadline cannot park the job indefinitely).
+          let waitDelayMs = deadline.delayMs;
+          let nextAttemptAt = deadline.nextAttemptAt;
+          const dueTs = acq.nextDueAt ? Date.parse(acq.nextDueAt) : NaN;
+          if (Number.isFinite(dueTs) && dueTs > now) {
+            const target = Math.min(dueTs, now + config.jobs.learning.waitBackoffMaxMs);
+            waitDelayMs = Math.max(waitDelayMs, target - now);
+            nextAttemptAt = now + waitDelayMs;
+          }
+          await this.#safeEvent(jobId, {
+            status: JOB_STATUS.WAITING,
+            phase: `waiting-for-acquisition:${acq.state}`,
+            note: `waiting: ${acq.reason}`,
+            meta: {
+              waitingReason: acq.reason,
+              acquisitionState: acq.state,
+              nextAttemptAt: new Date(nextAttemptAt).toISOString(),
+              diagnostics: { frontier: last?.frontier ?? null, discovery: last?.discovery ?? null },
+            },
+          });
+          acquisitionWaitAttempt++;
+          noProgressStreak = 0; // a scheduled wait is not a stall
+          await this.#gate(jobId, waitDelayMs);
+          continue;
         }
-        acquisitionWaitAttempt = 0; // made claimable work => reset the backoff
+        outcome = "sources-exhausted";
+        lastWaitReason = acq.reason;
+        break;
       }
+      acquisitionWaitAttempt = 0; // claimable work => reset the backoff
       if (params.maxCycles > 0 && cycle >= params.maxCycles) {
         outcome = "max-cycles";
         break;
@@ -1262,6 +1262,7 @@ function summarizeLearning(r) {
     corpusCeiling: r.corpusCeiling ?? null,
     failures: r.failures?.length ?? 0,
     sourceExhausted: r.sourceExhausted,
+    noUsefulDocuments: Boolean(r.noUsefulDocuments),
     admissionCapExhausted: Boolean(r.admissionCapExhausted),
     admissionCapDeferred: r.admissionCapDeferred ?? 0,
     admissionCapEpoch: r.admissionCapEpoch ?? null,

@@ -9,6 +9,7 @@ import hashlib
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
 import torch
 
 from conftest import FIXTURE_CORPUS
@@ -105,3 +106,100 @@ def test_validation_shortfall_is_reported_not_hidden():
     assert train_blocks.shape[0] == 1
     # A validation role must never fall back into the training stream.
     assert torch.equal(torch.unique(train_blocks), torch.tensor([1]))
+
+
+class EosFakeTokenizer(FakeTokenizer):
+    eos_token_id = 99
+    eos_token = "<eos>"
+
+
+def test_eos_document_boundary_inserts_eos_after_every_document():
+    tokenizer = EosFakeTokenizer()
+    docs = [doc("a", 1, 7), doc("b", 2, 7)]
+    blocks, record = data_mod.pack(
+        tokenizer, docs, 16, FIXTURE_CORPUS, document_boundary="eos"
+    )
+    assert blocks.tolist() == [[1] * 7 + [99] + [2] * 7 + [99]]
+    assert record.strategy == data_mod.PACKING_STRATEGY_EOS
+    assert record.documentBoundary == "eos"
+    assert record.eosTokenId == 99
+    assert record.roleTokenCounts == {"train": 14}
+    assert record.droppedTokens == 0
+
+
+def test_eos_document_boundary_applies_to_the_final_document():
+    tokenizer = EosFakeTokenizer()
+    docs = [doc("only", 4, 15)]
+    blocks, record = data_mod.pack(
+        tokenizer, docs, 16, FIXTURE_CORPUS, document_boundary="eos"
+    )
+    assert blocks.tolist() == [[4] * 15 + [99]]
+    assert record.eosTokenId == 99
+
+
+def test_eos_document_boundary_requires_a_valid_eos_token():
+    tokenizer = FakeTokenizer()
+    with pytest.raises(ValueError, match="no valid eos_token_id"):
+        data_mod.pack(
+            tokenizer, [doc("a", 1, 5)], 8, FIXTURE_CORPUS, document_boundary="eos"
+        )
+
+
+def test_document_policy_fails_closed_without_validation_documents():
+    tokenizer = FakeTokenizer()
+    docs = [doc("fresh", 1, 80)]
+    with pytest.raises(data_mod.InsufficientValidationError) as exc:
+        data_mod.pack_for_training(
+            tokenizer,
+            docs,
+            16,
+            FIXTURE_CORPUS,
+            validation_blocks=2,
+            validation_policy="document-source-disjoint",
+        )
+    assert "no validation documents" in str(exc.value)
+
+
+def test_document_policy_fails_closed_when_validation_is_too_small():
+    tokenizer = FakeTokenizer()
+    docs = [doc("fresh", 1, 80), doc("val-tiny", 3, 4, "validation")]
+    with pytest.raises(data_mod.InsufficientValidationError) as exc:
+        data_mod.pack_for_training(
+            tokenizer,
+            docs,
+            16,
+            FIXTURE_CORPUS,
+            validation_blocks=2,
+            validation_policy="document-source-disjoint",
+        )
+    assert "refusing to fall back" in str(exc.value)
+
+
+def test_document_policy_packs_train_and_validation_separately_and_records_split_hash():
+    tokenizer = FakeTokenizer()
+    docs = [doc("fresh-a", 1, 40), doc("fresh-b", 2, 40), doc("val-a", 3, 80, "validation")]
+    train_blocks, val_blocks, record, split = data_mod.pack_for_training(
+        tokenizer,
+        docs,
+        16,
+        FIXTURE_CORPUS,
+        validation_blocks=5,
+        validation_policy="document-source-disjoint",
+    )
+    assert split["mode"] == "role-appended"
+    assert split["validationPolicy"] == "document-source-disjoint"
+    assert split["splitHash"] and len(split["splitHash"]) == 64
+    assert train_blocks.shape[0] == 5
+    assert val_blocks.shape[0] == 5
+    assert torch.equal(torch.unique(train_blocks), torch.tensor([1, 2]))
+    assert torch.equal(torch.unique(val_blocks), torch.tensor([3]))
+    # Deterministic from the same corpus and policy.
+    _tb, _vb, _rec, again = data_mod.pack_for_training(
+        tokenizer,
+        docs,
+        16,
+        FIXTURE_CORPUS,
+        validation_blocks=5,
+        validation_policy="document-source-disjoint",
+    )
+    assert again["splitHash"] == split["splitHash"]

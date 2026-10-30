@@ -55,6 +55,7 @@ export function baselineCacheKey({
   device,
   dtype = "float32",
   perDocument = false,
+  codeFingerprint = null,
 }) {
   return [
     CACHE_SCHEMA,
@@ -65,6 +66,7 @@ export function baselineCacheKey({
     device,
     dtype,
     perDocument ? "per-document" : "aggregate",
+    codeFingerprint ?? "code-unfingerprinted",
   ].join("::");
 }
 

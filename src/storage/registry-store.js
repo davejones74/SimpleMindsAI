@@ -255,9 +255,26 @@ export class RegistryStore {
   // ------------------------------------------------------ evaluation
   async recordEvaluation(rec) {
     this.#assertWritable();
-    this.evaluations.push(rec);
-    await this.#persist("evaluations", rec);
-    return rec;
+    let stored = rec;
+    if (rec?.evidence && typeof rec.evidence === "object") {
+      // Keep large per-document/bootstrap evidence out of the append-only
+      // aggregate ledger, but make it immutable and addressable by hash.
+      const safeId = String(rec.evalRunId ?? `eval-${this.evaluations.length + 1}`)
+        .replace(/[^A-Za-z0-9._-]+/g, "_");
+      const evidenceFile = path.join(this.dir, "evaluations", `${safeId}.evidence.json`);
+      const bytes = `${JSON.stringify(rec.evidence, null, 2)}\n`;
+      writeFileSync(evidenceFile, bytes, "utf8");
+      const evidenceHash = createHash("sha256").update(bytes).digest("hex");
+      stored = {
+        ...rec,
+        evidence: undefined,
+        evidenceFile: path.relative(this.dir, evidenceFile),
+        evidenceHash,
+      };
+    }
+    this.evaluations.push(stored);
+    await this.#persist("evaluations", stored);
+    return stored;
   }
   listEvaluations() { return [...this.evaluations]; }
   getEvaluation(id) { return this.evaluations.find((e) => e.evalRunId === id) ?? null; }

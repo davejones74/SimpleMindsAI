@@ -1,4 +1,4 @@
-import { mkdir } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import { existsSync, createReadStream, createWriteStream, renameSync, unlinkSync } from "node:fs";
 import { createHash } from "node:crypto";
 import readline from "node:readline";
@@ -6,6 +6,9 @@ import path from "node:path";
 import { config } from "../config.js";
 import { contentHash, isTrainable } from "../domain/article.js";
 import { preScreen } from "../domain/review-gates.js";
+import { buildCommonLines, corpusRowForArticle, corpusTextForArticle } from "./corpus-text.js";
+import { applyDiversityCaps, computeCorpusDiversity } from "./diversity.js";
+import { normalizeSourceUrl } from "./partition.js";
 
 /**
  * Immutable article snapshots (requirement #2 + #17).
@@ -172,8 +175,19 @@ export function collectRowsFromArticles(
     replayPercent = 0,
     validationBlocks = 0,
     validationSeqLen = config.trainSeqLen,
+    corpusMode = config.trainCorpusMode,
   } = {},
 ) {
+  if (corpusMode === "raw-text") {
+    return collectRawTextRowsFromArticles(store, {
+      limit,
+      includeConsumed,
+      replayPercent,
+      validationBlocks,
+      validationSeqLen,
+      corpusMode,
+    });
+  }
   const rows = [];
   const freshArticleIds = [];
   let fresh = 0;
@@ -229,7 +243,11 @@ export function collectRowsFromArticles(
   let validationRows = [];
   if (includeConsumed) {
     const remaining = Math.max(0, limit - rows.length);
-    for (const a of drain(true, remaining).filter(reuseEligible)) {
+    const consumedPool = drain(true, remaining);
+    const replayOnlyPool = drain(false, Math.max(0, remaining - consumedPool.length), {
+      replayOnlyOnly: true,
+    });
+    for (const a of [...consumedPool, ...replayOnlyPool].filter(reuseEligible)) {
       rows.push(rowForArticle(a));
       retained += 1;
     }
@@ -299,6 +317,285 @@ export function collectRowsFromArticles(
   };
 }
 
+function drainArticlePool(store, { consumed, target, replayOnlyOnly = false, requireTrainable = false }) {
+  const out = [];
+  let cursor = null;
+  let guard = 0;
+  while (out.length < target && guard++ < 200) {
+    const { items, nextCursor } = store.articlesPage({
+      after: cursor,
+      limit: 200,
+      status: "REVIEWED",
+      consumed,
+      ...(replayOnlyOnly ? { replayOnly: true } : {}),
+    });
+    for (const article of items) {
+      if (requireTrainable && !isTrainable(article)) continue;
+      out.push(article);
+      if (out.length >= target) break;
+    }
+    if (!nextCursor) break;
+    cursor = nextCursor;
+  }
+  return out;
+}
+
+export function collectRawTextRowsFromArticles(
+  store,
+  {
+    limit = config.snapshotLimit,
+    includeConsumed = config.snapshotIncludeConsumed,
+    replayPercent = 0,
+    validationBlocks = 0,
+    validationSeqLen = config.trainSeqLen,
+    corpusMode = config.trainCorpusMode,
+    minChars = config.trainCorpusMinChars,
+    minSentenceRatio = config.trainCorpusMinSentenceRatio,
+    commonLineDocs = config.trainCorpusCommonLineDocs,
+    deferValidationPartition = false,
+    supportedLanguages = config.trainSupportedLanguages,
+    languageMinConfidence = config.trainLanguageMinConfidence,
+    languageUnknownPolicy = config.trainLanguageUnknownPolicy,
+    maxFallbackTokenShare = config.trainCorpusMaxFallbackTokenShare,
+    maxSourceTokenShare = config.trainMaxSourceTokenShare,
+    maxPublisherTokenShare = config.trainMaxPublisherTokenShare,
+    mergeSourceRawText = config.trainMergeSourceRawText,
+  } = {},
+) {
+  const freshPool = drainArticlePool(store, { consumed: false, target: limit, requireTrainable: true });
+  let retainedPool = [];
+  let replayPool = [];
+  let validationPool = [];
+
+  if (includeConsumed) {
+    const remaining = Math.max(0, limit - freshPool.length);
+    const consumedPool = drainArticlePool(store, { consumed: true, target: remaining });
+    const replayOnlyPool = drainArticlePool(store, {
+      consumed: false,
+      target: Math.max(0, remaining - consumedPool.length),
+      replayOnlyOnly: true,
+    });
+    retainedPool = [...consumedPool, ...replayOnlyPool];
+    if (!deferValidationPartition && validationBlocks > 0 && retainedPool.length) {
+      const pseudo = retainedPool.map((article) => ({
+        articleId: article.articleId,
+        text: article.rawText ?? article.text ?? "",
+      }));
+      const chosen = selectValidationRows(pseudo, { validationBlocks, seqLen: validationSeqLen });
+      const ids = new Set(chosen.map((row) => row.articleId));
+      validationPool = retainedPool.filter((article) => ids.has(article.articleId));
+      retainedPool = retainedPool.filter((article) => !ids.has(article.articleId));
+    }
+  } else {
+    const pct = Math.max(0, Math.min(99, Number(replayPercent) || 0));
+    if (pct > 0 || validationBlocks > 0) {
+      const poolLimit = Math.max(512, limit * 4);
+      const pool = [
+        ...drainArticlePool(store, { consumed: true, target: poolLimit }),
+        ...drainArticlePool(store, { consumed: false, target: poolLimit, replayOnlyOnly: true }),
+      ].filter(reuseEligible);
+      if (pct > 0) {
+        const chosen = selectReplayRows(
+          freshPool.map((article) => ({ articleId: article.articleId, text: article.rawText ?? article.text ?? "" })),
+          pool.map((article) => ({ articleId: article.articleId, text: article.rawText ?? article.text ?? "" })),
+          { replayPercent: pct, maxRows: limit },
+        );
+        const ids = new Set(chosen.map((row) => row.articleId));
+        replayPool = pool
+          .filter((article) => ids.has(article.articleId))
+          .slice(0, Math.max(0, limit - freshPool.length));
+      }
+      const replayIds = new Set(replayPool.map((article) => article.articleId));
+      if (!deferValidationPartition && validationBlocks > 0) {
+        const candidates = pool.filter((article) => !replayIds.has(article.articleId));
+        const chosen = selectValidationRows(
+          candidates.map((article) => ({ articleId: article.articleId, text: article.rawText ?? article.text ?? "" })),
+          { validationBlocks, seqLen: validationSeqLen },
+        );
+        const ids = new Set(chosen.map((row) => row.articleId));
+        validationPool = candidates.filter((article) => ids.has(article.articleId));
+      }
+    }
+  }
+
+  const allPools = [...freshPool, ...retainedPool, ...replayPool, ...validationPool];
+  const commonLines = buildCommonLines(allPools, { threshold: commonLineDocs });
+  const sourceKey = (article) => article.fetchedContentHash || normalizeSourceUrl(article.sourceUrl) || article.articleId;
+  // One representative full-text row per original source. Other curated chunks
+  // from that source remain useful as fallback text, but must not each embed a
+  // second full copy of the same raw article.
+  const rawTextRepresentative = new Map();
+  if (mergeSourceRawText) {
+    for (const article of allPools) {
+      const key = sourceKey(article);
+      const selected = corpusTextForArticle(article, { mode: "raw-text", commonLines, minChars, minSentenceRatio });
+      const score = selected.source === "rawText" ? selected.chars : -1;
+      const current = rawTextRepresentative.get(key);
+      if (!current || score > current.score) {
+        rawTextRepresentative.set(key, { articleId: article.articleId, score });
+      }
+    }
+  }
+  const consideredSources = new Set(allPools.map(sourceKey));
+  const includedSources = new Set();
+  const byHash = new Map();
+  let rows = [];
+  const freshArticleIds = [];
+  const replayArticleIds = [];
+  const validationArticleIds = [];
+  const stats = {
+    collected: 0,
+    fresh: 0,
+    retained: 0,
+    replay: 0,
+    validation: 0,
+    estimatedReplayShare: 0,
+    corpusMode,
+    articlesConsidered: allPools.length,
+    articlesIncluded: 0,
+    articlesExcluded: 0,
+    excludedByReason: {},
+    deduplicatedArticles: 0,
+    uniqueSourcesConsidered: consideredSources.size,
+    uniqueSourcesIncluded: 0,
+    usedSourceFraction: 0,
+    estimatedTokens: 0,
+    estimatedFreshTokens: 0,
+    estimatedRetainedTokens: 0,
+    estimatedReplayTokens: 0,
+    estimatedValidationTokens: 0,
+    rawTextRows: 0,
+    fallbackRows: 0,
+    rawTextSuppressedRows: 0,
+    fallbackTokenShare: 0,
+    languageDistribution: {},
+    qualityDistribution: {},
+    diversity: null,
+    caps: null,
+  };
+  const bump = (key) => {
+    stats.excludedByReason[key] = (stats.excludedByReason[key] ?? 0) + 1;
+    stats.articlesExcluded += 1;
+  };
+
+  const addPool = (pool, role, roleIds, kind) => {
+    for (const article of pool) {
+      const representative = mergeSourceRawText ? rawTextRepresentative.get(sourceKey(article)) : null;
+      const suppressRawText = Boolean(representative && representative.articleId !== article.articleId);
+      const { row, selected, gate } = corpusRowForArticle(article, {
+        mode: corpusMode,
+        corpusRole: role,
+        commonLines,
+        minChars,
+        minSentenceRatio,
+        suppressRawText,
+        supportedLanguages,
+        languageMinConfidence,
+        languageUnknownPolicy,
+      });
+      if (gate.decision === "reject") {
+        bump(`curation:${gate.gate ?? "unknown"}`);
+        continue;
+      }
+      if (!row.languageEligible) {
+        bump(`language:${row.language || "und"}`);
+        continue;
+      }
+      if (row.rawTextSuppressed) stats.rawTextSuppressedRows += 1;
+      const minLength = selected.source === "rawText" ? minChars : 20;
+      if (!row.text || row.text.length < minLength) {
+        bump("short");
+        continue;
+      }
+      const existing = byHash.get(row.contentHash);
+      if (existing) {
+        if (role === "validation") {
+          bump("validation-duplicate");
+          continue;
+        }
+        existing.sourceArticleIds = existing.sourceArticleIds ?? [existing.articleId];
+        if (!existing.sourceArticleIds.includes(article.articleId)) existing.sourceArticleIds.push(article.articleId);
+        roleIds.push(article.articleId);
+        stats.deduplicatedArticles += 1;
+        continue;
+      }
+      byHash.set(row.contentHash, row);
+      rows.push(row);
+      roleIds.push(article.articleId);
+      includedSources.add(sourceKey(article));
+      stats.articlesIncluded += 1;
+      if (selected.source === "rawText") stats.rawTextRows += 1;
+      else stats.fallbackRows += 1;
+      const tokens = estimateTokenCount(row.text);
+      stats.estimatedTokens += tokens;
+      if (kind === "fresh") {
+        stats.fresh += 1;
+        stats.estimatedFreshTokens += tokens;
+      } else if (kind === "retained") {
+        stats.retained += 1;
+        stats.estimatedRetainedTokens += tokens;
+      } else if (kind === "replay") {
+        stats.replay += 1;
+        stats.estimatedReplayTokens += tokens;
+      } else if (kind === "validation") {
+        stats.validation += 1;
+        stats.estimatedValidationTokens += tokens;
+      }
+    }
+  };
+
+  addPool(freshPool, "train", freshArticleIds, "fresh");
+  addPool(retainedPool, "train", [], "retained");
+  addPool(replayPool, "replay", replayArticleIds, "replay");
+  addPool(validationPool, "validation", validationArticleIds, "validation");
+
+  const beforeCaps = rows.length;
+  const capped = applyDiversityCaps(rows, {
+    maxFallbackTokenShare,
+    maxSourceTokenShare,
+    maxPublisherTokenShare,
+  });
+  rows = capped.kept;
+  if (capped.removed.length) {
+    const keptIds = new Set(rows.map((row) => row.articleId));
+    for (const [ids, list] of [
+      [freshArticleIds, freshArticleIds],
+      [replayArticleIds, replayArticleIds],
+      [validationArticleIds, validationArticleIds],
+    ]) {
+      for (let i = list.length - 1; i >= 0; i -= 1) if (!keptIds.has(list[i])) list.splice(i, 1);
+    }
+    for (const [reason, count] of Object.entries(capped.removedByReason)) {
+      stats.excludedByReason[reason] = (stats.excludedByReason[reason] ?? 0) + count;
+      stats.articlesExcluded += count;
+    }
+  }
+  stats.caps = { beforeCaps, afterCaps: rows.length, removed: capped.removed.length, removedByReason: capped.removedByReason };
+
+  stats.collected = rows.length;
+  stats.uniqueSourcesIncluded = includedSources.size;
+  stats.usedSourceFraction = consideredSources.size ? includedSources.size / consideredSources.size : 0;
+  const trainingTokens = rows
+    .filter((row) => row.corpusRole !== "validation")
+    .reduce((total, row) => total + estimateTokenCount(row.text), 0);
+  stats.estimatedReplayShare = trainingTokens ? stats.estimatedReplayTokens / trainingTokens : 0;
+  const diversity = computeCorpusDiversity(rows);
+  stats.diversity = diversity;
+  stats.fallbackTokenShare = diversity.totalTokensEstimated
+    ? diversity.qualityTiers.find((tier) => tier.key === "fallback")?.share ?? 0
+    : 0;
+  stats.languageDistribution = Object.fromEntries(diversity.languages.map((entry) => [entry.key, entry.tokens]));
+  stats.qualityDistribution = Object.fromEntries(diversity.qualityTiers.map((entry) => [entry.key, entry.tokens]));
+
+  return {
+    rows,
+    freshArticleIds,
+    replayArticleIds,
+    validationArticleIds,
+    stats,
+  };
+}
+
 function writeChunk(ws, chunk) {
   return new Promise((resolve, reject) => {
     ws.write(chunk, (err) => (err ? reject(err) : resolve()));
@@ -330,6 +627,10 @@ export async function buildSnapshot({
   freshArticleIds = null,
   replayArticleIds = null,
   validationArticleIds = null,
+  partition = null,
+  corpusMode = config.trainCorpusMode,
+  corpusPolicy = "fresh-delta",
+  corpusStats = null,
 }) {
   await mkdir(dir, { recursive: true });
 
@@ -380,6 +681,46 @@ export async function buildSnapshot({
   // alone drive consumption/deferral bookkeeping; every `articleId` is still
   // part of the trained corpus. Absent (e.g. an injected rowsRaw), the whole
   // set is treated as fresh, matching the historical delta-only behaviour.
+  let partitionSummary = null;
+  if (partition) {
+    const splitsDir = path.join(dir, "splits");
+    await mkdir(splitsDir, { recursive: true });
+    const assignmentFile = path.join(splitsDir, `${datasetId}-${datasetVersion}.json`);
+    const assignment = {
+      schema: "sma/partition-assignment@1",
+      datasetId,
+      datasetVersion,
+      policyVersion: partition.policyVersion,
+      clusterPolicyVersion: partition.clusterPolicyVersion,
+      splitSeed: partition.splitSeed,
+      splitHash: partition.splitHash,
+      targetTokens: partition.targetTokens,
+      requestedTargetTokens: partition.requestedTargetTokens,
+      assignments: partition.assignments,
+      clusters: partition.clusters,
+      nearDuplicatePairs: partition.nearDuplicatePairs,
+      exposure: partition.exposure,
+      stats: partition.stats,
+    };
+    const assignmentBytes = `${JSON.stringify(assignment, null, 2)}\n`;
+    await writeFile(assignmentFile, assignmentBytes, "utf8");
+    const assignmentHash = createHash("sha256").update(assignmentBytes).digest("hex");
+    partitionSummary = {
+      policyVersion: partition.policyVersion,
+      clusterPolicyVersion: partition.clusterPolicyVersion,
+      splitSeed: partition.splitSeed,
+      splitHash: partition.splitHash,
+      targetTokens: partition.targetTokens,
+      requestedTargetTokens: partition.requestedTargetTokens,
+      assignmentFile,
+      assignmentFileHash: assignmentHash,
+      exposure: partition.exposure,
+      stats: partition.stats,
+      clusterCount: partition.clusters.length,
+      nearDuplicatePairCount: partition.nearDuplicatePairs.length,
+    };
+  }
+
   const keptIds = new Set(articleIds);
   const freshIds = freshArticleIds
     ? freshArticleIds.filter((id) => keptIds.has(id))
@@ -404,7 +745,13 @@ export async function buildSnapshot({
     replayArticleIds: replayIds,
     validationArticleIds: validationIds,
     leakExcluded: excluded.map((r) => r.contentHash),
-    builderVersion: "snapshot-article-v1",
+    leakGuard: evalGuard?.stats ? evalGuard.stats() : null,
+    corpusMode,
+    corpusPolicy,
+    corpusStats,
+    corpusDiversity: corpusStats?.diversity ?? null,
+    partition: partitionSummary,
+    builderVersion: "snapshot-article-v2",
   });
   return { manifest, file, rows, excluded, datasetVersion, hash: digest };
 }

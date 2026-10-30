@@ -122,3 +122,33 @@ test("cadence: every effective cadence yields at least three finite observations
     if (steps >= 3) assert.ok(points.size >= 3, `steps=${steps} evalEvery=${evalEvery} -> ${points.size} points`);
   }
 });
+
+
+test("budget refuses a run below the configured minimum step floor", () => {
+  const below = computeTrainingBudget({
+    trainBlockCount: 15,
+    targetEpochs: 2,
+    maxSteps: 4000,
+    microBatch: 2,
+    gradAccum: 2,
+    minSteps: 800,
+    seqLen: 128,
+  });
+  assert.equal(below.steps, 8);
+  assert.equal(below.meetsMinimum, false);
+  assert.equal(below.minimumShortfall, 792);
+  assert.match(below.minimumReason, /TRAIN_MIN_STEPS=800/);
+
+  const enough = computeTrainingBudget({
+    trainBlockCount: 32497,
+    targetEpochs: 2,
+    maxSteps: 4000,
+    microBatch: 4,
+    gradAccum: 4,
+    minSteps: 800,
+    seqLen: 128,
+  });
+  assert.equal(enough.meetsMinimum, true);
+  assert.equal(enough.steps, 4000);
+  assert.equal(enough.tokensPlanned, 4000 * 16 * 128);
+});

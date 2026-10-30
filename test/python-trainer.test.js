@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { RegistryStore } from "../src/storage/registry-store.js";
@@ -9,6 +9,7 @@ import { executeFullRun } from "../src/training/lifecycle.js";
 import { NoBaselineError, pythonTrainer, resolvePythonBaseline } from "../src/training/python-trainer.js";
 import { REPO_ROOT } from "../src/brain/python-cli.js";
 import { loadEvalCache, saveEvalCache } from "../src/training/eval-cache.js";
+import { config } from "../src/config.js";
 
 const tmp = () => path.join(mkdtempSync(path.join(tmpdir(), "sma-py-")));
 
@@ -242,7 +243,8 @@ test("python-mode lifecycle: loss improvement promotes and moves the pointer", a
   assert.equal(out.run.runLinkage.pythonTrainingRunId, "trid");
   assert.equal(out.run.runLinkage.nodeRunId, out.run.runId);
   assert.equal(registry.getModel(out.run.resultModelId).status, "promoted");
-  assert.equal(store.getStats().uniqueConsumed, 3);
+  // One document is reserved as validation and is therefore not consumed.
+  assert.equal(store.getStats().uniqueConsumed, 2);
   await store.close();
   await registry.close();
 });
@@ -452,7 +454,7 @@ test("staging: a promoted candidate is published exactly once, activated once, a
   assert.deepEqual(activated, ["v002"]);
   assert.equal(evalStaged.find(([v]) => v === "v001")?.[1], false, "the committed baseline is scored in place");
   assert.equal(evalStaged.find(([v]) => v === "v002")?.[1], true, "the candidate is scored as staged before publication");
-  assert.equal(store.getStats().uniqueConsumed, 3);
+  assert.equal(store.getStats().uniqueConsumed, 2);
   await store.close();
   await registry.close();
 });
@@ -489,8 +491,9 @@ test("staging: a rejected candidate is never published and is discarded with its
   assert.equal(store.getStats().uniqueConsumed, 0, "a rejection must not consume its batch");
   const deferredArticles = store.articlesPage({ limit: 50 }).items;
   assert.equal(deferredArticles.length, 3);
-  for (const a of deferredArticles) {
-    assert.equal(a.deferralRetries, 1, "each rejected article records one deferral");
+  const deferredTraining = deferredArticles.filter((a) => a.deferralRetries === 1);
+  assert.equal(deferredTraining.length, 2, "only the training rows are deferred");
+  for (const a of deferredTraining) {
     assert.equal(a.deferredRunId, out.run.runId, "the deferral names the run that rejected it");
     assert.equal(a.status, "REVIEWED", "one rejection defers, it does not retire");
     assert.equal(a.replayOnly, undefined, "one rejection does not exhaust the fresh retries");
@@ -679,6 +682,232 @@ test("python lifecycle refuses a corpus below the minimum-data floor before crea
   );
   assert.equal(trained, false);
   assert.equal(registry.listRuns().length, 0);
+  await store.close();
+  await registry.close();
+});
+
+
+test("python lifecycle refuses a completed run below TRAIN_MIN_STEPS", async () => {
+  const registry = await RegistryStore.open(tmp());
+  const store = await seededStore();
+  const options = { paths: { snapshots: tmp(), models: tmp(), plans: tmp(), evaluation: tmp() } };
+  const previous = config.trainMinSteps;
+  config.trainMinSteps = 10;
+  try {
+    const trainer = {
+      kind: "python",
+      version: "python-v1",
+      async resolveBaseline() {
+        return { version: "v001", path: "C:/store/v001" };
+      },
+      async preflight() {
+        return {
+          ok: true,
+          blockCount: 120,
+          trainBlockCount: 100,
+          trainTokensSeen: 5000,
+          tokensSeen: 5200,
+        };
+      },
+      async train() {
+        return {
+          version: "v002",
+          parentVersion: "v001",
+          trainingRunId: "train-1",
+          stepsCompleted: 4,
+          trainTokensSeen: 5000,
+          tokensSeen: 2048,
+          checkpointPath: "C:/store/v002",
+          published: false,
+          staged: false,
+        };
+      },
+    };
+
+    await assert.rejects(
+      executeFullRun({
+        registry,
+        options,
+        deps: {
+          store,
+          trainer,
+          evalSeed: async () => EVAL_SEED,
+          evaluateLoss: async ({ version }) => ({ version, loss: 1, datasetHash: "EVAL", ok: true }),
+          setActive: async (version) => ({ version }),
+        },
+      }),
+      (err) => err.code === "INSUFFICIENT_TRAINING_STEPS" && err.actualSteps === 4 && err.requiredSteps === 10,
+    );
+    assert.equal(registry.listRuns().length, 1);
+    assert.equal(registry.listRuns()[0].status, "failed");
+    assert.equal(store.getStats().uniqueConsumed, 0);
+  } finally {
+    config.trainMinSteps = previous;
+    await store.close();
+    await registry.close();
+  }
+});
+
+
+test("corpus-only lifecycle still enforces the minimum-data floor", async () => {
+  const previous = config.snapshotIncludeConsumed;
+  config.snapshotIncludeConsumed = true;
+  const registry = await RegistryStore.open(tmp());
+  const store = await seededStore();
+  await store.markConsumed(store.articlesPage({ limit: 50 }).items.map((a) => a.articleId), { runId: "run_old" });
+  // Prospective-only validation needs at least one unexposed article. Add one
+  // fresh article so this test still reaches the minimum-data floor rather than
+  // failing earlier for the (correct) reason that all material is historical.
+  const fresh = await store.ingestArticle({
+    text: "A fresh prospective validation article with enough prose to form a holdout for this test.",
+    domain: "reasoning",
+  });
+  await store.recordReview({ articleId: fresh.articleId, verdict: "approve", authority: "human" });
+  const options = { paths: { snapshots: tmp(), models: tmp(), plans: tmp(), evaluation: tmp() }, allowCorpusOnly: true };
+  let trained = false;
+  const trainer = {
+    kind: "python",
+    version: "python-v1",
+    async resolveBaseline() { return { version: "v001", path: "C:/store/v001" }; },
+    async preflight() {
+      return { ok: true, blockCount: 12, trainBlockCount: 10, trainTokensSeen: 1699, tokensSeen: 1699 };
+    },
+    async train() { trained = true; throw new Error("must not train below the floor"); },
+  };
+  try {
+    await assert.rejects(
+      executeFullRun({
+        registry,
+        options,
+        deps: {
+          store,
+          trainer,
+          evalSeed: async () => EVAL_SEED,
+          evaluateLoss: async ({ version }) => ({ version, loss: 1, datasetHash: "EVAL", ok: true }),
+          setActive: async (version) => ({ version }),
+        },
+      }),
+      (err) => err.code === "INSUFFICIENT_TRAINING_DATA" && err.tokens === 1699 && err.minUniqueTokens === 1700,
+    );
+    assert.equal(trained, false);
+    assert.equal(registry.listRuns().length, 0);
+  } finally {
+    config.snapshotIncludeConsumed = previous;
+    await store.close();
+    await registry.close();
+  }
+});
+
+
+test("python-mode lifecycle: INSUFFICIENT_VALIDATION preflight creates no TrainingRun", async () => {
+  const registry = await RegistryStore.open(tmp());
+  const store = await seededStore();
+  const options = { paths: { snapshots: tmp(), models: tmp(), plans: tmp(), evaluation: tmp() } };
+  const deps = pythonRunDeps({
+    store,
+    lossFor: (v) => ({ version: v, loss: v === "v001" ? 2.0 : 1.4, datasetHash: "EVALSET", ok: true }),
+    onActivate: () => {},
+  });
+  deps.trainer = {
+    ...deps.trainer,
+    async preflight() {
+      return { ok: false, code: "INSUFFICIENT_VALIDATION", error: "validation holdout too small" };
+    },
+  };
+
+  await assert.rejects(
+    () => executeFullRun({ registry, options, deps }),
+    (err) => err.code === "INSUFFICIENT_VALIDATION" || /INSUFFICIENT_VALIDATION|validation holdout/.test(err.message),
+  );
+  assert.equal(registry.listRuns().length, 0, "no TrainingRun is created after a failed preflight");
+  assert.equal(store.getStats().uniqueConsumed, 0, "failed preflight consumes nothing");
+  await store.close();
+  await registry.close();
+});
+
+
+test("python lifecycle rejects legacy and non-prospective validation configuration", async () => {
+  const registry = await RegistryStore.open(tmp());
+  const store = await seededStore();
+  const options = { paths: { snapshots: tmp(), models: tmp(), plans: tmp(), evaluation: tmp() } };
+  const deps = pythonRunDeps({
+    store,
+    lossFor: (v) => ({ version: v, loss: v === "v001" ? 2.0 : 1.4, datasetHash: "EVALSET", ok: true }),
+    onActivate: () => {},
+  });
+  await assert.rejects(
+    () => executeFullRun({ registry, options: { ...options, validationPolicy: "legacy-tail-split" }, deps }),
+    (err) => err.code === "INVALID_VALIDATION_POLICY",
+  );
+  await assert.rejects(
+    () => executeFullRun({
+      registry,
+      options: { ...options, validationPolicy: "document-source-disjoint", requireProspectiveValidation: false },
+      deps,
+    }),
+    (err) => err.code === "PROSPECTIVE_VALIDATION_REQUIRED",
+  );
+  assert.equal(registry.listRuns().length, 0);
+  assert.equal(store.getStats().uniqueConsumed, 0);
+  await store.close();
+  await registry.close();
+});
+
+
+test("isolated lifecycle provenance smoke: identity, partition, evaluation and generation evidence", async () => {
+  const registry = await RegistryStore.open(tmp());
+  const store = await seededStore();
+  const options = {
+    paths: { snapshots: tmp(), models: tmp(), plans: tmp(), evaluation: tmp() },
+    candidateIdentity: {
+      schema: "sma/candidate-identity@1",
+      candidateKey: "candidate-smoke-key",
+      trainer: { fingerprint: "trainer-fingerprint" },
+      training: { seed: 0 },
+      parent: { version: "v001", weightFingerprint: "parent-weight-fingerprint" },
+    },
+  };
+  const deps = stagingRunDeps({
+    store,
+    lossFor: (v) => ({ version: v, loss: v === "v001" ? 2.0 : 1.4, datasetHash: "EVALSET", ok: true }),
+  });
+  deps.measureGenerationQuality = async ({ version: v }) => ({
+    version: v,
+    ok: true,
+    aggregate: { meanRep1: 0.75, maxRun: 1, meanRep2: 0.5, meanLength: 4, totalTokens: 4 },
+    samples: [{ promptId: "quality-v1-01", prompt: "p", text: "hello world", tokens: 2, rep1: 1, maxRun: 1 }],
+    promptCount: 1,
+    promptBankVersion: "quality-prompts-v1",
+    promptIds: ["quality-v1-01"],
+    decoding: { temperature: 0, maxNewTokens: 32, seed: 0 },
+    modelFingerprint: "model-fingerprint",
+  });
+
+  const out = await executeFullRun({ registry, options, deps });
+  assert.equal(out.decision.decision, "promoted");
+  assert.equal(out.run.candidateIdentity.candidateKey, "candidate-smoke-key");
+  assert.equal(out.run.validationPolicy, "document-source-disjoint");
+  assert.ok(out.run.partition?.splitHash);
+
+  const snapshot = registry.listSnapshots()[0];
+  assert.equal(snapshot.partition.policyVersion, "document-source-disjoint-v1");
+  assert.ok(snapshot.partition.assignmentFile);
+  assert.ok(snapshot.partition.splitHash);
+
+  const evidenceFiles = readdirSync(path.join(registry.dir, "evaluations"));
+  assert.ok(evidenceFiles.some((file) => file.endsWith(".evidence.json")));
+  const candidateEvidenceFile = evidenceFiles.find((file) => file.includes("candidate"));
+  assert.ok(candidateEvidenceFile);
+  const evidence = JSON.parse(readFileSync(path.join(registry.dir, "evaluations", candidateEvidenceFile), "utf8"));
+  assert.equal(evidence.schema, "sma/eval-evidence@1");
+  assert.equal(evidence.perDocument.length, 30);
+  assert.ok(evidence.comparisonInputs.parent.perDocument.length > 0);
+  assert.ok(evidence.paired);
+  assert.ok(evidence.bootstrap.bootstrapSeed);
+
+  assert.equal(out.run.generationQuality.promptBankVersion, "quality-prompts-v1");
+  assert.equal(out.run.generationQuality.samples.length, 1);
+
   await store.close();
   await registry.close();
 });

@@ -125,7 +125,9 @@ test("learning cycle: acquires + dedupes, and reports exhaustion honestly", asyn
   assert.equal(first.sourceExhausted, false);
 
   // A second pass finds the same document already ingested => deduped, and it
-  // must NOT claim success.
+  // must NOT claim success. It is also NOT source exhaustion: the source still
+  // yielded a document this pass (no new material is a no-progress condition,
+  // handled by the supervisor's streak guard, not by source death).
   const second = await runLearningCycle({
     store,
     ollama: fakeOllama,
@@ -135,7 +137,7 @@ test("learning cycle: acquires + dedupes, and reports exhaustion honestly", asyn
   });
   assert.equal(second.ingested, 0);
   assert.equal(second.deduped, 1);
-  assert.equal(second.sourceExhausted, true);
+  assert.equal(second.sourceExhausted, false);
 
   await store.close();
 });
@@ -200,6 +202,75 @@ test("learning cycle: articles it acquires enter review, so they can become trai
   assert.equal(out.trainable, 2, "reviewed + approved articles are trainable");
 
   await store.close();
+});
+
+// The exhaustion signal must come from the AUTHORITATIVE acquisition
+// classification, never from `rawDocs === 0` alone.
+
+function harvestResult(overrides = {}) {
+  return async () => ({
+    mode: "real",
+    capability: "configured-fetch",
+    documents: [],
+    failures: [],
+    ...overrides,
+  });
+}
+
+async function cycleWithHarvest(collectDocuments) {
+  const store = await ArticleStore.open(tmp());
+  try {
+    return await runLearningCycle({ store, ollama: fakeOllama, scorer: fakeScorer, collectDocuments, maxRawDocs: 0 });
+  } finally {
+    await store.close();
+  }
+}
+
+test("learning cycle: claimable queued work with no documents is NOT source exhaustion", async () => {
+  const out = await cycleWithHarvest(
+    harvestResult({ frontier: { queued: 1000, deferred: 0, deferredDue: 0, rediscoveryDue: 0 } }),
+  );
+  assert.equal(out.rawDocs, 0);
+  assert.equal(out.acquisition.state, "work");
+  assert.equal(out.sourceExhausted, false, "queued claimable work is never source exhaustion");
+  assert.equal(out.noUsefulDocuments, true, "a zero-document pass is reported as a transient harvest state");
+});
+
+test("learning cycle: genuine exhaustion (empty frontier, no viable provider) sets sourceExhausted", async () => {
+  const out = await cycleWithHarvest(
+    harvestResult({ frontier: { queued: 0, deferred: 0, deferredDue: 0, rediscoveryDue: 0 } }),
+  );
+  assert.equal(out.acquisition.state, "exhausted");
+  assert.equal(out.sourceExhausted, true);
+  assert.equal(out.noUsefulDocuments, false);
+});
+
+test("learning cycle: a viable discovery provider prevents false exhaustion on an empty frontier", async () => {
+  const out = await cycleWithHarvest(
+    harvestResult({
+      frontier: { queued: 0, deferred: 0, deferredDue: 0, rediscoveryDue: 0 },
+      discovery: { status: "ok", providerAvailable: true, bootstrap: { adapters: [{ name: "sitemap", status: "ok", enqueued: 0 }] } },
+    }),
+  );
+  assert.equal(out.acquisition.state, "viable");
+  assert.equal(out.sourceExhausted, false);
+});
+
+test("learning cycle: admission quota exhaustion is distinct from source exhaustion", async () => {
+  // Empty frontier would otherwise classify as exhausted — but a quota wait is a
+  // lifecycle condition, not source death.
+  const out = await cycleWithHarvest(
+    harvestResult({
+      frontier: { queued: 0, deferred: 0, deferredDue: 0, rediscoveryDue: 0 },
+      quotaExhausted: true,
+      admissionQuotaDeferred: 1,
+      quotaUsed: 50000,
+      quotaLimit: 50000,
+    }),
+  );
+  assert.equal(out.admissionQuotaExhausted, true);
+  assert.equal(out.admissionCapExhausted, true);
+  assert.equal(out.sourceExhausted, false, "quota exhaustion must not be reported as source exhaustion");
 });
 
 test("learning cycle: reports the fixture source ceiling instead of implying it can meet any target", async () => {
@@ -550,7 +621,8 @@ test("supervisor: one-shot training runs the lifecycle and reports promotion", a
   assert.equal(done.result.decision, "promoted");
   assert.equal(done.result.promoted, true);
   assert.equal(activated, "v002");
-  assert.equal(store.getStats().uniqueConsumed, 3);
+  // One document is reserved as validation and is not consumed.
+  assert.equal(store.getStats().uniqueConsumed, 2);
 
   await sup.close();
   await store.close();
@@ -586,7 +658,7 @@ test("supervisor: one-shot training refuses an undersized corpus before any run"
   const job = await sup.startTraining({ mode: "one-shot", minEligible: 1 });
   const done = await waitTerminal(sup, job.jobId);
   assert.equal(done.status, JOB_STATUS.FAILED);
-  assert.match(done.error, /fewer than one 128-token block/);
+  assert.match(done.error, /partition would leave no training clusters|fewer than one 128-token block/);
   assert.equal(registry.listRuns().length, 0, "a pre-flighted corpus must never become a failed run");
 
   await sup.close();
@@ -627,7 +699,7 @@ test("supervisor: continuous training waits for more corpus instead of crashing"
   const waiting = sup.getJob(job.jobId);
   assert.equal(waiting.status, JOB_STATUS.WAITING);
   assert.equal(waiting.phase, "waiting-for-corpus");
-  assert.match(waiting.note, /fewer than one 128-token block/);
+  assert.match(waiting.note, /partition would leave no training clusters|fewer than one 128-token block/);
   assert.equal(registry.listRuns().length, 0);
 
   await sup.stop(job.jobId);

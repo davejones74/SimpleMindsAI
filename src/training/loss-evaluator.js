@@ -215,7 +215,8 @@ export function pairedSourceGroupBootstrap(parent, candidate, {
   const totalTokens = groups.reduce((n, g) => n + g.tokens, 0);
   const pointImprovement = totalTokens ? groups.reduce((n, g) => n + g.weighted, 0) / totalTokens : null;
   const resamples = Math.max(200, Math.floor(Number(samples) || 0) || 0);
-  const rng = mulberry32(smallHash(`${parent?.datasetHash ?? ""}:${parent?.version ?? ""}:${candidate?.version ?? ""}:${groups.length}`));
+  const bootstrapSeed = smallHash(`${parent?.datasetHash ?? ""}:${parent?.version ?? ""}:${candidate?.version ?? ""}:${groups.length}`);
+  const rng = mulberry32(bootstrapSeed);
   const means = [];
   for (let i = 0; i < resamples; i += 1) {
     let w = 0;
@@ -232,6 +233,8 @@ export function pairedSourceGroupBootstrap(parent, candidate, {
   return {
     ok: true,
     method: "paired-source-group-bootstrap",
+    methodVersion: "paired-source-group-bootstrap-v1",
+    bootstrapSeed,
     groupCount: groups.length,
     pairedDocuments: pairs,
     tokens: totalTokens,

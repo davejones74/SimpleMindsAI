@@ -138,6 +138,9 @@ export function pythonTrainer({
   warmup = config.trainWarmup,
   valBlocks = config.trainValBlocks,
   evalEvery = config.trainEvalEvery,
+  documentBoundary = config.trainDocumentBoundary,
+  validationPolicy = config.trainValidationPolicy,
+  seed = config.trainSeed,
   computeDtype = config.trainComputeDtype,
   selectBest = config.trainSelectBest,
   timeoutMs = config.trainTimeoutMs,
@@ -182,6 +185,8 @@ export function pythonTrainer({
           "--corpus", corpusFile,
           "--seq-len", String(seqLen),
           "--val-blocks", String(blocks),
+          "--validation-policy", String(validationPolicy),
+          ...(config.trainValidationRequireProspective ? ["--require-prospective-validation"] : []),
         ],
         { store, bin, timeoutMs, signal },
       );
@@ -207,6 +212,9 @@ export function pythonTrainer({
       const runEvalEvery = Number.isInteger(configuration.evalEvery) && configuration.evalEvery >= 0
         ? configuration.evalEvery
         : evalEvery;
+      const runMinSteps = Number.isInteger(configuration.minSteps) && configuration.minSteps > 0
+        ? configuration.minSteps
+        : 0;
       const args = [
         "train",
         "--parent", parentVersion,
@@ -219,6 +227,11 @@ export function pythonTrainer({
         "--warmup", String(warmup),
         "--val-blocks", String(runValBlocks),
         "--eval-every", String(runEvalEvery),
+        "--document-boundary", String(configuration.documentBoundary ?? documentBoundary ?? "separator"),
+        "--validation-policy", String(configuration.validationPolicy ?? validationPolicy),
+        ...(config.trainValidationRequireProspective ? ["--require-prospective-validation"] : []),
+        "--seed", String(Number.isInteger(configuration.seed) ? configuration.seed : seed),
+        ...(runMinSteps > 0 ? ["--min-steps", String(runMinSteps)] : []),
         "--compute-dtype", resolvedDtype,
         "--device", device,
       ];
@@ -297,10 +310,21 @@ export function pythonTrainer({
         replayDocumentCount: out.replayDocumentCount ?? null,
         freshDocumentCount: out.freshDocumentCount ?? null,
         corpusSplit: out.corpusSplit ?? null,
+        wallSeconds: out.wallSeconds ?? null,
+        runtime: out.runtime ?? null,
+        corpusFiles: out.corpusFiles ?? null,
+        parentWeightFingerprint: out.parentWeightFingerprint ?? null,
+        trainerCodeFingerprint: out.trainerCodeFingerprint ?? null,
+        trainingSeed: out.trainingSeed ?? null,
+        validationPolicy: out.validationPolicy ?? validationPolicy,
+        splitHash: out.splitHash ?? null,
         stepsCompleted: out.stepsCompleted ?? null,
+        minSteps: runMinSteps,
+        documentBoundary: out.documentBoundary ?? null,
+        eosTokenId: out.eosTokenId ?? null,
         device: out.device ?? device,
         durationMs: out.durationMs ?? Date.now() - t0,
-        cfg: { lr: learningRate, steps: runSteps, valBlocks: runValBlocks, evalEvery: runEvalEvery, seqLen, microBatch, gradAccum, warmup, computeDtype: resolvedDtype },
+        cfg: { lr: learningRate, steps: runSteps, valBlocks: runValBlocks, evalEvery: runEvalEvery, seqLen, microBatch, gradAccum, warmup, computeDtype: resolvedDtype, documentBoundary: configuration.documentBoundary ?? documentBoundary ?? "separator" },
         note: "python causal-LM training",
       };
     },

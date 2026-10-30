@@ -1736,6 +1736,11 @@ function progressText(p) {
     ["promoted", v => (v ? "promoted" : null)],
     ["processedRawDocs", v => `raw ${v}/${p.rawDocs}`],
     ["failures", v => (v ? `failures ${v}` : null)],
+    // Authoritative acquisition state + the honest transient signal. "source
+    // exhausted" is shown ONLY when the classifier actually says EXHAUSTED; a
+    // pass that found claimable work but no usable documents says so instead.
+    ["acquisition", v => (v?.state ? `acq ${v.state}` : null)],
+    ["noUsefulDocuments", v => (v ? "no usable documents this pass" : null)],
     ["sourceExhausted", v => (v ? "source exhausted" : null)],
   ];
   const out = [];

@@ -92,14 +92,33 @@ def runtime_environment() -> Dict[str, Any]:
     """
     import transformers
 
+    def version_of(name: str):
+        try:
+            module = __import__(name)
+            return getattr(module, "__version__", None)
+        except Exception:
+            return None
+
     backend = backend_of_runtime()
+    report = platform_report(with_bf16=False)
     return {
         "python": _platform.python_version(),
+        "pythonImplementation": _platform.python_implementation(),
         "torch": torch.__version__,
         "transformers": transformers.__version__,
+        "tokenizers": version_of("tokenizers"),
+        "numpy": version_of("numpy"),
+        "safetensors": version_of("safetensors"),
+        "accelerate": version_of("accelerate"),
+        "huggingfaceHub": version_of("huggingface_hub"),
         "backend": backend,
+        "buildBackend": report.get("buildBackend"),
         "backendVersion": backend_version(),
         "device": "cuda" if torch.cuda.is_available() else "cpu",
+        "deviceName": report.get("deviceName"),
+        "archString": report.get("archString"),
+        "totalMemoryBytes": report.get("totalMemoryBytes"),
+        "memorySharedWithHost": report.get("memorySharedWithHost"),
     }
 
 

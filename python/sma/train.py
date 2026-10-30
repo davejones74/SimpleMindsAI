@@ -130,6 +130,10 @@ class NumericalFailure(RuntimeError):
     """Raised when a guard trips. Never caught-and-continued."""
 
 
+class TrainingStepsBelowMinimum(RuntimeError):
+    """The run completed fewer optimizer steps than the caller requires."""
+
+
 @dataclass
 class TrainConfig:
     """Recorded verbatim in train state, so an instability episode can later be
@@ -152,6 +156,14 @@ class TrainConfig:
     steps: int = 60
     seed: int = 0
     computeDtype: str = "bfloat16"
+    documentBoundary: str = "separator"
+    validationPolicy: str = "legacy-tail-split"
+    # Legacy tail splitting is allowed only when a caller explicitly opts in.
+    # Production Node/CLI paths never set this; isolated library/fixture tests do.
+    allowLegacyValidation: bool = False
+    # Assertion recorded by the production caller: validation came from the
+    # prospective Node partition, not from historically exposed material.
+    requireProspectiveValidation: bool = False
     masterDtype: str = "float32"
     optimizer: str = "adamw"
     scheduler: str = "cosine"
@@ -188,6 +200,25 @@ class TrainConfig:
             )
         if self.learningRate <= 0:
             raise ValueError("learningRate must be positive")
+        if self.documentBoundary not in ("separator", "eos"):
+            raise ValueError(
+                f"documentBoundary must be 'separator' or 'eos', got {self.documentBoundary!r}"
+            )
+        if self.validationPolicy not in ("document-source-disjoint", "legacy-tail-split"):
+            raise ValueError(
+                f"validationPolicy must be 'document-source-disjoint' or 'legacy-tail-split', "
+                f"got {self.validationPolicy!r}"
+            )
+        if self.validationPolicy == "legacy-tail-split" and not self.allowLegacyValidation:
+            raise ValueError(
+                "legacy-tail-split is disabled unless allowLegacyValidation=True; "
+                "production training must use document-source-disjoint"
+            )
+        if self.validationPolicy == "document-source-disjoint" and not self.requireProspectiveValidation:
+            raise ValueError(
+                "document-source-disjoint production training requires "
+                "requireProspectiveValidation=True"
+            )
         if self.masterDtype != "float32":
             raise ValueError(
                 f"masterDtype must be float32, got {self.masterDtype!r}. bf16 masters "
@@ -566,6 +597,8 @@ def train(
         tokenizer_path,
         cfg.validationBlocks,
         on_warning=log,
+        document_boundary=cfg.documentBoundary,
+        validation_policy=cfg.validationPolicy,
     )
     log(
         f"packed {pack_record.documentCount} docs -> {pack_record.blockCount} blocks "

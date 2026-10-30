@@ -186,27 +186,27 @@ test("exact contentHash deduplication works, distinct articles retained", () => 
 
 /** 8. Near-duplicate matches can be explained and reviewed. */
 test("near-duplicate similarity is explicitable and supplemental", () => {
-  // Text with 6+ char words so \\w{6} shingles can overlap
+  const base = "deterministic testing example with a stable sequence of words for shingling";
   const similar = nearDuplicateSimilarity(
-    "deterministic testing example",
-    "deterministic test example"
+    `${base} and one extra trailing sentence`,
+    `${base} and a different trailing sentence`,
+    5,
   );
-  // "determin" is a 6-char shingle shared between both → similarity > 0
   assert.ok(similar > 0, `similar texts should have positive near-dup similarity, got ${similar}`);
 
   const dissimilar = nearDuplicateSimilarity(
-    "quantum mechanics describes state",
-    "recipe chocolate cake involves mixing",
+    "quantum mechanics describes state vectors and operators in hilbert space",
+    "recipe chocolate cake involves mixing flour sugar and butter",
+    5,
   );
-  // Truly different content should have near-zero similarity
   assert.ok(dissimilar < 0.1, `dissimilar texts should have low near-dup similarity, got ${dissimilar}`);
 
-  // Identical content yields similarity of 1
-  const identical = nearDuplicateSimilarity(
-    "abcdefghijklmnopqrstuvwxyz",
-    "abcdefghijklmnopqrstuvwxyz",
-  );
+  const identical = nearDuplicateSimilarity(base, base, 5);
   assert.equal(identical, 1, "identical texts should have near-dup similarity of 1");
+
+  // Short documents are deliberately not scored: a handful of shingles is not
+  // enough evidence to call them duplicates.
+  assert.equal(nearDuplicateSimilarity("short text", "short text", 5), 0);
 });
 
 /** 9. Provenance and review evidence survive curation and subsequent state

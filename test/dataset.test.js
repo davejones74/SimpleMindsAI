@@ -9,6 +9,8 @@ import { RegistryStore } from "../src/storage/registry-store.js";
 import { ArticleStore } from "../src/storage/article-store.js";
 import { buildSnapshot, collectRowsFromArticles, snapshotRowReader, rowForArticle, reuseEligible } from "../src/dataset/snapshot.js";
 import { loadEvaluationSet, makeEvalGuard, pairHash, evalText } from "../src/dataset/evaluation-set.js";
+import { contentHash } from "../src/domain/article.js";
+import { corpusRowForArticle } from "../src/dataset/corpus-text.js";
 
 const tmpDir = () => path.join(mkdtempSync(path.join(tmpdir(), "sma-ds-")));
 
@@ -374,4 +376,125 @@ test("reuseEligible: a title-like consumed article is excluded under enforce com
   } finally {
     config.review.completenessMode = prev;
   }
+});
+
+
+test("raw-text corpus mode uses cleaned source text, falls back, and deduplicates by content", async () => {
+  const store = await ArticleStore.open(tmpDir());
+  const prose = Array.from({ length: 12 }, (_, i) =>
+    `Steam engines convert heat into mechanical work, and this sentence ${i} explains the thermodynamic cycle in detail.`
+  ).join("\n");
+  const raw = `Jump to content\n\nMain menu\n\nNavigation\n\n${prose}`;
+  const first = await store.ingestArticle({
+    text: "Steam engine fragment one.",
+    domain: "history",
+    rawText: raw,
+    sourceUrl: "https://example.org/steam",
+    fetchedContentHash: "f".repeat(64),
+  });
+  const second = await store.ingestArticle({
+    text: "Steam engine fragment two.",
+    domain: "history",
+    rawText: raw,
+    sourceUrl: "https://example.org/steam",
+    fetchedContentHash: "f".repeat(64),
+  });
+  const fallback = await store.ingestArticle({ text: "A curated fallback sentence with enough words to be trainable.", domain: "general" });
+  for (const article of [first, second, fallback]) {
+    await store.recordReview({ articleId: article.articleId, verdict: "approve", authority: "human" });
+  }
+
+  const out = collectRowsFromArticles(store, {
+    limit: 10,
+    includeConsumed: true,
+    corpusMode: "raw-text",
+  });
+  // One representative full-text row per source; the second chunk is retained
+  // as curated text instead of embedding a second full copy of the same source.
+  assert.equal(out.rows.length, 3);
+  assert.equal(out.stats.corpusMode, "raw-text");
+  assert.equal(out.stats.deduplicatedArticles, 0);
+  assert.equal(out.stats.uniqueSourcesConsidered, 2);
+  assert.equal(out.stats.uniqueSourcesIncluded, 2);
+  assert.ok(out.stats.usedSourceFraction > 0 && out.stats.usedSourceFraction <= 1);
+  assert.equal(out.stats.rawTextRows, 1);
+  assert.equal(out.stats.fallbackRows, 2);
+  assert.equal(out.stats.rawTextSuppressedRows, 1);
+  assert.ok(out.stats.diversity && out.stats.diversity.totalRows === 3);
+  assert.ok(out.stats.languageDistribution.en >= 1);
+  assert.ok(out.stats.qualityDistribution["full-text"] >= 1);
+  assert.equal(out.freshArticleIds.length, 3);
+  const steamRows = out.rows.filter((row) => row.sourceUrl === "https://example.org/steam");
+  assert.equal(steamRows.length, 2);
+  const steam = steamRows.find((row) => row.corpusTextSource === "rawText");
+  assert.ok(steam);
+  assert.match(steam.text, /thermodynamic cycle/);
+  const suppressed = steamRows.find((row) => row.articleId !== steam.articleId);
+  assert.equal(suppressed.qualityTier, "curated");
+  assert.equal(suppressed.rawTextSuppressed, true);
+  const fallbackRow = out.rows.find((row) => row.articleId === fallback.articleId);
+  assert.equal(fallbackRow.corpusTextSource, "text");
+  await store.close();
+});
+
+test("raw-text corpus mode falls back when raw text is corrupt, and the gate can reject", async () => {
+  const store = await ArticleStore.open(tmpDir());
+  const bad = await store.ingestArticle({
+    text: "A curated fragment that looks acceptable on its own for review.",
+    domain: "general",
+    rawText: `Jump to content\n\n${"Ã©".repeat(200)}`,
+  });
+  await store.recordReview({ articleId: bad.articleId, verdict: "approve", authority: "human" });
+  const out = collectRowsFromArticles(store, { limit: 10, includeConsumed: true, corpusMode: "raw-text" });
+  assert.equal(out.rows.length, 1);
+  assert.equal(out.rows[0].corpusTextSource, "rawText-fallback");
+
+  const rejected = corpusRowForArticle({
+    articleId: "bad-both",
+    text: "Ã©".repeat(200),
+    rawText: "Ã©".repeat(200),
+    domain: "general",
+    importance: "Normal",
+    origin: "curated",
+  }, { mode: "raw-text" });
+  assert.equal(rejected.gate.decision, "reject");
+  assert.equal(rejected.gate.gate, "quality");
+  await store.close();
+});
+
+test("evaluation guard excludes exact, normalized and n-gram near duplicates", () => {
+  const text = "Photosynthesis converts light energy into chemical energy in plants and algae.";
+  const evalSet = {
+    items: [{ text }],
+    hashes: new Set([contentHash(text)]),
+  };
+  const guard = makeEvalGuard(evalSet);
+  assert.equal(guard.contains({ contentHash: contentHash(text), text }), true);
+  assert.equal(guard.contains({ contentHash: "different", text: `  ${text.replace(/\s+/g, "   ")}  ` }), true);
+  assert.equal(guard.contains({ contentHash: "different-2", text: `A prefix. ${text} A suffix.` }), true);
+  assert.equal(guard.contains({ contentHash: "ok", text: "Steam engines use pressurized steam to move a piston." }), false);
+  const stats = guard.stats();
+  assert.equal(stats.exactMatches, 1);
+  assert.ok(stats.normalizedMatches >= 1);
+  assert.ok(stats.ngramMatches >= 1);
+});
+
+
+test("full-corpus collection includes consumed and replay-only REVIEWED material with no fresh ids", async () => {
+  const store = await ArticleStore.open(tmpDir());
+  const consumed = await store.ingestArticle({ text: "Consumed lineage article with enough prose to be retained.", domain: "general" });
+  const replayOnly = await store.ingestArticle({ text: "Exhausted fresh article with enough prose to enter the replay pool.", domain: "general" });
+  for (const article of [consumed, replayOnly]) {
+    await store.recordReview({ articleId: article.articleId, verdict: "approve", authority: "human" });
+  }
+  await store.markConsumed([consumed.articleId], { runId: "run_old" });
+  await store.deferArticles([replayOnly.articleId], { runId: "run_old", maxRetries: 1, cooldownBaseMs: 0 });
+  const out = collectRowsFromArticles(store, { limit: 10, includeConsumed: true });
+  assert.equal(out.rows.length, 2);
+  assert.deepEqual(out.freshArticleIds, []);
+  assert.equal(out.stats.fresh, 0);
+  assert.equal(out.stats.retained, 2);
+  assert.equal(out.rows.some((row) => row.articleId === replayOnly.articleId), true);
+  assert.equal(store.getArticle(replayOnly.articleId).replayOnly, true);
+  await store.close();
 });

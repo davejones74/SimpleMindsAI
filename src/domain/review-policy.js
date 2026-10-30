@@ -77,22 +77,42 @@ export function selectionDecision(article, policy = DEFAULT_POLICY, domainRegist
   return { selected: reasons.length > 0, reasons, sample };
 }
 
-/** Determines if two articles are near-duplicates based on content overlap.
- *  Uses word-shingle Jaccard similarity; does NOT treat a shared prefix as
- *  sufficient evidence of duplication.  Designed to supplement exact
- *  contentHash deduplication. */
+/** Word-shingle set used by the near-duplicate similarity check. */
+export function nearDuplicateShingles(text, shingleSize = 6) {
+  const words = String(text ?? "")
+    .toLowerCase()
+    .normalize("NFKC")
+    .replace(/[^\p{L}\p{N}']+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .split(" ")
+    .filter(Boolean);
+  if (words.length < shingleSize) return new Set();
+  const out = new Set();
+  for (let i = 0; i <= words.length - shingleSize; i += 1) {
+    out.add(words.slice(i, i + shingleSize).join(" "));
+  }
+  return out;
+}
+
+/**
+ * Determines if two articles are near-duplicates based on word-shingle Jaccard
+ * similarity. It does NOT treat a shared prefix as sufficient evidence, and
+ * short documents (< shingleSize words) return 0 because a handful of shingles
+ * is not enough evidence. Supplements exact contentHash deduplication.
+ *
+ * This is the repaired implementation: the previous version passed an array to
+ * the Set constructor via spread, producing a set of characters from the first
+ * match rather than a shingle set.
+ */
 export function nearDuplicateSimilarity(textA, textB, shingleSize = 6) {
   if (!textA || !textB) return 0;
-  const tokensA = new Set(
-    ...Array.from(textA.matchAll(new RegExp(`\\w{${shingleSize}}`, "g"))).map((m) => m[0])
-  );
-  const tokensB = new Set(
-    ...Array.from(textB.matchAll(new RegExp(`\\w{${shingleSize}}`, "g"))).map((m) => m[0])
-  );
+  const tokensA = nearDuplicateShingles(textA, shingleSize);
+  const tokensB = nearDuplicateShingles(textB, shingleSize);
   if (tokensA.size === 0 || tokensB.size === 0) return 0;
   const intersection = new Set([...tokensA].filter((x) => tokensB.has(x))).size;
   const union = tokensA.size + tokensB.size - intersection;
-  return intersection / union;
+  return union ? intersection / union : 0;
 }
 
 /**

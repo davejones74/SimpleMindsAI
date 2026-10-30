@@ -168,6 +168,8 @@ class StudentWorker:
             temperature=float(request.get("temperature", 0.0)),
             top_p=float(request.get("topP", 0.95)),
             seed=request.get("seed", 0),
+            repetition_penalty=float(request.get("repetitionPenalty", 1.0)),
+            no_repeat_ngram_size=int(request.get("noRepeatNgramSize", 0)),
             device=self.device,
         )
         return {
@@ -178,6 +180,8 @@ class StudentWorker:
             "mode": result["mode"],
             "promptTokens": result["promptTokens"],
             "generatedTokens": result["generatedTokens"],
+            "repetitionPenalty": result["repetitionPenalty"],
+            "noRepeatNgramSize": result["noRepeatNgramSize"],
         }
 
 

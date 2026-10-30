@@ -174,12 +174,64 @@ export async function loadEvaluationSet({ dir = config.paths.evaluation, dataset
   return { datasetId, datasetVersion, file, items, hashes, size: items.length, charCount, estimatedTokens, domains, evalText, minDocuments: docFloor, minTokens: tokenFloor, manifest, warnings };
 }
 
-/** Guard that keeps the evaluation set OUT of anything else. */
+const LEAK_NGRAM_SIZE = 8;
+
+export function normalizeLeakText(text) {
+  return String(text ?? "")
+    .toLowerCase()
+    .normalize("NFKC")
+    .replace(/[^a-z0-9']+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export function leakNgrams(text, size = LEAK_NGRAM_SIZE) {
+  const words = normalizeLeakText(text).split(" ").filter(Boolean);
+  if (words.length < size) return new Set();
+  const out = new Set();
+  for (let i = 0; i <= words.length - size; i += 1) out.add(words.slice(i, i + size).join(" "));
+  return out;
+}
+
+/** Guard that keeps the evaluation set OUT of anything else.
+ *
+ * Exact content hashes catch identical rows. Normalized exact hashes catch
+ * whitespace/punctuation variants, and an 8-word shingle overlap catches
+ * near-duplicates introduced by raw-text cleaning, alternate URLs, or replay.
+ * Any overlap is excluded; the guard reports which mechanism fired.
+ */
 export function makeEvalGuard(evalSet) {
   const hashOf = (row) => (row && typeof row.contentHash === "string" ? row.contentHash : contentHash(evalText(row)));
+  const normalizedHashes = new Set();
+  const evalNgrams = new Set();
+  for (const item of evalSet.items ?? []) {
+    const text = evalText(item);
+    normalizedHashes.add(contentHash(normalizeLeakText(text)));
+    for (const ngram of leakNgrams(text)) evalNgrams.add(ngram);
+  }
+  const stats = { exactHashes: evalSet.hashes?.size ?? 0, normalizedHashes: normalizedHashes.size, ngrams: evalNgrams.size, checks: 0, exactMatches: 0, normalizedMatches: 0, ngramMatches: 0 };
   return {
     contains(row) {
-      return evalSet.hashes.has(hashOf(row));
+      stats.checks += 1;
+      if (evalSet.hashes.has(hashOf(row))) {
+        stats.exactMatches += 1;
+        return true;
+      }
+      const text = row?.text ?? (row && (row.prompt || row.completion) ? evalText(row) : "");
+      if (text && normalizedHashes.has(contentHash(normalizeLeakText(text)))) {
+        stats.normalizedMatches += 1;
+        return true;
+      }
+      if (text) {
+        const rowNgrams = leakNgrams(text);
+        for (const ngram of rowNgrams) {
+          if (evalNgrams.has(ngram)) {
+            stats.ngramMatches += 1;
+            return true;
+          }
+        }
+      }
+      return false;
     },
     filter(rows) {
       const kept = [];
@@ -189,6 +241,9 @@ export function makeEvalGuard(evalSet) {
         else kept.push(r);
       }
       return { kept, excluded };
+    },
+    stats() {
+      return { ...stats };
     },
   };
 }
