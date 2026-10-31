@@ -387,10 +387,16 @@ def pack_for_training(
             )
         if val_record is not None and val_all_blocks is not None and val_all_blocks.shape[0] > 0:
             requested = int(validation_blocks) if int(validation_blocks) > 0 else int(val_all_blocks.shape[0])
-            if validation_policy == "document-source-disjoint" and val_all_blocks.shape[0] < requested:
-                raise InsufficientValidationError(
+            # Whole-document validation can pack fewer blocks than requested when
+            # the Node partition's token estimate undercounts the tokenizer's
+            # actual output. That is a shortfall to REPORT (the caller logs it),
+            # not a reason to fall back to tail splitting: the validation rows
+            # still exist and remain disjoint from training. Failing here would
+            # deadlock continuous training on a merely optimistic target.
+            if val_all_blocks.shape[0] < requested and on_warning:
+                on_warning(
                     f"validation documents form {val_all_blocks.shape[0]} block(s), "
-                    f"but {requested} requested; refusing to fall back to tail splitting"
+                    f"but {requested} requested; using the available blocks"
                 )
             val_blocks = val_all_blocks[: min(requested, val_all_blocks.shape[0])]
             record, train_blocks_used, val_used = _merge_pack_records(

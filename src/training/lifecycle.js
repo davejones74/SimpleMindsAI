@@ -226,7 +226,22 @@ export async function executeFullRun({
     if (pythonMode && validationPolicy === "document-source-disjoint") {
       const priorSnapshots = typeof registry.listSnapshots === "function" ? registry.listSnapshots() : [];
       const priorArticleIds = new Set();
+      // A persisted snapshot is NOT by itself proof of training exposure: the
+      // manifest is written before baseline evaluation and before `train`, so a
+      // run that fails earlier (CLI/preflight) still leaves one behind. Counting
+      // such a snapshot would permanently relabel still-unconsumed material as
+      // historically exposed, and a retry could never obtain a prospective
+      // validation cluster. Only snapshots actually linked to a TrainingRun
+      // count; a run is created immediately before training, after the
+      // preflight, so an unlinked snapshot was never presented to the trainer.
+      const priorRuns = typeof registry.listRuns === "function" ? registry.listRuns() : [];
+      const runDatasetIds = new Set(
+        priorRuns
+          .filter((run) => run?.datasetId && run.status !== "created")
+          .map((run) => run.datasetId),
+      );
       for (const prior of priorSnapshots) {
+        if (!runDatasetIds.has(prior.datasetId)) continue;
         for (const id of prior.articleIds ?? []) priorArticleIds.add(id);
       }
       // Historical exposure is broader than snapshots: the article store's

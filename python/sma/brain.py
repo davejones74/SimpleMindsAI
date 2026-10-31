@@ -1765,6 +1765,13 @@ def cmd_corpus_info(args: argparse.Namespace) -> Dict[str, Any]:
         raise FileNotFoundError(
             f"parent {parent} is not committed ({parent_dir}); refusing to size a corpus against it"
         )
+    if getattr(args, "require_prospective_validation", False) and getattr(
+        args, "validation_policy", "document-source-disjoint"
+    ) != "document-source-disjoint":
+        raise ValueError(
+            "--require-prospective-validation requires "
+            "--validation-policy document-source-disjoint"
+        )
     tokenizer_file = parent_dir / "tokenizer.json"
     if not tokenizer_file.is_file():
         raise FileNotFoundError(f"parent has no tokenizer.json: {tokenizer_file}")
@@ -1971,6 +1978,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--validation-policy",
         choices=["document-source-disjoint", "legacy-tail-split"],
         default="document-source-disjoint",
+    )
+    sp.add_argument(
+        "--require-prospective-validation",
+        action="store_true",
+        help="assert validation came from a prospective Node partition (must pair with "
+        "document-source-disjoint)",
     )
     sp.add_argument(
         "--document-boundary",

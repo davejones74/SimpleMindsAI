@@ -825,6 +825,44 @@ test("python-mode lifecycle: INSUFFICIENT_VALIDATION preflight creates no Traini
   await registry.close();
 });
 
+test("a snapshot from a pre-training failure does not poison prospective validation on retry", async () => {
+  const registry = await RegistryStore.open(tmp());
+  const store = await seededStore();
+  const paths = { snapshots: tmp(), models: tmp(), plans: tmp(), evaluation: tmp() };
+  const options = { paths };
+
+  const first = pythonRunDeps({
+    store,
+    lossFor: (v) => ({ version: v, loss: v === "v001" ? 2.0 : 1.4, datasetHash: "EVALSET", ok: true }),
+    onActivate: () => {},
+  });
+  first.trainer = {
+    ...first.trainer,
+    async preflight() {
+      return { ok: false, code: "INSUFFICIENT_CORPUS", error: "not enough blocks yet" };
+    },
+  };
+
+  await assert.rejects(
+    executeFullRun({ registry, options, deps: first }),
+    (err) => err.code === "INSUFFICIENT_CORPUS",
+  );
+  assert.equal(registry.listSnapshots().length, 1, "the failed preflight left a snapshot behind");
+  assert.equal(registry.listRuns().length, 0, "but no run ever reached training");
+
+  const retry = pythonRunDeps({
+    store,
+    lossFor: (v) => ({ version: v, loss: v === "v001" ? 2.0 : 1.4, datasetHash: "EVALSET", ok: true }),
+    onActivate: () => {},
+  });
+  const out = await executeFullRun({ registry, options, deps: retry });
+
+  assert.equal(out.run.status, "promoted");
+  assert.equal(out.run.partition.exposure.validationExposureMode, "prospective-only");
+  await store.close();
+  await registry.close();
+});
+
 
 test("python lifecycle rejects legacy and non-prospective validation configuration", async () => {
   const registry = await RegistryStore.open(tmp());

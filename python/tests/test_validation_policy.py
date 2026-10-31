@@ -67,3 +67,15 @@ def test_cli_omission_fails_closed():
             allowLegacyValidation=args.allow_legacy_validation,
             requireProspectiveValidation=args.require_prospective_validation,
         ).validate()
+
+
+def test_corpus_info_accepts_require_prospective_validation():
+    parser = brain.build_parser()
+    args = parser.parse_args([
+        "corpus-info",
+        "--parent", "v001",
+        "--corpus", "fixture.jsonl",
+        "--require-prospective-validation",
+    ])
+    assert args.validation_policy == "document-source-disjoint"
+    assert args.require_prospective_validation is True

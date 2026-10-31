@@ -108,6 +108,24 @@ def test_validation_shortfall_is_reported_not_hidden():
     assert torch.equal(torch.unique(train_blocks), torch.tensor([1]))
 
 
+def test_partial_validation_shortfall_uses_available_blocks():
+    tokenizer = FakeTokenizer()
+    docs = [
+        doc("fresh", 1, 20),
+        doc("val-a", 3, 40, "validation"),
+    ]
+    train_blocks, val_blocks, _record, split = data_mod.pack_for_training(
+        tokenizer, docs, 16, FIXTURE_CORPUS, validation_blocks=3
+    )
+    assert split["mode"] == "role-appended"
+    assert split["actualValidationBlocks"] == 2
+    assert split["shortfall"] == 1
+    assert val_blocks.shape[0] == 2
+    # The available validation blocks are still used, not repurposed as training.
+    assert torch.equal(torch.unique(val_blocks), torch.tensor([3]))
+    assert torch.equal(torch.unique(train_blocks), torch.tensor([1]))
+
+
 class EosFakeTokenizer(FakeTokenizer):
     eos_token_id = 99
     eos_token = "<eos>"
