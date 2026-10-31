@@ -80,6 +80,26 @@ test("partition keeps whole clusters and source families on one side", () => {
   assert.ok(partition.trainArticleIds.length > 0);
 });
 
+test("partition caps an oversized validation target without collapsing it to zero", () => {
+  const rows = [
+    row("a1", long("a"), "src-a", { estimatedTokens: 1000 }),
+    row("b1", long("b"), "src-b", { estimatedTokens: 1000 }),
+    row("c1", long("c"), "src-c", { estimatedTokens: 1000 }),
+    row("d1", long("d"), "src-d", { estimatedTokens: 1000 }),
+  ];
+  const partition = buildPartition({
+    rows,
+    splitSeed: 5,
+    validationTargetTokens: 4096,
+    minValidationTokens: 0,
+    minValidationClusters: 1,
+  });
+  assert.equal(partition.requestedTargetTokens, 4096);
+  assert.equal(partition.targetTokens, 2000, "target is capped at the hard maximum, not zero");
+  assert.ok(partition.validationArticleIds.length >= 2, "more than one cluster is held out");
+  assert.ok(partition.trainArticleIds.length > 0);
+});
+
 test("partition is deterministic under row reordering", () => {
   const rows = [
     row("a1", long("a"), "src-a"),

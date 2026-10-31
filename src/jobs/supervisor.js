@@ -58,15 +58,25 @@ function isNetworkError(err) {
  * than "training is broken". A CONTINUOUS training job waits and retries these;
  * a one-shot job surfaces them as a clear terminal failure. `INSUFFICIENT_CORPUS`
  * is raised by the Python corpus preflight (the snapshot is shorter than one
- * block), `NO_ELIGIBLE_MATERIAL` by the empty snapshot guard, and
- * `INSUFFICIENT_ELIGIBLE` by the run-level eligibility gate.
+ * block), `INSUFFICIENT_VALIDATION` by the disjoint-validation holdout, and
+ * `NO_ELIGIBLE_MATERIAL` by the empty snapshot guard; `INSUFFICIENT_ELIGIBLE`
+ * comes from the run-level eligibility gate.
  */
 const NO_MATERIAL_CODES = new Set([
   "INSUFFICIENT_CORPUS",
   "INSUFFICIENT_TRAINING_DATA",
+  "INSUFFICIENT_VALIDATION",
   "NO_ELIGIBLE_MATERIAL",
   "INSUFFICIENT_ELIGIBLE",
 ]);
+
+const MATERIAL_WAIT = {
+  INSUFFICIENT_CORPUS: { phase: "waiting-for-corpus", reason: "corpus-too-small" },
+  INSUFFICIENT_TRAINING_DATA: { phase: "waiting-for-corpus", reason: "corpus-below-minimum" },
+  INSUFFICIENT_VALIDATION: { phase: "waiting-for-validation", reason: "insufficient-validation-material" },
+  INSUFFICIENT_ELIGIBLE: { phase: "waiting-for-eligible", reason: "insufficient-eligible-material" },
+  NO_ELIGIBLE_MATERIAL: { phase: "waiting-for-eligible", reason: "insufficient-eligible-material" },
+};
 
 /**
  * JobSupervisor — owns the long-running lifecycle work the Observatory starts.
@@ -711,6 +721,7 @@ export class JobSupervisor {
     let runs = 0;
     let consecutiveRejections = 0;
     let lastLockNote = null;
+    let lastMaterialWaitKey = null;
     const startedAt = this.clock();
     for (;;) {
       if (this.#shouldStop(jobId)) break;
@@ -824,20 +835,22 @@ export class JobSupervisor {
         // fails with the clear message instead of a Python traceback.
         if (NO_MATERIAL_CODES.has(err?.code)) {
           if (job.mode === "one-shot") throw err;
-          const corpusWait = err.code === "INSUFFICIENT_CORPUS" || err.code === "INSUFFICIENT_TRAINING_DATA";
+          const wait = MATERIAL_WAIT[err.code] ?? MATERIAL_WAIT.INSUFFICIENT_ELIGIBLE;
+          // The run announces "training" before the preflight can reject it, so
+          // every retry still needs a WAITING event to restore the visible state.
+          // Suppress only the repeated NOTE; the reason/status must be re-emitted.
+          const waitKey = `${wait.phase}\u0000${err.message}`;
+          const repeated = waitKey === lastMaterialWaitKey;
+          lastMaterialWaitKey = waitKey;
           await this.#event(jobId, {
             status: JOB_STATUS.WAITING,
-            phase: corpusWait ? "waiting-for-corpus" : "waiting-for-eligible",
-            note: err.message,
+            phase: wait.phase,
+            note: repeated ? null : err.message,
             meta: {
-              waitingReason:
-                err.code === "INSUFFICIENT_TRAINING_DATA"
-                  ? "corpus-below-minimum"
-                  : err.code === "INSUFFICIENT_CORPUS"
-                    ? "corpus-too-small"
-                    : "insufficient-eligible-material",
+              waitingReason: wait.reason,
               tokens: err.tokens ?? null,
               minUniqueTokens: err.minUniqueTokens ?? null,
+              blockCount: err.blockCount ?? null,
             },
           });
           await this.#gate(jobId, config.jobs.pollIntervalMs);
@@ -863,6 +876,7 @@ export class JobSupervisor {
       runs++;
       last = summarizeRun(out, this.registry);
       lastLockNote = null; // a successful run clears the wait-dedupe
+      lastMaterialWaitKey = null;
       // A promoted run proves forward progress; a rejected (or unevaluated) run
       // does not. Count streaks so continuous training cannot silently retrain
       // the same corpus forever (run-46..run-52 all staged v035 and were

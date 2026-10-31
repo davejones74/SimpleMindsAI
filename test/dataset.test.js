@@ -170,6 +170,41 @@ test("replay and validation rows are appended without consuming fresh slots", as
   await store.close();
 });
 
+test("deferred validation partitioning leaves holdout selection to the Node partitioner", async () => {
+  const store = await ArticleStore.open(tmpDir());
+  for (let i = 0; i < 4; i++) {
+    const a = await store.ingestArticle({
+      text: `Fresh deferred article ${i} with enough prose to be a useful training row.`,
+      domain: "reasoning",
+    });
+    await store.recordReview({ articleId: a.articleId, verdict: "approve", authority: "human" });
+  }
+  const consumed = [];
+  for (let i = 0; i < 4; i++) {
+    const a = await store.ingestArticle({
+      text: `Consumed deferred article ${i} with enough prose to be replayed.`,
+      domain: "reasoning",
+    });
+    await store.recordReview({ articleId: a.articleId, verdict: "approve", authority: "human" });
+    consumed.push(a.articleId);
+  }
+  await store.markConsumed(consumed, { runId: "run_old" });
+
+  const out = collectRowsFromArticles(store, {
+    limit: 10,
+    replayPercent: 20,
+    validationBlocks: 32,
+    validationSeqLen: 128,
+    deferValidationPartition: true,
+  });
+
+  assert.deepEqual(out.validationArticleIds, []);
+  assert.equal(out.rows.some((r) => r.corpusRole === "validation"), false);
+  assert.equal(out.stats.validation, 0);
+  assert.ok(out.replayArticleIds.length >= 1, "replay selection still runs");
+  await store.close();
+});
+
 test("replay-only material re-enters as replay, never as fresh", async () => {
   const store = await ArticleStore.open(tmpDir());
   const freshIds = [];

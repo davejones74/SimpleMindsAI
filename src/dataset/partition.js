@@ -158,12 +158,13 @@ export function buildPartition({
     ? Number(validationTargetTokens)
     : Math.ceil(totalTokens * Math.max(0, Math.min(1, Number(validationFraction) || 0)));
   const maxTarget = Math.max(0, Math.floor(totalTokens * Math.max(0, Math.min(1, maxValidationFraction))));
-  // A target larger than the corpus can support is not a reason to take half the
-  // corpus. Keep the minimum cohort; the trainer's block minimum is the hard
-  // check. This also makes small fixtures deterministic.
-  const target = requestedTarget > maxTarget
-    ? Math.min(Math.max(Number(minValidationTokens) || 0, 0), maxTarget)
-    : Math.min(Math.max(requestedTarget, Number(minValidationTokens) || 0), maxTarget);
+  // A requested target larger than the corpus can support is capped by the hard
+  // maximum fraction. It must NOT collapse to `minValidationTokens`: that defaults
+  // to 0, which selected a single arbitrary cluster and left the holdout unable
+  // to form a block (or vulnerable to being entirely removed by the eval guard).
+  const target = maxTarget > 0
+    ? Math.min(Math.max(requestedTarget, Number(minValidationTokens) || 0), maxTarget)
+    : 0;
 
   const clusterRecords = [...membersByCluster.entries()].map(([clusterId, members]) => {
     const historicalMembers = members.filter(

@@ -621,8 +621,10 @@ test("supervisor: one-shot training runs the lifecycle and reports promotion", a
   assert.equal(done.result.decision, "promoted");
   assert.equal(done.result.promoted, true);
   assert.equal(activated, "v002");
-  // One document is reserved as validation and is not consumed.
-  assert.equal(store.getStats().uniqueConsumed, 2);
+  // The validation holdout is reserved and is not consumed.
+  const snapshot = registry.listSnapshots().at(-1);
+  assert.ok(snapshot.validationArticleIds.length >= 1);
+  assert.equal(store.getStats().uniqueConsumed, snapshot.freshArticleIds.length);
 
   await sup.close();
   await store.close();
@@ -700,6 +702,52 @@ test("supervisor: continuous training waits for more corpus instead of crashing"
   assert.equal(waiting.status, JOB_STATUS.WAITING);
   assert.equal(waiting.phase, "waiting-for-corpus");
   assert.match(waiting.note, /partition would leave no training clusters|fewer than one 128-token block/);
+  assert.equal(registry.listRuns().length, 0);
+
+  await sup.stop(job.jobId);
+  await waitTerminal(sup, job.jobId);
+
+  await sup.close();
+  await store.close();
+  await registry.close();
+});
+
+test("supervisor: continuous training waits for validation material instead of failing", async () => {
+  const store = await seededStore(4);
+  const registry = await RegistryStore.open(tmp());
+  const trainer = {
+    kind: "python",
+    version: "test",
+    resolveBaseline: async () => ({ version: "v001", path: "x/v001" }),
+    resolveVersion: async (v) => ({ version: v, path: `x/${v}` }),
+    preflight: async () => ({
+      ok: false,
+      code: "INSUFFICIENT_VALIDATION",
+      error: "document-source-disjoint validation requested but the corpus has no validation documents",
+    }),
+    train: async () => {
+      throw new Error("train must not be reached when the preflight refuses");
+    },
+  };
+  const sup = new JobSupervisor({
+    store,
+    registry,
+    dir: tmp(),
+    trainerFactory: () => trainer,
+    trainingDeps: { paths: { snapshots: tmp(), models: tmp(), plans: tmp(), evaluation: tmp() } },
+  });
+  await sup.init({ reconcile: false });
+
+  const job = await sup.startTraining({ mode: "continuous", minEligible: 1 });
+  for (let i = 0; i < 200 && sup.getJob(job.jobId).phase !== "waiting-for-validation"; i++) {
+    await new Promise((r) => setTimeout(r, 10));
+  }
+  const waiting = sup.getJob(job.jobId);
+  assert.equal(waiting.status, JOB_STATUS.WAITING);
+  assert.equal(waiting.phase, "waiting-for-validation");
+  assert.equal(waiting.meta.waitingReason, "insufficient-validation-material");
+  assert.match(waiting.note, /no validation documents/);
+  assert.equal(waiting.terminal, false, "a continuous job must not fail on missing validation");
   assert.equal(registry.listRuns().length, 0);
 
   await sup.stop(job.jobId);

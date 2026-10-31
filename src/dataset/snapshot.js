@@ -176,6 +176,7 @@ export function collectRowsFromArticles(
     validationBlocks = 0,
     validationSeqLen = config.trainSeqLen,
     corpusMode = config.trainCorpusMode,
+    deferValidationPartition = false,
   } = {},
 ) {
   if (corpusMode === "raw-text") {
@@ -186,6 +187,7 @@ export function collectRowsFromArticles(
       validationBlocks,
       validationSeqLen,
       corpusMode,
+      deferValidationPartition,
     });
   }
   const rows = [];
@@ -253,7 +255,7 @@ export function collectRowsFromArticles(
     }
   } else {
     const needReplay = pct > 0;
-    const needValidation = validationBlocks > 0;
+    const needValidation = validationBlocks > 0 && !deferValidationPartition;
     if (needReplay || needValidation) {
       const poolLimit = Math.max(512, limit * 4);
       // The replay reservoir is consumed REVIEWED material plus replay-only

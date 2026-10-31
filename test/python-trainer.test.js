@@ -243,8 +243,10 @@ test("python-mode lifecycle: loss improvement promotes and moves the pointer", a
   assert.equal(out.run.runLinkage.pythonTrainingRunId, "trid");
   assert.equal(out.run.runLinkage.nodeRunId, out.run.runId);
   assert.equal(registry.getModel(out.run.resultModelId).status, "promoted");
-  // One document is reserved as validation and is therefore not consumed.
-  assert.equal(store.getStats().uniqueConsumed, 2);
+  // Validation rows are reserved and therefore not consumed.
+  const snapshot = registry.listSnapshots().at(-1);
+  assert.ok(snapshot.validationArticleIds.length >= 1);
+  assert.equal(store.getStats().uniqueConsumed, snapshot.freshArticleIds.length);
   await store.close();
   await registry.close();
 });
@@ -454,7 +456,9 @@ test("staging: a promoted candidate is published exactly once, activated once, a
   assert.deepEqual(activated, ["v002"]);
   assert.equal(evalStaged.find(([v]) => v === "v001")?.[1], false, "the committed baseline is scored in place");
   assert.equal(evalStaged.find(([v]) => v === "v002")?.[1], true, "the candidate is scored as staged before publication");
-  assert.equal(store.getStats().uniqueConsumed, 2);
+  const snapshot = registry.listSnapshots().at(-1);
+  assert.ok(snapshot.validationArticleIds.length >= 1);
+  assert.equal(store.getStats().uniqueConsumed, snapshot.freshArticleIds.length);
   await store.close();
   await registry.close();
 });
@@ -492,7 +496,8 @@ test("staging: a rejected candidate is never published and is discarded with its
   const deferredArticles = store.articlesPage({ limit: 50 }).items;
   assert.equal(deferredArticles.length, 3);
   const deferredTraining = deferredArticles.filter((a) => a.deferralRetries === 1);
-  assert.equal(deferredTraining.length, 2, "only the training rows are deferred");
+  const trainingRows = registry.listSnapshots().at(-1).freshArticleIds;
+  assert.equal(deferredTraining.length, trainingRows.length, "only the training rows are deferred");
   for (const a of deferredTraining) {
     assert.equal(a.deferredRunId, out.run.runId, "the deferral names the run that rejected it");
     assert.equal(a.status, "REVIEWED", "one rejection defers, it does not retire");
@@ -823,6 +828,49 @@ test("python-mode lifecycle: INSUFFICIENT_VALIDATION preflight creates no Traini
   assert.equal(store.getStats().uniqueConsumed, 0, "failed preflight consumes nothing");
   await store.close();
   await registry.close();
+});
+
+test("python-mode lifecycle: eval guard filters rows before the validation partition", async () => {
+  const previous = config.snapshotIncludeConsumed;
+  config.snapshotIncludeConsumed = true;
+  const registry = await RegistryStore.open(tmp());
+  const store = await ArticleStore.open(tmp());
+  try {
+    const historical = await store.ingestArticle({
+      text: "A historical article about steam engines and thermodynamic cycles.",
+      domain: "reasoning",
+    });
+    await store.recordReview({ articleId: historical.articleId, verdict: "approve", authority: "human" });
+    await store.markConsumed([historical.articleId], { runId: "run_old" });
+
+    // Both prospective rows overlap the frozen evaluation set. If the leak guard
+    // runs only during snapshot creation, the partitioner selects these and the
+    // snapshot loses its entire validation holdout afterwards.
+    for (let i = 0; i < 2; i += 1) {
+      const leaked = await store.ingestArticle({
+        text: "Capital of France? Paris is the capital of France.",
+        domain: "reasoning",
+      });
+      await store.recordReview({ articleId: leaked.articleId, verdict: "approve", authority: "human" });
+    }
+
+    const options = { paths: { snapshots: tmp(), models: tmp(), plans: tmp(), evaluation: tmp() } };
+    const deps = pythonRunDeps({
+      store,
+      lossFor: (v) => ({ version: v, loss: 1.4, datasetHash: "EVALSET", ok: true }),
+      onActivate: () => {},
+    });
+
+    await assert.rejects(
+      () => executeFullRun({ registry, options, deps }),
+      (err) => err.code === "INSUFFICIENT_VALIDATION" && /no prospective validation clusters/.test(err.message),
+    );
+    assert.equal(registry.listRuns().length, 0);
+  } finally {
+    config.snapshotIncludeConsumed = previous;
+    await store.close();
+    await registry.close();
+  }
 });
 
 test("a snapshot from a pre-training failure does not poison prospective validation on retry", async () => {

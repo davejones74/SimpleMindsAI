@@ -268,8 +268,13 @@ export async function executeFullRun({
       const derivedValidationTokens = config.trainValidationTargetTokens > 0
         ? config.trainValidationTargetTokens
         : Math.max(0, config.trainValBlocks * config.trainSeqLen);
+      // The eval leak guard removes rows from the snapshot AFTER this point. If
+      // the partition picked a validation cluster that the guard later deletes,
+      // the snapshot can end up with a training corpus but no validation rows.
+      // Partition from the same leak-safe cohort the snapshot will keep.
+      const partitionRows = makeEvalGuard(evalSet).filter(rows).kept;
       partition = buildPartition({
-        rows,
+        rows: partitionRows,
         splitSeed: config.trainValidationSeed,
         validationFraction: derivedValidationTokens > 0 ? 0 : config.trainValidationFraction,
         validationTargetTokens: derivedValidationTokens,
@@ -307,6 +312,18 @@ export async function executeFullRun({
     // The evaluation leak guard can still empty a non-empty collection (every
     // row colliding with the frozen eval set): same condition, same code.
     if (!snapshot.rows.length) throw noEligibleMaterial();
+    if (
+      pythonMode &&
+      validationPolicy === "document-source-disjoint" &&
+      !snapshot.rows.some((row) => row.corpusRole === "validation")
+    ) {
+      const err = new Error(
+        "document-source-disjoint validation requested but the snapshot has no validation documents",
+      );
+      err.code = "INSUFFICIENT_VALIDATION";
+      err.blockCount = 0;
+      throw err;
+    }
 
     // ---- validated curriculum plan ----
     const storeStats = typeof store.getStats === "function" ? store.getStats() : {};
