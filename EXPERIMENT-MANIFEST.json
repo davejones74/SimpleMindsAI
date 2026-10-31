@@ -1,0 +1,284 @@
+{
+  "schema": "sma/controlled-experiment-manifest@1",
+  "experimentRoot": "/home/dave/sma-experiments/controlled-experiment-20261030T230000Z",
+  "corpus": {
+    "root": "/home/dave/sma-experiments/prospective-rebalanced-20261030T224516Z",
+    "manifestSha256": "44fd36ae0ddb1378023e26c299dd16f6d74d9d3d1162e44462e47c863fde6e35",
+    "trainSha256": "552ffad836b9b95f6609c4062531bd2883a5f1f7a7e9833366bdd54d7a68b446",
+    "validationSha256": "95aa6f130a73b0516253f52fd3572da853598ea8285e259a79a5d84418f176ae",
+    "trainDocuments": 87,
+    "validationDocuments": 20,
+    "trainTokens": 775434,
+    "validationTokens": 138571,
+    "historicalScreening": "128/128 NO_HISTORICAL_MATCH",
+    "exposure": "prospective-only"
+  },
+  "parent": {
+    "version": "v389",
+    "path": "/home/dave/sma-experiments/controlled-experiment-20261030T230000Z/parent-store/v389",
+    "modelSha256": "4ca50873039fa3d0f5af92fc004c368e6a5c40c33a5122b05b337e98627627ff",
+    "weightFingerprint": "a2aa77c0c3efb6b59fea452e206d7e3cc02a5f22a60d4db4527869f338db92a9",
+    "architecture": {
+      "architectures": [
+        "SmolLM3ForCausalLM"
+      ],
+      "attentionBias": false,
+      "attentionDropout": 0,
+      "bosTokenId": null,
+      "configName": "small",
+      "eosTokenId": 128001,
+      "gqaRatio": 3,
+      "headDim": 64,
+      "hiddenAct": "silu",
+      "hiddenSize": 384,
+      "initializerRange": 0.02,
+      "intermediateSize": 1024,
+      "layerTypes": [
+        "full_attention"
+      ],
+      "maxPositionEmbeddings": 2048,
+      "mlpBias": false,
+      "modelClass": "SmolLM3ForCausalLM",
+      "modelType": "smollm3",
+      "noRopeLayerIndices": [
+        3,
+        7
+      ],
+      "noRopeLayerInterval": 4,
+      "noRopeLayers": [
+        1,
+        1,
+        1,
+        0,
+        1,
+        1,
+        1,
+        0
+      ],
+      "numAttentionHeads": 6,
+      "numHiddenLayers": 8,
+      "numKeyValueHeads": 2,
+      "padTokenId": 128004,
+      "rmsNormEps": 0.000001,
+      "ropeScaling": null,
+      "ropeTheta": 5000000,
+      "ropeType": "default",
+      "slidingWindow": null,
+      "tieWordEmbeddings": true,
+      "torchDtype": "bfloat16",
+      "useSlidingWindow": false,
+      "vocabSize": 128256
+    },
+    "parametersTotal": 61839744,
+    "initialisationType": "TRAINED",
+    "parentInitialisationType": "RANDOM",
+    "pretrainedWeightsUsed": false,
+    "stepsCompleted": 8,
+    "tokensSeen": 4096,
+    "tokenizerHash": "ab4da6b2aa68247e9c0fa9b97fc7fcc796505038d01f7e144522a65ce0dbd2e5"
+  },
+  "tokenizer": {
+    "file": "/home/dave/sma-experiments/controlled-experiment-20261030T230000Z/parent-store/v389/tokenizer.json",
+    "sha256": "ab4da6b2aa68247e9c0fa9b97fc7fcc796505038d01f7e144522a65ce0dbd2e5",
+    "expectedSha256": "ab4da6b2aa68247e9c0fa9b97fc7fcc796505038d01f7e144522a65ce0dbd2e5"
+  },
+  "protocol": {
+    "sequenceLength": 128,
+    "microBatch": 2,
+    "gradAccum": 2,
+    "effectiveBatchSize": 4,
+    "learningRate": 0.0001,
+    "scheduler": "cosine",
+    "minLearningRateRatio": 0.1,
+    "warmupSteps": 150,
+    "weightDecay": 0.01,
+    "betas": [
+      0.9,
+      0.95
+    ],
+    "gradClip": 1,
+    "targetEpochs": 2,
+    "steps": 3030,
+    "maxSteps": 4000,
+    "minSteps": 1000,
+    "evalEvery": 200,
+    "validationBlocks": 1082,
+    "selectBest": true,
+    "computeDtype": "bfloat16",
+    "masterDtype": "float32",
+    "documentBoundary": "separator",
+    "validationPolicy": "document-source-disjoint",
+    "requireProspectiveValidation": true,
+    "seeds": [
+      17,
+      29,
+      43
+    ],
+    "candidateVersions": [
+      "v390",
+      "v391",
+      "v392"
+    ]
+  },
+  "fingerprints": {
+    "trainer": {
+      "version": "sma/trainer-fingerprint@1",
+      "algorithm": "sha256",
+      "components": [
+        "src/training",
+        "src/dataset",
+        "src/domain",
+        "src/storage",
+        "src/brain",
+        "src/config.js",
+        "scripts/run-staged-production-candidate.mjs",
+        "python/sma",
+        "package.json"
+      ],
+      "files": [
+        "package.json",
+        "python/sma/__init__.py",
+        "python/sma/arch.py",
+        "python/sma/blueprint.py",
+        "python/sma/brain.py",
+        "python/sma/configs.py",
+        "python/sma/data.py",
+        "python/sma/portability.py",
+        "python/sma/preflight.py",
+        "python/sma/proof.py",
+        "python/sma/store.py",
+        "python/sma/student.py",
+        "python/sma/train.py",
+        "scripts/run-staged-production-candidate.mjs",
+        "src/brain/brain.js",
+        "src/brain/python-cli.js",
+        "src/brain/student-worker.js",
+        "src/config.js",
+        "src/dataset/corpus-text.js",
+        "src/dataset/dedup.js",
+        "src/dataset/diversity.js",
+        "src/dataset/evaluation-set.js",
+        "src/dataset/language-policy.js",
+        "src/dataset/partition.js",
+        "src/dataset/snapshot.js",
+        "src/domain/article.js",
+        "src/domain/language.js",
+        "src/domain/mission-relevance.js",
+        "src/domain/review-gates.js",
+        "src/domain/review-policy.js",
+        "src/storage/article-store.js",
+        "src/storage/domain-registry.js",
+        "src/storage/registry-store.js",
+        "src/training/budget.js",
+        "src/training/candidate-identity.js",
+        "src/training/eval-cache.js",
+        "src/training/evaluator.js",
+        "src/training/generation-quality.js",
+        "src/training/init-brain.js",
+        "src/training/lifecycle.js",
+        "src/training/loss-evaluator.js",
+        "src/training/model-handle.js",
+        "src/training/python-promotion.js",
+        "src/training/python-trainer.js",
+        "src/training/runtime-fingerprint.js",
+        "src/training/trainer-interface.js"
+      ],
+      "fileCount": 46,
+      "digest": "aaf507419f13b3e39c3f95ab8ebce41e236c586d928f16970c8d7216eebbacdb"
+    },
+    "runtime": {
+      "identity": {
+        "version": "sma/runtime-fingerprint@1",
+        "node": {
+          "version": "v22.22.1",
+          "lockFiles": "e700d3b020f852e61d41095a9e601e2bb3c2e35ff51ca15c302c801078d3b4c2"
+        },
+        "python": {
+          "version": "3.14.4",
+          "implementation": "CPython",
+          "packages": {
+            "torch": "2.12.0+rocm7.14.0",
+            "transformers": "5.17.0",
+            "tokenizers": "0.23.2",
+            "numpy": "2.5.4",
+            "safetensors": "0.8.0",
+            "accelerate": "1.15.0",
+            "huggingfaceHub": "1.33.0"
+          },
+          "requirements": "e700d3b020f852e61d41095a9e601e2bb3c2e35ff51ca15c302c801078d3b4c2",
+          "backend": "rocm",
+          "buildBackend": "rocm",
+          "backendVersion": "7.14.60850",
+          "archString": "gfx1150"
+        }
+      },
+      "metadata": {
+        "pythonExecutable": "/opt/simpleminds/python/.venv/bin/python",
+        "deviceName": "AMD Radeon 890M Graphics",
+        "totalMemoryBytes": 31911583744,
+        "memorySharedWithHost": true,
+        "platformError": null
+      },
+      "digest": "d53a220a4a5bb03e83a5fb61c9b027463c70eec75e2bce007eae6120aded3364"
+    },
+    "evaluationRuntime": {
+      "identity": {
+        "version": "sma/runtime-fingerprint@1",
+        "node": {
+          "version": "v22.22.1",
+          "lockFiles": "e700d3b020f852e61d41095a9e601e2bb3c2e35ff51ca15c302c801078d3b4c2"
+        },
+        "python": {
+          "version": "3.14.4",
+          "implementation": "CPython",
+          "packages": {
+            "torch": "2.14.1+cpu",
+            "transformers": "5.20.0",
+            "tokenizers": "0.23.3",
+            "numpy": "2.5.4",
+            "safetensors": "0.8.0",
+            "accelerate": null,
+            "huggingfaceHub": "2.2.0"
+          },
+          "requirements": "e700d3b020f852e61d41095a9e601e2bb3c2e35ff51ca15c302c801078d3b4c2",
+          "backend": "cpu",
+          "buildBackend": "cpu",
+          "backendVersion": null,
+          "archString": null
+        }
+      },
+      "metadata": {
+        "pythonExecutable": "/home/dave/Repositories/SimpleMindsAI/python/.venv_test/bin/python",
+        "deviceName": null,
+        "totalMemoryBytes": null,
+        "memorySharedWithHost": null,
+        "platformError": null
+      },
+      "digest": "ecc4ba8482209eca575c545a5d712bcdb4eed5361ff440d8f4eb5d3deddd036b"
+    }
+  },
+  "baselineArtifacts": {
+    "parentValidationEval": {
+      "path": "/home/dave/sma-experiments/controlled-experiment-20261030T230000Z/baseline/parent-validation-eval.json",
+      "sha256": "1f7c64785a07786e4838a64c136e0963e129ebda753c9f802f096b30c70b237e"
+    },
+    "parentTrainEval": {
+      "path": "/home/dave/sma-experiments/controlled-experiment-20261030T230000Z/baseline/parent-train-eval.json",
+      "sha256": "709176a54d6fc038edddb24a4052ceecec57f9a016e5928b7afb8b14e26ea8a1"
+    },
+    "parentGenerationQuality": {
+      "path": "/home/dave/sma-experiments/controlled-experiment-20261030T230000Z/baseline/parent-generation-quality.json",
+      "sha256": "ed85515ab060c7ac2ceeda3ebe712fb050b23cdc3ab1be3aa21693669d7be66a"
+    },
+    "parentBaselineSummary": {
+      "path": "/home/dave/sma-experiments/controlled-experiment-20261030T230000Z/baseline/parent-baseline-summary.json",
+      "sha256": "d5ec4db089d518db052954124deb8112aafa6675585d16ff11d67b47c3723081"
+    }
+  },
+  "createdAt": "2026-10-31T00:32:09.037Z",
+  "experimentId": "953dce2c738110c44445e2c32889e8173055de5625757cd5cded0dc6a74d50dc",
+  "identityChange": {
+    "previousExperimentId": "87867579d548cc98f2cab3d33505c754984ea353e398579edd0b716a7be1fff2",
+    "previousManifestSha256": "50db13dc891fd9a6af9794e364dcff10cc6aff714652c574dbdf18294afa7dd4"
+  }
+}

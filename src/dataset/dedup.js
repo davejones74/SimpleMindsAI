@@ -236,3 +236,34 @@ export function buildContentClusters(items, {
     pairs: nearPairs,
   };
 }
+
+
+/** Streaming MinHash signature: O(1) memory per document. */
+export function minhashSignatureForText(text, { shingleSize = DEFAULT_SHINGLE_SIZE, hashCount = 32 } = {}) {
+  const words = normalizeDedupText(text).split(" ").filter(Boolean);
+  const count = Math.max(1, Math.min(NUM_HASHES, Number(hashCount) || 32));
+  const signature = new Uint32Array(count).fill(0xffffffff);
+  if (words.length < shingleSize) return signature;
+  for (let i = 0; i <= words.length - shingleSize; i += 1) {
+    const hash = fnv1a(words.slice(i, i + shingleSize).join(" "));
+    for (let j = 0; j < count; j += 1) {
+      const [a, b] = PERMUTATIONS[j];
+      const value = (Math.imul(a, hash) + b) >>> 0;
+      if (value < signature[j]) signature[j] = value;
+    }
+  }
+  return signature;
+}
+
+/** LSH band keys for a MinHash signature (default 8 bands x 4 rows for 32 hashes). */
+export function lshBandKeys(signature, { bands = Math.floor((signature?.length ?? 0) / 4) } = {}) {
+  if (!signature || !signature.length) return [];
+  const rows = Math.floor(signature.length / Math.max(1, bands));
+  const out = [];
+  for (let band = 0; band < bands; band += 1) {
+    const values = [];
+    for (let row = 0; row < rows; row += 1) values.push(signature[band * rows + row]);
+    out.push(`${band}:${values.join(",")}`);
+  }
+  return out;
+}

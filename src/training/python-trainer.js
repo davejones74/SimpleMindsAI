@@ -124,6 +124,58 @@ export async function resolvePythonVersion(version, {
 }
 
 /**
+ * Build the exact `sma.brain train` argument array. Exported so the Node/Python
+ * CLI contract is tested directly instead of being inferred from a string.
+ */
+export function buildPythonTrainArgs({
+  parentVersion,
+  corpusFile,
+  learningRate,
+  steps,
+  seqLen,
+  microBatch,
+  gradAccum,
+  warmup,
+  valBlocks,
+  evalEvery,
+  documentBoundary = "separator",
+  validationPolicy,
+  requireProspective = false,
+  seed = 0,
+  minSteps = 0,
+  computeDtype = "bfloat16",
+  device = "auto",
+  selectBest = true,
+  runId = null,
+  stageOnly = false,
+} = {}) {
+  const args = [
+    "train",
+    "--parent", String(parentVersion),
+    "--corpus", String(corpusFile),
+    "--lr", String(learningRate),
+    "--steps", String(steps),
+    "--seq-len", String(seqLen),
+    "--micro-batch", String(microBatch),
+    "--grad-accum", String(gradAccum),
+    "--warmup", String(warmup),
+    "--val-blocks", String(valBlocks),
+    "--eval-every", String(evalEvery),
+    "--document-boundary", String(documentBoundary ?? "separator"),
+    "--validation-policy", String(validationPolicy),
+    ...(requireProspective ? ["--require-prospective-validation"] : []),
+    "--seed", String(seed),
+    ...(Number(minSteps) > 0 ? ["--min-steps", String(minSteps)] : []),
+    "--compute-dtype", String(computeDtype),
+    "--device", String(device),
+  ];
+  if (selectBest === false) args.push("--no-select-best");
+  if (runId) args.push("--run-id", String(runId));
+  if (stageOnly) args.push("--stage-only");
+  return args;
+}
+
+/**
  * @returns {{kind:"python", version, resolveBaseline, train}}
  */
 export function pythonTrainer({
@@ -215,34 +267,28 @@ export function pythonTrainer({
       const runMinSteps = Number.isInteger(configuration.minSteps) && configuration.minSteps > 0
         ? configuration.minSteps
         : 0;
-      const args = [
-        "train",
-        "--parent", parentVersion,
-        "--corpus", corpusFile,
-        "--lr", String(learningRate),
-        "--steps", String(runSteps),
-        "--seq-len", String(seqLen),
-        "--micro-batch", String(microBatch),
-        "--grad-accum", String(gradAccum),
-        "--warmup", String(warmup),
-        "--val-blocks", String(runValBlocks),
-        "--eval-every", String(runEvalEvery),
-        "--document-boundary", String(configuration.documentBoundary ?? documentBoundary ?? "separator"),
-        "--validation-policy", String(configuration.validationPolicy ?? validationPolicy),
-        ...(config.trainValidationRequireProspective ? ["--require-prospective-validation"] : []),
-        "--seed", String(Number.isInteger(configuration.seed) ? configuration.seed : seed),
-        ...(runMinSteps > 0 ? ["--min-steps", String(runMinSteps)] : []),
-        "--compute-dtype", resolvedDtype,
-        "--device", device,
-      ];
-      // Best-checkpoint selection is a selection policy, not a hyperparameter:
-      // disable it explicitly when configured off, otherwise the Python default
-      // (enabled) applies.
-      if (selectBest === false) args.push("--no-select-best");
-      if (runId) args.push("--run-id", String(runId));
-      // Commit-on-promotion: build the checkpoint but leave it UNPUBLISHED
-      // (`vNNN.tmp`); the lifecycle publishes it only on a real promotion.
-      if (stageOnly) args.push("--stage-only");
+      const args = buildPythonTrainArgs({
+        parentVersion,
+        corpusFile,
+        learningRate,
+        steps: runSteps,
+        seqLen,
+        microBatch,
+        gradAccum,
+        warmup,
+        valBlocks: runValBlocks,
+        evalEvery: runEvalEvery,
+        documentBoundary: configuration.documentBoundary ?? documentBoundary ?? "separator",
+        validationPolicy: configuration.validationPolicy ?? validationPolicy,
+        requireProspective: config.trainValidationRequireProspective,
+        seed: Number.isInteger(configuration.seed) ? configuration.seed : seed,
+        minSteps: runMinSteps,
+        computeDtype: resolvedDtype,
+        device,
+        selectBest,
+        runId,
+        stageOnly,
+      });
 
       const t0 = Date.now();
       const out = await run(args, {
