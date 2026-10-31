@@ -177,8 +177,13 @@ export function collectRowsFromArticles(
     validationSeqLen = config.trainSeqLen,
     corpusMode = config.trainCorpusMode,
     deferValidationPartition = false,
+    historicalArticleIds = null,
   } = {},
 ) {
+  const historicallyExposed = historicalArticleIds instanceof Set
+    ? historicalArticleIds
+    : new Set(historicalArticleIds ?? []);
+
   if (corpusMode === "raw-text") {
     return collectRawTextRowsFromArticles(store, {
       limit,
@@ -188,6 +193,7 @@ export function collectRowsFromArticles(
       validationSeqLen,
       corpusMode,
       deferValidationPartition,
+      historicalArticleIds: historicallyExposed,
     });
   }
   const rows = [];
@@ -195,11 +201,13 @@ export function collectRowsFromArticles(
   let fresh = 0;
   let retained = 0;
 
-  const drain = (consumed, target, { replayOnlyOnly = false } = {}) => {
-    const out = [];
+  const drain = (consumed, target, { replayOnlyOnly = false, preferUnexposed = null } = {}) => {
+    const preferred = [];
+    const fallback = [];
+    const priority = preferUnexposed instanceof Set && preferUnexposed.size > 0 ? preferUnexposed : null;
     let cursor = null;
     let guard = 0;
-    while (out.length < target && guard++ < 200) {
+    while ((priority ? preferred.length : fallback.length) < target && guard++ < 200) {
       const { items, nextCursor } = store.articlesPage({
         after: cursor,
         limit: 200,
@@ -213,16 +221,27 @@ export function collectRowsFromArticles(
         // REVIEWED rows whose fresh retries are exhausted (they re-enter only
         // through the replay pool); a consumed row is REVIEWED by status filter.
         if (!consumed && !replayOnlyOnly && !isTrainable(a)) continue;
-        out.push(a);
-        if (out.length >= target) break;
+        if (priority && !priority.has(a.articleId)) preferred.push(a);
+        else fallback.push(a);
+        if (priority && preferred.length >= target) break;
       }
       if (!nextCursor) break;
       cursor = nextCursor;
     }
-    return out;
+    if (!priority) return fallback.slice(0, target);
+    if (preferred.length >= target) return preferred.slice(0, target);
+    return [...preferred, ...fallback].slice(0, target);
   };
 
-  const allFresh = drain(false, limit);
+  // When a prospective/validation split is required, an older backlog of
+  // historically-exposed but still-unconsumed articles must not consume the
+  // whole fresh row budget: that can hide every prospective article behind the
+  // limit and make the run wait forever even though new material exists. Prefer
+  // unexposed rows for the fresh delta, then backfill with the historical
+  // backlog if there are not enough of them.
+  const allFresh = drain(false, limit, {
+    preferUnexposed: historicallyExposed.size > 0 ? historicallyExposed : null,
+  });
   // Replay is sized by ESTIMATED TRAINING TOKENS, not by article count: the
   // fresh delta wins the whole row budget, and replay rows are selected (from
   // the consumed/retained pool) until their estimated token mass reaches the
@@ -319,11 +338,19 @@ export function collectRowsFromArticles(
   };
 }
 
-function drainArticlePool(store, { consumed, target, replayOnlyOnly = false, requireTrainable = false }) {
-  const out = [];
+function drainArticlePool(store, {
+  consumed,
+  target,
+  replayOnlyOnly = false,
+  requireTrainable = false,
+  preferUnexposed = null,
+}) {
+  const preferred = [];
+  const fallback = [];
+  const priority = preferUnexposed instanceof Set && preferUnexposed.size > 0 ? preferUnexposed : null;
   let cursor = null;
   let guard = 0;
-  while (out.length < target && guard++ < 200) {
+  while ((priority ? preferred.length : fallback.length) < target && guard++ < 200) {
     const { items, nextCursor } = store.articlesPage({
       after: cursor,
       limit: 200,
@@ -333,13 +360,16 @@ function drainArticlePool(store, { consumed, target, replayOnlyOnly = false, req
     });
     for (const article of items) {
       if (requireTrainable && !isTrainable(article)) continue;
-      out.push(article);
-      if (out.length >= target) break;
+      if (priority && !priority.has(article.articleId)) preferred.push(article);
+      else fallback.push(article);
+      if (priority && preferred.length >= target) break;
     }
     if (!nextCursor) break;
     cursor = nextCursor;
   }
-  return out;
+  if (!priority) return fallback.slice(0, target);
+  if (preferred.length >= target) return preferred.slice(0, target);
+  return [...preferred, ...fallback].slice(0, target);
 }
 
 export function collectRawTextRowsFromArticles(
@@ -362,9 +392,18 @@ export function collectRawTextRowsFromArticles(
     maxSourceTokenShare = config.trainMaxSourceTokenShare,
     maxPublisherTokenShare = config.trainMaxPublisherTokenShare,
     mergeSourceRawText = config.trainMergeSourceRawText,
+    historicalArticleIds = null,
   } = {},
 ) {
-  const freshPool = drainArticlePool(store, { consumed: false, target: limit, requireTrainable: true });
+  const historicallyExposed = historicalArticleIds instanceof Set
+    ? historicalArticleIds
+    : new Set(historicalArticleIds ?? []);
+  const freshPool = drainArticlePool(store, {
+    consumed: false,
+    target: limit,
+    requireTrainable: true,
+    preferUnexposed: historicallyExposed.size > 0 ? historicallyExposed : null,
+  });
   let retainedPool = [];
   let replayPool = [];
   let validationPool = [];

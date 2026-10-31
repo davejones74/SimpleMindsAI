@@ -74,6 +74,48 @@ async function updateManifest(manifestPath, manifest, fields) {
   return updated;
 }
 
+/**
+ * Durable evidence that an article was already presented to the trainer:
+ * run-linked snapshots, the consumption ledger, and contribution records.
+ *
+ * A persisted snapshot is NOT by itself proof of training exposure: the manifest
+ * is written before baseline evaluation and before `train`, so a run that fails
+ * earlier (CLI/preflight) still leaves one behind. Counting such a snapshot
+ * would permanently relabel still-unconsumed material as historically exposed,
+ * and a retry could never obtain a prospective validation cluster. Only
+ * snapshots actually linked to a TrainingRun count; a run is created immediately
+ * before training, after the preflight, so an unlinked snapshot was never
+ * presented to the trainer.
+ */
+function historicallyExposedArticleIds(registry, store) {
+  const priorSnapshots = typeof registry.listSnapshots === "function" ? registry.listSnapshots() : [];
+  const priorRuns = typeof registry.listRuns === "function" ? registry.listRuns() : [];
+  const runDatasetIds = new Set(
+    priorRuns
+      .filter((run) => run?.datasetId && run.status !== "created")
+      .map((run) => run.datasetId),
+  );
+  const ids = new Set();
+  for (const prior of priorSnapshots) {
+    if (!runDatasetIds.has(prior.datasetId)) continue;
+    for (const id of prior.articleIds ?? []) ids.add(id);
+  }
+  // Historical exposure is broader than snapshots: the article store's durable
+  // consumption and contribution ledgers record material that appeared in
+  // completed training runs even when the snapshot record is not available in
+  // this workspace. Missing ledgers are reported as uncertainty, never as proof
+  // that material was unseen.
+  for (const record of store.consumption ?? []) {
+    if (record?.articleId) ids.add(record.articleId);
+  }
+  for (const record of store.contributions ?? []) {
+    for (const id of [...(record.freshArticleIds ?? []), ...(record.replayArticleIds ?? [])]) {
+      if (id) ids.add(id);
+    }
+  }
+  return ids;
+}
+
 export async function executeFullRun({
   registry,
   deps = {},
@@ -201,6 +243,13 @@ export async function executeFullRun({
     });
 
     // ---- immutable, capped, leak-guarded snapshot ----
+    // Prospective validation requires an unexposed holdout. Compute exposure
+    // BEFORE collection so an old, retried backlog of historically-exposed
+    // articles cannot consume the whole fresh row budget and hide every
+    // prospective article beyond the snapshot limit.
+    const priorExposed = pythonMode && validationPolicy === "document-source-disjoint"
+      ? historicallyExposedArticleIds(registry, store)
+      : null;
     const collected = collectRowsFromArticles(store, {
       limit,
       replayPercent: config.trainReplayPercent,
@@ -208,6 +257,7 @@ export async function executeFullRun({
       validationSeqLen: config.trainSeqLen,
       corpusMode: config.trainCorpusMode,
       deferValidationPartition: pythonMode && validationPolicy === "document-source-disjoint",
+      historicalArticleIds: priorExposed,
     });
     const { rows } = collected;
     let { freshArticleIds, replayArticleIds, validationArticleIds } = collected;
@@ -224,41 +274,10 @@ export async function executeFullRun({
 
     let partition = null;
     if (pythonMode && validationPolicy === "document-source-disjoint") {
-      const priorSnapshots = typeof registry.listSnapshots === "function" ? registry.listSnapshots() : [];
-      const priorArticleIds = new Set();
-      // A persisted snapshot is NOT by itself proof of training exposure: the
-      // manifest is written before baseline evaluation and before `train`, so a
-      // run that fails earlier (CLI/preflight) still leaves one behind. Counting
-      // such a snapshot would permanently relabel still-unconsumed material as
-      // historically exposed, and a retry could never obtain a prospective
-      // validation cluster. Only snapshots actually linked to a TrainingRun
-      // count; a run is created immediately before training, after the
-      // preflight, so an unlinked snapshot was never presented to the trainer.
-      const priorRuns = typeof registry.listRuns === "function" ? registry.listRuns() : [];
-      const runDatasetIds = new Set(
-        priorRuns
-          .filter((run) => run?.datasetId && run.status !== "created")
-          .map((run) => run.datasetId),
-      );
-      for (const prior of priorSnapshots) {
-        if (!runDatasetIds.has(prior.datasetId)) continue;
-        for (const id of prior.articleIds ?? []) priorArticleIds.add(id);
-      }
-      // Historical exposure is broader than snapshots: the article store's
-      // durable consumption and contribution ledgers record material that
-      // appeared in completed training runs even when the snapshot record is not
-      // available in this workspace. Missing ledgers are reported as uncertainty,
-      // never as proof that material was unseen.
-      for (const record of store.consumption ?? []) {
-        if (record?.articleId) priorArticleIds.add(record.articleId);
-      }
-      for (const record of store.contributions ?? []) {
-        for (const id of [...(record.freshArticleIds ?? []), ...(record.replayArticleIds ?? [])]) {
-          if (id) priorArticleIds.add(id);
-        }
-      }
       const freshIds = new Set(freshArticleIds);
-      const historicalArticleIds = new Set(priorArticleIds);
+      const historicalArticleIds = new Set(priorExposed ?? []);
+      // Replay/retained rows were not part of the fresh delta, so they are
+      // historical by definition even when no prior ledger recorded them.
       for (const row of rows) {
         if (!freshIds.has(row.articleId)) historicalArticleIds.add(row.articleId);
       }

@@ -912,6 +912,58 @@ test("a snapshot from a pre-training failure does not poison prospective validat
 });
 
 
+test("python-mode lifecycle: a historically exposed fresh backlog does not starve prospective validation", async () => {
+  const registry = await RegistryStore.open(tmp());
+  const store = await ArticleStore.open(tmp());
+  try {
+    const oldIds = [];
+    for (let i = 0; i < 4; i += 1) {
+      const a = await store.ingestArticle({
+        text: `Historical backlog article ${i} with enough prose to fill the oldest rows.`,
+        domain: "reasoning",
+      });
+      await store.recordReview({ articleId: a.articleId, verdict: "approve", authority: "human" });
+      oldIds.push(a.articleId);
+    }
+    await store.recordTrainingContribution({
+      runId: "run_old",
+      decision: "rejected",
+      freshArticleIds: oldIds,
+    });
+
+    const newIds = [];
+    for (let i = 0; i < 4; i += 1) {
+      const a = await store.ingestArticle({
+        text: `Prospective article ${i} with enough prose to form a new holdout.`,
+        domain: "reasoning",
+      });
+      await store.recordReview({ articleId: a.articleId, verdict: "approve", authority: "human" });
+      newIds.push(a.articleId);
+    }
+
+    const out = await executeFullRun({
+      registry,
+      options: { paths: { snapshots: tmp(), models: tmp(), plans: tmp(), evaluation: tmp() }, snapshotLimit: 4 },
+      deps: pythonRunDeps({
+        store,
+        lossFor: (v) => ({ version: v, loss: v === "v001" ? 2.0 : 1.4, datasetHash: "EVALSET", ok: true }),
+        onActivate: () => {},
+      }),
+    });
+
+    assert.equal(out.run.status, "promoted");
+    const snapshot = registry.listSnapshots().at(-1);
+    assert.ok(snapshot.validationArticleIds.length >= 1, "a prospective holdout was selected");
+    assert.equal(snapshot.partition.exposure.validationExposureMode, "prospective-only");
+    const selected = new Set(snapshot.articleIds);
+    for (const id of newIds) assert.ok(selected.has(id), "the unexposed delta and holdout were collected");
+    for (const id of oldIds) assert.equal(selected.has(id), false, "the exposed backlog did not crowd out the delta");
+  } finally {
+    await store.close();
+    await registry.close();
+  }
+});
+
 test("python lifecycle rejects legacy and non-prospective validation configuration", async () => {
   const registry = await RegistryStore.open(tmp());
   const store = await seededStore();

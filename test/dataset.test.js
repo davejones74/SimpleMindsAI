@@ -205,6 +205,45 @@ test("deferred validation partitioning leaves holdout selection to the Node part
   await store.close();
 });
 
+test("fresh selection prefers unexposed articles over a historically exposed backlog", async () => {
+  const store = await ArticleStore.open(tmpDir());
+  const oldIds = [];
+  const newIds = [];
+  for (let i = 0; i < 4; i++) {
+    const a = await store.ingestArticle({
+      text: `Historical backlog article ${i} with enough prose to fill the oldest rows.`,
+      domain: "reasoning",
+    });
+    await store.recordReview({ articleId: a.articleId, verdict: "approve", authority: "human" });
+    oldIds.push(a.articleId);
+  }
+  for (let i = 0; i < 4; i++) {
+    const a = await store.ingestArticle({
+      text: `Prospective article ${i} with enough prose to form a new holdout.`,
+      domain: "reasoning",
+    });
+    await store.recordReview({ articleId: a.articleId, verdict: "approve", authority: "human" });
+    newIds.push(a.articleId);
+  }
+
+  const limited = collectRowsFromArticles(store, {
+    limit: 4,
+    historicalArticleIds: new Set(oldIds),
+  });
+  assert.deepEqual(limited.rows.map((r) => r.articleId), newIds, "the exposed backlog cannot crowd out the delta");
+
+  const filled = collectRowsFromArticles(store, {
+    limit: 6,
+    historicalArticleIds: new Set(oldIds),
+  });
+  assert.deepEqual(
+    filled.rows.map((r) => r.articleId),
+    [...newIds, ...oldIds.slice(0, 2)],
+    "unexposed rows come first, then the backlog fills the remaining budget",
+  );
+  await store.close();
+});
+
 test("replay-only material re-enters as replay, never as fresh", async () => {
   const store = await ArticleStore.open(tmpDir());
   const freshIds = [];
