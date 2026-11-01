@@ -26,7 +26,7 @@ import os
 import sys
 import time
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List, Sequence
 
 from .store import PRUNE_DEFAULT_KEEP, RUNS_PRUNE_DEFAULT_KEEP, store_root
 
@@ -1395,6 +1395,41 @@ def cmd_eval(args: argparse.Namespace) -> Dict[str, Any]:
     }
 
 
+def _generation_kwargs(
+    *,
+    max_new_tokens: int,
+    temperature: float,
+    top_p: float,
+    seed: Optional[int],
+    repetition_penalty: float,
+    no_repeat_ngram_size: int,
+) -> tuple[Dict[str, Any], str]:
+    """Build the exact kwargs used by every generation path.
+
+    Extracted so `generate_text` and the diagnostic path cannot drift. The
+    diagnostic path adds only `output_scores`/`return_dict_in_generate`; it
+    never changes these values or the model weights.
+    """
+    import torch
+
+    gen_kwargs: Dict[str, Any] = {"max_new_tokens": int(max_new_tokens)}
+    if repetition_penalty and float(repetition_penalty) > 1.0:
+        gen_kwargs["repetition_penalty"] = float(repetition_penalty)
+    if no_repeat_ngram_size and int(no_repeat_ngram_size) > 0:
+        gen_kwargs["no_repeat_ngram_size"] = int(no_repeat_ngram_size)
+    if temperature and temperature > 0:
+        if seed is not None:
+            torch.manual_seed(seed)
+            if torch.cuda.is_available():
+                torch.cuda.manual_seed_all(seed)
+        gen_kwargs.update(do_sample=True, temperature=float(temperature), top_p=float(top_p))
+        mode = "sample"
+    else:
+        gen_kwargs.update(do_sample=False)
+        mode = "greedy"
+    return gen_kwargs, mode
+
+
 def generate_text(
     model: Any,
     tokenizer: Any,
@@ -1415,21 +1450,14 @@ def generate_text(
     """
     import torch
 
-    gen_kwargs: Dict[str, Any] = {"max_new_tokens": int(max_new_tokens)}
-    if repetition_penalty and float(repetition_penalty) > 1.0:
-        gen_kwargs["repetition_penalty"] = float(repetition_penalty)
-    if no_repeat_ngram_size and int(no_repeat_ngram_size) > 0:
-        gen_kwargs["no_repeat_ngram_size"] = int(no_repeat_ngram_size)
-    if temperature and temperature > 0:
-        if seed is not None:
-            torch.manual_seed(seed)
-            if torch.cuda.is_available():
-                torch.cuda.manual_seed_all(seed)
-        gen_kwargs.update(do_sample=True, temperature=float(temperature), top_p=float(top_p))
-        mode = "sample"
-    else:
-        gen_kwargs.update(do_sample=False)
-        mode = "greedy"
+    gen_kwargs, mode = _generation_kwargs(
+        max_new_tokens=max_new_tokens,
+        temperature=temperature,
+        top_p=top_p,
+        seed=seed,
+        repetition_penalty=repetition_penalty,
+        no_repeat_ngram_size=no_repeat_ngram_size,
+    )
 
     inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
     prompt_tokens = int(inputs["input_ids"].shape[1])
@@ -1446,6 +1474,332 @@ def generate_text(
         "generatedTokens": int(new_tokens.shape[0]),
         "repetitionPenalty": float(repetition_penalty) if repetition_penalty else 1.0,
         "noRepeatNgramSize": int(no_repeat_ngram_size) if no_repeat_ngram_size else 0,
+    }
+
+
+DEFAULT_DIAGNOSTIC_POSITIONS = (0, 1, 2, 4, 8, 16, 31)
+
+
+def generate_text_with_diagnostics(
+    model: Any,
+    tokenizer: Any,
+    *,
+    prompt: str,
+    max_new_tokens: int = 32,
+    temperature: float = 0.0,
+    top_p: float = 0.95,
+    seed: Optional[int] = 0,
+    repetition_penalty: float = 1.0,
+    no_repeat_ngram_size: int = 0,
+    selected_positions: Sequence[int] = DEFAULT_DIAGNOSTIC_POSITIONS,
+) -> Dict[str, Any]:
+    """Run the same generation as `generate_text`, plus diagnostics.
+
+    The only addition to the inference call is `output_scores=True` and
+    `return_dict_in_generate=True`; logits, temperature, sampling, weights and
+    token ids are unchanged. The returned `generatedTokenIds` are the primary
+    input to every repetition and EOS measurement.
+    """
+    import torch
+
+    from . import generation_metrics as generation_metrics_mod
+
+    gen_kwargs, mode = _generation_kwargs(
+        max_new_tokens=max_new_tokens,
+        temperature=temperature,
+        top_p=top_p,
+        seed=seed,
+        repetition_penalty=repetition_penalty,
+        no_repeat_ngram_size=no_repeat_ngram_size,
+    )
+    inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
+    prompt_tokens = int(inputs["input_ids"].shape[1])
+    with torch.no_grad():
+        output = model.generate(
+            **inputs,
+            **gen_kwargs,
+            output_scores=True,
+            return_dict_in_generate=True,
+        )
+    new_tokens = output.sequences[0][prompt_tokens:]
+    ids = [int(value) for value in new_tokens.tolist()]
+    text = tokenizer.decode(new_tokens, skip_special_tokens=True)
+    eos_token_id = getattr(model.config, "eos_token_id", None)
+
+    steps: List[Dict[str, Any]] = []
+    for position, score in enumerate(output.scores):
+        logits = score[0] if getattr(score, "ndim", 1) > 1 else score
+        target = ids[position] if position < len(ids) else None
+        stats = generation_metrics_mod.distribution_stats(
+            logits,
+            tokenizer=tokenizer,
+            eos_token_id=eos_token_id,
+            target_token_id=target,
+        )
+        step: Dict[str, Any] = {
+            "position": position,
+            "tokenId": target,
+            "tokenText": tokenizer.decode([target]) if target is not None else None,
+        }
+        if stats is None:
+            step.update(
+                {
+                    "entropyNats": None,
+                    "top1Prob": None,
+                    "top5ProbMass": None,
+                    "top10ProbMass": None,
+                    "concentration": None,
+                    "eosProb": None,
+                    "eosRank": None,
+                    "targetProb": None,
+                    "targetRank": None,
+                    "topTokenIds": [],
+                }
+            )
+        else:
+            step.update(stats)
+        steps.append(step)
+
+    if ids:
+        selected = sorted(
+            {max(0, min(int(position), len(ids) - 1)) for position in selected_positions}
+        )
+    else:
+        selected = []
+    selected_set = set(selected)
+    for step in steps:
+        if step["position"] not in selected_set:
+            step.pop("topTokens", None)
+
+    repetition = generation_metrics_mod.repetition_metrics(ids, tokenizer=tokenizer)
+    return {
+        "prompt": prompt,
+        "promptTokenIds": inputs["input_ids"][0].tolist(),
+        "promptTokens": prompt_tokens,
+        "generatedTokenIds": ids,
+        "generatedTokens": len(ids),
+        "text": text,
+        "mode": mode,
+        "selectedPositions": selected,
+        "steps": steps,
+        "distributionSummary": generation_metrics_mod.summarize_steps(steps),
+        "repetition": repetition,
+        "eos": generation_metrics_mod.eos_diagnostics(
+            steps,
+            ids,
+            eos_token_id=eos_token_id,
+            max_new_tokens=max_new_tokens,
+        ),
+    }
+
+
+def _checkpoint_identity(version_dir: Path) -> Dict[str, Any]:
+    from . import store
+
+    files: Dict[str, Any] = {}
+    for name in (
+        "config.json",
+        "generation_config.json",
+        "tokenizer.json",
+        "tokenizer_config.json",
+        "init-manifest.json",
+    ):
+        path = version_dir / name
+        if path.is_file():
+            files[name] = {"sha256": _sha256_file(path), "bytes": path.stat().st_size}
+    weights = []
+    for path in store.weight_files(version_dir):
+        weights.append(
+            {"name": path.name, "sha256": _sha256_file(path), "bytes": path.stat().st_size}
+        )
+    model_sha = weights[0]["sha256"] if len(weights) == 1 else None
+    return {"files": files, "weights": weights, "modelSha256": model_sha}
+
+
+def cmd_generate_diagnostics(args: argparse.Namespace) -> Dict[str, Any]:
+    """Measure generation without changing the production generation path.
+
+    This is the new diagnostic verb. The legacy ``generate-quality`` verb is
+    intentionally unchanged, so existing ledger entries keep their meaning.
+    """
+    from . import generation_metrics as generation_metrics_mod
+    from . import generation_prompts as generation_prompts_mod
+    from . import store
+
+    root = Path(args.out)
+    device = _resolve_device(args.device)
+    model, tokenizer, version_dir = _load_version_for_serving(root, args.version, device)
+    model.eval()
+
+    manifest = store.read_json(version_dir / "init-manifest.json")
+    try:
+        artifact = store.artifact_name(manifest)
+    except ValueError:
+        artifact = None
+
+    suite = generation_prompts_mod.get_prompt_suite(args.prompt_suite)
+    thresholds = generation_metrics_mod.resolve_thresholds(
+        {
+            "uniqueTokenRatioFloor": args.unique_token_floor,
+            "uniqueBigramRatioFloor": args.unique_bigram_floor,
+            "repeatedBigramFractionCeiling": args.repeated_bigram_ceiling,
+            "maxRunCeiling": args.max_run_ceiling,
+            "cycleMinRepetitions": args.cycle_min_repetitions,
+            "cycleMinPeriod": args.cycle_min_period,
+            "cycleMaxPeriod": args.cycle_max_period,
+            "cycleCoverageFloor": args.cycle_coverage_floor,
+        }
+    )
+    positions = tuple(args.positions) if args.positions else DEFAULT_DIAGNOSTIC_POSITIONS
+
+    samples: List[Dict[str, Any]] = []
+    for prompt in suite["prompts"]:
+        result = generate_text_with_diagnostics(
+            model,
+            tokenizer,
+            prompt=prompt["text"],
+            max_new_tokens=int(args.max_new_tokens),
+            temperature=0.0,
+            top_p=0.95,
+            seed=0,
+            repetition_penalty=1.0,
+            no_repeat_ngram_size=0,
+            selected_positions=positions,
+        )
+        classification = generation_metrics_mod.classify_repetition(
+            result["repetition"],
+            thresholds=thresholds,
+            applied=bool(args.classify),
+        )
+        samples.append(
+            {
+                "promptId": prompt["id"],
+                "category": prompt["category"],
+                "prompt": prompt["text"],
+                "promptHash": generation_metrics_mod.prompt_text_hash(prompt["text"]),
+                **result,
+                "classification": classification,
+            }
+        )
+
+    aggregate = generation_metrics_mod.aggregate_samples(samples)
+    flagged = [
+        sample["promptId"]
+        for sample in samples
+        if sample["classification"].get("degenerate")
+    ]
+    aggregate["classification"] = {
+        "applied": bool(args.classify),
+        "thresholds": thresholds,
+        "flaggedSampleIds": flagged,
+        "flaggedSampleCount": len(flagged),
+    }
+    aggregate["eosTokenId"] = getattr(model.config, "eos_token_id", None)
+
+    embedding = model.get_input_embeddings().weight
+    total_parameters = int(sum(parameter.numel() for parameter in model.parameters()))
+    embedding_parameters = int(embedding.numel())
+    checkpoint = _checkpoint_identity(version_dir)
+    tokenizer_file = version_dir / "tokenizer.json"
+
+    import platform as platform_mod
+
+    import torch as torch_mod
+    import transformers as transformers_mod
+    import tokenizers as tokenizers_mod
+
+    runtime = {
+        "python": platform_mod.python_version(),
+        "torch": torch_mod.__version__,
+        "transformers": transformers_mod.__version__,
+        "tokenizers": tokenizers_mod.__version__,
+        "device": device,
+        "deviceName": (
+            torch_mod.cuda.get_device_name(0)
+            if device == "cuda" and torch_mod.cuda.is_available()
+            else platform_mod.processor()
+        ),
+    }
+
+    _log(
+        f"generate-diagnostics {args.version}: {len(samples)} prompt(s), "
+        f"suite {suite['version']} ({suite['hash'][:12]}), {device}"
+    )
+    return {
+        "ok": True,
+        "verb": "generate-diagnostics",
+        "version": args.version,
+        "artifactName": artifact,
+        "modelFingerprint": artifact,
+        "device": device,
+        "runtime": runtime,
+        "modelSha256": checkpoint["modelSha256"],
+        "checkpoint": checkpoint,
+        "modelConfig": {
+            "modelClass": type(model).__name__,
+            "modelType": getattr(model.config, "model_type", None),
+            "architectures": list(getattr(model.config, "architectures", []) or []),
+            "vocabSize": int(model.config.vocab_size),
+            "hiddenSize": int(model.config.hidden_size),
+            "numHiddenLayers": int(model.config.num_hidden_layers),
+            "numAttentionHeads": int(model.config.num_attention_heads),
+            "numKeyValueHeads": int(model.config.num_key_value_heads),
+            "maxPositionEmbeddings": int(model.config.max_position_embeddings),
+            "tieWordEmbeddings": bool(model.config.tie_word_embeddings),
+            "bosTokenId": model.config.bos_token_id,
+            "eosTokenId": model.config.eos_token_id,
+            "padTokenId": model.config.pad_token_id,
+            "dtype": str(next(model.parameters()).dtype).replace("torch.", ""),
+            "parametersTotal": total_parameters,
+            "embeddingParameters": embedding_parameters,
+            "nonEmbeddingParameters": total_parameters - embedding_parameters,
+        },
+        "tokenizer": {
+            "class": tokenizer.__class__.__name__,
+            "sha256": _sha256_file(tokenizer_file),
+            "vocabSize": int(tokenizer.vocab_size),
+            "len": len(tokenizer),
+            "bosTokenId": tokenizer.bos_token_id,
+            "eosTokenId": tokenizer.eos_token_id,
+            "padTokenId": tokenizer.pad_token_id,
+            "unkTokenId": tokenizer.unk_token_id,
+            "modelMaxLength": tokenizer.model_max_length,
+            "addedTokenCount": len(tokenizer.added_tokens_decoder),
+        },
+        "generationImplementation": {
+            "version": "generate-diagnostics-v1",
+            "metricsVersion": generation_metrics_mod.METRICS_VERSION,
+            "pythonCodeFingerprint": _python_code_fingerprint(),
+        },
+        "promptSuite": {
+            "version": suite["version"],
+            "hash": suite["hash"],
+            "promptCount": suite["promptCount"],
+            "prompts": suite["prompts"],
+        },
+        "decoding": {
+            "mode": samples[0]["mode"] if samples else "greedy",
+            "doSample": False,
+            "temperature": 0.0,
+            "topP": 0.95,
+            "seed": 0,
+            "maxNewTokens": int(args.max_new_tokens),
+            "repetitionPenalty": 1.0,
+            "noRepeatNgramSize": 0,
+            "useCache": bool(getattr(model.config, "use_cache", True)),
+            "primaryBaseline": True,
+        },
+        "promptCount": len(samples),
+        "aggregate": aggregate,
+        "samples": samples,
+        "limitations": [
+            "A fixed prompt suite is a diagnostic, not a claim of general language capability.",
+            "Greedy decoding is the primary baseline; sampling comparisons, if added, are supplementary.",
+            "Repetition metrics are token-id based. Decoded text is retained for human inspection only.",
+            "Advisory classification is disabled unless --classify is passed; raw measurements are always reported.",
+            "Thresholds are heuristic defaults and do not replace human review or a pre-registered acceptance rule.",
+            "The model has no trained EOS; EOS measurements describe that limitation, not a stopping policy.",
+        ],
     }
 
 
@@ -2075,6 +2429,52 @@ def build_parser() -> argparse.ArgumentParser:
                     help="0 disables; e.g. 3 forbids repeating any 3-token sequence")
     sp.add_argument("--device", default="auto", help="auto | cpu | cuda")
     sp.set_defaults(func=cmd_generate_quality)
+
+    sp = sub.add_parser(
+        "generate-diagnostics",
+        help="token-id repetition, next-token, and EOS diagnostics over a versioned prompt suite",
+    )
+    common(sp)
+    sp.add_argument("--version", required=True, help="committed version to measure")
+    sp.add_argument("--prompt-suite", dest="prompt_suite", default="generation-prompts-v2")
+    sp.add_argument("--max-new-tokens", type=int, default=32)
+    sp.add_argument(
+        "--positions",
+        nargs="*",
+        type=int,
+        default=None,
+        help="generated-token positions at which to retain full top-k distributions",
+    )
+    sp.add_argument(
+        "--classify",
+        action="store_true",
+        help="apply advisory degeneration thresholds; raw metrics are always reported",
+    )
+    sp.add_argument("--unique-token-floor", dest="unique_token_floor", type=float, default=0.35)
+    sp.add_argument("--unique-bigram-floor", dest="unique_bigram_floor", type=float, default=0.45)
+    sp.add_argument(
+        "--repeated-bigram-ceiling",
+        dest="repeated_bigram_ceiling",
+        type=float,
+        default=0.55,
+    )
+    sp.add_argument("--max-run-ceiling", dest="max_run_ceiling", type=int, default=4)
+    sp.add_argument(
+        "--cycle-min-repetitions",
+        dest="cycle_min_repetitions",
+        type=int,
+        default=3,
+    )
+    sp.add_argument("--cycle-min-period", dest="cycle_min_period", type=int, default=2)
+    sp.add_argument("--cycle-max-period", dest="cycle_max_period", type=int, default=8)
+    sp.add_argument(
+        "--cycle-coverage-floor",
+        dest="cycle_coverage_floor",
+        type=int,
+        default=6,
+    )
+    sp.add_argument("--device", default="auto", help="auto | cpu | cuda")
+    sp.set_defaults(func=cmd_generate_diagnostics)
 
     sp = sub.add_parser("diff", help="explain the difference between two versions (check 10)")
     common(sp)
