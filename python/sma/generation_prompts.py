@@ -10,9 +10,11 @@ from __future__ import annotations
 
 import hashlib
 import json
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 PROMPT_SUITE_VERSION = "generation-prompts-v2"
+PROMPT_SUITE_V3_VERSION = "generation-prompts-v3"
 
 PROMPTS: List[Dict[str, str]] = [
     {
@@ -92,8 +94,44 @@ PROMPTS: List[Dict[str, str]] = [
     },
 ]
 
+_FIXTURE_DIR = Path(__file__).parent / "fixtures"
+_V3_FIXTURE = _FIXTURE_DIR / "generation-prompts-v3.json"
+
+
+def _load_fixture_suite(path: Path) -> List[Dict[str, str]]:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    prompts = [
+        {
+            "id": str(prompt["id"]),
+            "category": str(prompt["category"]),
+            "text": str(prompt["text"]),
+        }
+        for prompt in payload["prompts"]
+    ]
+    expected = payload.get("suiteHash")
+    if expected and expected != _suite_hash(payload["version"], prompts):
+        raise ValueError(
+            f"prompt-suite fixture {path.name} hash mismatch: "\
+            f"{_suite_hash(payload['version'], prompts)} != {expected}"
+        )
+    return prompts
+
+
+def _suite_hash(version: str, prompts: List[Dict[str, str]]) -> str:
+    payload = {
+        "version": version,
+        "prompts": [
+            {"id": prompt["id"], "category": prompt["category"], "text": prompt["text"]}
+            for prompt in prompts
+        ],
+    }
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
 _SUITES: Dict[str, List[Dict[str, str]]] = {
     PROMPT_SUITE_VERSION: PROMPTS,
+    PROMPT_SUITE_V3_VERSION: _load_fixture_suite(_V3_FIXTURE),
 }
 
 

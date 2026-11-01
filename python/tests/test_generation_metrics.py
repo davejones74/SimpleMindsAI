@@ -362,3 +362,25 @@ def test_generation_kwargs_are_shared_and_unchanged() -> None:
         "top_p": 0.9,
     }
     assert sampled_mode == "sample"
+
+
+def test_prompt_suite_v3_is_frozen_and_v2_is_unchanged() -> None:
+    v2 = gp.get_prompt_suite("generation-prompts-v2")
+    assert v2["promptCount"] == 15
+    assert v2["hash"] == "ff7b909053b22cd5dcdbe2f9a9e830478239e1448fb2021c0728655724477d88"
+
+    v3 = gp.get_prompt_suite("generation-prompts-v3")
+    assert v3["version"] == "generation-prompts-v3"
+    assert v3["promptCount"] == 68
+    assert v3["promptCount"] >= 40
+    assert v3["hash"] == "f25b99a1bff0f61afc52b5d1c730cb325c73d06f007d2e9849ebd9d385272867"
+    ids = [prompt["id"] for prompt in v3["prompts"]]
+    texts = [prompt["text"] for prompt in v3["prompts"]]
+    categories = {prompt["category"] for prompt in v3["prompts"]}
+    assert len(ids) == len(set(ids))
+    assert len(texts) == len(set(texts))
+    assert len(categories) >= 20
+    assert all(prompt["text"].strip() for prompt in v3["prompts"])
+    v2_texts = {prompt["text"] for prompt in v2["prompts"]}
+    assert not (set(texts) & v2_texts)
+    assert gp.list_prompt_suites() == ["generation-prompts-v2", "generation-prompts-v3"]

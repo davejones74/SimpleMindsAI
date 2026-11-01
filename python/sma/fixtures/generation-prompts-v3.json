@@ -1,0 +1,391 @@
+{
+ "schema": "sma/generation-prompt-suite@1",
+ "version": "generation-prompts-v3",
+ "createdAt": "2026-11-01T22:40:52Z",
+ "promptCount": 68,
+ "categories": [
+  "analogy",
+  "cause-effect",
+  "classification",
+  "commonsense",
+  "comparison",
+  "computing",
+  "contextual-long",
+  "contextual-short",
+  "creative",
+  "definition",
+  "descriptive",
+  "dialogue",
+  "economics",
+  "editing",
+  "environment",
+  "everyday",
+  "explanation",
+  "factual",
+  "geography",
+  "health",
+  "history",
+  "law-government",
+  "literature",
+  "mathematics",
+  "multi-step",
+  "narrative",
+  "planning",
+  "procedural",
+  "reasoning",
+  "safety",
+  "science",
+  "summarization",
+  "technical",
+  "unfamiliar"
+ ],
+ "suiteHash": "f25b99a1bff0f61afc52b5d1c730cb325c73d06f007d2e9849ebd9d385272867",
+ "hashCanonicalisation": "sha256(json.dumps({version, prompts}, sort_keys=True, separators=(',',':'), ensure_ascii=False))",
+ "prompts": [
+  {
+   "id": "gp-v3-01",
+   "category": "factual",
+   "text": "Which planet in our solar system has the shortest day?"
+  },
+  {
+   "id": "gp-v3-02",
+   "category": "factual",
+   "text": "What is the chemical symbol for potassium?"
+  },
+  {
+   "id": "gp-v3-03",
+   "category": "factual",
+   "text": "How many sides does a regular hexagon have?"
+  },
+  {
+   "id": "gp-v3-04",
+   "category": "factual",
+   "text": "Which ocean lies between Africa and Australia?"
+  },
+  {
+   "id": "gp-v3-05",
+   "category": "explanation",
+   "text": "Explain why ice floats on liquid water."
+  },
+  {
+   "id": "gp-v3-06",
+   "category": "explanation",
+   "text": "Explain how a bicycle brake converts motion into heat."
+  },
+  {
+   "id": "gp-v3-07",
+   "category": "explanation",
+   "text": "Explain why sound travels faster through steel than through air."
+  },
+  {
+   "id": "gp-v3-08",
+   "category": "explanation",
+   "text": "Explain how a seed knows when to begin growing."
+  },
+  {
+   "id": "gp-v3-09",
+   "category": "narrative",
+   "text": "The old radio crackled to life at midnight, and the voice on the other end said,"
+  },
+  {
+   "id": "gp-v3-10",
+   "category": "narrative",
+   "text": "Mara opened the letter she had been carrying unopened for three months. Inside was"
+  },
+  {
+   "id": "gp-v3-11",
+   "category": "narrative",
+   "text": "Write the next two sentences of a story that begins: 'The garden had been locked since before I was born.'"
+  },
+  {
+   "id": "gp-v3-12",
+   "category": "descriptive",
+   "text": "Describe the smell and sound of a busy kitchen just before dinner service."
+  },
+  {
+   "id": "gp-v3-13",
+   "category": "descriptive",
+   "text": "Describe a winter forest at sunrise without naming any colours."
+  },
+  {
+   "id": "gp-v3-14",
+   "category": "descriptive",
+   "text": "Describe the feeling of walking into a library that is about to close."
+  },
+  {
+   "id": "gp-v3-15",
+   "category": "procedural",
+   "text": "List the steps for changing a bicycle tyre safely."
+  },
+  {
+   "id": "gp-v3-16",
+   "category": "procedural",
+   "text": "Explain how to prepare a simple vegetable soup in a home kitchen."
+  },
+  {
+   "id": "gp-v3-17",
+   "category": "procedural",
+   "text": "Describe how to back up important files on a personal computer."
+  },
+  {
+   "id": "gp-v3-18",
+   "category": "summarization",
+   "text": "Summarise the main differences between a river and a stream in three sentences."
+  },
+  {
+   "id": "gp-v3-19",
+   "category": "summarization",
+   "text": "Summarise what a constitution is and why it matters, in plain language."
+  },
+  {
+   "id": "gp-v3-20",
+   "category": "reasoning",
+   "text": "A shop sells pens in packs of three. If you need 26 pens, how many packs should you buy, and how many pens will be left over?"
+  },
+  {
+   "id": "gp-v3-21",
+   "category": "reasoning",
+   "text": "If all roses are flowers and some flowers fade quickly, can we conclude that some roses fade quickly? Explain."
+  },
+  {
+   "id": "gp-v3-22",
+   "category": "reasoning",
+   "text": "Explain why a person feels colder when wet than when dry, even if the air temperature is the same."
+  },
+  {
+   "id": "gp-v3-23",
+   "category": "comparison",
+   "text": "Compare a thermometer and a thermostat in terms of what they measure and how they are used."
+  },
+  {
+   "id": "gp-v3-24",
+   "category": "comparison",
+   "text": "Compare reading a printed book with reading the same book on a screen."
+  },
+  {
+   "id": "gp-v3-25",
+   "category": "comparison",
+   "text": "Compare two ways of learning a new language: classroom lessons and daily conversation practice."
+  },
+  {
+   "id": "gp-v3-26",
+   "category": "contextual-short",
+   "text": "The shop was closed, so we"
+  },
+  {
+   "id": "gp-v3-27",
+   "category": "contextual-short",
+   "text": "The meeting started late because"
+  },
+  {
+   "id": "gp-v3-28",
+   "category": "contextual-short",
+   "text": "She had practised for months, but on the morning of the performance,"
+  },
+  {
+   "id": "gp-v3-29",
+   "category": "contextual-long",
+   "text": "A community centre has a small budget and wants to offer evening classes for adults. The manager has asked for three practical proposals that use existing rooms and volunteers. Write the first proposal, starting with"
+  },
+  {
+   "id": "gp-v3-30",
+   "category": "contextual-long",
+   "text": "A small team is planning a weekend volunteer clean-up along a local river. They need a short plan covering safety, equipment and how to divide the work. Begin with"
+  },
+  {
+   "id": "gp-v3-31",
+   "category": "technical",
+   "text": "Explain what a hash function does in computing, using a simple example."
+  },
+  {
+   "id": "gp-v3-32",
+   "category": "technical",
+   "text": "Explain the difference between a compiler and an interpreter."
+  },
+  {
+   "id": "gp-v3-33",
+   "category": "technical",
+   "text": "Describe how a database index can make a query faster."
+  },
+  {
+   "id": "gp-v3-34",
+   "category": "commonsense",
+   "text": "A person leaves a metal spoon in a cup of hot tea. What happens to the handle over the next minute, and why?"
+  },
+  {
+   "id": "gp-v3-35",
+   "category": "commonsense",
+   "text": "You are walking home and notice dark clouds gathering. What are three sensible things to do?"
+  },
+  {
+   "id": "gp-v3-36",
+   "category": "creative",
+   "text": "Write a short dialogue between a lighthouse and the sea."
+  },
+  {
+   "id": "gp-v3-37",
+   "category": "creative",
+   "text": "Write a four-line poem about a city bus at night."
+  },
+  {
+   "id": "gp-v3-38",
+   "category": "dialogue",
+   "text": "Customer: The shoes I ordered arrived in the wrong size.\nShop assistant:"
+  },
+  {
+   "id": "gp-v3-39",
+   "category": "dialogue",
+   "text": "Parent: I am worried about how much time you spend on screens.\nTeenager:"
+  },
+  {
+   "id": "gp-v3-40",
+   "category": "safety",
+   "text": "List three safety checks to perform before using a step ladder."
+  },
+  {
+   "id": "gp-v3-41",
+   "category": "safety",
+   "text": "Explain how to store household cleaning products safely around young children."
+  },
+  {
+   "id": "gp-v3-42",
+   "category": "planning",
+   "text": "Plan a simple weekly menu for someone who wants to cook at home more often but has little time."
+  },
+  {
+   "id": "gp-v3-43",
+   "category": "planning",
+   "text": "Plan a one-day walking route for a visitor who wants to see a city's history and parks. Assume the city is compact and has good public transport."
+  },
+  {
+   "id": "gp-v3-44",
+   "category": "definition",
+   "text": "Define the word 'erosion' and give one example."
+  },
+  {
+   "id": "gp-v3-45",
+   "category": "definition",
+   "text": "Define 'opportunity cost' and explain it with a simple everyday choice."
+  },
+  {
+   "id": "gp-v3-46",
+   "category": "cause-effect",
+   "text": "Explain what can happen to a river when a dam is built upstream."
+  },
+  {
+   "id": "gp-v3-47",
+   "category": "cause-effect",
+   "text": "Explain how a change in interest rates can affect household borrowing."
+  },
+  {
+   "id": "gp-v3-48",
+   "category": "classification",
+   "text": "Sort these items into renewable and non-renewable energy sources: solar, coal, wind, natural gas, hydroelectric, oil."
+  },
+  {
+   "id": "gp-v3-49",
+   "category": "classification",
+   "text": "Group these activities by whether they mainly use aerobic or strength training: swimming, lifting weights, cycling, push-ups, walking, rowing."
+  },
+  {
+   "id": "gp-v3-50",
+   "category": "analogy",
+   "text": "Complete the analogy: a skeleton is to a body as a framework is to"
+  },
+  {
+   "id": "gp-v3-51",
+   "category": "analogy",
+   "text": "Explain the analogy between a thermostat and a decision-making process."
+  },
+  {
+   "id": "gp-v3-52",
+   "category": "editing",
+   "text": "Rewrite the following sentence in clear, plain English: 'Due to the fact that the meeting was postponed, the participants were unable to reach a conclusion.'"
+  },
+  {
+   "id": "gp-v3-53",
+   "category": "editing",
+   "text": "Rewrite this sentence to remove the repetition: 'The plan was a plan that the team planned to follow.'"
+  },
+  {
+   "id": "gp-v3-54",
+   "category": "multi-step",
+   "text": "A recipe needs 250 grams of flour for every 10 biscuits. How much flour is needed for 35 biscuits, and how many full batches of 10 can be made from 1 kilogram of flour?"
+  },
+  {
+   "id": "gp-v3-55",
+   "category": "multi-step",
+   "text": "You have a 3-litre jug and a 5-litre jug. Explain how to measure exactly 4 litres of water."
+  },
+  {
+   "id": "gp-v3-56",
+   "category": "unfamiliar",
+   "text": "Explain what a coral reef is and why it supports so many species."
+  },
+  {
+   "id": "gp-v3-57",
+   "category": "unfamiliar",
+   "text": "Explain what a black hole is to someone who has never studied astronomy."
+  },
+  {
+   "id": "gp-v3-58",
+   "category": "science",
+   "text": "Explain why the Moon has phases."
+  },
+  {
+   "id": "gp-v3-59",
+   "category": "history",
+   "text": "Explain why the invention of the printing press changed access to information."
+  },
+  {
+   "id": "gp-v3-60",
+   "category": "geography",
+   "text": "Explain how mountains affect local weather."
+  },
+  {
+   "id": "gp-v3-61",
+   "category": "economics",
+   "text": "Explain the difference between saving and investing."
+  },
+  {
+   "id": "gp-v3-62",
+   "category": "health",
+   "text": "Explain why sleep is important for learning."
+  },
+  {
+   "id": "gp-v3-63",
+   "category": "environment",
+   "text": "Explain one practical way a household can reduce water use."
+  },
+  {
+   "id": "gp-v3-64",
+   "category": "law-government",
+   "text": "Explain the difference between a law and a regulation."
+  },
+  {
+   "id": "gp-v3-65",
+   "category": "literature",
+   "text": "Explain how a narrator's point of view can change a story."
+  },
+  {
+   "id": "gp-v3-66",
+   "category": "mathematics",
+   "text": "Explain the difference between a prime number and a composite number."
+  },
+  {
+   "id": "gp-v3-67",
+   "category": "computing",
+   "text": "Explain what an algorithm is, using a daily routine as an example."
+  },
+  {
+   "id": "gp-v3-68",
+   "category": "everyday",
+   "text": "What are three practical ways to reduce food waste at home?"
+  }
+ ],
+ "notes": [
+  "Fixed suite for greedy-generation diagnostics; not a general capability benchmark.",
+  "No prompt is copied from the frozen training or validation corpus; see PROMPT-SUITE-V3-REVIEW.md.",
+  "Do not edit or reorder prompts after freezing; the suiteHash covers version, ids, categories and text."
+ ]
+}
