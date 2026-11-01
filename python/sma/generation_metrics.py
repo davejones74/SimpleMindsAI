@@ -298,7 +298,7 @@ def repetition_metrics(
         "maxRunTokenText": _decode(tokenizer, [ids[max_run_start]]),
         "ngrams": ngram_metrics,
         "topRepeatedNgrams": top_repeated,
-        "cycles": cycles[:20],
+        "cycles": cycles,
         "cycleCount": len(cycles),
         "candidateCycleCount": len(candidate_cycles),
         "phraseCycleCount": len(phrase_cycles),
