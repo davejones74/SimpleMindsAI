@@ -173,13 +173,60 @@ test("classifier: incomplete generation/paired evidence => inconclusive", () => 
   assert.ok(result.incompleteEvidence.some((reason) => reason.includes("seed 17")));
 });
 
-test("pre-flight verifies frozen inputs and refuses candidate collisions", () => {
-  const preflight = preflightTraining({ allowExistingCandidates: true });
+test("pre-flight verifies a fresh manifest and rejects stale or tampered manifests", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "sma-exp-manifest-"));
+  const manifestFile = path.join(dir, "EXPERIMENT-MANIFEST.json");
+  const manifest = buildExperimentManifest();
+  writeFileSync(manifestFile, JSON.stringify(manifest), "utf8");
+
+  const preflight = preflightTraining({ allowExistingCandidates: true, manifestFile });
   assert.equal(preflight.ok, true);
+  assert.equal(preflight.experimentId, manifest.experimentId);
   assert.equal(preflight.corpusManifestSha256, "44fd36ae0ddb1378023e26c299dd16f6d74d9d3d1162e44462e47c863fde6e35");
   assert.equal(preflight.parentModelSha256, "4ca50873039fa3d0f5af92fc004c368e6a5c40c33a5122b05b337e98627627ff");
   assert.deepEqual(preflight.candidateVersions, ["v390", "v391", "v392"]);
   assert.deepEqual(preflight.collisions, ["v390", "v391", "v392"]);
+
+  writeFileSync(
+    manifestFile,
+    JSON.stringify({ ...manifest, experimentId: "0".repeat(64) }),
+    "utf8",
+  );
+  assert.throws(
+    () => preflightTraining({ allowExistingCandidates: true, manifestFile }),
+    /identity changed/,
+  );
+
+  writeFileSync(
+    manifestFile,
+    JSON.stringify({
+      ...manifest,
+      fingerprints: {
+        ...manifest.fingerprints,
+        trainer: { ...manifest.fingerprints.trainer, digest: "0".repeat(64) },
+      },
+    }),
+    "utf8",
+  );
+  assert.throws(
+    () => preflightTraining({ allowExistingCandidates: true, manifestFile }),
+    /trainer fingerprint changed/,
+  );
+});
+
+test("unauthorised dry-run reports a stale preflight without executing", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "sma-exp-stale-"));
+  const manifestFile = path.join(dir, "EXPERIMENT-MANIFEST.json");
+  const manifest = buildExperimentManifest();
+  writeFileSync(
+    manifestFile,
+    JSON.stringify({ ...manifest, experimentId: "0".repeat(64) }),
+    "utf8",
+  );
+  const plan = optionalTrain({ execute: false, allowExistingCandidates: true, manifestFile });
+  assert.equal(plan.executed, false);
+  assert.match(plan.reason, /intentionally blocked/);
+  assert.match(plan.preflightError, /identity changed/);
 });
 
 test("manifest identity and fingerprint tampering fail closed", () => {

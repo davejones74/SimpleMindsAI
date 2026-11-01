@@ -284,14 +284,17 @@ export function buildExperimentManifest({ root = EXPERIMENT_ROOT } = {}) {
   return inputs;
 }
 
-export function preflightTraining({ root = EXPERIMENT_ROOT, allowExistingCandidates = false } = {}) {
+export function preflightTraining({
+  root = EXPERIMENT_ROOT,
+  allowExistingCandidates = false,
+  manifestFile = path.join(REPO_ROOT, "EXPERIMENT-MANIFEST.json"),
+} = {}) {
   const corpus = verifyCorpus();
   const parent = parentSnapshot(root);
   const tokenizerFile = path.join(root, "parent-store", PARENT_VERSION, "tokenizer.json");
   const tokenizerHash = hashFile(tokenizerFile);
   if (tokenizerHash !== parent.tokenizerHash) throw new Error("tokenizer hash does not match parent");
-  const manifestFile = path.join(REPO_ROOT, "EXPERIMENT-MANIFEST.json");
-  if (!existsSync(manifestFile)) throw new Error("EXPERIMENT-MANIFEST.json is missing");
+  if (!existsSync(manifestFile)) throw new Error(`frozen experiment manifest is missing: ${manifestFile}`);
   const frozen = readJson(manifestFile);
   const current = buildExperimentManifest({ root });
   assertManifestIdentity(frozen, current);
@@ -409,13 +412,32 @@ export function runBaseline({ root = EXPERIMENT_ROOT, reuse = false } = {}) {
   return summary;
 }
 
-export function optionalTrain({ execute = false, allowExistingCandidates = false } = {}) {
-  const preflight = preflightTraining({ allowExistingCandidates });
-  if (!execute || process.env.EXPERIMENT_ALLOW_TRAINING !== "1") {
+export function optionalTrain({
+  execute = false,
+  allowExistingCandidates = false,
+  manifestFile = path.join(REPO_ROOT, "EXPERIMENT-MANIFEST.json"),
+} = {}) {
+  const authorised = execute && process.env.EXPERIMENT_ALLOW_TRAINING === "1";
+  // A dry-run must not fail merely because the historical frozen manifest is
+  // stale after code changes. The actual training path below still calls
+  // preflightTraining unguarded and therefore remains fail-closed.
+  let preflight = null;
+  let preflightError = null;
+  if (authorised) {
+    preflight = preflightTraining({ allowExistingCandidates, manifestFile });
+  } else {
+    try {
+      preflight = preflightTraining({ allowExistingCandidates, manifestFile });
+    } catch (error) {
+      preflightError = error.message;
+    }
+  }
+  if (!authorised) {
     return {
       executed: false,
       reason: "training intentionally blocked; pass --execute and set EXPERIMENT_ALLOW_TRAINING=1",
       preflight,
+      preflightError,
       candidateVersions: CANDIDATE_VERSIONS,
       seeds: SEEDS,
       protocol: PROTOCOL,
