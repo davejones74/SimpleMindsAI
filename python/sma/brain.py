@@ -26,7 +26,7 @@ import os
 import sys
 import time
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List, Sequence
 
 from .store import PRUNE_DEFAULT_KEEP, RUNS_PRUNE_DEFAULT_KEEP, store_root
 
