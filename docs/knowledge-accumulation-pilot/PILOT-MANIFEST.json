@@ -1,0 +1,257 @@
+{
+  "schema": "sma/knowledge-accumulation-pilot-manifest@1",
+  "at": "2026-11-03T23:20:00Z",
+  "branch": "knowledge-accumulation-pilot-20261102",
+  "baseCommit": "16a04c33e4f284ee6d1d9ca0dd56e2602f55531a",
+  "implementationCommit": "13a0962",
+  "productionMutation": false,
+  "productionPathsReadOnly": [
+    "/var/lib/simpleminds/data/articles",
+    "/var/lib/simpleminds/data/registry",
+    "/var/lib/simpleminds/data/frontier",
+    "/var/lib/simpleminds/store"
+  ],
+  "pilotStorage": "/home/dave/sma-experiments/knowledge-accumulation-pilot-20261102",
+  "changedFiles": {
+    "python/sma/brain.py": {
+      "sha256": "729849a6bff27c54bb9c04a24a47e5b37b07bb61e4a614151b41cb4675a817d1"
+    },
+    "python/sma/store.py": {
+      "sha256": "cb90c95da917c1a021687936bb2b7c1df79e20b2b03339f8dfb78e377dc7c812"
+    },
+    "python/sma/train.py": {
+      "sha256": "87d82be78452f188de8198750d5fe4e7d1cd000ef30f3baafef0c3ad52463801"
+    },
+    "python/tests/test_working_checkpoint.py": {
+      "sha256": "cb0f25e7bff7e2ac8d521cfb38db7cbb6c0fbd5a322cfe5566175f756c133131"
+    },
+    "src/config.js": {
+      "sha256": "9c4b90b4d5dc5297137bf15149b7594a5bb687bd07e86d8501ab8e84dc539163"
+    },
+    "src/dataset/snapshot.js": {
+      "sha256": "a453af5f9a37acb60e4cf7856bff6e9746dfd733e36ed093c24ba7f600e4271f"
+    },
+    "src/domain/article.js": {
+      "sha256": "9d5972ea3db7a4b4c730a77017dd1dbe2c1d2ff4cc36dd15f73da12fb603f464"
+    },
+    "src/graphql/schema.graphql": {
+      "sha256": "3ac9523ad8ef247e572633875558a3cea3b92d4f2edb30d2c7b25a8507d1cb93"
+    },
+    "src/jobs/training.js": {
+      "sha256": "90fa8bec88eef72739b7851cf14de2844e0ecafbc4ec918852c8bd5a744a8931"
+    },
+    "src/storage/article-store.js": {
+      "sha256": "a4a1d8e683c8cfef37ec254d8d81373a41cc6b7e92ed30cdb00cb6d7add850ba"
+    },
+    "src/training/lifecycle.js": {
+      "sha256": "64cc726d95fa3538b1601c265ea8f8d94c5b2427343a7f38db520fb94833841f"
+    },
+    "src/training/python-trainer.js": {
+      "sha256": "ab869a099f6a6292348f2e7b5b3d58d3e9cd3cd78026aa9497b525ef18f94102"
+    },
+    "src/training/working-guard.js": {
+      "sha256": "c280985af890e45c061de21fafce2d1abce6c08550a645caf6939b2c15aa9080"
+    },
+    "test/replay-eligibility.test.js": {
+      "sha256": "7acc878e9b8823e17d3b4da6c5b748ee3205e43a7cd5e7e5dbbe7d24717f2d17"
+    },
+    "test/working-checkpoint-lifecycle.test.js": {
+      "sha256": "667fca815d4061c97d00794b4bebc6dba0c93a9219ba851f2e8603f5ff87687b"
+    },
+    "scripts/knowledge-pilot/build-pilot-articles.mjs": {
+      "sha256": "742f7beafa15e55ff863801c89068b5cfecc36415e5020ad514c5059898979dc"
+    },
+    "scripts/knowledge-pilot/classify-replay.mjs": {
+      "sha256": "570192014ac1f2e9134f6e9b3815cad6249ad90f4a8ebdd9762daa6266b3abc4"
+    },
+    "scripts/knowledge-pilot/collect-baseline.mjs": {
+      "sha256": "288674b5b8a20c37c32463227c6e093be46f19e5feaad445ffb90eba51f76de2"
+    },
+    "scripts/knowledge-pilot/replay-licence-policy.json": {
+      "sha256": "8e3dda1b1b6a36877612314d656e39058ef05d83a5bc088e6b6d9bdbbc51f48d"
+    },
+    "scripts/knowledge-pilot/run-pilot.mjs": {
+      "sha256": "d44d4e3ea78ebd370a4867e540ce89bccd15fd2f83696923039a49d211599b80"
+    }
+  },
+  "documents": {
+    "docs/knowledge-accumulation-pilot/BASELINE.md": {
+      "sha256": "2285029f21b5e1c0b8aaf49d95a6bf342a63a3a57d040e054f24dab97c2bbd49"
+    },
+    "docs/knowledge-accumulation-pilot/IMPLEMENTATION-REPORT.md": {
+      "sha256": "b24f909bc5f72944b83be1deba6a902e3c5afdbfea7a40320177280fd150fabd"
+    },
+    "docs/knowledge-accumulation-pilot/PILOT-RESULTS.md": {
+      "sha256": "2e3ceb8042d37ff882175774f65f1f6bbb5e4b7c69b9267c6d41f522ba77ce6d"
+    },
+    "docs/knowledge-accumulation-pilot/README.md": {
+      "sha256": "b913b17fc1f109f782e8d14c84d03d9665857bd52b17fa85b712f7f99fef3291"
+    },
+    "docs/knowledge-accumulation-pilot/REPLAY-MIGRATION.md": {
+      "sha256": "6af4730880efd18a7d1ae8717e71208fc92f015784095639465daf2e2e77846e"
+    },
+    "docs/knowledge-accumulation-pilot/WORKING-CHECKPOINT-DESIGN.md": {
+      "sha256": "a4acd55e64ced482573705b992889272a0ce3974565a240bea4ed135af58d901"
+    },
+    "docs/knowledge-accumulation-pilot/WORKING-GUARD.md": {
+      "sha256": "9feba757415cd0a62cfc43da7c8dd0f6478b8a66e5e3c52a3942644a6cf183e0"
+    },
+    "docs/knowledge-accumulation-pilot/baseline.json": {
+      "sha256": "e1d21d78e529361f48182e168695bf0f48dec78c0e566f632695780a140a59d5"
+    },
+    "docs/knowledge-accumulation-pilot/pilot-1.json": {
+      "sha256": "d4bbfc8e5a1434d0ac5596db661878e17a23a0d52c6dc57f4052ff9e16863f89"
+    },
+    "docs/knowledge-accumulation-pilot/pilot-2.json": {
+      "sha256": "b43aa2bd037b919b825eece182eddb605b9f7eb2f13184ede8241e24268498df"
+    },
+    "docs/knowledge-accumulation-pilot/pilot-b-1.json": {
+      "sha256": "342768774657e78a58d981f6c2266a2d5284a317e915aedd7ac88d61d1c88704"
+    },
+    "docs/knowledge-accumulation-pilot/pilot-b-2.json": {
+      "sha256": "d1e26aac26409f859dbd2b6275e887512f7b5a7d49cd1a332b338e272131fa47"
+    },
+    "docs/knowledge-accumulation-pilot/pilot-b-corpus-manifest.json": {
+      "sha256": "fa76b72b710eb3382b8c782e730de3071eb747db98cc781553117fb8f1928d97"
+    },
+    "docs/knowledge-accumulation-pilot/pilot-corpus-manifest.json": {
+      "sha256": "3953d7a80d01986fc00c147968320da9d4152debc0ed55b5516f912d2e8bab09"
+    },
+    "docs/knowledge-accumulation-pilot/replay-migration-dry-run.json": {
+      "sha256": "fb24de031d6b2538d97f4f59e54327d87ea32d7ddd02b6d4d7471e5b67cbf2b9"
+    }
+  },
+  "pilotArtifacts": {
+    "baseline": {
+      "path": "/home/dave/sma-experiments/knowledge-accumulation-pilot-20261102/baseline/baseline.json",
+      "sha256": "e1d21d78e529361f48182e168695bf0f48dec78c0e566f632695780a140a59d5"
+    },
+    "pilotCorpusManifest": {
+      "path": "/home/dave/sma-experiments/knowledge-accumulation-pilot-20261102/baseline/pilot-corpus-manifest.json",
+      "sha256": "3953d7a80d01986fc00c147968320da9d4152debc0ed55b5516f912d2e8bab09"
+    },
+    "pilotBCorpusManifest": {
+      "path": "/home/dave/sma-experiments/knowledge-accumulation-pilot-20261102/baseline/pilot-b-corpus-manifest.json",
+      "sha256": "fa76b72b710eb3382b8c782e730de3071eb747db98cc781553117fb8f1928d97"
+    },
+    "replayMigrationDryRun": {
+      "path": "/home/dave/sma-experiments/knowledge-accumulation-pilot-20261102/reports/replay-migration-dry-run.json",
+      "sha256": "fb24de031d6b2538d97f4f59e54327d87ea32d7ddd02b6d4d7471e5b67cbf2b9"
+    },
+    "pilot1": {
+      "path": "/home/dave/sma-experiments/knowledge-accumulation-pilot-20261102/reports/pilot-1.json",
+      "sha256": "d4bbfc8e5a1434d0ac5596db661878e17a23a0d52c6dc57f4052ff9e16863f89"
+    },
+    "pilot2": {
+      "path": "/home/dave/sma-experiments/knowledge-accumulation-pilot-20261102/reports/pilot-2.json",
+      "sha256": "b43aa2bd037b919b825eece182eddb605b9f7eb2f13184ede8241e24268498df"
+    },
+    "pilotB1": {
+      "path": "/home/dave/sma-experiments/knowledge-accumulation-pilot-20261102/reports/pilot-b-1.json",
+      "sha256": "342768774657e78a58d981f6c2266a2d5284a317e915aedd7ac88d61d1c88704"
+    },
+    "pilotB2": {
+      "path": "/home/dave/sma-experiments/knowledge-accumulation-pilot-20261102/reports/pilot-b-2.json",
+      "sha256": "d1e26aac26409f859dbd2b6275e887512f7b5a7d49cd1a332b338e272131fa47"
+    },
+    "pilotStoreActive": {
+      "path": "/home/dave/sma-experiments/knowledge-accumulation-pilot-20261102/pilot-store/active.json",
+      "sha256": "784af17c4b3f822b4fb19ed39c8f46313dabe5a454b0fe05159e7da5d4e2f730"
+    },
+    "pilotStoreWorking": {
+      "path": "/home/dave/sma-experiments/knowledge-accumulation-pilot-20261102/pilot-store/working.json",
+      "sha256": "be6f7e3f660d20d7ff40b124eb8c12cc05e44fffccdae3e7e7c191b2cd706fd4"
+    },
+    "pilotStoreLastGood": {
+      "path": "/home/dave/sma-experiments/knowledge-accumulation-pilot-20261102/pilot-store/working-last-good.json",
+      "sha256": "fafb19a09eac6223da02b6d5172ee40ee21e5ab4b21d4ff5123f8c2c9c4269a8"
+    },
+    "pilotBStoreActive": {
+      "path": "/home/dave/sma-experiments/knowledge-accumulation-pilot-20261102/pilot-b-store/active.json",
+      "sha256": "cb7c3344fa614ed3c5b4de351e729a89d9fbd5a644c6d7af2400360202cae28a"
+    },
+    "pilotBStoreWorking": {
+      "path": "/home/dave/sma-experiments/knowledge-accumulation-pilot-20261102/pilot-b-store/working.json",
+      "sha256": "9b782888506dabf8fbe2de21246f14f98c90ad2d254a273931882d7b2948fc8b"
+    },
+    "pilotBStoreLastGood": {
+      "path": "/home/dave/sma-experiments/knowledge-accumulation-pilot-20261102/pilot-b-store/working-last-good.json",
+      "sha256": "9e12dbc06a97a9b6ee349d4902d6647fdf6b1301a05019d896ecb178656d3797"
+    }
+  },
+  "pilotConfig": {
+    "lineage": "v389 (62M random-initialised; accessible controlled-experiment parent)",
+    "device": "cpu",
+    "computeDtype": "float32",
+    "pilotCorpusArticles": 32,
+    "mainSequence": [
+      "pilot-1 stable promotion v389->v001",
+      "pilot-2 stable rejection/working acceptance v001->v002"
+    ],
+    "rejectionSequence": [
+      "pilot-b-1 working acceptance v389->v001",
+      "pilot-b-2 working rejection; working stays v001"
+    ],
+    "workingGuardPilotThresholds": {
+      "maxRegressionNats": 0.1,
+      "maxGroupRegressionNats": 0.2,
+      "maxDriftNats": 0.25
+    }
+  },
+  "scenarioResults": {
+    "A": {
+      "report": "pilot-2.json",
+      "stableDecision": "rejected",
+      "stableDelta": -0.061294492254866384,
+      "workingDecision": "accepted",
+      "workingFrom": "v001",
+      "workingTo": "v002",
+      "activeUnchanged": "v001"
+    },
+    "B": {
+      "report": "pilot-b-2.json",
+      "stableDecision": "rejected",
+      "stableDelta": -0.33081625116632374,
+      "workingDecision": "rejected",
+      "workingStayed": "v001",
+      "activeUnchanged": "v389",
+      "deferredFresh": 9
+    },
+    "C": {
+      "evidence": [
+        "test/working-checkpoint-lifecycle.test.js",
+        "test/lifecycle-crash.test.js"
+      ],
+      "type": "commit-boundary recovery simulation"
+    },
+    "D": {
+      "report": "pilot-2.json",
+      "replayRows": 13,
+      "retiredReplayRows": 4
+    },
+    "E": {
+      "evidence": [
+        "test/working-checkpoint-lifecycle.test.js",
+        "pilot-b-2.json"
+      ],
+      "rollback": "working-last-good"
+    }
+  },
+  "tests": {
+    "node": {
+      "command": "npm test",
+      "tests": 778,
+      "passed": 771,
+      "failed": 0,
+      "skipped": 7
+    },
+    "python": {
+      "command": "python -m pytest",
+      "passed": 254,
+      "skipped": 20,
+      "failed": 1,
+      "failure": "tests/test_portability.py::test_rocm_environment_device_is_cuda_but_backend_is_rocm (CPU-only torch)"
+    }
+  },
+  "noProductionMutation": true
+}

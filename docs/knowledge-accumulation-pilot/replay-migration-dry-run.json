@@ -1,0 +1,2385 @@
+{
+  "schema": "sma/replay-migration-report@1",
+  "at": "2026-11-03T23:12:07.885Z",
+  "mode": "dry-run",
+  "store": "/var/lib/simpleminds/data/articles",
+  "policyPath": "/home/dave/Repositories/SimpleMindsAI/scripts/knowledge-pilot/replay-licence-policy.json",
+  "policySha256": "2fa51e79105e7b91a414b672fef12a4f1f50a3b7874ec1b61b867c53b5fabaee",
+  "scanned": 25438,
+  "counts": {
+    "UNRESOLVED": 3875,
+    "ALREADY_ELIGIBLE": 7103,
+    "INELIGIBLE": 13890,
+    "NOT_TARGET": 193,
+    "ELIGIBLE": 377
+  },
+  "targetRetired": 18142,
+  "eligibleCount": 377,
+  "eligibleEstimatedTokens": 27781,
+  "unresolvedCount": 3875,
+  "unresolvedEstimatedTokens": 354047,
+  "ineligibleCount": 13890,
+  "ineligibleEstimatedTokens": 228594,
+  "restoredInApply": 0,
+  "alreadyEligible": 7103,
+  "samples": {
+    "eligible": [
+      {
+        "articleId": "art_c3c3121f-cfa",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://science.nasa.gov/mission/parker-solar-probe/",
+        "sourceDomain": "science.nasa.gov",
+        "contentHash": "58cfba27d6cd041baef73e17501c1d2dddf37bcb6f0f80078037c7d5563cd548",
+        "estimatedTokens": 59,
+        "classification": "ELIGIBLE",
+        "reason": "approved review, valid text, quality/language pass, safe licence family",
+        "licence": {
+          "status": "safe",
+          "host": "science.nasa.gov",
+          "reason": "source family is on the conservative safe list"
+        },
+        "reviewAt": "2026-10-18T19:15:45.993Z",
+        "reviewScore": 8.560975609756097
+      },
+      {
+        "articleId": "art_384cea80-495",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://science.nasa.gov/missions/hubble/hubble-image-of-our-celebrity-neighbors/",
+        "sourceDomain": "science.nasa.gov",
+        "contentHash": "235019c21136922cce4cf7faf702e2d1df6f2885a700d63e9337be352103dc28",
+        "estimatedTokens": 72,
+        "classification": "ELIGIBLE",
+        "reason": "approved review, valid text, quality/language pass, safe licence family",
+        "licence": {
+          "status": "safe",
+          "host": "science.nasa.gov",
+          "reason": "source family is on the conservative safe list"
+        },
+        "reviewAt": "2026-10-18T19:16:25.061Z",
+        "reviewScore": 7.849056603773585
+      },
+      {
+        "articleId": "art_c0207382-74f",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://science.nasa.gov/missions/hubble/hubble-image-of-our-celebrity-neighbors/",
+        "sourceDomain": "science.nasa.gov",
+        "contentHash": "85bd70a8a3382e40d906926c21d8ef389d1e9421396b73a10ef17706eec32b88",
+        "estimatedTokens": 90,
+        "classification": "ELIGIBLE",
+        "reason": "approved review, valid text, quality/language pass, safe licence family",
+        "licence": {
+          "status": "safe",
+          "host": "science.nasa.gov",
+          "reason": "source family is on the conservative safe list"
+        },
+        "reviewAt": "2026-10-18T19:16:27.166Z",
+        "reviewScore": 8.857142857142856
+      },
+      {
+        "articleId": "art_dfbdab62-664",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://science.nasa.gov/missions/hubble/hubble-image-of-our-celebrity-neighbors/",
+        "sourceDomain": "science.nasa.gov",
+        "contentHash": "6de1538144ece96a49038a9c0e1facea3fca82ba7dabd69f56ad5314a6dde2a6",
+        "estimatedTokens": 82,
+        "classification": "ELIGIBLE",
+        "reason": "approved review, valid text, quality/language pass, safe licence family",
+        "licence": {
+          "status": "safe",
+          "host": "science.nasa.gov",
+          "reason": "source family is on the conservative safe list"
+        },
+        "reviewAt": "2026-10-18T19:16:29.733Z",
+        "reviewScore": 7.870967741935484
+      },
+      {
+        "articleId": "art_6522aa61-70c",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://science.nasa.gov/missions/hubble/hubble-snaps-a-stunning-spirals-side/",
+        "sourceDomain": "science.nasa.gov",
+        "contentHash": "3e3f3fdd4dc9d1b6cd16c6745fa6042be9570f9bee6391de949d66d8a20b870d",
+        "estimatedTokens": 42,
+        "classification": "ELIGIBLE",
+        "reason": "approved review, valid text, quality/language pass, safe licence family",
+        "licence": {
+          "status": "safe",
+          "host": "science.nasa.gov",
+          "reason": "source family is on the conservative safe list"
+        },
+        "reviewAt": "2026-10-18T19:17:28.153Z",
+        "reviewScore": 9
+      },
+      {
+        "articleId": "art_1fdba468-1f8",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://science.nasa.gov/missions/chandra/a-clash-of-clusters/",
+        "sourceDomain": "science.nasa.gov",
+        "contentHash": "937ad5ad50200b2055249a3648a14e1b5be28a3c92e7029197f8a164f826a111",
+        "estimatedTokens": 388,
+        "classification": "ELIGIBLE",
+        "reason": "approved review, valid text, quality/language pass, safe licence family",
+        "licence": {
+          "status": "safe",
+          "host": "science.nasa.gov",
+          "reason": "source family is on the conservative safe list"
+        },
+        "reviewAt": "2026-10-18T19:56:53.181Z",
+        "reviewScore": 8.15953307392996
+      },
+      {
+        "articleId": "art_ead54da9-6ed",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://science.nasa.gov/missions/chandra/a-clash-of-clusters/",
+        "sourceDomain": "science.nasa.gov",
+        "contentHash": "f3d42b2123622bfcbd6f54b545a49c409ffd45d6ad5782c5204ddd25e20c8db1",
+        "estimatedTokens": 299,
+        "classification": "ELIGIBLE",
+        "reason": "approved review, valid text, quality/language pass, safe licence family",
+        "licence": {
+          "status": "safe",
+          "host": "science.nasa.gov",
+          "reason": "source family is on the conservative safe list"
+        },
+        "reviewAt": "2026-10-18T19:57:28.183Z",
+        "reviewScore": 6.906976744186046
+      },
+      {
+        "articleId": "art_d8ff19cd-b78",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://science.nasa.gov/missions/hubble/a-journey-through-space-and-time/",
+        "sourceDomain": "science.nasa.gov",
+        "contentHash": "cdf6311df3348d163718297ac028e17b9aaed6c8b14976cd0aab703769dc2aa3",
+        "estimatedTokens": 91,
+        "classification": "ELIGIBLE",
+        "reason": "approved review, valid text, quality/language pass, safe licence family",
+        "licence": {
+          "status": "safe",
+          "host": "science.nasa.gov",
+          "reason": "source family is on the conservative safe list"
+        },
+        "reviewAt": "2026-10-18T20:01:36.780Z",
+        "reviewScore": 9
+      },
+      {
+        "articleId": "art_897de217-40d",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://science.nasa.gov/missions/hubble/active-galaxy-centaurus-a/",
+        "sourceDomain": "science.nasa.gov",
+        "contentHash": "9c9b23a2680e38571acb0c53f2bc06712d31ab5abc88a438417050c54e1c7300",
+        "estimatedTokens": 44,
+        "classification": "ELIGIBLE",
+        "reason": "approved review, valid text, quality/language pass, safe licence family",
+        "licence": {
+          "status": "safe",
+          "host": "science.nasa.gov",
+          "reason": "source family is on the conservative safe list"
+        },
+        "reviewAt": "2026-10-18T20:13:25.626Z",
+        "reviewScore": 7.483870967741935
+      },
+      {
+        "articleId": "art_aa807b83-191",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://science.nasa.gov/missions/hubble/aglow/",
+        "sourceDomain": "science.nasa.gov",
+        "contentHash": "18267cc0614ff55c0f1a403224f61b5bdc90e0d5321d06e96a700d31bf9a4a0f",
+        "estimatedTokens": 95,
+        "classification": "ELIGIBLE",
+        "reason": "approved review, valid text, quality/language pass, safe licence family",
+        "licence": {
+          "status": "safe",
+          "host": "science.nasa.gov",
+          "reason": "source family is on the conservative safe list"
+        },
+        "reviewAt": "2026-10-19T02:59:15.303Z",
+        "reviewScore": 6.890625
+      },
+      {
+        "articleId": "art_e1533718-70d",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://science.nasa.gov/missions/hubble/aglow/",
+        "sourceDomain": "science.nasa.gov",
+        "contentHash": "ea2ab04f6bf32fbe861a1653db71f4c915785bd6c9ff7321a5792e5ed5f9f895",
+        "estimatedTokens": 81,
+        "classification": "ELIGIBLE",
+        "reason": "approved review, valid text, quality/language pass, safe licence family",
+        "licence": {
+          "status": "safe",
+          "host": "science.nasa.gov",
+          "reason": "source family is on the conservative safe list"
+        },
+        "reviewAt": "2026-10-18T20:13:40.213Z",
+        "reviewScore": 8
+      },
+      {
+        "articleId": "art_138911bd-9cc",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://science.nasa.gov/missions/hubble/aglow/",
+        "sourceDomain": "science.nasa.gov",
+        "contentHash": "0e3de62de38a7f0a6311893786248b3a1768800613dccf8073b82916ad572061",
+        "estimatedTokens": 51,
+        "classification": "ELIGIBLE",
+        "reason": "approved review, valid text, quality/language pass, safe licence family",
+        "licence": {
+          "status": "safe",
+          "host": "science.nasa.gov",
+          "reason": "source family is on the conservative safe list"
+        },
+        "reviewAt": "2026-10-18T20:13:41.727Z",
+        "reviewScore": 6
+      },
+      {
+        "articleId": "art_c3d0782a-8b7",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://science.nasa.gov/missions/hubble/echoes-from-the-edge/",
+        "sourceDomain": "science.nasa.gov",
+        "contentHash": "54fa59ef1e1307987f90f22ae7da3db6e24c4971ae372ebed5deaff1bc116a18",
+        "estimatedTokens": 101,
+        "classification": "ELIGIBLE",
+        "reason": "approved review, valid text, quality/language pass, safe licence family",
+        "licence": {
+          "status": "safe",
+          "host": "science.nasa.gov",
+          "reason": "source family is on the conservative safe list"
+        },
+        "reviewAt": "2026-10-18T21:23:22.202Z",
+        "reviewScore": 9
+      },
+      {
+        "articleId": "art_7416e8a2-104",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://science.nasa.gov/missions/hubble/echoes-from-the-edge/",
+        "sourceDomain": "science.nasa.gov",
+        "contentHash": "1258534e1781478ec52aca2d83b5d81c41477aedb888a68cc0f0e6c85b0ea373",
+        "estimatedTokens": 109,
+        "classification": "ELIGIBLE",
+        "reason": "approved review, valid text, quality/language pass, safe licence family",
+        "licence": {
+          "status": "safe",
+          "host": "science.nasa.gov",
+          "reason": "source family is on the conservative safe list"
+        },
+        "reviewAt": "2026-10-18T21:24:03.325Z",
+        "reviewScore": 8.878378378378379
+      },
+      {
+        "articleId": "art_968604e3-327",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://science.nasa.gov/missions/hubble/echoes-from-the-edge/",
+        "sourceDomain": "science.nasa.gov",
+        "contentHash": "c21a3ae7142f0b4bbeb313e4931ca08b172076dfd2339dbdf48b6be9d4ac8c34",
+        "estimatedTokens": 65,
+        "classification": "ELIGIBLE",
+        "reason": "approved review, valid text, quality/language pass, safe licence family",
+        "licence": {
+          "status": "safe",
+          "host": "science.nasa.gov",
+          "reason": "source family is on the conservative safe list"
+        },
+        "reviewAt": "2026-10-18T21:24:45.584Z",
+        "reviewScore": 7
+      },
+      {
+        "articleId": "art_a4d89ee3-3bb",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://science.nasa.gov/missions/hubble/echoes-from-the-edge/",
+        "sourceDomain": "science.nasa.gov",
+        "contentHash": "4e86b72df9f021c06e95168c2cdb184108ade86d8df5de8dc764497a7ec6f02a",
+        "estimatedTokens": 48,
+        "classification": "ELIGIBLE",
+        "reason": "approved review, valid text, quality/language pass, safe licence family",
+        "licence": {
+          "status": "safe",
+          "host": "science.nasa.gov",
+          "reason": "source family is on the conservative safe list"
+        },
+        "reviewAt": "2026-10-18T21:25:25.551Z",
+        "reviewScore": 9
+      },
+      {
+        "articleId": "art_a7b892b7-d6a",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://science.nasa.gov/missions/hubble/hubble-captures-a-five-star-rated-gravitational-lens/",
+        "sourceDomain": "science.nasa.gov",
+        "contentHash": "d78237b1ab53fab22d136cf96ecf2cbe20c545ef6ae8dfbffcf6fd0c05179753",
+        "estimatedTokens": 105,
+        "classification": "ELIGIBLE",
+        "reason": "approved review, valid text, quality/language pass, safe licence family",
+        "licence": {
+          "status": "safe",
+          "host": "science.nasa.gov",
+          "reason": "source family is on the conservative safe list"
+        },
+        "reviewAt": "2026-10-18T21:41:18.650Z",
+        "reviewScore": 8.228571428571428
+      },
+      {
+        "articleId": "art_fc371408-e3f",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://science.nasa.gov/missions/hubble/hubble-finds-smallest-kuiper-belt-object/",
+        "sourceDomain": "science.nasa.gov",
+        "contentHash": "4c2a3f64338bceacbd138c31306e4fb151dc0375ce16e4dfa2781553898b6b25",
+        "estimatedTokens": 53,
+        "classification": "ELIGIBLE",
+        "reason": "approved review, valid text, quality/language pass, safe licence family",
+        "licence": {
+          "status": "safe",
+          "host": "science.nasa.gov",
+          "reason": "source family is on the conservative safe list"
+        },
+        "reviewAt": "2026-10-19T00:17:58.096Z",
+        "reviewScore": 8
+      },
+      {
+        "articleId": "art_4e7afe0a-967",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://science.nasa.gov/missions/hubble/hubble-finds-smallest-kuiper-belt-object/",
+        "sourceDomain": "science.nasa.gov",
+        "contentHash": "22d9385ac58f406bd43dfdb543d52da5532823b03d72deeac6c85dd584df2d02",
+        "estimatedTokens": 48,
+        "classification": "ELIGIBLE",
+        "reason": "approved review, valid text, quality/language pass, safe licence family",
+        "licence": {
+          "status": "safe",
+          "host": "science.nasa.gov",
+          "reason": "source family is on the conservative safe list"
+        },
+        "reviewAt": "2026-10-19T00:18:05.918Z",
+        "reviewScore": 7
+      },
+      {
+        "articleId": "art_df5395e1-9ec",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://science.nasa.gov/missions/hubble/hubble-gazes-at-long-dead-star/",
+        "sourceDomain": "science.nasa.gov",
+        "contentHash": "539950a449757c955e0b5d001df048b9687fc76d8c33baface4dbcb9f683e52e",
+        "estimatedTokens": 47,
+        "classification": "ELIGIBLE",
+        "reason": "approved review, valid text, quality/language pass, safe licence family",
+        "licence": {
+          "status": "safe",
+          "host": "science.nasa.gov",
+          "reason": "source family is on the conservative safe list"
+        },
+        "reviewAt": "2026-10-19T00:18:42.906Z",
+        "reviewScore": 8
+      },
+      {
+        "articleId": "art_74f319f6-79b",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://science.nasa.gov/missions/hubble/hubble-gazes-at-long-dead-star/",
+        "sourceDomain": "science.nasa.gov",
+        "contentHash": "fad6a2445c24bb32ecacc2c36bdac392e8fa932fc3ab34e1f8005e3d3942de70",
+        "estimatedTokens": 43,
+        "classification": "ELIGIBLE",
+        "reason": "approved review, valid text, quality/language pass, safe licence family",
+        "licence": {
+          "status": "safe",
+          "host": "science.nasa.gov",
+          "reason": "source family is on the conservative safe list"
+        },
+        "reviewAt": "2026-10-19T00:18:49.788Z",
+        "reviewScore": 8
+      },
+      {
+        "articleId": "art_b521f86f-015",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://science.nasa.gov/missions/hubble/hubble-looks-at-a-a-black-eye-galaxy/",
+        "sourceDomain": "science.nasa.gov",
+        "contentHash": "d7e1e86019a9f9afa61cd6dbecc864f17dc895df2aab55ace7aa66a5dd816e26",
+        "estimatedTokens": 48,
+        "classification": "ELIGIBLE",
+        "reason": "approved review, valid text, quality/language pass, safe licence family",
+        "licence": {
+          "status": "safe",
+          "host": "science.nasa.gov",
+          "reason": "source family is on the conservative safe list"
+        },
+        "reviewAt": "2026-10-19T01:05:33.681Z",
+        "reviewScore": 8
+      },
+      {
+        "articleId": "art_f7a6f280-705",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://science.nasa.gov/missions/hubble/hubble-looks-at-a-a-black-eye-galaxy/",
+        "sourceDomain": "science.nasa.gov",
+        "contentHash": "d96241c03e40387cf608c699fd695e0ece9edff7959b226364b259fa2f3885f7",
+        "estimatedTokens": 56,
+        "classification": "ELIGIBLE",
+        "reason": "approved review, valid text, quality/language pass, safe licence family",
+        "licence": {
+          "status": "safe",
+          "host": "science.nasa.gov",
+          "reason": "source family is on the conservative safe list"
+        },
+        "reviewAt": "2026-10-19T01:05:35.575Z",
+        "reviewScore": 8.538461538461538
+      },
+      {
+        "articleId": "art_44b311b9-d5c",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://science.nasa.gov/missions/hubble/hubble-looks-at-messier-65-and-its-history/",
+        "sourceDomain": "science.nasa.gov",
+        "contentHash": "5f0e9c784de71cc7e004a9d4265d5fdd68a6c0bc5e3dad9b5e527c41475bb180",
+        "estimatedTokens": 40,
+        "classification": "ELIGIBLE",
+        "reason": "approved review, valid text, quality/language pass, safe licence family",
+        "licence": {
+          "status": "safe",
+          "host": "science.nasa.gov",
+          "reason": "source family is on the conservative safe list"
+        },
+        "reviewAt": "2026-10-19T01:05:47.862Z",
+        "reviewScore": 7.6923076923076925
+      },
+      {
+        "articleId": "art_36a0bb04-76a",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://science.nasa.gov/missions/hubble/hubble-looks-into-terzan-7/",
+        "sourceDomain": "science.nasa.gov",
+        "contentHash": "d655f7f7cfcc561fd98394359d0dd3fd74b8bf3b5bda54c91e1357ea76eeb2d5",
+        "estimatedTokens": 105,
+        "classification": "ELIGIBLE",
+        "reason": "approved review, valid text, quality/language pass, safe licence family",
+        "licence": {
+          "status": "safe",
+          "host": "science.nasa.gov",
+          "reason": "source family is on the conservative safe list"
+        },
+        "reviewAt": "2026-10-19T01:05:58.435Z",
+        "reviewScore": 8.742857142857142
+      },
+      {
+        "articleId": "art_4af2e6c6-709",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://science.nasa.gov/missions/hubble/hubble-peers-into-the-vast-distance/",
+        "sourceDomain": "science.nasa.gov",
+        "contentHash": "8ca85faf497b4f25dc36cb3490a7dc147eb20073fcad688ce1f3174012892ccd",
+        "estimatedTokens": 54,
+        "classification": "ELIGIBLE",
+        "reason": "approved review, valid text, quality/language pass, safe licence family",
+        "licence": {
+          "status": "safe",
+          "host": "science.nasa.gov",
+          "reason": "source family is on the conservative safe list"
+        },
+        "reviewAt": "2026-10-19T01:58:35.649Z",
+        "reviewScore": 8
+      },
+      {
+        "articleId": "art_03e785f7-017",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://science.nasa.gov/missions/hubble/hubble-scores-a-perfect-ten/",
+        "sourceDomain": "science.nasa.gov",
+        "contentHash": "d18951059edbe7e6123f997412e724d04cff15f3d3a701c717bcf7c5189644a2",
+        "estimatedTokens": 471,
+        "classification": "ELIGIBLE",
+        "reason": "approved review, valid text, quality/language pass, safe licence family",
+        "licence": {
+          "status": "safe",
+          "host": "science.nasa.gov",
+          "reason": "source family is on the conservative safe list"
+        },
+        "reviewAt": "2026-10-19T02:00:49.072Z",
+        "reviewScore": 8.15625
+      },
+      {
+        "articleId": "art_2d7edbcf-e65",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://science.nasa.gov/missions/hubble/hubble-sees-dusty-galaxy-with-supermassive-center/",
+        "sourceDomain": "science.nasa.gov",
+        "contentHash": "4d6347d3ce260ce58f3bacf7a5f2e66917cffc0c680964d47ee5a001d5898662",
+        "estimatedTokens": 52,
+        "classification": "ELIGIBLE",
+        "reason": "approved review, valid text, quality/language pass, safe licence family",
+        "licence": {
+          "status": "safe",
+          "host": "science.nasa.gov",
+          "reason": "source family is on the conservative safe list"
+        },
+        "reviewAt": "2026-10-19T02:59:35.268Z",
+        "reviewScore": 7.7894736842105265
+      },
+      {
+        "articleId": "art_cfbda932-5e2",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://science.nasa.gov/missions/hubble/hubble-sees-galaxy-with-3-supernovas/",
+        "sourceDomain": "science.nasa.gov",
+        "contentHash": "4426d877b48b4e0099319eaafa7244095fef61d37fa5d8ad6c6553ab05ee93c2",
+        "estimatedTokens": 49,
+        "classification": "ELIGIBLE",
+        "reason": "approved review, valid text, quality/language pass, safe licence family",
+        "licence": {
+          "status": "safe",
+          "host": "science.nasa.gov",
+          "reason": "source family is on the conservative safe list"
+        },
+        "reviewAt": "2026-10-19T02:59:55.971Z",
+        "reviewScore": 8
+      },
+      {
+        "articleId": "art_01ebf8c6-ace",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://science.nasa.gov/missions/hubble/hubble-sees-galaxy-with-3-supernovas/",
+        "sourceDomain": "science.nasa.gov",
+        "contentHash": "ef5153b98810328911d74b655a1857bcdc8bd26f6cacc8ace17ff8d7623d5a46",
+        "estimatedTokens": 61,
+        "classification": "ELIGIBLE",
+        "reason": "approved review, valid text, quality/language pass, safe licence family",
+        "licence": {
+          "status": "safe",
+          "host": "science.nasa.gov",
+          "reason": "source family is on the conservative safe list"
+        },
+        "reviewAt": "2026-10-19T02:59:57.861Z",
+        "reviewScore": 8
+      },
+      {
+        "articleId": "art_f3ec7254-948",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://science.nasa.gov/missions/hubble/hubble-sees-galaxy-with-3-supernovas/",
+        "sourceDomain": "science.nasa.gov",
+        "contentHash": "0fcc1a368fc8bb313d83690db4c1d912e0197d8b3d21837a757b28701eb34b36",
+        "estimatedTokens": 57,
+        "classification": "ELIGIBLE",
+        "reason": "approved review, valid text, quality/language pass, safe licence family",
+        "licence": {
+          "status": "safe",
+          "host": "science.nasa.gov",
+          "reason": "source family is on the conservative safe list"
+        },
+        "reviewAt": "2026-10-19T03:00:01.440Z",
+        "reviewScore": 7.783783783783784
+      },
+      {
+        "articleId": "art_f59c4988-a16",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://science.nasa.gov/missions/hubble/hubble-sees-galaxy-with-3-supernovas/",
+        "sourceDomain": "science.nasa.gov",
+        "contentHash": "376a038e724e797b00c1d267edc0e08ede9e567a89c5701b8a651ae4610de72f",
+        "estimatedTokens": 63,
+        "classification": "ELIGIBLE",
+        "reason": "approved review, valid text, quality/language pass, safe licence family",
+        "licence": {
+          "status": "safe",
+          "host": "science.nasa.gov",
+          "reason": "source family is on the conservative safe list"
+        },
+        "reviewAt": "2026-10-19T03:00:07.012Z",
+        "reviewScore": 8
+      },
+      {
+        "articleId": "art_57dc113e-fe5",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://science.nasa.gov/missions/hubble/hubble-sees-galaxy-with-3-supernovas/",
+        "sourceDomain": "science.nasa.gov",
+        "contentHash": "6742d9bb7d49025f1acb7a8945c077b9255b57ce960e5a21829dfa8dadc2e659",
+        "estimatedTokens": 49,
+        "classification": "ELIGIBLE",
+        "reason": "approved review, valid text, quality/language pass, safe licence family",
+        "licence": {
+          "status": "safe",
+          "host": "science.nasa.gov",
+          "reason": "source family is on the conservative safe list"
+        },
+        "reviewAt": "2026-10-19T03:00:08.977Z",
+        "reviewScore": 8
+      },
+      {
+        "articleId": "art_08468589-a26",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://science.nasa.gov/missions/hubble/hubble-sees-galaxy-with-3-supernovas/",
+        "sourceDomain": "science.nasa.gov",
+        "contentHash": "5358e9cb7ad21f76c4e266e3d137d2a485d4e35bf7c6a705a5bcdf40f05ca014",
+        "estimatedTokens": 65,
+        "classification": "ELIGIBLE",
+        "reason": "approved review, valid text, quality/language pass, safe licence family",
+        "licence": {
+          "status": "safe",
+          "host": "science.nasa.gov",
+          "reason": "source family is on the conservative safe list"
+        },
+        "reviewAt": "2026-10-19T03:00:10.868Z",
+        "reviewScore": 8
+      },
+      {
+        "articleId": "art_bfd37e06-037",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://science.nasa.gov/missions/hubble/hubble-serves-up-a-holiday-snow-angel/",
+        "sourceDomain": "science.nasa.gov",
+        "contentHash": "6b100ff9a9382c02270e8a0e6c7dbd2c60772e712855a9c244c42cb4b0979738",
+        "estimatedTokens": 146,
+        "classification": "ELIGIBLE",
+        "reason": "approved review, valid text, quality/language pass, safe licence family",
+        "licence": {
+          "status": "safe",
+          "host": "science.nasa.gov",
+          "reason": "source family is on the conservative safe list"
+        },
+        "reviewAt": "2026-10-19T03:00:27.058Z",
+        "reviewScore": 7.752577319587629
+      },
+      {
+        "articleId": "art_f7e4410a-7a8",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://science.nasa.gov/missions/hubble/hubble-serves-up-a-holiday-snow-angel/",
+        "sourceDomain": "science.nasa.gov",
+        "contentHash": "f4665f9b05dc6823f9d3a4d7a5757eb9594d7c3d2c7dbca358f0b9c35ac07386",
+        "estimatedTokens": 90,
+        "classification": "ELIGIBLE",
+        "reason": "approved review, valid text, quality/language pass, safe licence family",
+        "licence": {
+          "status": "safe",
+          "host": "science.nasa.gov",
+          "reason": "source family is on the conservative safe list"
+        },
+        "reviewAt": "2026-10-19T03:00:33.964Z",
+        "reviewScore": 8.847457627118644
+      },
+      {
+        "articleId": "art_9c771402-a5c",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://science.nasa.gov/missions/hubble/hubble-serves-up-a-holiday-snow-angel/",
+        "sourceDomain": "science.nasa.gov",
+        "contentHash": "d48958b8ccf4f6d96bd8540d268b8286ccf44983cbb8750ad75998fa2b5c6ab6",
+        "estimatedTokens": 71,
+        "classification": "ELIGIBLE",
+        "reason": "approved review, valid text, quality/language pass, safe licence family",
+        "licence": {
+          "status": "safe",
+          "host": "science.nasa.gov",
+          "reason": "source family is on the conservative safe list"
+        },
+        "reviewAt": "2026-10-19T03:00:37.399Z",
+        "reviewScore": 7.818181818181818
+      },
+      {
+        "articleId": "art_c1c5af27-89d",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://science.nasa.gov/missions/hubble/hubble-serves-up-a-holiday-snow-angel/",
+        "sourceDomain": "science.nasa.gov",
+        "contentHash": "56f63efe60ab058a3bd76c804a9d06f95c4a8a76f2cfcf1ccc20582c859e5f8f",
+        "estimatedTokens": 76,
+        "classification": "ELIGIBLE",
+        "reason": "approved review, valid text, quality/language pass, safe licence family",
+        "licence": {
+          "status": "safe",
+          "host": "science.nasa.gov",
+          "reason": "source family is on the conservative safe list"
+        },
+        "reviewAt": "2026-10-19T03:00:41.661Z",
+        "reviewScore": 7.298245614035087
+      },
+      {
+        "articleId": "art_c3e007dd-ad0",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://science.nasa.gov/missions/hubble/hubble-sights-galaxys-celestial-sequins/",
+        "sourceDomain": "science.nasa.gov",
+        "contentHash": "95f3749bb3ea79efe3f7fd08e565ae814293b2dad757e628195c191934146e06",
+        "estimatedTokens": 11,
+        "classification": "ELIGIBLE",
+        "reason": "approved review, valid text, quality/language pass, safe licence family",
+        "licence": {
+          "status": "safe",
+          "host": "science.nasa.gov",
+          "reason": "source family is on the conservative safe list"
+        },
+        "reviewAt": "2026-10-19T03:34:40.215Z",
+        "reviewScore": 9
+      },
+      {
+        "articleId": "art_50e59682-bdd",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://science.nasa.gov/missions/hubble/hubble-snaps-spirals-profile/",
+        "sourceDomain": "science.nasa.gov",
+        "contentHash": "12524155e35e0a5dda6ceef59ece0dd82d2ab2ce8a9cabd8a5cda75fc8446aa4",
+        "estimatedTokens": 42,
+        "classification": "ELIGIBLE",
+        "reason": "approved review, valid text, quality/language pass, safe licence family",
+        "licence": {
+          "status": "safe",
+          "host": "science.nasa.gov",
+          "reason": "source family is on the conservative safe list"
+        },
+        "reviewAt": "2026-10-19T03:35:01.609Z",
+        "reviewScore": 8
+      },
+      {
+        "articleId": "art_3391c3d6-e13",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://science.nasa.gov/missions/hubble/hubble-snaps-spirals-profile/",
+        "sourceDomain": "science.nasa.gov",
+        "contentHash": "4c85918ef433f9a896573cfa776eb5c626f1711bf1e5893d0608833210b1b521",
+        "estimatedTokens": 52,
+        "classification": "ELIGIBLE",
+        "reason": "approved review, valid text, quality/language pass, safe licence family",
+        "licence": {
+          "status": "safe",
+          "host": "science.nasa.gov",
+          "reason": "source family is on the conservative safe list"
+        },
+        "reviewAt": "2026-10-19T03:35:07.048Z",
+        "reviewScore": 9
+      },
+      {
+        "articleId": "art_edc1db28-240",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://science.nasa.gov/missions/hubble/hubble-snares-bevy-of-shimmering-stars/",
+        "sourceDomain": "science.nasa.gov",
+        "contentHash": "1eb88db29b639ed52c67407953052cad7ac7cd48ced936f3d4adb4290179c2ee",
+        "estimatedTokens": 53,
+        "classification": "ELIGIBLE",
+        "reason": "approved review, valid text, quality/language pass, safe licence family",
+        "licence": {
+          "status": "safe",
+          "host": "science.nasa.gov",
+          "reason": "source family is on the conservative safe list"
+        },
+        "reviewAt": "2026-10-19T03:35:22.786Z",
+        "reviewScore": 7.609756097560975
+      },
+      {
+        "articleId": "art_23c10789-14b",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://science.nasa.gov/missions/hubble/hubble-space-telescope-berthed-in-columbias-cargo-bay/",
+        "sourceDomain": "science.nasa.gov",
+        "contentHash": "222716a7b8377afd09541c76dfd2c170a25a4e2d4ccdc17bc9bfb79b183a1f12",
+        "estimatedTokens": 77,
+        "classification": "ELIGIBLE",
+        "reason": "approved review, valid text, quality/language pass, safe licence family",
+        "licence": {
+          "status": "safe",
+          "host": "science.nasa.gov",
+          "reason": "source family is on the conservative safe list"
+        },
+        "reviewAt": "2026-10-19T03:35:41.812Z",
+        "reviewScore": 8
+      },
+      {
+        "articleId": "art_09628c08-9db",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://science.nasa.gov/missions/hubble/hubble-spies-a-serpentine-spiral/",
+        "sourceDomain": "science.nasa.gov",
+        "contentHash": "d8241710439d633b471f1d143d99181ce5a379c8494af54479a8e6b4921a8f9b",
+        "estimatedTokens": 117,
+        "classification": "ELIGIBLE",
+        "reason": "approved review, valid text, quality/language pass, safe licence family",
+        "licence": {
+          "status": "safe",
+          "host": "science.nasa.gov",
+          "reason": "source family is on the conservative safe list"
+        },
+        "reviewAt": "2026-10-19T03:36:43.252Z",
+        "reviewScore": 8.883116883116884
+      },
+      {
+        "articleId": "art_998d9ab5-301",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://science.nasa.gov/missions/hubble/hubble-spies-a-serpentine-spiral/",
+        "sourceDomain": "science.nasa.gov",
+        "contentHash": "ff85dde3e6471dc5020f1b9ff836e2fc4d251e4cfdb6578720bc3f64d788091c",
+        "estimatedTokens": 91,
+        "classification": "ELIGIBLE",
+        "reason": "approved review, valid text, quality/language pass, safe licence family",
+        "licence": {
+          "status": "safe",
+          "host": "science.nasa.gov",
+          "reason": "source family is on the conservative safe list"
+        },
+        "reviewAt": "2026-10-19T03:36:45.195Z",
+        "reviewScore": 7.709090909090909
+      },
+      {
+        "articleId": "art_b51f1e9c-a33",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://science.nasa.gov/missions/hubble/hubble-spies-a-serpentine-spiral/",
+        "sourceDomain": "science.nasa.gov",
+        "contentHash": "803241d030afaddb8f0f9821342a23bffe2b7fd39fef986e1347b21575f8755b",
+        "estimatedTokens": 151,
+        "classification": "ELIGIBLE",
+        "reason": "approved review, valid text, quality/language pass, safe licence family",
+        "licence": {
+          "status": "safe",
+          "host": "science.nasa.gov",
+          "reason": "source family is on the conservative safe list"
+        },
+        "reviewAt": "2026-10-19T03:36:47.080Z",
+        "reviewScore": 7.550561797752809
+      },
+      {
+        "articleId": "art_7790099c-63d",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://science.nasa.gov/centers-and-facilities/goddard/hubble-spies-a-spiral-snowflake/",
+        "sourceDomain": "science.nasa.gov",
+        "contentHash": "ca5fe8156bcffb7bdf5a29f2ab9b3ad39302fc9d46e84646754edb9229f56ba8",
+        "estimatedTokens": 50,
+        "classification": "ELIGIBLE",
+        "reason": "approved review, valid text, quality/language pass, safe licence family",
+        "licence": {
+          "status": "safe",
+          "host": "science.nasa.gov",
+          "reason": "source family is on the conservative safe list"
+        },
+        "reviewAt": "2026-10-19T03:37:16.119Z",
+        "reviewScore": 9
+      },
+      {
+        "articleId": "art_a26d2c47-eda",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://plus.nasa.gov/",
+        "sourceDomain": "plus.nasa.gov",
+        "contentHash": "32728af73d3c3bb9c08e142e8037b4f7b1ac63f5c12f2ab0267f004ffc82efe0",
+        "estimatedTokens": 55,
+        "classification": "ELIGIBLE",
+        "reason": "approved review, valid text, quality/language pass, safe licence family",
+        "licence": {
+          "status": "safe",
+          "host": "plus.nasa.gov",
+          "reason": "source family is on the conservative safe list"
+        },
+        "reviewAt": "2026-10-20T03:58:36.868Z",
+        "reviewScore": 9
+      },
+      {
+        "articleId": "art_2469b4be-6e6",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://www.nasa.gov/multimedia/",
+        "sourceDomain": "www.nasa.gov",
+        "contentHash": "33225f608cdcfb95a7b606c1ac861b28b65e3bca294826c9ea66a3d40cde8b74",
+        "estimatedTokens": 72,
+        "classification": "ELIGIBLE",
+        "reason": "approved review, valid text, quality/language pass, safe licence family",
+        "licence": {
+          "status": "safe",
+          "host": "www.nasa.gov",
+          "reason": "source family is on the conservative safe list"
+        },
+        "reviewAt": "2026-10-20T04:36:01.587Z",
+        "reviewScore": 8
+      },
+      {
+        "articleId": "art_974d9957-c1e",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://www.nasa.gov/multimedia/",
+        "sourceDomain": "www.nasa.gov",
+        "contentHash": "bc6c016be2dfa3e8afe6e9def03131b54a62b8eaaa827258ddc57b1610e2f217",
+        "estimatedTokens": 57,
+        "classification": "ELIGIBLE",
+        "reason": "approved review, valid text, quality/language pass, safe licence family",
+        "licence": {
+          "status": "safe",
+          "host": "www.nasa.gov",
+          "reason": "source family is on the conservative safe list"
+        },
+        "reviewAt": "2026-10-20T04:36:06.035Z",
+        "reviewScore": 7
+      }
+    ],
+    "unresolved": [
+      {
+        "articleId": "art_33245635-d95",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://en.wikipedia.org/wiki/Steam_engine",
+        "sourceDomain": "en.wikipedia.org",
+        "contentHash": "1cc4df0523321f21f33f32a4ded3dcb81078c9096eb9f0c4403c77a06ba7743f",
+        "estimatedTokens": 138,
+        "classification": "UNRESOLVED",
+        "reason": "licence uncertain: source family requires item-level licence review",
+        "licence": {
+          "status": "uncertain",
+          "host": "en.wikipedia.org",
+          "reason": "source family requires item-level licence review"
+        }
+      },
+      {
+        "articleId": "art_cf6d5a5b-ca2",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://en.wikipedia.org/wiki/Steam_engine",
+        "sourceDomain": "en.wikipedia.org",
+        "contentHash": "338399226749a9d58fe9f8d45a6221552f351238ceb046788fab47a842d5830f",
+        "estimatedTokens": 136,
+        "classification": "UNRESOLVED",
+        "reason": "licence uncertain: source family requires item-level licence review",
+        "licence": {
+          "status": "uncertain",
+          "host": "en.wikipedia.org",
+          "reason": "source family requires item-level licence review"
+        }
+      },
+      {
+        "articleId": "art_21573cf3-c5b",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://en.wikipedia.org/wiki/Steam_engine",
+        "sourceDomain": "en.wikipedia.org",
+        "contentHash": "d7fc4635ea1a96e540a98f9dcb7b5365eb6a10687b6335cd32793cd046f28308",
+        "estimatedTokens": 136,
+        "classification": "UNRESOLVED",
+        "reason": "licence uncertain: source family requires item-level licence review",
+        "licence": {
+          "status": "uncertain",
+          "host": "en.wikipedia.org",
+          "reason": "source family requires item-level licence review"
+        }
+      },
+      {
+        "articleId": "art_2ea01093-bbf",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://en.wikipedia.org/wiki/Recursion",
+        "sourceDomain": "en.wikipedia.org",
+        "contentHash": "23a00e5d00cf2fe1346e7c647e23ce9d6da879b7802a0c90fc48e481c69525ef",
+        "estimatedTokens": 214,
+        "classification": "UNRESOLVED",
+        "reason": "licence uncertain: source family requires item-level licence review",
+        "licence": {
+          "status": "uncertain",
+          "host": "en.wikipedia.org",
+          "reason": "source family requires item-level licence review"
+        }
+      },
+      {
+        "articleId": "art_83facd56-34b",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://en.wikipedia.org/wiki/Portal:Current_events",
+        "sourceDomain": "en.wikipedia.org",
+        "contentHash": "e5449bc153f94d649b44ce07c77d3b2ef5eba7ec69f69be5994347acbfbcc887",
+        "estimatedTokens": 87,
+        "classification": "UNRESOLVED",
+        "reason": "licence uncertain: source family requires item-level licence review",
+        "licence": {
+          "status": "uncertain",
+          "host": "en.wikipedia.org",
+          "reason": "source family requires item-level licence review"
+        }
+      },
+      {
+        "articleId": "art_c2caece9-d0b",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://en.wikipedia.org/wiki/Portal:Current_events",
+        "sourceDomain": "en.wikipedia.org",
+        "contentHash": "2b7843b4ba4d086b4068f1a7dd4522dda3b088e3c9ccbef708790c71e8f38fb0",
+        "estimatedTokens": 77,
+        "classification": "UNRESOLVED",
+        "reason": "licence uncertain: source family requires item-level licence review",
+        "licence": {
+          "status": "uncertain",
+          "host": "en.wikipedia.org",
+          "reason": "source family requires item-level licence review"
+        }
+      },
+      {
+        "articleId": "art_ae3593bf-3f3",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://en.wikipedia.org/wiki/Portal:Current_events",
+        "sourceDomain": "en.wikipedia.org",
+        "contentHash": "d58767da860a364492faf934b9a800562c5347c7e3da342dcc161bad9adfb847",
+        "estimatedTokens": 86,
+        "classification": "UNRESOLVED",
+        "reason": "licence uncertain: source family requires item-level licence review",
+        "licence": {
+          "status": "uncertain",
+          "host": "en.wikipedia.org",
+          "reason": "source family requires item-level licence review"
+        }
+      },
+      {
+        "articleId": "art_5d405b70-94e",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://en.wikipedia.org/wiki/Wikipedia:About",
+        "sourceDomain": "en.wikipedia.org",
+        "contentHash": "32e8b0239fd8e1ecba109a73cd938f931c4fe2ef363ab3b2d19e9b04e50580e3",
+        "estimatedTokens": 175,
+        "classification": "UNRESOLVED",
+        "reason": "licence uncertain: source family requires item-level licence review",
+        "licence": {
+          "status": "uncertain",
+          "host": "en.wikipedia.org",
+          "reason": "source family requires item-level licence review"
+        }
+      },
+      {
+        "articleId": "art_28532f23-045",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://en.wikipedia.org/wiki/Help:Introduction",
+        "sourceDomain": "en.wikipedia.org",
+        "contentHash": "572f66f97be471348675fcaff5d2c72c584b5fb41e0fc3705eefe6aa95e5b350",
+        "estimatedTokens": 165,
+        "classification": "UNRESOLVED",
+        "reason": "licence uncertain: source family requires item-level licence review",
+        "licence": {
+          "status": "uncertain",
+          "host": "en.wikipedia.org",
+          "reason": "source family requires item-level licence review"
+        }
+      },
+      {
+        "articleId": "art_3b48a22c-f38",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://en.wikipedia.org/wiki/Wikipedia:Community_portal",
+        "sourceDomain": "en.wikipedia.org",
+        "contentHash": "80ca5289b768744ad1e4f9e5b8d104d9219c618cd86fee3c49dfd0f47fe764c2",
+        "estimatedTokens": 178,
+        "classification": "UNRESOLVED",
+        "reason": "licence uncertain: source family requires item-level licence review",
+        "licence": {
+          "status": "uncertain",
+          "host": "en.wikipedia.org",
+          "reason": "source family requires item-level licence review"
+        }
+      },
+      {
+        "articleId": "art_36c702a1-807",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://af.wikipedia.org/wiki/Stoomenjin",
+        "sourceDomain": "af.wikipedia.org",
+        "contentHash": "3d7970a3ed7342859ee4d2153de5804445be2891af55ecce46e30c91a9ea5223",
+        "estimatedTokens": 256,
+        "classification": "UNRESOLVED",
+        "reason": "licence uncertain: source family requires item-level licence review",
+        "licence": {
+          "status": "uncertain",
+          "host": "af.wikipedia.org",
+          "reason": "source family requires item-level licence review"
+        }
+      },
+      {
+        "articleId": "art_052d39cc-094",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://als.wikipedia.org/wiki/Dampfmaschine",
+        "sourceDomain": "als.wikipedia.org",
+        "contentHash": "6483a5bbb239dc8e4687555d8c0179158e9e22a92dcb8ddef69f9d20b32f35a7",
+        "estimatedTokens": 171,
+        "classification": "UNRESOLVED",
+        "reason": "licence uncertain: source family requires item-level licence review",
+        "licence": {
+          "status": "uncertain",
+          "host": "als.wikipedia.org",
+          "reason": "source family requires item-level licence review"
+        }
+      },
+      {
+        "articleId": "art_e78c8378-887",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://an.wikipedia.org/wiki/Maquina_de_vapor",
+        "sourceDomain": "an.wikipedia.org",
+        "contentHash": "b9440f8d925236e7c4ccb06385ced460ed172879da279d801f2802ddac438db7",
+        "estimatedTokens": 196,
+        "classification": "UNRESOLVED",
+        "reason": "licence uncertain: source family requires item-level licence review",
+        "licence": {
+          "status": "uncertain",
+          "host": "an.wikipedia.org",
+          "reason": "source family requires item-level licence review"
+        }
+      },
+      {
+        "articleId": "art_464c8bd1-789",
+        "status": "RETIRED",
+        "consumed": false,
+        "replayEligible": false,
+        "sourceUrl": "https://ar.wikipedia.org/wiki/%D9%85%D8%AD%D8%B1%D9%83_%D8%A8%D8%AE%D8%A7%D8%B1%D9%8A",
+        "sourceDomain": "ar.wikipedia.org",
+        "contentHash": "5a738eff72188b97d7d4d255863deb602ec755f7d91b1585442fe9cbf8e57722",
+        "estimatedTokens": 165,
+        "classification": "UNRESOLVED",
+        "reason": "no decisive review history"
+      },
+      {
+        "articleId": "art_1c8c72d0-d5f",
+        "status": "RETIRED",
+        "consumed": false,
+        "replayEligible": false,
+        "sourceUrl": "https://arz.wikipedia.org/wiki/%D9%85%D8%AD%D8%B1%D9%83_%D8%A8%D8%AE%D8%A7%D8%B1",
+        "sourceDomain": "arz.wikipedia.org",
+        "contentHash": "b93a6d1cba08d85de802ed939d61e0f4e1206f17ae13c25a6196a0bf88e4ddc3",
+        "estimatedTokens": 93,
+        "classification": "UNRESOLVED",
+        "reason": "no decisive review history"
+      },
+      {
+        "articleId": "art_27e36f34-825",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://as.wikipedia.org/wiki/%E0%A6%AD%E0%A6%BE%E0%A6%AA_%E0%A6%87%E0%A6%9E%E0%A7%8D%E0%A6%9C%E0%A6%BF%E0%A6%A8",
+        "sourceDomain": "as.wikipedia.org",
+        "contentHash": "c95f250935c6c517fec3332ab8e9faf818caaedd190557881bd5cd67f68d3ef4",
+        "estimatedTokens": 128,
+        "classification": "UNRESOLVED",
+        "reason": "licence uncertain: source family requires item-level licence review",
+        "licence": {
+          "status": "uncertain",
+          "host": "as.wikipedia.org",
+          "reason": "source family requires item-level licence review"
+        }
+      },
+      {
+        "articleId": "art_e0f3dc0e-053",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://az.wikipedia.org/wiki/Buxar_ma%C5%9F%C4%B1n%C4%B1",
+        "sourceDomain": "az.wikipedia.org",
+        "contentHash": "cd6a2a11fbcfecf9b92a817ea40bf5a6eb5c0f5d890ff9a8b0d5b7fa43e1fc65",
+        "estimatedTokens": 230,
+        "classification": "UNRESOLVED",
+        "reason": "licence uncertain: source family requires item-level licence review",
+        "licence": {
+          "status": "uncertain",
+          "host": "az.wikipedia.org",
+          "reason": "source family requires item-level licence review"
+        }
+      },
+      {
+        "articleId": "art_9124a552-1e9",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://ba.wikipedia.org/wiki/%D0%9F%D0%B0%D1%80_%D0%BC%D0%B0%D1%88%D0%B8%D0%BD%D0%B0%D2%BB%D1%8B",
+        "sourceDomain": "ba.wikipedia.org",
+        "contentHash": "48bf3b54dbc893fe4da5b62416b514bc41c8aed27def7211e7a89d77cfe6f281",
+        "estimatedTokens": 242,
+        "classification": "UNRESOLVED",
+        "reason": "licence uncertain: source family requires item-level licence review",
+        "licence": {
+          "status": "uncertain",
+          "host": "ba.wikipedia.org",
+          "reason": "source family requires item-level licence review"
+        }
+      },
+      {
+        "articleId": "art_a7c894e2-37b",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://be-tarask.wikipedia.org/wiki/%D0%9F%D0%B0%D1%80%D0%B0%D1%81%D1%96%D0%BB%D0%B0%D0%B2%D0%B0%D1%8F_%D1%9E%D1%81%D1%82%D0%B0%D0%BD%D0%BE%D1%9E%D0%BA%D0%B0",
+        "sourceDomain": "be-tarask.wikipedia.org",
+        "contentHash": "46bc5a1a5d72245919afe57e6e7d43ab7b3d00eb141baccef278e5092b1df822",
+        "estimatedTokens": 227,
+        "classification": "UNRESOLVED",
+        "reason": "licence uncertain: source family requires item-level licence review",
+        "licence": {
+          "status": "uncertain",
+          "host": "be-tarask.wikipedia.org",
+          "reason": "source family requires item-level licence review"
+        }
+      },
+      {
+        "articleId": "art_6d3e5676-3ba",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://be.wikipedia.org/wiki/%D0%9F%D0%B0%D1%80%D0%B0%D1%81%D1%96%D0%BB%D0%B0%D0%B2%D0%B0%D1%8F_%D1%9E%D1%81%D1%82%D0%B0%D0%BD%D0%BE%D1%9E%D0%BA%D0%B0",
+        "sourceDomain": "be.wikipedia.org",
+        "contentHash": "c49fb60dc37a3be89d5d0137c968def399a7b0b865da7820c91033f3ce19b357",
+        "estimatedTokens": 158,
+        "classification": "UNRESOLVED",
+        "reason": "licence uncertain: source family requires item-level licence review",
+        "licence": {
+          "status": "uncertain",
+          "host": "be.wikipedia.org",
+          "reason": "source family requires item-level licence review"
+        }
+      },
+      {
+        "articleId": "art_054ae614-843",
+        "status": "RETIRED",
+        "consumed": false,
+        "replayEligible": false,
+        "sourceUrl": "https://bn.wikipedia.org/wiki/%E0%A6%AC%E0%A6%BE%E0%A6%B7%E0%A7%8D%E0%A6%AA%E0%A7%80%E0%A6%AF%E0%A6%BC_%E0%A6%87%E0%A6%9E%E0%A7%8D%E0%A6%9C%E0%A6%BF%E0%A6%A8",
+        "sourceDomain": "bn.wikipedia.org",
+        "contentHash": "eb19f26427a23b2a01f931c6b9c76218a1eb30ac40984f4431b0a139857981dd",
+        "estimatedTokens": 115,
+        "classification": "UNRESOLVED",
+        "reason": "no decisive review history"
+      },
+      {
+        "articleId": "art_6669ff9d-71c",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://br.wikipedia.org/wiki/Mekanik_dre_vurezh",
+        "sourceDomain": "br.wikipedia.org",
+        "contentHash": "90bea0e93aabc76af4b49ba023bba4a2c45e8ee80db17476032ede2a5f731941",
+        "estimatedTokens": 204,
+        "classification": "UNRESOLVED",
+        "reason": "licence uncertain: source family requires item-level licence review",
+        "licence": {
+          "status": "uncertain",
+          "host": "br.wikipedia.org",
+          "reason": "source family requires item-level licence review"
+        }
+      },
+      {
+        "articleId": "art_a74f6efd-35d",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://fiu-vro.wikipedia.org/wiki/Aurumoodor",
+        "sourceDomain": "fiu-vro.wikipedia.org",
+        "contentHash": "4fd948261b79659257b2b4c12be7cd7d074af897da1614a54673874177a36bb5",
+        "estimatedTokens": 129,
+        "classification": "UNRESOLVED",
+        "reason": "licence uncertain: source family requires item-level licence review",
+        "licence": {
+          "status": "uncertain",
+          "host": "fiu-vro.wikipedia.org",
+          "reason": "source family requires item-level licence review"
+        }
+      },
+      {
+        "articleId": "art_6869cadf-ada",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://fy.wikipedia.org/wiki/Stoommasine",
+        "sourceDomain": "fy.wikipedia.org",
+        "contentHash": "c5b2d1abf0a0331f74e479e539d90f1361f09a494f547dc93edb6f5a233881dd",
+        "estimatedTokens": 106,
+        "classification": "UNRESOLVED",
+        "reason": "licence uncertain: source family requires item-level licence review",
+        "licence": {
+          "status": "uncertain",
+          "host": "fy.wikipedia.org",
+          "reason": "source family requires item-level licence review"
+        }
+      },
+      {
+        "articleId": "art_1e6f4805-17c",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://ga.wikipedia.org/wiki/Inneall_gaile",
+        "sourceDomain": "ga.wikipedia.org",
+        "contentHash": "f9a93c536f51479bbd6e58fb19f09980ba0726a3a8f0b5bf5d31dd4097c35445",
+        "estimatedTokens": 151,
+        "classification": "UNRESOLVED",
+        "reason": "licence uncertain: source family requires item-level licence review",
+        "licence": {
+          "status": "uncertain",
+          "host": "ga.wikipedia.org",
+          "reason": "source family requires item-level licence review"
+        }
+      },
+      {
+        "articleId": "art_acc89134-ae2",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://gcr.wikipedia.org/wiki/Machin_a_vap%C3%B2",
+        "sourceDomain": "gcr.wikipedia.org",
+        "contentHash": "65573fd85390e29ae708a9c3cf81cf06782ec2376492bb1c96b4035e1c7cec66",
+        "estimatedTokens": 160,
+        "classification": "UNRESOLVED",
+        "reason": "licence uncertain: source family requires item-level licence review",
+        "licence": {
+          "status": "uncertain",
+          "host": "gcr.wikipedia.org",
+          "reason": "source family requires item-level licence review"
+        }
+      },
+      {
+        "articleId": "art_a14a88f9-b75",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://gd.wikipedia.org/wiki/Inneal-sm%C3%B9ide",
+        "sourceDomain": "gd.wikipedia.org",
+        "contentHash": "4e9e6035d1df0df083e946d1d55c1137d1777757f6aed594fc4d17daaaed47c4",
+        "estimatedTokens": 182,
+        "classification": "UNRESOLVED",
+        "reason": "licence uncertain: source family requires item-level licence review",
+        "licence": {
+          "status": "uncertain",
+          "host": "gd.wikipedia.org",
+          "reason": "source family requires item-level licence review"
+        }
+      },
+      {
+        "articleId": "art_2d4e0800-2ba",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://eo.wikipedia.org/wiki/Rikuro",
+        "sourceDomain": "eo.wikipedia.org",
+        "contentHash": "5b91d2cc0b0b68a92b12c68bbd6c40f47948d32edb867a24803125ac3f6d1de1",
+        "estimatedTokens": 223,
+        "classification": "UNRESOLVED",
+        "reason": "licence uncertain: source family requires item-level licence review",
+        "licence": {
+          "status": "uncertain",
+          "host": "eo.wikipedia.org",
+          "reason": "source family requires item-level licence review"
+        }
+      },
+      {
+        "articleId": "art_786de297-207",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://eu.wikipedia.org/wiki/Errekurtsio",
+        "sourceDomain": "eu.wikipedia.org",
+        "contentHash": "76cce60ac1d927819cb8b82d25ff981352263d8d081f475275081b00a4c54671",
+        "estimatedTokens": 103,
+        "classification": "UNRESOLVED",
+        "reason": "licence uncertain: source family requires item-level licence review",
+        "licence": {
+          "status": "uncertain",
+          "host": "eu.wikipedia.org",
+          "reason": "source family requires item-level licence review"
+        }
+      },
+      {
+        "articleId": "art_2e1153a4-989",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://fa.wikipedia.org/wiki/%D8%A8%D8%A7%D8%B2%DA%AF%D8%B4%D8%AA",
+        "sourceDomain": "fa.wikipedia.org",
+        "contentHash": "e052a109d679a712f3552cd2f4b0509eab331f175f4b1a621b0f081c95882846",
+        "estimatedTokens": 193,
+        "classification": "UNRESOLVED",
+        "reason": "licence uncertain: source family requires item-level licence review",
+        "licence": {
+          "status": "uncertain",
+          "host": "fa.wikipedia.org",
+          "reason": "source family requires item-level licence review"
+        }
+      },
+      {
+        "articleId": "art_c3344fc3-1fe",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://fr.wikipedia.org/wiki/R%C3%A9cursivit%C3%A9",
+        "sourceDomain": "fr.wikipedia.org",
+        "contentHash": "fae23a8ea90cd73af9b582d9f230d05ebc429ba6679e36acfa731aaa11568259",
+        "estimatedTokens": 193,
+        "classification": "UNRESOLVED",
+        "reason": "licence uncertain: source family requires item-level licence review",
+        "licence": {
+          "status": "uncertain",
+          "host": "fr.wikipedia.org",
+          "reason": "source family requires item-level licence review"
+        }
+      },
+      {
+        "articleId": "art_3b13fbf2-784",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://ga.wikipedia.org/wiki/Athch%C3%BArs%C3%A1il",
+        "sourceDomain": "ga.wikipedia.org",
+        "contentHash": "2d81e9fd343ca2788d8ba1c627ce00c94ca1dd9708193c3f39e46c572b4b164e",
+        "estimatedTokens": 188,
+        "classification": "UNRESOLVED",
+        "reason": "licence uncertain: source family requires item-level licence review",
+        "licence": {
+          "status": "uncertain",
+          "host": "ga.wikipedia.org",
+          "reason": "source family requires item-level licence review"
+        }
+      },
+      {
+        "articleId": "art_e47cf453-ec7",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://io.wikipedia.org/wiki/Rekurso",
+        "sourceDomain": "io.wikipedia.org",
+        "contentHash": "96f2c19672cefbad806df561c29048d570b6e5677ec468c5cd39c10314a08ecb",
+        "estimatedTokens": 145,
+        "classification": "UNRESOLVED",
+        "reason": "licence uncertain: source family requires item-level licence review",
+        "licence": {
+          "status": "uncertain",
+          "host": "io.wikipedia.org",
+          "reason": "source family requires item-level licence review"
+        }
+      },
+      {
+        "articleId": "art_f1ab2d3a-57d",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://is.wikipedia.org/wiki/Endurkv%C3%A6mt_fall",
+        "sourceDomain": "is.wikipedia.org",
+        "contentHash": "e0b0317788f9e2d82adfdedb612555fbfdf04ab17e90c3ef05bf6953ea3bca45",
+        "estimatedTokens": 168,
+        "classification": "UNRESOLVED",
+        "reason": "licence uncertain: source family requires item-level licence review",
+        "licence": {
+          "status": "uncertain",
+          "host": "is.wikipedia.org",
+          "reason": "source family requires item-level licence review"
+        }
+      },
+      {
+        "articleId": "art_cf98e47a-a55",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://ja.wikipedia.org/wiki/%E5%86%8D%E5%B8%B0",
+        "sourceDomain": "ja.wikipedia.org",
+        "contentHash": "415fd0e11478f186dbc960f1365dcf41c425bc9747fd941a50f4cc060743c583",
+        "estimatedTokens": 121,
+        "classification": "UNRESOLVED",
+        "reason": "licence uncertain: source family requires item-level licence review",
+        "licence": {
+          "status": "uncertain",
+          "host": "ja.wikipedia.org",
+          "reason": "source family requires item-level licence review"
+        }
+      },
+      {
+        "articleId": "art_c6b4e158-27d",
+        "status": "RETIRED",
+        "consumed": false,
+        "replayEligible": false,
+        "sourceUrl": "https://kk.wikipedia.org/wiki/%D0%A0%D0%B5%D0%BA%D1%83%D1%80%D1%81%D0%B8%D1%8F",
+        "sourceDomain": "kk.wikipedia.org",
+        "contentHash": "aa442df1af0e605d3e2d75e327fb4bce3ac46b69a6b632de397ae2e28303965c",
+        "estimatedTokens": 127,
+        "classification": "UNRESOLVED",
+        "reason": "no decisive review history"
+      },
+      {
+        "articleId": "art_277f2728-15c",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://ko.wikipedia.org/wiki/%EC%9E%AC%EA%B7%80",
+        "sourceDomain": "ko.wikipedia.org",
+        "contentHash": "30a2b9ffccc8ebb3d828a2d5882aabc1de91b65ab0518293083bdf6f697277f9",
+        "estimatedTokens": 203,
+        "classification": "UNRESOLVED",
+        "reason": "licence uncertain: source family requires item-level licence review",
+        "licence": {
+          "status": "uncertain",
+          "host": "ko.wikipedia.org",
+          "reason": "source family requires item-level licence review"
+        }
+      },
+      {
+        "articleId": "art_b6c0820a-66d",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://lmo.wikipedia.org/wiki/Recorsion",
+        "sourceDomain": "lmo.wikipedia.org",
+        "contentHash": "c9a96591bba39316601b6df900ef135f210e0f6e3e11043b20de578d43d0facb",
+        "estimatedTokens": 121,
+        "classification": "UNRESOLVED",
+        "reason": "licence uncertain: source family requires item-level licence review",
+        "licence": {
+          "status": "uncertain",
+          "host": "lmo.wikipedia.org",
+          "reason": "source family requires item-level licence review"
+        }
+      },
+      {
+        "articleId": "art_141869f0-630",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://lt.wikipedia.org/wiki/Rekursija",
+        "sourceDomain": "lt.wikipedia.org",
+        "contentHash": "2f5c30dc6c30350b98988e35a9f67ac9ac0948ce034207e8f162235164f5c7cf",
+        "estimatedTokens": 191,
+        "classification": "UNRESOLVED",
+        "reason": "licence uncertain: source family requires item-level licence review",
+        "licence": {
+          "status": "uncertain",
+          "host": "lt.wikipedia.org",
+          "reason": "source family requires item-level licence review"
+        }
+      },
+      {
+        "articleId": "art_a5f36477-89c",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://lv.wikipedia.org/wiki/Rekursija",
+        "sourceDomain": "lv.wikipedia.org",
+        "contentHash": "da32dc28d179359de64e5982644ebdf49e0546ca519839576e1a1939282b3b23",
+        "estimatedTokens": 158,
+        "classification": "UNRESOLVED",
+        "reason": "licence uncertain: source family requires item-level licence review",
+        "licence": {
+          "status": "uncertain",
+          "host": "lv.wikipedia.org",
+          "reason": "source family requires item-level licence review"
+        }
+      },
+      {
+        "articleId": "art_6ab5a780-f4d",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://ml.wikipedia.org/wiki/%E0%B4%B8%E0%B5%8D%E0%B4%B5%E0%B4%BE%E0%B4%B5%E0%B5%BC%E0%B4%A4%E0%B5%8D%E0%B4%A4%E0%B4%A8%E0%B4%82",
+        "sourceDomain": "ml.wikipedia.org",
+        "contentHash": "720be867a3d0bc981e70577ea29392c77ab9f7440719eea443771f7d1ba1f8ab",
+        "estimatedTokens": 219,
+        "classification": "UNRESOLVED",
+        "reason": "licence uncertain: source family requires item-level licence review",
+        "licence": {
+          "status": "uncertain",
+          "host": "ml.wikipedia.org",
+          "reason": "source family requires item-level licence review"
+        }
+      },
+      {
+        "articleId": "art_dcefcafb-26c",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://nds-nl.wikipedia.org/wiki/Rekursie",
+        "sourceDomain": "nds-nl.wikipedia.org",
+        "contentHash": "74ea04b9f0fa591d61ca82d0fd6d0e374afd47b1d497459aeb0e1d8de2985a13",
+        "estimatedTokens": 116,
+        "classification": "UNRESOLVED",
+        "reason": "licence uncertain: source family requires item-level licence review",
+        "licence": {
+          "status": "uncertain",
+          "host": "nds-nl.wikipedia.org",
+          "reason": "source family requires item-level licence review"
+        }
+      },
+      {
+        "articleId": "art_43a22a08-595",
+        "status": "RETIRED",
+        "consumed": false,
+        "replayEligible": false,
+        "sourceUrl": "https://ru.wikipedia.org/wiki/%D0%A0%D0%B5%D0%BA%D1%83%D1%80%D1%81%D0%B8%D1%8F",
+        "sourceDomain": "ru.wikipedia.org",
+        "contentHash": "814f0441542020d1016529e27d28bc8c43139ecfbd920738e4b47aa5ea99e125",
+        "estimatedTokens": 2,
+        "classification": "UNRESOLVED",
+        "reason": "no decisive review history"
+      },
+      {
+        "articleId": "art_4e1632f7-622",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://rue.wikipedia.org/wiki/%D0%A0%D0%B5%D0%BA%D1%83%D1%80%D0%B7%D1%96%D1%8F",
+        "sourceDomain": "rue.wikipedia.org",
+        "contentHash": "79e02514200fdb70dafbdd1a8444f7e9a38e70b185e089ae267f409c775cc8b1",
+        "estimatedTokens": 105,
+        "classification": "UNRESOLVED",
+        "reason": "licence uncertain: source family requires item-level licence review",
+        "licence": {
+          "status": "uncertain",
+          "host": "rue.wikipedia.org",
+          "reason": "source family requires item-level licence review"
+        }
+      },
+      {
+        "articleId": "art_a34f8512-5e2",
+        "status": "RETIRED",
+        "consumed": false,
+        "replayEligible": false,
+        "sourceUrl": "https://sa.wikipedia.org/wiki/%E0%A4%AA%E0%A5%81%E0%A4%A8%E0%A4%B0%E0%A5%8D%E0%A4%97%E0%A4%AE%E0%A4%A8%E0%A4%B5%E0%A4%BE%E0%A4%A6",
+        "sourceDomain": "sa.wikipedia.org",
+        "contentHash": "bb26659241afb460289e66b69245de58bb36c59cf7208c05cc2139d15a3f73bc",
+        "estimatedTokens": 13,
+        "classification": "UNRESOLVED",
+        "reason": "no decisive review history"
+      },
+      {
+        "articleId": "art_e14375d4-543",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://simple.wikipedia.org/wiki/Recursion",
+        "sourceDomain": "simple.wikipedia.org",
+        "contentHash": "997fde5135e4590fd8e65b422caa820e2c0c831f173e07e44882ad94338009c8",
+        "estimatedTokens": 57,
+        "classification": "UNRESOLVED",
+        "reason": "licence uncertain: source family requires item-level licence review",
+        "licence": {
+          "status": "uncertain",
+          "host": "simple.wikipedia.org",
+          "reason": "source family requires item-level licence review"
+        }
+      },
+      {
+        "articleId": "art_f8a33a26-11e",
+        "status": "RETIRED",
+        "consumed": false,
+        "replayEligible": false,
+        "sourceUrl": "https://sl.wikipedia.org/wiki/Rekurzija",
+        "sourceDomain": "sl.wikipedia.org",
+        "contentHash": "37dc3deb0123be13ff087bf7e00c9e74a0576c073e743a22511bcbcab95695a5",
+        "estimatedTokens": 77,
+        "classification": "UNRESOLVED",
+        "reason": "no decisive review history"
+      },
+      {
+        "articleId": "art_138858f0-b81",
+        "status": "RETIRED",
+        "consumed": false,
+        "replayEligible": false,
+        "sourceUrl": "https://sr.wikipedia.org/wiki/%D0%A0%D0%B5%D0%BA%D1%83%D1%80%D0%B7%D0%B8%D1%98%D0%B0",
+        "sourceDomain": "sr.wikipedia.org",
+        "contentHash": "4fd0425db6458cf6162ddaaa978c5d08664cd9459c62af2aa2fa5824cb23ef03",
+        "estimatedTokens": 31,
+        "classification": "UNRESOLVED",
+        "reason": "no decisive review history"
+      },
+      {
+        "articleId": "art_aef67ec7-0b2",
+        "status": "RETIRED",
+        "consumed": false,
+        "replayEligible": false,
+        "sourceUrl": "https://sr.wikipedia.org/wiki/%D0%A0%D0%B5%D0%BA%D1%83%D1%80%D0%B7%D0%B8%D1%98%D0%B0",
+        "sourceDomain": "sr.wikipedia.org",
+        "contentHash": "59888887cbf158020d8ff6082d0db2fbf6c778ec648ad466b741b9038df8881f",
+        "estimatedTokens": 28,
+        "classification": "UNRESOLVED",
+        "reason": "no decisive review history"
+      },
+      {
+        "articleId": "art_62ac2f69-7de",
+        "status": "RETIRED",
+        "consumed": false,
+        "replayEligible": false,
+        "sourceUrl": "https://en.wikipedia.org/wiki/File:Mary_Jane_Fayerweather_(PP-76-5-006,_cropped).png",
+        "sourceDomain": "en.wikipedia.org",
+        "contentHash": "a379193cacddd701a5c2807f860638bd00dd141729477445ceb164ffd66e2760",
+        "estimatedTokens": 37,
+        "classification": "UNRESOLVED",
+        "reason": "no decisive review history"
+      }
+    ],
+    "ineligible": [
+      {
+        "articleId": "art_0c9a16fe-489",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://sk.wikipedia.org/wiki/Rekurzia_(matematika)",
+        "sourceDomain": "sk.wikipedia.org",
+        "contentHash": "71fe388e71f138e00754cfefb5a294ff15f02f925cf785d43b2bda9089a98ac5",
+        "estimatedTokens": 43,
+        "classification": "INELIGIBLE",
+        "reason": "quality/language gate: review gate: very short prose; review before training"
+      },
+      {
+        "articleId": "art_df07089e-df8",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://sl.wikipedia.org/wiki/Rekurzija",
+        "sourceDomain": "sl.wikipedia.org",
+        "contentHash": "865a514d898b05f6ff9fcb187ae787a708206af8542549beda72d6186d085b46",
+        "estimatedTokens": 33,
+        "classification": "INELIGIBLE",
+        "reason": "quality/language gate: review gate: very short prose; review before training"
+      },
+      {
+        "articleId": "art_0776870d-f8a",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://sl.wikipedia.org/wiki/Rekurzija",
+        "sourceDomain": "sl.wikipedia.org",
+        "contentHash": "7f4244d2af6fd0f64e976c3270c7c0b01bdd8a5bcf2974706d93ac3669d89399",
+        "estimatedTokens": 32,
+        "classification": "INELIGIBLE",
+        "reason": "quality/language gate: review gate: very short prose; review before training"
+      },
+      {
+        "articleId": "art_d4988fb1-0b0",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://dag.wikipedia.org/wiki/Wikipedia:Pump%C9%94%C5%8B%C9%94_na_y%C9%9Bla",
+        "sourceDomain": "dag.wikipedia.org",
+        "contentHash": "032d2c49db5f734951cee22ac3b76e8341ff88970df17ce4a75ac59930db36fb",
+        "estimatedTokens": 35,
+        "classification": "INELIGIBLE",
+        "reason": "quality/language gate: review gate: very short prose; review before training"
+      },
+      {
+        "articleId": "art_fbbcf48a-d1f",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://bar.wikipedia.org/wiki/Wikipedia:Iba_Wikipedia",
+        "sourceDomain": "bar.wikipedia.org",
+        "contentHash": "9a8828be7675a1c0f7d2d9d62c8ea3c2966cac08d80380c826266a5b49527545",
+        "estimatedTokens": 93,
+        "classification": "INELIGIBLE",
+        "reason": "quality/language gate: review gate: language non-english (declared-language)"
+      },
+      {
+        "articleId": "art_81bc8849-b74",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://es.wikipedia.org/wiki/Ayuda:Introducci%C3%B3n",
+        "sourceDomain": "es.wikipedia.org",
+        "contentHash": "ec89787ad9e78e9bb9defde9553c13017f013d8f2828d77d43fa9d8c3e3789a2",
+        "estimatedTokens": 33,
+        "classification": "INELIGIBLE",
+        "reason": "quality/language gate: review gate: language non-english (declared-language)"
+      },
+      {
+        "articleId": "art_a83fefd7-d47",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://ga.wikipedia.org/wiki/Vicip%C3%A9id:R%C3%A9amhr%C3%A1",
+        "sourceDomain": "ga.wikipedia.org",
+        "contentHash": "b6d5e07478afc9169d0951f4d2f4b50a8ee3bc311aa6f237bc0893b4384c172e",
+        "estimatedTokens": 29,
+        "classification": "INELIGIBLE",
+        "reason": "quality/language gate: review gate: very short prose; review before training"
+      },
+      {
+        "articleId": "art_63eda2c4-a59",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://nl.wikipedia.org/wiki/Stoommachine",
+        "sourceDomain": "nl.wikipedia.org",
+        "contentHash": "38dbca1ceaa9a3cf6b5c70760fb1a9e25fc85ffb3c178197ada9376f871b8606",
+        "estimatedTokens": 83,
+        "classification": "INELIGIBLE",
+        "reason": "quality/language gate: review gate: language non-english (declared-language)"
+      },
+      {
+        "articleId": "art_60af81c7-068",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://oc.wikipedia.org/wiki/Maquina_de_vapor",
+        "sourceDomain": "oc.wikipedia.org",
+        "contentHash": "4fdbb8e9f2670c2d6586872aede5ffa7698aa2799fdb64a197f8fc650dc97c5a",
+        "estimatedTokens": 41,
+        "classification": "INELIGIBLE",
+        "reason": "quality/language gate: review gate: very short prose; review before training"
+      },
+      {
+        "articleId": "art_44f06b3b-863",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://id.ndl.go.jp/auth/ndlsh/00575025",
+        "sourceDomain": "id.ndl.go.jp",
+        "contentHash": "4f29ea07bb9226e0862682b0d80c87895104bdd79675955a9d594b1a58dcffe7",
+        "estimatedTokens": 12,
+        "classification": "INELIGIBLE",
+        "reason": "quality/language gate: review gate: very short prose; review before training"
+      },
+      {
+        "articleId": "art_d90ccf75-e9c",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://an.wikipedia.org/wiki/Categor%C3%ADa:Motors",
+        "sourceDomain": "an.wikipedia.org",
+        "contentHash": "023c84c0c8fd03a2ce392657346c737ae618078180ac793e44384ad885e81bce",
+        "estimatedTokens": 71,
+        "classification": "INELIGIBLE",
+        "reason": "quality/language gate: review gate: language non-english (declared-language)"
+      },
+      {
+        "articleId": "art_44730665-ffd",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://ast.wikipedia.org/wiki/James_Watt",
+        "sourceDomain": "ast.wikipedia.org",
+        "contentHash": "7324822e92c980b33a6651f3aed22c65538b61802e9f5778168f12e4170040de",
+        "estimatedTokens": 39,
+        "classification": "INELIGIBLE",
+        "reason": "quality/language gate: review gate: very short prose; review before training"
+      },
+      {
+        "articleId": "art_173997c2-903",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://creativecommons.org/licenses/by-sa/4.0/deed.az",
+        "sourceDomain": "creativecommons.org",
+        "contentHash": "421d9ed59cb6258aab896fee2006921a69210a2d12cfebad9873669010ea78eb",
+        "estimatedTokens": 32,
+        "classification": "INELIGIBLE",
+        "reason": "quality/language gate: review gate: very short prose; review before training"
+      },
+      {
+        "articleId": "art_93b71fea-ce0",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://azb.wikipedia.org/wiki/%D8%A7%D9%86%D8%AF%DB%8C_%D9%88%D8%A7%D8%B1%D9%87%D9%88%D9%84",
+        "sourceDomain": "azb.wikipedia.org",
+        "contentHash": "6124baa7acc1076cbfa4ff4e2926e4dbba4a29ebc36f1c6ee44151ce97f94ec5",
+        "estimatedTokens": 37,
+        "classification": "INELIGIBLE",
+        "reason": "quality/language gate: review gate: very short prose; review before training"
+      },
+      {
+        "articleId": "art_f9fc2c62-de0",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://azb.wikipedia.org/wiki/%D9%84%D8%B1%D8%AF_%D8%A8%D8%A7%DB%8C%D8%B1%D9%88%D9%86",
+        "sourceDomain": "azb.wikipedia.org",
+        "contentHash": "0bf7cfd7196d3bd420121032eb7e115a6e8eaaba0c7c273b61660ec87dbc4908",
+        "estimatedTokens": 38,
+        "classification": "INELIGIBLE",
+        "reason": "quality/language gate: review gate: very short prose; review before training"
+      },
+      {
+        "articleId": "art_05bd5c20-580",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://ba.wikipedia.org/wiki/%D0%92%D0%B8%D0%BA%D0%B8%D0%BF%D0%B5%D0%B4%D0%B8%D1%8F:%D0%90%D0%BB%D1%84%D0%B0%D0%B2%D0%B8%D1%82%D0%BB%D1%8B_%D0%BA%D2%AF%D1%80%D2%BB%D3%99%D1%82%D0%BA%D0%B5%D1%81",
+        "sourceDomain": "ba.wikipedia.org",
+        "contentHash": "f6b143efcca8ee4a0e25c962f5c85847181fc620d3de70a97e43aee58fe6a9d6",
+        "estimatedTokens": 14,
+        "classification": "INELIGIBLE",
+        "reason": "quality/language gate: review gate: very short prose; review before training"
+      },
+      {
+        "articleId": "art_2505a126-095",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://ba.wikipedia.org/wiki/%D0%9F%D1%80%D0%BE%D0%B5%D0%BA%D1%82:1000_%D3%99%D2%BB%D3%99%D0%BC%D0%B8%D3%99%D1%82%D0%BB%D0%B5_%D0%BC%D3%99%D2%A1%D3%99%D0%BB%D3%99",
+        "sourceDomain": "ba.wikipedia.org",
+        "contentHash": "644aab8dca7fa6ee57f531311e9099d78764f1ffcb4e9b275fd257de011926f1",
+        "estimatedTokens": 32,
+        "classification": "INELIGIBLE",
+        "reason": "quality/language gate: review gate: very short prose; review before training"
+      },
+      {
+        "articleId": "art_3a3dec38-a76",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://ba.wikipedia.org/wiki/%D0%92%D0%B8%D0%BA%D0%B8%D0%BF%D0%B5%D0%B4%D0%B8%D1%8F:%D0%AF%D1%83%D0%B0%D0%BF%D0%BB%D1%8B%D0%BB%D1%8B%D2%A1%D1%82%D0%B0%D0%BD_%D0%B1%D0%B0%D1%88_%D1%82%D0%B0%D1%80%D1%82%D1%8B%D1%83",
+        "sourceDomain": "ba.wikipedia.org",
+        "contentHash": "d80e08abf8b1a4593cd88b0da845234ddd34a13c2100b4aeff804d5ead6e80b6",
+        "estimatedTokens": 32,
+        "classification": "INELIGIBLE",
+        "reason": "quality/language gate: review gate: no sentence structure (title/heading/citation-like fragment)"
+      },
+      {
+        "articleId": "art_6ff3984b-99e",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://be-tarask.wikipedia.org/wiki/%D0%A1%D0%BF%D1%8D%D1%86%D1%8B%D1%8F%D0%BB%D1%8C%D0%BD%D1%8B%D1%8F:BookSources/9789004233881",
+        "sourceDomain": "be-tarask.wikipedia.org",
+        "contentHash": "30aaf21c6a6a19cfdf07acd5ce6e37632575a6f77f8e8484cc81bd7b2ca874b7",
+        "estimatedTokens": 22,
+        "classification": "INELIGIBLE",
+        "reason": "quality/language gate: review gate: very short prose; review before training"
+      },
+      {
+        "articleId": "art_2f7297a7-82c",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://bs.wikipedia.org/wiki/James_Watt",
+        "sourceDomain": "bs.wikipedia.org",
+        "contentHash": "f82cd52ff716af5e24bf84dd1330d9491353c3a04d2548096e241bb514d9cdb1",
+        "estimatedTokens": 37,
+        "classification": "INELIGIBLE",
+        "reason": "quality/language gate: review gate: very short prose; review before training"
+      },
+      {
+        "articleId": "art_c2cb2ed9-102",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://ca.wikipedia.org/wiki/Segle_XIX",
+        "sourceDomain": "ca.wikipedia.org",
+        "contentHash": "431dd380dc4153a7d214637871ef3af68ccd0a0faf8003930958b8e4c8682ed5",
+        "estimatedTokens": 26,
+        "classification": "INELIGIBLE",
+        "reason": "quality/language gate: review gate: very short prose; review before training"
+      },
+      {
+        "articleId": "art_0a3b13a9-9f4",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://ca.wikipedia.org/wiki/Motor",
+        "sourceDomain": "ca.wikipedia.org",
+        "contentHash": "fc53a708fbc96e2aa2e281d287059d181707855a78ae86cd476af54f254d17b3",
+        "estimatedTokens": 34,
+        "classification": "INELIGIBLE",
+        "reason": "quality/language gate: review gate: very short prose; review before training"
+      },
+      {
+        "articleId": "art_f793add0-39b",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://cs.wikipedia.org/wiki/Wikipedie:Uv%C3%A1d%C4%9Bn%C3%AD_zdroj%C5%AF",
+        "sourceDomain": "cs.wikipedia.org",
+        "contentHash": "aaca17562fa51d7ffc6e839ebe63975a16011b415c64243bfce8883cb991309c",
+        "estimatedTokens": 51,
+        "classification": "INELIGIBLE",
+        "reason": "quality/language gate: review gate: reference-dense short text"
+      },
+      {
+        "articleId": "art_5dfc7063-2b4",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://cs.wikipedia.org/wiki/Wikipedie:Uv%C3%A1d%C4%9Bn%C3%AD_zdroj%C5%AF",
+        "sourceDomain": "cs.wikipedia.org",
+        "contentHash": "012a7affc4742dc2cf91b55033810b5f0b075371d195ecb5fbd284fe5a24a86a",
+        "estimatedTokens": 41,
+        "classification": "INELIGIBLE",
+        "reason": "quality/language gate: review gate: reference-dense short text"
+      },
+      {
+        "articleId": "art_3b6251b6-866",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://cy.wikipedia.org/wiki/18g",
+        "sourceDomain": "cy.wikipedia.org",
+        "contentHash": "061ad9193307aeec8cc9ced353a074421e185d7bbc23f99f679dd5a6eae93ef1",
+        "estimatedTokens": 44,
+        "classification": "INELIGIBLE",
+        "reason": "quality/language gate: review gate: very short prose; review before training"
+      },
+      {
+        "articleId": "art_d2f71122-483",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://cy.wikipedia.org/wiki/Richard_Trevithick",
+        "sourceDomain": "cy.wikipedia.org",
+        "contentHash": "ea38d7746fbba5a7f6557c1e683d7535328efa7e6bf3f796a86c933b731d6f7e",
+        "estimatedTokens": 40,
+        "classification": "INELIGIBLE",
+        "reason": "quality/language gate: review gate: very short prose; review before training"
+      },
+      {
+        "articleId": "art_0e10331c-295",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://en.wikipedia.org/wiki/Deep_learning",
+        "sourceDomain": "en.wikipedia.org",
+        "contentHash": "9bed04d7ae780d6f0bc80e21e58056b3dcdb7ce05182ad46cf2a1f58f22b228f",
+        "estimatedTokens": 21,
+        "classification": "INELIGIBLE",
+        "reason": "quality/language gate: review gate: very short prose; review before training"
+      },
+      {
+        "articleId": "art_6038a6ce-0a3",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://en.wikipedia.org/wiki/Deep_learning",
+        "sourceDomain": "en.wikipedia.org",
+        "contentHash": "34a4d8d453fa5ba68f123286c77379ad56685f7a192fe21d2ac80ed1dfe5d1ec",
+        "estimatedTokens": 18,
+        "classification": "INELIGIBLE",
+        "reason": "quality/language gate: review gate: very short prose; review before training"
+      },
+      {
+        "articleId": "art_bba14f85-3df",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://en.wikipedia.org/wiki/Deep_learning",
+        "sourceDomain": "en.wikipedia.org",
+        "contentHash": "592cee032fe31e5f851ba5256017e6b8c19425f9cfc3a507739f3bb2ad76832b",
+        "estimatedTokens": 31,
+        "classification": "INELIGIBLE",
+        "reason": "quality/language gate: review gate: very short prose; review before training"
+      },
+      {
+        "articleId": "art_6df6127b-b43",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://en.wikipedia.org/wiki/Deep_learning",
+        "sourceDomain": "en.wikipedia.org",
+        "contentHash": "ca1b8dc169a99290b89548655e0e19b36165b9a4aea2d86ccbff30552f260239",
+        "estimatedTokens": 44,
+        "classification": "INELIGIBLE",
+        "reason": "quality/language gate: review gate: very short prose; review before training"
+      },
+      {
+        "articleId": "art_bc7d2ac9-bd5",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://en.wikipedia.org/wiki/Deep_learning",
+        "sourceDomain": "en.wikipedia.org",
+        "contentHash": "cc0f35b31ee4a057ffb59e62a6265291b1e55c26f50199e3cc6dfd5135c715d6",
+        "estimatedTokens": 19,
+        "classification": "INELIGIBLE",
+        "reason": "quality/language gate: review gate: very short prose; review before training"
+      },
+      {
+        "articleId": "art_06b0f6ea-b69",
+        "status": "REJECTED",
+        "consumed": false,
+        "replayEligible": false,
+        "sourceUrl": "https://en.wikipedia.org/wiki/Deep_learning",
+        "sourceDomain": "en.wikipedia.org",
+        "contentHash": "2da422c83f72a64cc3244a34c77848ec3ee48d39203a9ea4832f7178e76b6fa6",
+        "estimatedTokens": 16,
+        "classification": "INELIGIBLE",
+        "reason": "explicitly rejected"
+      },
+      {
+        "articleId": "art_7e9707c3-593",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://en.wikipedia.org/wiki/Deep_learning",
+        "sourceDomain": "en.wikipedia.org",
+        "contentHash": "82b721c958d16e38ff12c5341a9951d41cefba8f59a1c2150fa06fca44665a0a",
+        "estimatedTokens": 26,
+        "classification": "INELIGIBLE",
+        "reason": "quality/language gate: review gate: very short prose; review before training"
+      },
+      {
+        "articleId": "art_210dcdc8-f4f",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://en.wikipedia.org/wiki/Natural_language_processing",
+        "sourceDomain": "en.wikipedia.org",
+        "contentHash": "d062bde61785793dcbf8f33c298f6a51cf1ad0bf0ffbe0fec50b73b0d2b1e590",
+        "estimatedTokens": 55,
+        "classification": "INELIGIBLE",
+        "reason": "quality/language gate: review gate: reference-dense short text"
+      },
+      {
+        "articleId": "art_fe72f90a-7f6",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://en.wikipedia.org/wiki/Natural_language_processing",
+        "sourceDomain": "en.wikipedia.org",
+        "contentHash": "f7b37f74675a02ee51679efc4f1fc31c512f68eeac4bd69185934d51108f6664",
+        "estimatedTokens": 42,
+        "classification": "INELIGIBLE",
+        "reason": "quality/language gate: review gate: very short prose; review before training"
+      },
+      {
+        "articleId": "art_6664a4f7-dd7",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://en.wikipedia.org/wiki/Blockchain",
+        "sourceDomain": "en.wikipedia.org",
+        "contentHash": "a8ebce8266d7d823b8a18ca3f2080c68c3dc0fbec1f3111dfd34e9c1d7c86408",
+        "estimatedTokens": 12,
+        "classification": "INELIGIBLE",
+        "reason": "quality/language gate: review gate: no sentence structure (title/heading/citation-like fragment)"
+      },
+      {
+        "articleId": "art_a87924c4-d8c",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://en.wikipedia.org/wiki/Blockchain",
+        "sourceDomain": "en.wikipedia.org",
+        "contentHash": "4d6d8627ceac74767487ae7b9b52a171c4ccfcd88e7527c82d7364e1a254e82d",
+        "estimatedTokens": 34,
+        "classification": "INELIGIBLE",
+        "reason": "quality/language gate: review gate: very short prose; review before training"
+      },
+      {
+        "articleId": "art_686fef72-411",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://en.wikipedia.org/wiki/Blockchain",
+        "sourceDomain": "en.wikipedia.org",
+        "contentHash": "03dd95a572e7702153c08c77d9d5fabd6e079e81a57541fb2013894d7573baa0",
+        "estimatedTokens": 46,
+        "classification": "INELIGIBLE",
+        "reason": "quality/language gate: review gate: very short prose; review before training"
+      },
+      {
+        "articleId": "art_0d4b7712-5a8",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://en.wikipedia.org/wiki/Blockchain",
+        "sourceDomain": "en.wikipedia.org",
+        "contentHash": "e1550ceafef3f638adfb498fe10979550ca61b9d86d7bf70ff9ce00e6a16a5aa",
+        "estimatedTokens": 46,
+        "classification": "INELIGIBLE",
+        "reason": "quality/language gate: review gate: very short prose; review before training"
+      },
+      {
+        "articleId": "art_4184e883-072",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://en.wikipedia.org/wiki/Blockchain",
+        "sourceDomain": "en.wikipedia.org",
+        "contentHash": "3da096ee6b4d038598fb988234cb434a5d75732e08992283a18a0df7e24d5326",
+        "estimatedTokens": 14,
+        "classification": "INELIGIBLE",
+        "reason": "quality/language gate: review gate: very short prose; review before training"
+      },
+      {
+        "articleId": "art_6e6661a0-078",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://en.wikipedia.org/wiki/Blockchain",
+        "sourceDomain": "en.wikipedia.org",
+        "contentHash": "1299ef2dd6c32fee4ff43ec782db6f523e7a7ff95b1dc8ce66a429f8b997d9c5",
+        "estimatedTokens": 27,
+        "classification": "INELIGIBLE",
+        "reason": "quality/language gate: review gate: very short prose; review before training"
+      },
+      {
+        "articleId": "art_628bd684-992",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://en.wikipedia.org/wiki/Blockchain",
+        "sourceDomain": "en.wikipedia.org",
+        "contentHash": "809e179a6ed89da088937a42804761adffdc77b0f2f68854d99eb7b8f57419cf",
+        "estimatedTokens": 29,
+        "classification": "INELIGIBLE",
+        "reason": "quality/language gate: review gate: very short prose; review before training"
+      },
+      {
+        "articleId": "art_ab00c7d3-791",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://en.wikipedia.org/wiki/Blockchain",
+        "sourceDomain": "en.wikipedia.org",
+        "contentHash": "49fcc4fb986b3e22c1cf0dc0dae73e1a901b6517fb1439e26f64ff5e9078b2c6",
+        "estimatedTokens": 21,
+        "classification": "INELIGIBLE",
+        "reason": "quality/language gate: review gate: very short prose; review before training"
+      },
+      {
+        "articleId": "art_701328d7-6c5",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://en.wikipedia.org/wiki/Blockchain",
+        "sourceDomain": "en.wikipedia.org",
+        "contentHash": "d4b34e695d936453f530db57b7f1c26382245da687b45c13dde31ccfb27d6424",
+        "estimatedTokens": 16,
+        "classification": "INELIGIBLE",
+        "reason": "quality/language gate: review gate: very short prose; review before training"
+      },
+      {
+        "articleId": "art_70d2b547-000",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://en.wikipedia.org/wiki/Blockchain",
+        "sourceDomain": "en.wikipedia.org",
+        "contentHash": "54f4e6f71eb0dc9429b3c1cef6a1b05692e48e78bebb52c6d88b8552fc6d8656",
+        "estimatedTokens": 23,
+        "classification": "INELIGIBLE",
+        "reason": "quality/language gate: review gate: very short prose; review before training"
+      },
+      {
+        "articleId": "art_416652a6-2e5",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://en.wikipedia.org/wiki/Blockchain",
+        "sourceDomain": "en.wikipedia.org",
+        "contentHash": "97ac6064fad511bc7d1666d0868e31f526ba3e8870cd66730d2eed7b712cec24",
+        "estimatedTokens": 25,
+        "classification": "INELIGIBLE",
+        "reason": "quality/language gate: review gate: very short prose; review before training"
+      },
+      {
+        "articleId": "art_88ef09b1-c8d",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://en.wikipedia.org/wiki/Blockchain",
+        "sourceDomain": "en.wikipedia.org",
+        "contentHash": "a0b620e334a966c1c20a26b1c6d5c8b434278b6a696d4e166d89d7344ed9a61b",
+        "estimatedTokens": 8,
+        "classification": "INELIGIBLE",
+        "reason": "quality/language gate: review gate: very short prose; review before training"
+      },
+      {
+        "articleId": "art_b9d1ceb9-b92",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://en.wikipedia.org/wiki/Blockchain",
+        "sourceDomain": "en.wikipedia.org",
+        "contentHash": "c93c91f4e8e29fc4730e883f2f19b59f5a66187e1cdf72fd005407330941d8f0",
+        "estimatedTokens": 26,
+        "classification": "INELIGIBLE",
+        "reason": "quality/language gate: review gate: very short prose; review before training"
+      },
+      {
+        "articleId": "art_f154b042-23e",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://en.wikipedia.org/wiki/Blockchain",
+        "sourceDomain": "en.wikipedia.org",
+        "contentHash": "686413412320687076ded198d57464dd5f2caec8195b6026252c4cba7f9eb79f",
+        "estimatedTokens": 21,
+        "classification": "INELIGIBLE",
+        "reason": "quality/language gate: review gate: very short prose; review before training"
+      },
+      {
+        "articleId": "art_a1a83934-d53",
+        "status": "RETIRED",
+        "consumed": true,
+        "replayEligible": false,
+        "sourceUrl": "https://en.wikipedia.org/wiki/Blockchain",
+        "sourceDomain": "en.wikipedia.org",
+        "contentHash": "71b2c86c5d355102b0b85cb2ea6dd225e0b7dadd60a9b7a88c117d24899e683b",
+        "estimatedTokens": 18,
+        "classification": "INELIGIBLE",
+        "reason": "quality/language gate: review gate: very short prose; review before training"
+      }
+    ]
+  },
+  "applied": [],
+  "note": "Token counts are character/4 estimates for planning. No article text is included in this report."
+}

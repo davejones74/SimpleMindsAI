@@ -1,0 +1,883 @@
+{
+  "schema": "sma/knowledge-pilot-run@1",
+  "label": "pilot-b-1",
+  "at": "2026-11-03T22:56:00.488Z",
+  "config": {
+    "store": "/home/dave/sma-experiments/knowledge-accumulation-pilot-20261102/pilot-b-store",
+    "pythonBin": "/home/dave/Repositories/SimpleMindsAI/python/.venv_test/bin/python",
+    "device": "cpu",
+    "snapshotLimit": 16,
+    "snapshotIncludeConsumed": false,
+    "trainReplayPercent": 50,
+    "trainSeqLen": 64,
+    "trainTargetEpochs": 20,
+    "trainMaxSteps": 200,
+    "trainMinSteps": 0,
+    "trainUseWorkingCheckpoint": true,
+    "trainCarryOptimizer": true,
+    "workingGuard": {
+      "maxRegressionNats": 0.1,
+      "maxGroupRegressionNats": 0.2,
+      "maxDriftNats": 0.25,
+      "minGroupTokens": 100,
+      "maxRegressedGroupShare": 0.75,
+      "minGroups": 5
+    },
+    "promoteEvalSet": "/home/dave/sma-experiments/knowledge-accumulation-pilot-20261102/pilot-evaluation/eval-002.jsonl",
+    "evalDatasetId": "eval-002"
+  },
+  "statsBefore": {
+    "totalArticles": 32,
+    "byStatus": {
+      "INGESTED": 0,
+      "PENDING_REVIEW": 0,
+      "REVIEWED": 28,
+      "REJECTED": 0,
+      "RETIRED": 4,
+      "UNRESOLVED": 0,
+      "QUARANTINED": 0
+    },
+    "byImportance": {
+      "Normal": 32,
+      "Important": 0,
+      "Critical": 0
+    },
+    "byImportanceSource": {
+      "default": 32,
+      "teacher": 0,
+      "automation": 0,
+      "operator": 0
+    },
+    "byDomain": [
+      {
+        "domain": "general",
+        "count": 22
+      },
+      {
+        "domain": "history",
+        "count": 4
+      },
+      {
+        "domain": "science",
+        "count": 4
+      },
+      {
+        "domain": "tech",
+        "count": 1
+      },
+      {
+        "domain": "cryptography",
+        "count": 1
+      }
+    ],
+    "pendingReview": 0,
+    "reviewed": 28,
+    "rejected": 0,
+    "ingested": 0,
+    "retired": 4,
+    "quarantined": 0,
+    "unresolved": 0,
+    "trainable": 11,
+    "replayEligible": 32,
+    "replayExcluded": 0,
+    "consumedAndRetired": 4,
+    "retiredReplayEligible": 4,
+    "deferredFresh": 0,
+    "retainedForReplay": 0,
+    "noEligibleUnconsumed": false,
+    "recoverable": 0,
+    "quarantineReleased": 0,
+    "reviewCount": 32,
+    "avgReviewScore": 0,
+    "uniqueConsumed": 21,
+    "totalAppearances": 21,
+    "languageSkipped": 0,
+    "duplicationIndex": 0,
+    "distinctSourceUrls": 20
+  },
+  "result": {
+    "decision": {
+      "parentLoss": 8.037700835694658,
+      "candidateLoss": 8.114718338276477,
+      "improvement": -0.07701750258181939,
+      "datasetHash": "b68d8910c1cec2537011b7c4a98beb75cfd277f3b18e8ab2b4c3f83879af8176",
+      "metricSignature": "2a07a2b20f0db991",
+      "comparable": true,
+      "evaluated": true,
+      "criterion": {
+        "minImprovement": 0,
+        "maxLoss": null,
+        "requireFinite": true,
+        "requireSameEvalSet": true,
+        "requireSameMetric": true,
+        "minBlocks": 8,
+        "minTokens": 0,
+        "uncertaintyMode": "enforce",
+        "minGroups": 20,
+        "ciLevel": 0.95,
+        "bootstrapSamples": 1000
+      },
+      "evalFitness": {
+        "parent": {
+          "blocks": 376,
+          "tokens": 48110
+        },
+        "candidate": {
+          "blocks": 376,
+          "tokens": 48110
+        },
+        "minBlocks": 8,
+        "minTokens": 0,
+        "enforced": true,
+        "ok": true,
+        "reason": null
+      },
+      "paired": {
+        "ok": true,
+        "method": "paired-source-group-bootstrap",
+        "methodVersion": "paired-source-group-bootstrap-v1",
+        "bootstrapSeed": 2503201458,
+        "groupCount": 60,
+        "pairedDocuments": 60,
+        "tokens": 48110,
+        "pointImprovement": -0.07632970290579497,
+        "ciLow": -0.08803213058645816,
+        "ciHigh": -0.06380462303982219,
+        "level": 0.95,
+        "samples": 1000,
+        "groups": [
+          {
+            "group": "https://en.wikipedia.org/wiki/Steam_engine",
+            "tokens": 806,
+            "documents": 1
+          },
+          {
+            "group": "https://en.wikipedia.org/wiki/Industrial_Revolution",
+            "tokens": 759,
+            "documents": 1
+          },
+          {
+            "group": "https://en.wikipedia.org/wiki/Roman_Empire",
+            "tokens": 829,
+            "documents": 1
+          },
+          {
+            "group": "https://en.wikipedia.org/wiki/Silk_Road",
+            "tokens": 794,
+            "documents": 1
+          },
+          {
+            "group": "https://en.wikipedia.org/wiki/Age_of_Enlightenment",
+            "tokens": 753,
+            "documents": 1
+          },
+          {
+            "group": "https://en.wikipedia.org/wiki/Printing_press",
+            "tokens": 735,
+            "documents": 1
+          },
+          {
+            "group": "https://en.wikipedia.org/wiki/Byzantine_Empire",
+            "tokens": 880,
+            "documents": 1
+          },
+          {
+            "group": "https://en.wikipedia.org/wiki/Magna_Carta",
+            "tokens": 798,
+            "documents": 1
+          },
+          {
+            "group": "https://en.wikipedia.org/wiki/Photosynthesis",
+            "tokens": 781,
+            "documents": 1
+          },
+          {
+            "group": "https://en.wikipedia.org/wiki/Cell_(biology)",
+            "tokens": 882,
+            "documents": 1
+          },
+          {
+            "group": "https://en.wikipedia.org/wiki/DNA",
+            "tokens": 838,
+            "documents": 1
+          },
+          {
+            "group": "https://en.wikipedia.org/wiki/Evolution",
+            "tokens": 702,
+            "documents": 1
+          },
+          {
+            "group": "https://en.wikipedia.org/wiki/Periodic_table",
+            "tokens": 754,
+            "documents": 1
+          },
+          {
+            "group": "https://en.wikipedia.org/wiki/Atom",
+            "tokens": 781,
+            "documents": 1
+          },
+          {
+            "group": "https://en.wikipedia.org/wiki/Gravity",
+            "tokens": 732,
+            "documents": 1
+          },
+          {
+            "group": "https://en.wikipedia.org/wiki/Solar_System",
+            "tokens": 850,
+            "documents": 1
+          },
+          {
+            "group": "https://en.wikipedia.org/wiki/Black_hole",
+            "tokens": 771,
+            "documents": 1
+          },
+          {
+            "group": "https://en.wikipedia.org/wiki/General_relativity",
+            "tokens": 739,
+            "documents": 1
+          },
+          {
+            "group": "https://en.wikipedia.org/wiki/Electromagnetic_radiation",
+            "tokens": 779,
+            "documents": 1
+          },
+          {
+            "group": "https://en.wikipedia.org/wiki/Speed_of_light",
+            "tokens": 832,
+            "documents": 1
+          },
+          {
+            "group": "https://en.wikipedia.org/wiki/Big_Bang",
+            "tokens": 736,
+            "documents": 1
+          },
+          {
+            "group": "https://en.wikipedia.org/wiki/Telescope",
+            "tokens": 800,
+            "documents": 1
+          },
+          {
+            "group": "https://en.wikipedia.org/wiki/Milky_Way",
+            "tokens": 936,
+            "documents": 1
+          },
+          {
+            "group": "https://en.wikipedia.org/wiki/Computer",
+            "tokens": 749,
+            "documents": 1
+          },
+          {
+            "group": "https://en.wikipedia.org/wiki/Internet",
+            "tokens": 751,
+            "documents": 1
+          },
+          {
+            "group": "https://en.wikipedia.org/wiki/Algorithm",
+            "tokens": 843,
+            "documents": 1
+          },
+          {
+            "group": "https://en.wikipedia.org/wiki/Artificial_intelligence",
+            "tokens": 704,
+            "documents": 1
+          },
+          {
+            "group": "https://en.wikipedia.org/wiki/Telephone",
+            "tokens": 691,
+            "documents": 1
+          },
+          {
+            "group": "https://en.wikipedia.org/wiki/Semiconductor",
+            "tokens": 787,
+            "documents": 1
+          },
+          {
+            "group": "https://en.wikipedia.org/wiki/Compiler",
+            "tokens": 691,
+            "documents": 1
+          },
+          {
+            "group": "https://en.wikipedia.org/wiki/Nile",
+            "tokens": 871,
+            "documents": 1
+          },
+          {
+            "group": "https://en.wikipedia.org/wiki/Amazon_River",
+            "tokens": 902,
+            "documents": 1
+          },
+          {
+            "group": "https://en.wikipedia.org/wiki/Mount_Everest",
+            "tokens": 1022,
+            "documents": 1
+          },
+          {
+            "group": "https://en.wikipedia.org/wiki/Sahara",
+            "tokens": 923,
+            "documents": 1
+          },
+          {
+            "group": "https://en.wikipedia.org/wiki/Pacific_Ocean",
+            "tokens": 885,
+            "documents": 1
+          },
+          {
+            "group": "https://en.wikipedia.org/wiki/Himalayas",
+            "tokens": 1010,
+            "documents": 1
+          },
+          {
+            "group": "https://en.wikipedia.org/wiki/Andes",
+            "tokens": 908,
+            "documents": 1
+          },
+          {
+            "group": "https://en.wikipedia.org/wiki/Great_Barrier_Reef",
+            "tokens": 846,
+            "documents": 1
+          },
+          {
+            "group": "https://en.wikipedia.org/wiki/Impressionism",
+            "tokens": 800,
+            "documents": 1
+          },
+          {
+            "group": "https://en.wikipedia.org/wiki/Jazz",
+            "tokens": 842,
+            "documents": 1
+          },
+          {
+            "group": "https://en.wikipedia.org/wiki/William_Shakespeare",
+            "tokens": 869,
+            "documents": 1
+          },
+          {
+            "group": "https://en.wikipedia.org/wiki/Orchestra",
+            "tokens": 830,
+            "documents": 1
+          },
+          {
+            "group": "https://en.wikipedia.org/wiki/Photography",
+            "tokens": 838,
+            "documents": 1
+          },
+          {
+            "group": "https://en.wikipedia.org/wiki/Architecture",
+            "tokens": 744,
+            "documents": 1
+          },
+          {
+            "group": "https://en.wikipedia.org/wiki/Sculpture",
+            "tokens": 752,
+            "documents": 1
+          },
+          {
+            "group": "https://en.wikipedia.org/wiki/Immune_system",
+            "tokens": 688,
+            "documents": 1
+          },
+          {
+            "group": "https://en.wikipedia.org/wiki/Vaccine",
+            "tokens": 798,
+            "documents": 1
+          },
+          {
+            "group": "https://en.wikipedia.org/wiki/Human_brain",
+            "tokens": 824,
+            "documents": 1
+          },
+          {
+            "group": "https://en.wikipedia.org/wiki/Neuron",
+            "tokens": 789,
+            "documents": 1
+          },
+          {
+            "group": "https://en.wikipedia.org/wiki/Antibiotic",
+            "tokens": 813,
+            "documents": 1
+          },
+          {
+            "group": "https://en.wikipedia.org/wiki/Metabolism",
+            "tokens": 768,
+            "documents": 1
+          },
+          {
+            "group": "https://en.wikipedia.org/wiki/Human_digestive_system",
+            "tokens": 809,
+            "documents": 1
+          },
+          {
+            "group": "https://en.wikipedia.org/wiki/Democracy",
+            "tokens": 692,
+            "documents": 1
+          },
+          {
+            "group": "https://en.wikipedia.org/wiki/Constitution",
+            "tokens": 744,
+            "documents": 1
+          },
+          {
+            "group": "https://en.wikipedia.org/wiki/Economics",
+            "tokens": 787,
+            "documents": 1
+          },
+          {
+            "group": "https://en.wikipedia.org/wiki/Money",
+            "tokens": 844,
+            "documents": 1
+          },
+          {
+            "group": "https://en.wikipedia.org/wiki/Language",
+            "tokens": 739,
+            "documents": 1
+          },
+          {
+            "group": "https://en.wikipedia.org/wiki/Writing",
+            "tokens": 659,
+            "documents": 1
+          },
+          {
+            "group": "https://en.wikipedia.org/wiki/Agriculture",
+            "tokens": 790,
+            "documents": 1
+          },
+          {
+            "group": "https://en.wikipedia.org/wiki/Cartography",
+            "tokens": 841,
+            "documents": 1
+          }
+        ]
+      },
+      "decision": "rejected",
+      "reason": "regression established: paired improvement -0.0763 (95% CI -0.0880..-0.0638) is below zero"
+    },
+    "run": {
+      "runId": "run-1",
+      "status": "rejected",
+      "startedAt": "2026-11-03T22:52:03.328Z",
+      "completedAt": "2026-11-03T22:56:00.488Z",
+      "baseModel": "model-1",
+      "baseModelVersion": "v389",
+      "stableBaselineVersion": "v389",
+      "parentSelection": "stable-bootstrap-working",
+      "datasetId": "dataset-20261103-001",
+      "datasetVersion": "0763a4ad8848",
+      "datasetFile": "/home/dave/sma-experiments/knowledge-accumulation-pilot-20261102/pilot-b-snapshots/dataset-20261103-001-0763a4ad8848.jsonl",
+      "recordCount": 16,
+      "criticModel": null,
+      "criticVersion": "critic-v1",
+      "rubricVersion": "rubric-v1",
+      "curriculumVersion": "curriculum-v1",
+      "curriculum": [
+        {
+          "category": "general",
+          "targetExamples": 5,
+          "minimumImportance": "Normal"
+        },
+        {
+          "category": "history",
+          "targetExamples": 5,
+          "minimumImportance": "Normal"
+        },
+        {
+          "category": "science",
+          "targetExamples": 5,
+          "minimumImportance": "Normal"
+        }
+      ],
+      "planFile": "/home/dave/sma-experiments/knowledge-accumulation-pilot-20261102/pilot-b-plans/plan-1793746319981-4mbh.json",
+      "trainerVersion": "python-v1",
+      "trainerKind": "python",
+      "examplesAvailable": 16,
+      "evaluationSetSize": 60,
+      "evaluationWarnings": [],
+      "trainingBudget": {
+        "trainBlockCount": 47,
+        "targetEpochs": 20,
+        "maxSteps": 200,
+        "effectiveBatchSize": 4,
+        "requestedSteps": 235,
+        "steps": 200,
+        "effectiveEpochs": 17.02127659574468,
+        "capped": true,
+        "capReason": "requested 235 step(s) for 20 epoch(s) exceeded TRAIN_MAX_STEPS=200",
+        "minSteps": 0,
+        "meetsMinimum": true,
+        "minimumShortfall": 0,
+        "sequenceLength": 64,
+        "tokensPlanned": 51200,
+        "minimumReason": null,
+        "effectiveEvalEvery": 10,
+        "completedSteps": 200,
+        "actualEffectiveEpochs": 17.02127659574468,
+        "tokensPresented": 51200,
+        "uniqueTokens": 3026,
+        "optimizerState": "fresh",
+        "carryOptimizerFrom": null
+      },
+      "corpusMode": "fragment",
+      "corpusPolicy": "fresh-delta",
+      "corpusStats": {
+        "collected": 16,
+        "fresh": 16,
+        "retained": 0,
+        "replay": 0,
+        "validation": 0,
+        "estimatedReplayShare": 0
+      },
+      "candidateIdentity": null,
+      "validationPolicy": "document-source-disjoint",
+      "partition": {
+        "policyVersion": "document-source-disjoint-v1",
+        "clusterPolicyVersion": "lexical-minhash-lsh-v1",
+        "splitSeed": 0,
+        "splitHash": "6c5a7891366f292551628fd5922bdd33ad0b34c6b9b7bd28c641310a30c48b46",
+        "exposure": {
+          "coverage": "snapshots-roles-consumption-contributions",
+          "prospectiveClusters": 12,
+          "historicalClusters": 0,
+          "validationProspectiveArticles": 1,
+          "validationHistoricalArticles": 0,
+          "trainProspectiveArticles": 15,
+          "trainHistoricalArticles": 0,
+          "validationExposureMode": "prospective-only",
+          "uncertainty": "Historical coverage is reconstructed from recorded snapshots, roles and contribution records; absent records are reported, not assumed absent."
+        },
+        "stats": {
+          "totalDocuments": 16,
+          "totalClusters": 12,
+          "totalEstimatedTokens": 3956,
+          "trainDocuments": 15,
+          "validationDocuments": 1,
+          "trainEstimatedTokens": 3847,
+          "validationEstimatedTokens": 109,
+          "splitHash": "6c5a7891366f292551628fd5922bdd33ad0b34c6b9b7bd28c641310a30c48b46"
+        }
+      },
+      "corpusPreflight": {
+        "trainBlockCount": 47,
+        "blockCount": 48,
+        "trainTokensSeen": 3026,
+        "tokensSeen": 3105,
+        "validationBlockCount": 1,
+        "validationTokensSeen": 79,
+        "freshTokensSeen": 3026,
+        "replayTokensSeen": 0,
+        "freshDocumentCount": 15,
+        "replayDocumentCount": 0,
+        "validationShortfall": 0,
+        "corpusSplitMode": "role-appended"
+      },
+      "minimumTrainingData": {
+        "ok": true,
+        "enforced": true,
+        "floor": 300,
+        "tokens": 3026,
+        "reason": null
+      },
+      "promotionStatus": "rejected",
+      "resultModelId": "model-2",
+      "workingParentVersion": "v389",
+      "workingDecision": "accepted",
+      "workingVersion": "v001",
+      "workingAdvanced": true,
+      "workingGuard": {
+        "version": "working-guard-v1",
+        "thresholds": {
+          "maxRegressionNats": 0.1,
+          "maxGroupRegressionNats": 0.2,
+          "maxDriftNats": 0.25,
+          "minGroupTokens": 100,
+          "maxRegressedGroupShare": 0.75,
+          "minGroups": 5
+        },
+        "parentLoss": 8.037700835694658,
+        "candidateLoss": 8.114718338276477,
+        "stableLoss": 8.037700835694658,
+        "parentVersion": "v389",
+        "candidateVersion": "v001",
+        "stableVersion": "v389",
+        "decision": "accepted",
+        "reason": "working guard accepted: overall regressed 0.0770 nats; 1 isolated group regression(s) within limit",
+        "metrics": {
+          "regression": 0.07701750258181939,
+          "drift": 0.07701750258181939,
+          "groupsCompared": 60,
+          "regressedGroups": 1,
+          "regressedGroupShare": 0.016666666666666666,
+          "worstGroup": {
+            "group": "https://en.wikipedia.org/wiki/Electromagnetic_radiation",
+            "improvement": -0.2178657976133369,
+            "tokens": 779
+          }
+        }
+      },
+      "examplesProcessed": 16,
+      "examplesSkipped": 0,
+      "baselineEvaluation": {
+        "loss": 8.037700835694658,
+        "datasetHash": "b68d8910c1cec2537011b7c4a98beb75cfd277f3b18e8ab2b4c3f83879af8176",
+        "version": "v389",
+        "lossStdErr": 0.013677400884271655
+      },
+      "trainedEvaluation": {
+        "loss": 8.114718338276477,
+        "datasetHash": "b68d8910c1cec2537011b7c4a98beb75cfd277f3b18e8ab2b4c3f83879af8176",
+        "version": "v001",
+        "lossStdErr": 0.013677400884271655
+      },
+      "evaluationDelta": -0.07701750258181939,
+      "promotionNoiseBand": 0.03791182102395945,
+      "corpusAccounting": {
+        "freshDocumentCount": 15,
+        "replayDocumentCount": 0,
+        "trainTokensSeen": 3026,
+        "replayTokensSeen": 0,
+        "validationTokensSeen": 79,
+        "trainBlockCount": 47,
+        "validationBlockCount": 1,
+        "replayShare": 0,
+        "corpusSplitMode": "role-appended",
+        "validationShortfall": 0,
+        "corpusMode": "fragment",
+        "corpusStats": {
+          "collected": 16,
+          "fresh": 16,
+          "retained": 0,
+          "replay": 0,
+          "validation": 0,
+          "estimatedReplayShare": 0
+        },
+        "documentBoundary": "separator",
+        "eosTokenId": null,
+        "tokensPresented": 51200,
+        "uniqueTokens": 3026
+      },
+      "checkpointSelection": {
+        "selectBest": true,
+        "selectedStep": 19,
+        "selectedValidationLoss": 7.470405578613281,
+        "finalStep": 200
+      },
+      "generationQuality": null,
+      "activatedVersion": null,
+      "runLinkage": {
+        "nodeRunId": "run-1",
+        "pythonTrainingRunId": "23fe953532bb",
+        "pythonVersion": "v001",
+        "parentVersion": "v389",
+        "datasetId": "dataset-20261103-001",
+        "datasetFile": "/home/dave/sma-experiments/knowledge-accumulation-pilot-20261102/pilot-b-snapshots/dataset-20261103-001-0763a4ad8848.jsonl",
+        "datasetHash": "bca407e1264bb70cd91e17ae729c344c537e07f20225e56fb713faedfaf9da64",
+        "evaluationDatasetHash": "b68d8910c1cec2537011b7c4a98beb75cfd277f3b18e8ab2b4c3f83879af8176",
+        "checkpointPath": "/home/dave/sma-experiments/knowledge-accumulation-pilot-20261102/pilot-b-store/v001.tmp"
+      },
+      "trainerNotes": {
+        "note": "python causal-LM training",
+        "checkpointPath": "/home/dave/sma-experiments/knowledge-accumulation-pilot-20261102/pilot-b-store/v001.tmp",
+        "alreadyConsumedSkipped": 0,
+        "leakExcluded": 0
+      },
+      "events": [
+        {
+          "runId": "run-1",
+          "status": "created",
+          "at": "2026-11-03T22:52:03.329Z",
+          "note": null
+        },
+        {
+          "runId": "run-1",
+          "status": "running",
+          "at": "2026-11-03T22:52:03.329Z",
+          "note": "snapshot+plan locked in"
+        },
+        {
+          "runId": "run-1",
+          "status": "evaluating",
+          "at": "2026-11-03T22:55:04.589Z",
+          "note": "candidate evaluation running"
+        },
+        {
+          "runId": "run-1",
+          "status": "rejected",
+          "at": "2026-11-03T22:56:00.488Z",
+          "note": "regression established: paired improvement -0.0763 (95% CI -0.0880..-0.0638) is below zero"
+        }
+      ]
+    },
+    "baseline": {
+      "version": "v389",
+      "loss": 8.037700835694658,
+      "ok": true
+    },
+    "candidate": {
+      "version": "v001",
+      "loss": 8.114718338276477,
+      "ok": true
+    },
+    "snapshot": {
+      "datasetId": "dataset-20261103-001",
+      "articleCount": 16,
+      "freshArticleIds": [
+        "art_192bb561-78c",
+        "art_4b6f4ecb-0bf",
+        "art_19ae0a89-4d0",
+        "art_85fb46e1-41f",
+        "art_0fe3ae13-4b5",
+        "art_137f4800-83b",
+        "art_8dcc3c72-8be",
+        "art_97f7fcc0-1a8",
+        "art_661608d9-769",
+        "art_d03bf658-8b5",
+        "art_1662f30e-7e1",
+        "art_73b0d691-ae5",
+        "art_d2a2994d-6a4",
+        "art_ff48a1f3-01f",
+        "art_757ff36a-e51"
+      ],
+      "replayArticleIds": [],
+      "validationArticleIds": [
+        "art_ad8fed3b-174"
+      ],
+      "hash": "0763a4ad88489d341839a26cacbe362e6e350a92c9c8cc7f7702d3a62e29b0cc",
+      "file": "/home/dave/sma-experiments/knowledge-accumulation-pilot-20261102/pilot-b-snapshots/dataset-20261103-001-0763a4ad8848.jsonl"
+    }
+  },
+  "error": null,
+  "statsAfter": {
+    "totalArticles": 32,
+    "byStatus": {
+      "INGESTED": 0,
+      "PENDING_REVIEW": 0,
+      "REVIEWED": 28,
+      "REJECTED": 0,
+      "RETIRED": 4,
+      "UNRESOLVED": 0,
+      "QUARANTINED": 0
+    },
+    "byImportance": {
+      "Normal": 32,
+      "Important": 0,
+      "Critical": 0
+    },
+    "byImportanceSource": {
+      "default": 32,
+      "teacher": 0,
+      "automation": 0,
+      "operator": 0
+    },
+    "byDomain": [
+      {
+        "domain": "general",
+        "count": 22
+      },
+      {
+        "domain": "history",
+        "count": 4
+      },
+      {
+        "domain": "science",
+        "count": 4
+      },
+      {
+        "domain": "tech",
+        "count": 1
+      },
+      {
+        "domain": "cryptography",
+        "count": 1
+      }
+    ],
+    "pendingReview": 0,
+    "reviewed": 28,
+    "rejected": 0,
+    "ingested": 0,
+    "retired": 4,
+    "quarantined": 0,
+    "unresolved": 0,
+    "trainable": 11,
+    "replayEligible": 32,
+    "replayExcluded": 0,
+    "consumedAndRetired": 4,
+    "retiredReplayEligible": 4,
+    "deferredFresh": 0,
+    "retainedForReplay": 0,
+    "noEligibleUnconsumed": false,
+    "recoverable": 0,
+    "quarantineReleased": 0,
+    "reviewCount": 32,
+    "avgReviewScore": 0,
+    "uniqueConsumed": 21,
+    "totalAppearances": 21,
+    "languageSkipped": 0,
+    "duplicationIndex": 0,
+    "distinctSourceUrls": 20
+  },
+  "contributions": [
+    {
+      "schema": "sma/training-contribution@1",
+      "runId": "run-1",
+      "decision": "rejected",
+      "version": "v001",
+      "parentVersion": "v389",
+      "freshArticleIds": [
+        "art_192bb561-78c",
+        "art_4b6f4ecb-0bf",
+        "art_19ae0a89-4d0",
+        "art_85fb46e1-41f",
+        "art_0fe3ae13-4b5",
+        "art_137f4800-83b",
+        "art_8dcc3c72-8be",
+        "art_97f7fcc0-1a8",
+        "art_661608d9-769",
+        "art_d03bf658-8b5",
+        "art_1662f30e-7e1",
+        "art_73b0d691-ae5",
+        "art_d2a2994d-6a4",
+        "art_ff48a1f3-01f",
+        "art_757ff36a-e51"
+      ],
+      "replayArticleIds": [],
+      "trainTokensSeen": 3026,
+      "replayTokensSeen": 0,
+      "validationTokensSeen": 79,
+      "stableDecision": "rejected",
+      "workingDecision": "accepted",
+      "workingVersion": "v001",
+      "stableBaselineVersion": "v389",
+      "checkpointRole": "working",
+      "workingGuard": {
+        "version": "working-guard-v1",
+        "thresholds": {
+          "maxRegressionNats": 0.1,
+          "maxGroupRegressionNats": 0.2,
+          "maxDriftNats": 0.25,
+          "minGroupTokens": 100,
+          "maxRegressedGroupShare": 0.75,
+          "minGroups": 5
+        },
+        "parentLoss": 8.037700835694658,
+        "candidateLoss": 8.114718338276477,
+        "stableLoss": 8.037700835694658,
+        "parentVersion": "v389",
+        "candidateVersion": "v001",
+        "stableVersion": "v389",
+        "decision": "accepted",
+        "reason": "working guard accepted: overall regressed 0.0770 nats; 1 isolated group regression(s) within limit",
+        "metrics": {
+          "regression": 0.07701750258181939,
+          "drift": 0.07701750258181939,
+          "groupsCompared": 60,
+          "regressedGroups": 1,
+          "regressedGroupShare": 0.016666666666666666,
+          "worstGroup": {
+            "group": "https://en.wikipedia.org/wiki/Electromagnetic_radiation",
+            "improvement": -0.2178657976133369,
+            "tokens": 779
+          }
+        }
+      },
+      "at": "2026-11-03T22:56:00.487Z"
+    }
+  ]
+}
