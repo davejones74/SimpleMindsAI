@@ -124,6 +124,48 @@ export async function resolvePythonVersion(version, {
 }
 
 /**
+ * Resolve the durable working checkpoint. The working pointer is NOT a serving
+ * pointer; it is the cumulative-learning parent. A missing/invalid pointer is
+ * reported, never silently replaced with the stable active checkpoint here —
+ * the lifecycle decides the explicit fallback/recovery path.
+ */
+export async function resolvePythonWorking({
+  store = config.pythonStore ?? undefined,
+  bin = config.pythonBin ?? undefined,
+  run = runPython,
+  timeoutMs = 120_000,
+  signal = null,
+} = {}) {
+  const out = await run(["working"], { store, bin, timeoutMs, signal });
+  const version = out?.workingVersion ?? out?.working?.version ?? null;
+  if (!version) return null;
+  const resolved = await resolvePythonVersion(version, { store, bin, run, timeoutMs, signal });
+  return {
+    ...resolved,
+    pointer: out.working ?? null,
+    lastGoodVersion: out.lastGoodVersion ?? out.lastGood?.version ?? null,
+  };
+}
+
+/** Point the durable working pointer at a committed version. */
+export async function setPythonWorking(version, {
+  store = config.pythonStore ?? undefined,
+  bin = config.pythonBin ?? undefined,
+  run = runPython,
+  timeoutMs = 120_000,
+  signal = null,
+  meta = null,
+  lastGood = false,
+} = {}) {
+  if (!version) throw new Error("setPythonWorking requires a committed version");
+  const args = ["working", lastGood ? "--set-last-good" : "--set", version];
+  if (meta && Object.keys(meta).length) args.push("--meta", JSON.stringify(meta));
+  const out = await run(args, { store, bin, timeoutMs, signal });
+  if (!out?.ok) throw new Error(`failed to set working pointer to ${version}`);
+  return out;
+}
+
+/**
  * Build the exact `sma.brain train` argument array. Exported so the Node/Python
  * CLI contract is tested directly instead of being inferred from a string.
  */
@@ -148,6 +190,7 @@ export function buildPythonTrainArgs({
   selectBest = true,
   runId = null,
   stageOnly = false,
+  carryOptimizer = false,
 } = {}) {
   const args = [
     "train",
@@ -172,6 +215,7 @@ export function buildPythonTrainArgs({
   if (selectBest === false) args.push("--no-select-best");
   if (runId) args.push("--run-id", String(runId));
   if (stageOnly) args.push("--stage-only");
+  if (carryOptimizer) args.push("--carry-optimizer");
   return args;
 }
 
@@ -195,6 +239,7 @@ export function pythonTrainer({
   seed = config.trainSeed,
   computeDtype = config.trainComputeDtype,
   selectBest = config.trainSelectBest,
+  carryOptimizer = config.trainCarryOptimizer,
   timeoutMs = config.trainTimeoutMs,
   run = runPython,
   version = config.pythonTrainerVersion,
@@ -212,6 +257,9 @@ export function pythonTrainer({
     version,
     resolveBaseline: () => resolvePythonBaseline({ store, bin, run, signal }),
     resolveVersion: (v) => resolvePythonVersion(v, { store, bin, run, signal }),
+    resolveWorking: () => resolvePythonWorking({ store, bin, run, signal }),
+    setWorking: (version, meta = null) => setPythonWorking(version, { store, bin, run, signal, meta }),
+    setWorkingLastGood: (version, meta = null) => setPythonWorking(version, { store, bin, run, signal, meta, lastGood: true }),
 
     /**
      * Cheap, read-only corpus preflight. Loads only the parent tokenizer and
@@ -288,6 +336,7 @@ export function pythonTrainer({
         selectBest,
         runId,
         stageOnly,
+        carryOptimizer: configuration.carryOptimizer ?? carryOptimizer,
       });
 
       const t0 = Date.now();
@@ -332,6 +381,7 @@ export function pythonTrainer({
         version: out.version,
         staged,
         published: out.published !== false,
+        carryOptimizerFrom: out.carryOptimizerFrom ?? null,
         parentVersion: out.parentVersion ?? parentVersion,
         trainingRunId: out.trainingRunId ?? null,
         nodeRunId: out.nodeRunId ?? runId ?? null,

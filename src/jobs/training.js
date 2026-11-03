@@ -40,7 +40,7 @@ export async function runTrainingOnce(ctx) {
       store,
       trainer,
       complete: ctx.complete ?? null,
-      markConsumed: (ids, runId) => store.markConsumed(ids, { runId }),
+      markConsumed: (ids, runId, meta = {}) => store.markConsumed(ids, { runId, ...meta }),
       evalSeed: ctx.evalSeed ?? defaultEvalSeed,
       // Injectable seams (defaults apply when omitted): the loss gate and the
       // serving-pointer move. Production never overrides them; tests do.

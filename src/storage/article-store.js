@@ -17,6 +17,9 @@ import {
   isTrainable,
   isUnclassifiedImportance,
   normalizeImportance,
+  isReplayPool,
+  isReplayEligible,
+  isReplayExcluded,
 } from "../domain/article.js";
 import { canonicalDomain } from "../storage/domain-registry.js";
 import { DEFAULT_POLICY, evaluateVerdict, selectionDecision } from "../domain/review-policy.js";
@@ -254,6 +257,17 @@ export class ArticleStore {
     } else if (rec.type === "quarantine-released") {
       a.quarantined = false;
       a.quarantineReleasedAt = rec.at ?? null;
+    } else if (rec.type === "replay-eligibility") {
+      // Durable, independent of the review status. A RETIRED article can be
+      // replay-eligible; an explicit false always wins over the legacy fallback.
+      a.replayEligible = rec.eligible === true;
+      a.replayEligibilityReason = rec.reason ?? null;
+      a.replayEligibilityAt = rec.at ?? null;
+      if (rec.excludedReason) a.excludedReason = rec.excludedReason;
+    } else if (rec.type === "replay-exclusion") {
+      a.replayEligible = false;
+      a.replayExclusionReason = rec.reason ?? null;
+      if (rec.excludedReason) a.excludedReason = rec.excludedReason;
     }
   }
 
@@ -446,7 +460,7 @@ const rec = {
    * Paginated read with optional filters. Cursor is an articleId; filtering may
    * skip pages, which is acceptable for a prototype and flagged in the README.
    */
-  articlesPage({ after = null, limit = 100, status, importance, consumed, domain, replayOnly, trainableOnly = false, order = "asc" } = {}) {
+  articlesPage({ after = null, limit = 100, status, importance, consumed, domain, replayOnly, trainableOnly = false, replayEligibleOnly = false, order = "asc" } = {}) {
     // Insertion order is recency order (articles are appended as they are
     // curated), so `order: "desc"` walks the tail first to surface the newest
     // material. The cursor is the last id returned; the next page resumes on
@@ -472,7 +486,11 @@ const rec = {
       if (domain && rec.domain !== domain) continue;
       rec.reviewCount = (this.reviews.get(rec.articleId) ?? []).length;
       rec.trainable = isTrainable(rec);
+      rec.replayEligible = isReplayPool(rec);
+      rec.replayEligibleStatus = isReplayEligible(rec);
+      rec.replayExcluded = isReplayExcluded(rec);
       if (trainableOnly && !rec.trainable) continue;
+      if (replayEligibleOnly && !rec.replayEligible) continue;
       items.push(rec);
       nextCursor = rec.articleId;
     }
@@ -481,6 +499,14 @@ const rec = {
 
   trainablePage({ after = null, limit = 100 } = {}) {
     return this.articlesPage({ after, limit, status: STATUS.REVIEWED, consumed: false, trainableOnly: true });
+  }
+
+  /**
+   * Replay pool page, independent of review retirement. Includes legacy
+   * REVIEWED material and explicitly replay-eligible RETIRED material.
+   */
+  replayPoolPage({ after = null, limit = 100 } = {}) {
+    return this.articlesPage({ after, limit, replayEligibleOnly: true });
   }
 
   reviewQueue({ after = null, limit = 100 } = {}) {
@@ -855,7 +881,7 @@ const rec = {
    * recorded — that is the accidental-duplicate guard. `allowReuse` records an
    * explicit historical re-appearance without pretending it is the first.
    */
-  async markConsumed(articleIds, { runId, allowReuse = false } = {}) {
+  async markConsumed(articleIds, { runId, allowReuse = false, checkpointRole = null, version = null } = {}) {
     this.#assertWritable();
     const consumed = [];
     const skipped = [];
@@ -874,6 +900,8 @@ const rec = {
         contentHash: article.contentHash,
         runId: runId ?? null,
         reused: Boolean(article.consumedAt) && allowReuse,
+        ...(checkpointRole ? { checkpointRole } : {}),
+        ...(version ? { version } : {}),
         at: new Date().toISOString(),
       };
       this.consumption.push(rec);
@@ -905,6 +933,12 @@ const rec = {
     trainTokensSeen = null,
     replayTokensSeen = null,
     validationTokensSeen = null,
+    stableDecision = null,
+    workingDecision = null,
+    workingVersion = null,
+    stableBaselineVersion = null,
+    checkpointRole = null,
+    workingGuard = null,
   } = {}) {
     this.#assertWritable();
     if (!runId) throw new Error("recordTrainingContribution requires a runId");
@@ -922,6 +956,12 @@ const rec = {
       trainTokensSeen: Number.isFinite(Number(trainTokensSeen)) ? Number(trainTokensSeen) : null,
       replayTokensSeen: Number.isFinite(Number(replayTokensSeen)) ? Number(replayTokensSeen) : null,
       validationTokensSeen: Number.isFinite(Number(validationTokensSeen)) ? Number(validationTokensSeen) : null,
+      ...(stableDecision ? { stableDecision } : {}),
+      ...(workingDecision ? { workingDecision } : {}),
+      ...(workingVersion ? { workingVersion } : {}),
+      ...(stableBaselineVersion ? { stableBaselineVersion } : {}),
+      ...(checkpointRole ? { checkpointRole } : {}),
+      ...(workingGuard ? { workingGuard } : {}),
       at: new Date().toISOString(),
     };
     this.contributions.push(rec);
@@ -932,6 +972,36 @@ const rec = {
   /** The durable per-run learning-contribution ledger (read-only view). */
   listContributions() {
     return [...this.contributions];
+  }
+
+  /**
+   * Set replay eligibility independently of review status.
+   *
+   * Appends a durable event (never rewrites the article). Idempotent for the
+   * same eligible/reason pair, so a migration can be re-run safely.
+   */
+  async setReplayEligibility(articleId, { eligible, reason = null, excludedReason = null, actor = AUTHORITY.AUTOMATION } = {}) {
+    this.#assertWritable();
+    const article = this.articles.get(articleId);
+    if (!article) throw new Error(`unknown article: ${articleId}`);
+    const next = eligible === true;
+    if (article.replayEligible === next && (article.replayEligibilityReason ?? null) === (reason ?? null) && (article.excludedReason ?? null) === (excludedReason ?? null)) {
+      return { ...article, updated: false, alreadySet: true };
+    }
+    await this.#event({
+      type: "replay-eligibility",
+      articleId,
+      eligible: next,
+      reason: reason ?? null,
+      excludedReason: excludedReason ?? null,
+      actor,
+    });
+    return { ...article, updated: true };
+  }
+
+  /** Explicitly exclude an article from replay with a durable reason. */
+  async excludeFromReplay(articleId, { reason = null, excludedReason = null, actor = AUTHORITY.AUTOMATION } = {}) {
+    return this.setReplayEligibility(articleId, { eligible: false, reason, excludedReason, actor });
   }
 
   // ----------------------------------------------------- deferral / retire
@@ -1057,6 +1127,10 @@ const rec = {
     let deferredFresh = 0;
     let retainedForReplay = 0;
     let quarantineReleased = 0;
+    let replayEligible = 0;
+    let replayExcluded = 0;
+    let consumedAndRetired = 0;
+    let retiredReplayEligible = 0;
     for (const a of this.articles.values()) {
       byStatus[a.status] = (byStatus[a.status] ?? 0) + 1;
       byImportance[a.importance] = (byImportance[a.importance] ?? 0) + 1;
@@ -1067,6 +1141,10 @@ const rec = {
       if (a.replayOnly === true) retainedForReplay++;
       if (inDeferralCooldown(a)) deferredFresh++;
       if (a.quarantineReleasedAt) quarantineReleased++;
+      if (isReplayPool(a)) replayEligible++;
+      if (isReplayExcluded(a) && (a.consumedAt || a.status === STATUS.REVIEWED || a.status === STATUS.RETIRED || a.status === STATUS.UNRESOLVED)) replayExcluded++;
+      if (a.consumedAt && a.status === STATUS.RETIRED) consumedAndRetired++;
+      if (a.status === STATUS.RETIRED && isReplayPool(a)) retiredReplayEligible++;
     }
     const scores = [];
     for (const arr of this.reviews.values()) for (const r of arr) if (Number.isFinite(r.score)) scores.push(r.score);
@@ -1087,7 +1165,12 @@ const rec = {
       retired: byStatus[STATUS.RETIRED] ?? 0,
       // Quarantined material is likewise visible as its own reversible category.
       quarantined: byStatus[STATUS.QUARANTINED] ?? 0,
+      unresolved: byStatus[STATUS.UNRESOLVED] ?? 0,
       trainable,
+      replayEligible,
+      replayExcluded,
+      consumedAndRetired,
+      retiredReplayEligible,
       // Articles currently in a rejected-run cooldown (still REVIEWED, not yet
       // re-selectable as fresh), and articles whose fresh retries are exhausted
       // and now live in the replay pool (never retired, never deleted).

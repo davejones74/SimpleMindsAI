@@ -264,11 +264,7 @@ export function collectRowsFromArticles(
   let validationRows = [];
   if (includeConsumed) {
     const remaining = Math.max(0, limit - rows.length);
-    const consumedPool = drain(true, remaining);
-    const replayOnlyPool = drain(false, Math.max(0, remaining - consumedPool.length), {
-      replayOnlyOnly: true,
-    });
-    for (const a of [...consumedPool, ...replayOnlyPool].filter(reuseEligible)) {
+    for (const a of drainReplayPool(store, { target: remaining }).filter(reuseEligible)) {
       rows.push(rowForArticle(a));
       retained += 1;
     }
@@ -283,10 +279,7 @@ export function collectRowsFromArticles(
       // deterministic gates on the text before any of it can re-enter training:
       // a historical non-English or corrupted article must not bypass the policy
       // merely because it was consumed (or deferred) before the gate existed.
-      const pool = [
-        ...drain(true, poolLimit),
-        ...drain(false, poolLimit, { replayOnlyOnly: true }),
-      ].filter(reuseEligible);
+      const pool = drainReplayPool(store, { target: poolLimit }).filter(reuseEligible);
       if (needReplay) {
         replayRows = selectReplayRows(chosenFresh.map(rowForArticle), pool, {
           replayPercent: pct,
@@ -372,6 +365,31 @@ function drainArticlePool(store, {
   return [...preferred, ...fallback].slice(0, target);
 }
 
+/**
+ * Drain the replay reservoir using the independent `replayEligible` property.
+ * Includes consumed REVIEWED rows and explicitly replay-eligible retired rows.
+ * Fresh/trainable rows are not returned here.
+ */
+function drainReplayPool(store, { target = 0 } = {}) {
+  const out = [];
+  let cursor = null;
+  let guard = 0;
+  while (out.length < target && guard++ < 200) {
+    const source = typeof store.replayPoolPage === "function"
+      ? store.replayPoolPage({ after: cursor, limit: 200 })
+      : store.articlesPage({ after: cursor, limit: 200, replayEligibleOnly: true });
+    const { items, nextCursor } = source;
+    for (const article of items) {
+      if (!(article.consumedAt || article.replayOnly === true)) continue;
+      out.push(article);
+      if (out.length >= target) break;
+    }
+    if (!nextCursor) break;
+    cursor = nextCursor;
+  }
+  return out;
+}
+
 export function collectRawTextRowsFromArticles(
   store,
   {
@@ -410,13 +428,7 @@ export function collectRawTextRowsFromArticles(
 
   if (includeConsumed) {
     const remaining = Math.max(0, limit - freshPool.length);
-    const consumedPool = drainArticlePool(store, { consumed: true, target: remaining });
-    const replayOnlyPool = drainArticlePool(store, {
-      consumed: false,
-      target: Math.max(0, remaining - consumedPool.length),
-      replayOnlyOnly: true,
-    });
-    retainedPool = [...consumedPool, ...replayOnlyPool];
+    retainedPool = drainReplayPool(store, { target: remaining }).filter(reuseEligible);
     if (!deferValidationPartition && validationBlocks > 0 && retainedPool.length) {
       const pseudo = retainedPool.map((article) => ({
         articleId: article.articleId,
@@ -431,10 +443,7 @@ export function collectRawTextRowsFromArticles(
     const pct = Math.max(0, Math.min(99, Number(replayPercent) || 0));
     if (pct > 0 || validationBlocks > 0) {
       const poolLimit = Math.max(512, limit * 4);
-      const pool = [
-        ...drainArticlePool(store, { consumed: true, target: poolLimit }),
-        ...drainArticlePool(store, { consumed: false, target: poolLimit, replayOnlyOnly: true }),
-      ].filter(reuseEligible);
+      const pool = drainReplayPool(store, { target: poolLimit }).filter(reuseEligible);
       if (pct > 0) {
         const chosen = selectReplayRows(
           freshPool.map((article) => ({ articleId: article.articleId, text: article.rawText ?? article.text ?? "" })),

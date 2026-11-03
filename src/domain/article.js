@@ -63,6 +63,11 @@ export const STATUS = Object.freeze({
   REVIEWED: "REVIEWED",
   REJECTED: "REJECTED",
   RETIRED: "RETIRED",
+  // A retained review-exhaustion state. Unlike RETIRED it is not a quality or
+  // licence verdict: the text is kept for a later review pass, but it is neither
+  // trainable nor replay-eligible until resolved. Historical migration uses it
+  // for records whose evidence is conflicting or insufficient.
+  UNRESOLVED: "UNRESOLVED",
   // A reversible, NON-destructive holding state for material that must never
   // reach training but is not a verdict on the text. Unlike RETIRED (a terminal
   // outcome of bounded review) a quarantine is a separate, independently
@@ -70,7 +75,7 @@ export const STATUS = Object.freeze({
   // out of circulation without deleting it or pretending the teacher judged it.
   QUARANTINED: "QUARANTINED",
 });
-export const STATUSES = Object.freeze([STATUS.INGESTED, STATUS.PENDING_REVIEW, STATUS.REVIEWED, STATUS.REJECTED, STATUS.RETIRED, STATUS.QUARANTINED]);
+export const STATUSES = Object.freeze([STATUS.INGESTED, STATUS.PENDING_REVIEW, STATUS.REVIEWED, STATUS.REJECTED, STATUS.RETIRED, STATUS.UNRESOLVED, STATUS.QUARANTINED]);
 
 /**
  * Why an article was quarantined. These are deliberately distinct, closed
@@ -144,13 +149,50 @@ export function isTrainable(article, now = Date.now()) {
 }
 
 /**
- * Membership of the replay pool: REVIEWED material that has either already been
- * consumed by a promoted model, or exhausted its fresh retries (`replayOnly`).
- * Retired and quarantined material is excluded. This is the historical-training
- * reservoir a run samples from to retain earlier learning alongside new input.
+ * Integrity check for replay: the stored training text must be present. The
+ * content hash is verified by the migration/audit path; the hot replay predicate
+ * only rejects empty/missing text so it stays cheap.
+ */
+export function hasReplayText(article) {
+  return Boolean(article) && typeof article.text === "string" && article.text.trim().length > 0;
+}
+
+/**
+ * Eligibility for replay, independent of the review terminal status.
+ *
+ * `replayEligible` is the durable authority when it is present. Legacy records
+ * without it fall back to the historical REVIEWED rule. This is deliberately
+ * NOT `status === REVIEWED`: an article retired from further review can remain
+ * valid source knowledge and stay available for replay. Explicitly rejected,
+ * quarantined, unresolved, corrupt or licence/quality-excluded material is never
+ * eligible, even if it was consumed historically.
+ */
+export function isReplayEligible(article) {
+  if (!hasReplayText(article)) return false;
+  if (article.status === STATUS.REJECTED || article.status === STATUS.QUARANTINED || article.status === STATUS.UNRESOLVED) return false;
+  if (article.quarantined === true) return false;
+  if (article.excludedReason) return false;
+  if (article.replayEligible === true) return true;
+  if (article.replayEligible === false) return false;
+  // Legacy fallback: only REVIEWED material was implicitly replayable. A legacy
+  // RETIRED record is not made replayable without an explicit migration event.
+  return article.status === STATUS.REVIEWED;
+}
+
+/**
+ * Membership of the historical replay reservoir. A fresh (unconsumed) REVIEWED
+ * article is eligible for future replay, but is not yet part of the reservoir;
+ * it becomes a reservoir row after it is consumed or moved to replayOnly. A
+ * retired article with explicit replay eligibility is included.
  */
 export function isReplayPool(article) {
-  return Boolean(article) && article.status === STATUS.REVIEWED && article.status !== STATUS.RETIRED && (Boolean(article.consumedAt) || article.replayOnly === true);
+  if (!isReplayEligible(article)) return false;
+  return Boolean(article.consumedAt) || article.replayOnly === true || article.status === STATUS.RETIRED;
+}
+
+/** True when an explicit/inferred exclusion keeps this article out of replay. */
+export function isReplayExcluded(article) {
+  return Boolean(article) && !isReplayEligible(article) && (article.replayEligible === false || article.status === STATUS.REJECTED || article.status === STATUS.QUARANTINED || article.status === STATUS.UNRESOLVED || Boolean(article.excludedReason) || Boolean(article.quarantined) || !hasReplayText(article));
 }
 
 /** Normalise an importance value, defaulting to Normal (never throws on read). */

@@ -330,6 +330,36 @@ def cmd_active(args: argparse.Namespace) -> Dict[str, Any]:
     return result
 
 
+def cmd_working(args: argparse.Namespace) -> Dict[str, Any]:
+    """Show or set the durable cumulative-learning pointer.
+
+    This pointer is never used for serving. `active` remains the only deployment
+    pointer. A working version is a normal committed vNNN.
+    """
+    from . import store
+
+    root = Path(args.out)
+    extra: Dict[str, Any] = {}
+    if getattr(args, "meta", None):
+        extra = json.loads(args.meta)
+    result: Dict[str, Any] = {
+        "ok": True,
+        "verb": "working",
+        "store": str(root),
+    }
+    if getattr(args, "set_to", None):
+        result["working"] = store.set_working(root, args.set_to, extra)
+    elif getattr(args, "set_last_good", None):
+        result["lastGood"] = store.set_working_last_good(root, args.set_last_good, extra)
+    else:
+        result["working"] = store.working_pointer(root)
+        result["lastGood"] = store.working_last_good_pointer(root)
+    result["workingVersion"] = (result.get("working") or {}).get("version")
+    result["lastGoodVersion"] = (result.get("lastGood") or {}).get("version")
+    _log(f"working = {result['workingVersion'] or '(none)'}; last-good = {result['lastGoodVersion'] or '(none)'}")
+    return result
+
+
 # ------------------------------------------------------------- preflight
 
 
@@ -536,6 +566,20 @@ def _cmd_train_locked(args: argparse.Namespace, root: Path, version: str, node_r
 
     resume_state = None
     optimizer_state = None
+    carry_optimizer_state = None
+    carry_optimizer_from = None
+    if getattr(args, "carry_optimizer", False):
+        if args.resume_from:
+            raise ValueError("--carry-optimizer and --resume-from are mutually exclusive")
+        carry_path = root / "_runs" / f"{parent}.train-state.pt"
+        if carry_path.is_file():
+            blob = train_mod.load_train_state(carry_path)
+            carry_optimizer_state = blob["optimizer"]
+            carry_optimizer_from = parent
+            _log(f"carrying optimizer moments from working parent {parent}")
+        else:
+            _log(f"no optimizer state for working parent {parent}; starting a fresh optimizer")
+
     if args.resume_from:
         # Both halves are needed: the JSON carries the config/dataset identity the
         # guard checks, the pickle carries the optimizer moments. Neither alone can
@@ -569,6 +613,7 @@ def _cmd_train_locked(args: argparse.Namespace, root: Path, version: str, node_r
             device=device,
             resume=resume_state,
             optimizer_state=optimizer_state,
+            carry_optimizer_state=carry_optimizer_state,
             log=_log,
             telemetry=emit_telemetry,
             telemetry_interval_ms=telemetry_interval_ms,
@@ -637,6 +682,9 @@ def _cmd_train_locked(args: argparse.Namespace, root: Path, version: str, node_r
     runtime["wallSeconds"] = result.wallSeconds
     train_state["corpusFiles"] = corpus_files
     train_state["runtime"] = runtime
+    if carry_optimizer_from:
+        train_state["carryOptimizerFrom"] = carry_optimizer_from
+        train_state["carryOptimizerState"] = "parent-optimizer-moments"
 
     min_steps = int(getattr(args, "min_steps", 0) or 0)
     if min_steps > 0 and result.steps < min_steps:
@@ -786,6 +834,7 @@ def _cmd_train_locked(args: argparse.Namespace, root: Path, version: str, node_r
         "nodeRunId": node_run_id,
         "published": not stage_only,
         "staged": stage_only,
+        "carryOptimizerFrom": train_state.get("carryOptimizerFrom"),
         "device": device,
         "checkpointDtype": str(next(model.parameters()).dtype).replace("torch.", ""),
         "wallSeconds": result.wallSeconds,
@@ -2318,6 +2367,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="build the candidate durably but DO NOT publish it; promote with `publish` "
         "or remove with `discard` (commit-on-promotion)",
     )
+    sp.add_argument(
+        "--carry-optimizer",
+        dest="carry_optimizer",
+        action="store_true",
+        help="carry AdamW moments from the parent's _runs/<parent>.train-state.pt "
+        "when continuing a working checkpoint across a different corpus",
+    )
     sp.set_defaults(func=cmd_train)
 
     sp = sub.add_parser(
@@ -2601,6 +2657,16 @@ def build_parser() -> argparse.ArgumentParser:
     act.add_argument("--models", default=str(DEFAULT_REPO_MODELS), help="git-tracked record mirror")
     act.add_argument("--sync", action="store_true", help="mirror every version's record into git")
     act.set_defaults(func=cmd_active)
+
+    wrk = sub.add_parser(
+        "working",
+        help="show or set the cumulative-learning pointer (never used for serving)",
+    )
+    common(wrk)
+    wrk.add_argument("--set", dest="set_to", default=None, help="committed working version to select")
+    wrk.add_argument("--set-last-good", dest="set_last_good", default=None, help="committed rollback version to select")
+    wrk.add_argument("--meta", default=None, help="JSON object of guard/metrics metadata to record")
+    wrk.set_defaults(func=cmd_working)
 
     from . import preflight as preflight_mod
 

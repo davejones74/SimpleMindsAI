@@ -441,6 +441,26 @@ export const config = {
   trainMinUniqueTokens: num("TRAIN_MIN_UNIQUE_TOKENS", 1700),
   // Replay share of the training corpus by token estimate. 0 disables replay.
   trainReplayPercent: num("TRAIN_REPLAY_PERCENT", 20),
+  // Cumulative learning. When true and the trainer exposes a working pointer,
+  // normal runs train from the durable working checkpoint (falling back to the
+  // stable active checkpoint when no valid working pointer exists). `active`
+  // remains the only serving pointer either way.
+  trainUseWorkingCheckpoint: bool("TRAIN_USE_WORKING_CHECKPOINT", true),
+  // Carry AdamW moments from the working parent across a new corpus. Distinct
+  // from exact resume: the sample order/RNG are new, only the optimizer state is
+  // carried and validated against the current model.
+  trainCarryOptimizer: bool("TRAIN_CARRY_OPTIMIZER", true),
+  // Working guard. Deliberately separate from the stable promotion gate; it may
+  // accept learning that does not yet justify publication, but must stop
+  // cumulative degradation. Thresholds are in nats unless stated otherwise.
+  workingGuard: {
+    maxRegressionNats: num("WORKING_GUARD_MAX_REGRESSION_NATS", 0.05),
+    maxGroupRegressionNats: num("WORKING_GUARD_MAX_GROUP_REGRESSION_NATS", 0.15),
+    maxDriftNats: num("WORKING_GUARD_MAX_DRIFT_NATS", 0.25),
+    minGroupTokens: num("WORKING_GUARD_MIN_GROUP_TOKENS", 100),
+    maxRegressedGroupShare: num("WORKING_GUARD_MAX_REGRESSED_GROUP_SHARE", 0.75),
+    minGroups: num("WORKING_GUARD_MIN_GROUPS", 5),
+  },
   // Rejected-run cooldown: a rejected batch is deferred for an escalating
   // window before it may be selected as fresh again, so the identical batch is
   // not retried on every poll. `base` doubles per rejection, capped at `max`.

@@ -546,6 +546,7 @@ def train(
     device: str,
     resume: Optional[Dict[str, Any]] = None,
     optimizer_state: Optional[Dict[str, Any]] = None,
+    carry_optimizer_state: Optional[Dict[str, Any]] = None,
     log=lambda _msg: None,
     telemetry=lambda _event: None,
     telemetry_interval_ms: int = 1000,
@@ -638,6 +639,25 @@ def train(
         eps=cfg.eps,
     )
     layer_groups = layer_parameter_groups(model) if layer_activity_enabled else {}
+
+    # Cumulative working learning: carry AdamW moments from the parent working
+    # checkpoint even when the corpus changes. This is distinct from `resume`,
+    # which also restores the sample order/RNG and requires an identical dataset.
+    # The moments are tied to parameter shapes and optimizer hyperparameters, so
+    # mismatches fail closed rather than silently pairing weights with stale state.
+    if carry_optimizer_state is not None:
+        try:
+            optimizer.load_state_dict(carry_optimizer_state)
+        except Exception as exc:  # noqa: BLE001 - report the concrete mismatch
+            raise ValueError(f"carry_optimizer_state does not match this model/optimizer: {exc}") from exc
+        # Keep this run's configured optimizer hyperparameters; only the moments
+        # and optimizer step counters are carried.
+        for group in optimizer.param_groups:
+            group["lr"] = cfg.learningRate
+            group["betas"] = tuple(cfg.betas)
+            group["eps"] = cfg.eps
+            group["weight_decay"] = cfg.weightDecay
+        log("carried optimizer moments from the working parent")
 
     if resume is not None:
         # Refuse to resume across a changed corpus or config. Silently continuing

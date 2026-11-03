@@ -32,6 +32,7 @@ enum ArticleStatus {
   REVIEWED
   REJECTED
   RETIRED
+  UNRESOLVED
   QUARANTINED
 }
 

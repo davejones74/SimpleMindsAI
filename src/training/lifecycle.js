@@ -15,6 +15,7 @@ import { modelHandle } from "./model-handle.js";
 import { baselineCacheKey, cacheEntrySatisfiesEvidence, loadEvalCache, saveEvalCache } from "./eval-cache.js";
 import { computeTrainingBudget, checkMinimumTrainingData, computeEvaluationCadence } from "./budget.js";
 import { evaluateGenerationQuality } from "./generation-quality.js";
+import { decideWorkingAdvancement } from "./working-guard.js";
 
 /**
  * Perpetual Training lifecycle — ONE TrainingRun from cradle to grave
@@ -229,6 +230,7 @@ export async function executeFullRun({
   let snapshot = null;
   let trainingResult = null;
   let baselineResult = null;
+  let workingParentResult = null;
   let candidateResult = null;
   let decision = null;
   let manifest = null;
@@ -364,6 +366,9 @@ export async function executeFullRun({
     // fail-closed via resolveVersion and never silently swapped for the active
     // pointer.
     const requestedParent = options.parentVersion ?? null;
+    // The stable baseline is what the publication gate compares against. The
+    // training baseline may instead be the durable working checkpoint; those are
+    // deliberately different identities.
     const pythonBaseline = pythonMode
       ? requestedParent
         ? (typeof t.resolveVersion === "function" ? await t.resolveVersion(requestedParent) : null)
@@ -371,6 +376,66 @@ export async function executeFullRun({
       : null;
     if (pythonMode && requestedParent && !pythonBaseline) {
       throw new Error(`trainer cannot resolve an explicit parent version (${requestedParent})`);
+    }
+    const stableBaseline = pythonBaseline;
+    let trainingBaseline = pythonBaseline;
+    let workingBaseline = null;
+    let parentSelection = requestedParent ? "explicit" : "stable";
+    let workingResolveError = null;
+    let workingRollback = null;
+    const workingSupported =
+      pythonMode &&
+      stagingSupported &&
+      !requestedParent &&
+      config.trainUseWorkingCheckpoint &&
+      typeof t.resolveWorking === "function" &&
+      typeof t.setWorking === "function";
+    if (workingSupported) {
+      try {
+        workingBaseline = await t.resolveWorking();
+      } catch (err) {
+        // Do not silently pretend the working checkpoint does not exist. Record
+        // the failure and use the stable baseline only through this explicit
+        // fallback path.
+        workingResolveError = err;
+        parentSelection = "stable-fallback-working-error";
+        logger?.warn?.(`[lifecycle] working checkpoint could not be resolved; using stable baseline: ${err.message}`);
+      }
+      if (workingBaseline) {
+        trainingBaseline = workingBaseline;
+        parentSelection = "working";
+        // Cumulative drift rollback: the working pointer records the drift seen
+        // when it advanced. If it is already beyond the configured budget, do not
+        // keep training from it. Restore the explicit last-known-good checkpoint
+        // (or the stable baseline when no anchor exists) before building the run.
+        const pointer = workingBaseline.pointer ?? null;
+        const drift = Number(pointer?.drift);
+        const maxDrift = Number(config.workingGuard?.maxDriftNats);
+        if (Number.isFinite(drift) && maxDrift > 0 && drift > maxDrift) {
+          const target = workingBaseline.lastGoodVersion ?? stableBaseline?.version ?? null;
+          if (target && target !== workingBaseline.version) {
+            await t.setWorking(target, {
+              reason: "cumulative drift rollback",
+              rolledBackFrom: workingBaseline.version,
+              drift,
+              maxDrift,
+            });
+            const restored = typeof t.resolveWorking === "function" ? await t.resolveWorking() : null;
+            workingBaseline = restored;
+            trainingBaseline = restored ?? stableBaseline;
+            parentSelection = "working-rollback-last-good";
+            workingRollback = {
+              from: pointer?.version ?? null,
+              to: target,
+              drift,
+              maxDrift,
+            };
+            logger?.warn?.(`[lifecycle] working drift ${drift.toFixed(4)} > ${maxDrift}; rolled back ${workingRollback.from} -> ${target}`);
+          }
+        }
+      } else if (!workingResolveError) {
+        parentSelection = "stable-bootstrap-working";
+      }
     }
 
     // ---- corpus preflight (Python path only) ----
@@ -386,7 +451,7 @@ export async function executeFullRun({
     if (pythonMode && typeof t.preflight === "function") {
       const info = await t.preflight({
         datasetFile: snapshot.manifest.file,
-        parentVersion: pythonBaseline?.version ?? null,
+        parentVersion: trainingBaseline?.version ?? null,
         valBlocks: config.trainValBlocks,
       });
       if (info && info.ok === false) {
@@ -450,12 +515,18 @@ export async function executeFullRun({
       configuredEvalEvery: config.trainEvalEvery,
     });
     if (trainingBudget) trainingBudget.effectiveEvalEvery = effectiveEvalEvery;
-    const baselineModel = pythonMode
-      ? await ensurePythonBaselineModel(registry, pythonBaseline)
+    const stableModel = pythonMode
+      ? await ensurePythonBaselineModel(registry, stableBaseline)
       : await ensureBaselineModel(registry);
+    const baselineModel = pythonMode && trainingBaseline && trainingBaseline.version !== stableBaseline?.version
+      ? await ensurePythonBaselineModel(registry, trainingBaseline)
+      : stableModel;
     const run = await registry.createRun({
       baseModel: baselineModel.modelId,
-      baseModelVersion: pythonBaseline?.version ?? null,
+      baseModelVersion: trainingBaseline?.version ?? null,
+      stableBaselineVersion: stableBaseline?.version ?? null,
+      parentSelection,
+      workingRollback,
       datasetId: snapshot.manifest.datasetId,
       datasetVersion: snapshot.manifest.datasetVersion,
       datasetFile: snapshot.manifest.file,
@@ -532,12 +603,19 @@ export async function executeFullRun({
           }
         : null,
       snapshotArticleIds: snapshot.rows.map((r) => r.articleId),
+      freshArticleIds: snapshot.manifest.freshArticleIds ?? [],
       evaluationSetHash: computeFileHash(evalSet.file),
       // Written as soon as the candidate version exists; the durable link that
       // lets a restarted process re-drive a promotion whose in-process
       // `trainingResult` is gone. Without it, recovery could not name the version.
       resultVersion: null,
-      resultParentVersion: pythonBaseline?.version ?? null,
+      resultParentVersion: trainingBaseline?.version ?? null,
+      stableBaselineVersion: stableBaseline?.version ?? null,
+      parentSelection,
+      workingRollback,
+      workingDecision: null,
+      workingVersion: null,
+      workingAdvanced: false,
       resultModelId: null,
       baselineLoss: null,
       candidateLoss: null,
@@ -557,7 +635,7 @@ export async function executeFullRun({
     // re-evaluates. The key includes the eval-set content hash + hyperparameters.
     const baselineKey = pythonMode
       ? baselineCacheKey({
-          version: pythonBaseline.version,
+          version: stableBaseline.version,
           evalSetHash: computeFileHash(evalSet.file),
           seqLen: config.promoteEvalSeqLen,
           microBatch: config.promoteEvalMicroBatch,
@@ -572,14 +650,14 @@ export async function executeFullRun({
         baselineResult = cached;
       } else if (cached?.ok) {
         logger?.warn?.(
-          `[lifecycle] ignoring stale baseline cache entry for ${pythonBaseline.version}: per-document evidence ${config.promotePerDocument ? "missing" : "not required"}`,
+          `[lifecycle] ignoring stale baseline cache entry for ${stableBaseline.version}: per-document evidence ${config.promotePerDocument ? "missing" : "not required"}`,
         );
       }
     }
     if (!baselineResult) {
       baselineResult = pythonMode
         ? await evaluateLoss({
-            version: pythonBaseline.version,
+            version: stableBaseline.version,
             evalSetFile: evalSet.file,
             store: config.pythonStore ?? undefined,
             bin: config.pythonBin ?? undefined,
@@ -606,12 +684,39 @@ export async function executeFullRun({
       await recordPythonEvaluation(registry, {
         runId,
         kind: "baseline",
-        version: pythonBaseline.version,
-        modelId: baselineModel.modelId,
+        version: stableBaseline.version,
+        modelId: stableModel.modelId,
         result: baselineResult,
         evalSet,
         identity: options.candidateIdentity ?? null,
       });
+    }
+    if (pythonMode && workingSupported && trainingBaseline && trainingBaseline.version !== stableBaseline.version) {
+      workingParentResult = await evaluateLoss({
+        version: trainingBaseline.version,
+        evalSetFile: evalSet.file,
+        store: config.pythonStore ?? undefined,
+        bin: config.pythonBin ?? undefined,
+        device: config.studentDevice,
+      });
+      if (!workingParentResult?.ok) {
+        const err = new Error(`working checkpoint ${trainingBaseline.version} could not be evaluated: ${workingParentResult?.error ?? "unknown error"}`);
+        err.code = "WORKING_CHECKPOINT_UNREADABLE";
+        throw err;
+      }
+      if (pythonMode) {
+        await recordPythonEvaluation(registry, {
+          runId,
+          kind: "working-parent",
+          version: trainingBaseline.version,
+          modelId: baselineModel.modelId,
+          result: workingParentResult,
+          evalSet,
+          identity: options.candidateIdentity ?? null,
+        });
+      }
+    } else if (pythonMode) {
+      workingParentResult = baselineResult;
     }
 
     // ---- train (never touches the live buffer; reads the snapshot file) ----
@@ -628,7 +733,8 @@ export async function executeFullRun({
         plan,
         checkpointDir: options.paths?.models ?? config.paths.models,
         recordCount: snapshot.manifest.recordCount,
-        parentVersion: pythonBaseline?.version ?? null,
+        parentVersion: trainingBaseline?.version ?? null,
+        carryOptimizer: workingSupported && parentSelection === "working",
         // Data-derived budget when the preflight could size the corpus; the
         // adapter falls back to its fixed legacy default when it could not.
         steps: trainingBudget?.steps ?? null,
@@ -668,7 +774,7 @@ export async function executeFullRun({
       manifest = await updateManifest(manifestPath, manifest, {
         status: "trained",
         resultVersion: trainingResult.version ?? null,
-        resultParentVersion: trainingResult.parentVersion ?? pythonBaseline?.version ?? null,
+        resultParentVersion: trainingResult.parentVersion ?? trainingBaseline?.version ?? null,
       });
     }
 
@@ -711,6 +817,23 @@ export async function executeFullRun({
         });
     // ---- deterministic promote/reject ----
     decision = pythonMode ? decidePromotionByLoss(baselineResult, candidateResult, {}) : decidePromotion(baselineResult, candidateResult, config);
+    let workingDecision = null;
+    if (pythonMode && workingSupported) {
+      if (decision.decision === "promoted") {
+        workingDecision = {
+          decision: "accepted",
+          reason: "stable promotion implies working advancement",
+          metrics: { stableDecision: decision.decision },
+        };
+      } else if (decision.decision === "rejected" || decision.decision === "inconclusive") {
+        workingDecision = decideWorkingAdvancement({
+          parent: workingParentResult ?? baselineResult,
+          candidate: candidateResult,
+          stable: baselineResult,
+          thresholds: options.workingGuard ?? config.workingGuard,
+        });
+      }
+    }
 
     if (pythonMode) {
       await recordPythonEvaluation(registry, {
@@ -732,6 +855,7 @@ export async function executeFullRun({
     // ONLY on a real promotion, and discarded (provenance retained) otherwise, so
     // a rejected candidate never enters the published lineage nor becomes active.
     const stagedCandidate = stagingSupported && trainingResult.staged === true;
+    const workingAccepted = Boolean(workingDecision?.decision === "accepted" && (stagedCandidate || !stagingSupported));
     const published = stagedCandidate || trainingResult.published !== false;
 
     if (pythonMode) {
@@ -741,6 +865,10 @@ export async function executeFullRun({
         baselineLoss: baselineResult.loss,
         candidateLoss: candidateResult.loss,
         decision: decision.decision,
+        workingDecision: workingDecision?.decision ?? null,
+        workingGuard: workingDecision ?? null,
+        stableBaselineVersion: stableBaseline?.version ?? null,
+        workingParentVersion: trainingBaseline?.version ?? null,
       });
     }
 
@@ -755,6 +883,25 @@ export async function executeFullRun({
     // load-bearing: every earlier step is durable and idempotent, and the
     // exactly-once consumption commit runs last, so a crash between any two steps
     // is recoverable by retrying the next one without double-consuming.
+    const freshConsumptionIds =
+      snapshot.manifest.freshArticleIds ?? snapshot.manifest.articleIds ?? snapshot.rows.map((r) => r.articleId);
+    const workingMeta = workingSupported
+      ? {
+          runId,
+          parentVersion: trainingBaseline?.version ?? null,
+          stableBaselineVersion: stableBaseline?.version ?? null,
+          guardDecision: workingDecision?.decision ?? null,
+          guardReason: workingDecision?.reason ?? null,
+          regression: workingDecision?.metrics?.regression ?? null,
+          drift: workingDecision?.metrics?.drift ?? null,
+          groupsCompared: workingDecision?.metrics?.groupsCompared ?? null,
+          regressedGroups: workingDecision?.metrics?.regressedGroups ?? null,
+          evalLoss: candidateResult?.loss ?? null,
+          datasetHash: candidateResult?.datasetHash ?? null,
+          tokensSeen: trainingResult.tokensSeen ?? null,
+        }
+      : null;
+
     if (decision.decision === "not_evaluated") {
       if (stagedCandidate) await discardRejected(t, trainingResult.version, runId, options, logger);
       manifest = await updateManifest(manifestPath, manifest, {
@@ -764,24 +911,63 @@ export async function executeFullRun({
         error: decision.reason ?? "not_evaluated",
       });
     } else if (decision.decision === "rejected" || decision.decision === "inconclusive") {
-      // Neither a rejection nor an inconclusive outcome may consume articles.
-      // They are deferred with a retry count so they remain eligible for future
-      // selection alongside new material. The active model must never be altered.
-      if (stagedCandidate) await discardRejected(t, trainingResult.version, runId, options, logger);
-      manifest = await updateManifest(manifestPath, manifest, {
-        consumed: false,
-        published: false,
-        activated: false,
-        status: decision.decision,
-        // Durable deferral provenance — survives process crash/restart because
-        // it is written to the manifest, the persistent recovery anchor.
-        deferralReason: decision.reason ?? `${decision.decision} by promotion gate`,
-        deferralRunId: runId,
-        deferralRetries: 1,
-      });
+      if (workingAccepted) {
+        // The publication gate rejected the candidate, but the independent
+        // working guard accepted it. Publish it as a committed working version,
+        // move only the working pointer, and consume the fresh batch into that
+        // retained learning state. `active.json` must not move.
+        if (stagedCandidate) {
+          await t.publishCandidate(trainingResult.version, {
+            store: config.pythonStore ?? undefined,
+            bin: config.pythonBin ?? undefined,
+          });
+        }
+        const previousWorkingVersion = workingBaseline?.version ?? stableBaseline?.version ?? null;
+        if (previousWorkingVersion && typeof t.setWorkingLastGood === "function") {
+          await t.setWorkingLastGood(previousWorkingVersion, {
+            ...workingMeta,
+            reason: "rollback anchor before working advancement",
+          });
+        }
+        await t.setWorking(trainingResult.version, workingMeta);
+        manifest = await updateManifest(manifestPath, manifest, {
+          consumed: false,
+          published: true,
+          activated: false,
+          status: decision.decision,
+          workingAdvanced: true,
+          workingVersion: trainingResult.version,
+          workingLastGoodVersion: previousWorkingVersion,
+          workingMeta,
+          // Keep the stable-gate rejection reason; the working decision is separate.
+          deferralReason: null,
+        });
+        consumption = await commitConsumption(freshConsumptionIds, runId, {
+          checkpointRole: "working",
+          version: trainingResult.version,
+        });
+        manifest = await updateManifest(manifestPath, manifest, { consumed: true, activated: false });
+      } else {
+        // Neither a rejection nor an inconclusive outcome may consume articles.
+        // They are deferred with a retry count so they remain eligible for future
+        // selection alongside new material. The active model must never be altered.
+        if (stagedCandidate) await discardRejected(t, trainingResult.version, runId, options, logger);
+        manifest = await updateManifest(manifestPath, manifest, {
+          consumed: false,
+          published: false,
+          activated: false,
+          status: decision.decision,
+          workingAdvanced: false,
+          // Durable deferral provenance — survives process crash/restart because
+          // it is written to the manifest, the persistent recovery anchor.
+          deferralReason: decision.reason ?? `${decision.decision} by promotion gate`,
+          deferralRunId: runId,
+          deferralRetries: 1,
+        });
+      }
     } else {
       // decision.decision === "promoted": 1) publication, 2) active pointer,
-      // 3) manifest completion, 4) consumption commit.
+      // 3) working pointer (when enabled), 4) manifest completion, 5) consumption.
       if (stagedCandidate) {
         await t.publishCandidate(trainingResult.version, {
           store: config.pythonStore ?? undefined,
@@ -795,6 +981,16 @@ export async function executeFullRun({
           models: options.paths?.models ?? config.paths.models,
         });
         if (worker) await worker.reload();
+      }
+      if (workingSupported) {
+        const previousWorkingVersion = workingBaseline?.version ?? stableBaseline?.version ?? null;
+        if (previousWorkingVersion && typeof t.setWorkingLastGood === "function") {
+          await t.setWorkingLastGood(previousWorkingVersion, {
+            ...workingMeta,
+            reason: "rollback anchor before stable promotion also advances working",
+          });
+        }
+        await t.setWorking(trainingResult.version, workingMeta);
       }
       // Repetition regression check, recorded (never gated): after the pointer
       // moves, measure the newly active model's generation quality so a
@@ -818,11 +1014,15 @@ export async function executeFullRun({
         published,
         activated: true,
         status: "promoted",
+        workingAdvanced: Boolean(workingSupported),
+        workingVersion: workingSupported ? trainingResult.version : null,
+        workingLastGoodVersion: workingSupported ? (workingBaseline?.version ?? stableBaseline?.version ?? null) : null,
+        workingMeta,
       });
-      consumption = await commitConsumption(
-        snapshot.manifest.freshArticleIds ?? snapshot.manifest.articleIds ?? snapshot.rows.map((r) => r.articleId),
-        runId
-      );
+      consumption = await commitConsumption(freshConsumptionIds, runId, {
+        checkpointRole: "stable",
+        version: trainingResult.version,
+      });
       manifest = await updateManifest(manifestPath, manifest, { consumed: true, activated: true });
     }
 
@@ -841,7 +1041,7 @@ export async function executeFullRun({
     // NOT be re-deferred or re-consumed: they are owned by the active version.
     const bookkeepingIds =
       snapshot.manifest.freshArticleIds ?? snapshot.manifest.articleIds ?? snapshot.rows.map((r) => r.articleId);
-    if ((decision.decision === "rejected" || decision.decision === "inconclusive") && typeof store.deferArticles === "function") {
+    if (!workingAccepted && (decision.decision === "rejected" || decision.decision === "inconclusive") && typeof store.deferArticles === "function") {
       // Defer the batch with a cooldown so it is not immediately retried with
       // the same companion material. The candidate WEIGHTS were rejected; the
       // SOURCE KNOWLEDGE is not retired — once its fresh retries are exhausted it
@@ -853,9 +1053,9 @@ export async function executeFullRun({
         cooldownBaseMs: config.trainDeferralCooldownBaseMs,
         cooldownMaxMs: config.trainDeferralCooldownMaxMs,
       });
-    } else if (decision.decision === "promoted" && typeof store.clearDeferral === "function") {
-      // Articles consumed by the promoted model are owned by the active
-      // version and must not be reconsidered under a different run.
+    } else if ((decision.decision === "promoted" || workingAccepted) && typeof store.clearDeferral === "function") {
+      // Articles consumed by a retained stable or working checkpoint are owned by
+      // that checkpoint and must not be reconsidered as fresh under another run.
       await store.clearDeferral(
         bookkeepingIds.filter((id) => store.getArticle?.(id)?.consumedAt),
         { runId },
@@ -879,6 +1079,12 @@ export async function executeFullRun({
           trainTokensSeen: trainingResult.trainTokensSeen ?? null,
           replayTokensSeen: trainingResult.replayTokensSeen ?? null,
           validationTokensSeen: trainingResult.validationTokensSeen ?? null,
+          stableDecision: decision.decision,
+          workingDecision: workingDecision?.decision ?? null,
+          workingVersion: workingAccepted ? trainingResult.version ?? null : null,
+          stableBaselineVersion: stableBaseline?.version ?? null,
+          checkpointRole: workingAccepted ? "working" : decision.decision === "promoted" ? "stable" : null,
+          workingGuard: workingDecision ?? null,
         });
       } catch (err) {
         logger?.warn?.(`[lifecycle] contribution record for ${runId} failed: ${err.message}`);
@@ -909,13 +1115,21 @@ export async function executeFullRun({
             ? "promotion gate inconclusive"
             : "promotion gate rejected candidate"),
       resultModelId: candidate.modelId,
+      stableBaselineVersion: stableBaseline?.version ?? null,
+      workingParentVersion: trainingBaseline?.version ?? null,
+      parentSelection,
+      workingRollback,
+      workingDecision: workingDecision?.decision ?? null,
+      workingVersion: workingAccepted ? trainingResult.version ?? null : null,
+      workingAdvanced: workingAccepted,
+      workingGuard: workingDecision ?? null,
       examplesProcessed: trainingResult.recordsProcessed ?? snapshot.manifest.recordCount,
       examplesSkipped: Math.max(0, rows.length - snapshot.manifest.recordCount),
       baselineEvaluation: pythonMode
         ? {
             loss: baselineResult.loss,
             datasetHash: baselineResult.datasetHash,
-            version: pythonBaseline.version,
+            version: stableBaseline.version,
             lossStdErr: estimatedLossStdErr(baselineResult.evaluationSet?.tokensSeen),
           }
         : { evalRunId: baselineResult.evalRunId, score: baselineResult.score, score100: baselineResult.score100 },
@@ -949,7 +1163,8 @@ export async function executeFullRun({
                 : null,
             tokensPresented: trainingResult.tokensSeen ?? null,
             uniqueTokens: trainingResult.trainTokensSeen ?? null,
-            optimizerState: "fresh",
+            optimizerState: trainingResult.carryOptimizerFrom ? "carried" : "fresh",
+            carryOptimizerFrom: trainingResult.carryOptimizerFrom ?? null,
           }
         : null,
       corpusPolicy,
@@ -1065,6 +1280,20 @@ export async function executeFullRun({
           // `completePromotion` commits consumption but does not close the run;
           // record the terminal event here so the run is not left dangling.
           await registry.runEvent(runId, { status: "promoted", note: "promotion completed during crash recovery" });
+        } else if (savedManifest?.workingAdvanced === true && savedManifest.consumed === false) {
+          await completeWorkingAdvancement({
+            runId,
+            savedManifest,
+            manifestPath,
+            trainer: t,
+            options,
+            commitConsumption,
+            logger,
+          });
+          await registry.runEvent(runId, {
+            status: savedManifest.decision ?? "rejected",
+            note: "working advancement completed during crash recovery (stable pointer unchanged)",
+          });
         } else if (
           savedManifest &&
           (savedManifest.decision === "rejected" || savedManifest.decision === "inconclusive") &&
@@ -1196,6 +1425,55 @@ async function discardRejected(trainer, version, runId, options, logger) {
 }
 
 /**
+ * Re-drive a working advancement after a crash. This never touches `active.json`.
+ * It publishes the staged candidate if needed, restores the working pointer and
+ * last-good anchor, commits consumption for the fresh batch, and settles the
+ * manifest. Every step is idempotent.
+ */
+async function completeWorkingAdvancement({
+  runId,
+  savedManifest,
+  manifestPath,
+  trainer,
+  options,
+  commitConsumption,
+  logger,
+}) {
+  const version = savedManifest.workingVersion ?? savedManifest.resultVersion ?? null;
+  if (!version) {
+    await updateManifest(manifestPath, savedManifest, { status: "failed", error: "working recovery found no candidate version" });
+    return null;
+  }
+  if (typeof trainer?.publishCandidate === "function" && savedManifest.published !== true) {
+    await trainer.publishCandidate(version, {
+      store: config.pythonStore ?? undefined,
+      bin: config.pythonBin ?? undefined,
+    });
+  }
+  if (savedManifest.workingLastGoodVersion && typeof trainer?.setWorkingLastGood === "function") {
+    await trainer.setWorkingLastGood(savedManifest.workingLastGoodVersion, {
+      ...(savedManifest.workingMeta ?? {}),
+      reason: "rollback anchor restored during working recovery",
+    });
+  }
+  if (typeof trainer?.setWorking === "function") {
+    await trainer.setWorking(version, savedManifest.workingMeta ?? {});
+  }
+  const ids = savedManifest.freshArticleIds ?? savedManifest.snapshotArticleIds ?? [];
+  const consumption = await commitConsumption(ids, runId, { checkpointRole: "working", version });
+  await updateManifest(manifestPath, savedManifest, {
+    consumed: true,
+    published: true,
+    activated: false,
+    settled: true,
+    workingAdvanced: true,
+    workingVersion: version,
+  });
+  logger?.log?.(`[lifecycle] working advancement for ${runId} recovered -> ${version}`);
+  return { version, consumption };
+}
+
+/**
  * Re-drive the idempotent tail of a promotion after a crash: publish (no-op if
  * already committed), move the active pointer, complete the manifest, then
  * commit consumption last. The candidate version is read from the trainer result
@@ -1238,6 +1516,12 @@ async function completePromotion({
     models: options.paths?.models ?? config.paths.models,
   });
   if (worker) await worker.reload();
+  if (savedManifest.workingAdvanced === true && typeof trainer?.setWorking === "function") {
+    if (savedManifest.workingLastGoodVersion && typeof trainer.setWorkingLastGood === "function") {
+      await trainer.setWorkingLastGood(savedManifest.workingLastGoodVersion, savedManifest.workingMeta ?? {});
+    }
+    await trainer.setWorking(version, savedManifest.workingMeta ?? {});
+  }
   // Accumulate: each write must carry forward everything already recorded, or a
   // later write would drop an earlier field (the whole file is rewritten).
   let next = await updateManifest(manifestPath, savedManifest, {
@@ -1426,6 +1710,24 @@ export async function recoverPendingPromotions({ registry, store, trainer = null
     if (!m || m.consumed === true || m.settled === true) continue;
     if (m.decision !== "promoted" && m.decision !== "rejected" && m.decision !== "inconclusive") continue;
     try {
+      if (m.decision !== "promoted" && m.workingAdvanced === true) {
+        await completeWorkingAdvancement({
+          runId: m.runId,
+          savedManifest: m,
+          manifestPath,
+          trainer,
+          options,
+          commitConsumption,
+          logger,
+        });
+        const after = await readManifest(manifestPath);
+        if (!after || after.consumed !== true) {
+          logger?.error && logger.error(`[lifecycle] working recovery of ${m.runId} did not commit consumption; left for inspection`);
+          continue;
+        }
+        recovered.push({ runId: m.runId, decision: m.decision, workingAdvanced: true });
+        continue;
+      }
       if (m.decision === "promoted") {
         await completePromotion({
           runId: m.runId,

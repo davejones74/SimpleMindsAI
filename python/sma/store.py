@@ -1676,6 +1676,91 @@ def active_version(root: Path) -> Optional[str]:
         return None
 
 
+# ------------------------------------------------------- working pointer
+#
+# `working` is deliberately separate from `active`. It names the durable
+# cumulative-learning checkpoint used as the next training parent. It is NEVER
+# read by serving code. `active` remains the only deployment pointer.
+#
+# A working version is a normal committed, immutable vNNN. The pointer adds the
+# lineage/metrics needed by the Node lifecycle; it does not change the version.
+
+
+def working_pointer_path(root: Path) -> Path:
+    return Path(root) / "working.json"
+
+
+def working_last_good_pointer_path(root: Path) -> Path:
+    return Path(root) / "working-last-good.json"
+
+
+def _working_payload(root: Path, version: str, extra: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    path = resolve_version_dir(root, version)
+    manifest = read_json(path / "init-manifest.json")
+    payload = {
+        "schema": "sma/working@1",
+        "version": version,
+        "artifactName": artifact_name(manifest),
+        "weightFingerprint": weight_fingerprint(manifest),
+        "parentVersion": manifest.get("parentVersion"),
+        "updatedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    }
+    if extra:
+        payload.update({k: v for k, v in extra.items() if v is not None})
+    return payload
+
+
+def set_working(root: Path, version: str, extra: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """Point the cumulative-learning parent at a committed version."""
+    payload = _working_payload(root, version, extra)
+    write_json(working_pointer_path(root), payload)
+    return payload
+
+
+def set_working_last_good(root: Path, version: str, extra: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """Record the rollback anchor for the working lineage."""
+    payload = _working_payload(root, version, extra)
+    write_json(working_last_good_pointer_path(root), payload)
+    return payload
+
+
+def _read_pointer_version(path: Path) -> Optional[str]:
+    if not path.is_file():
+        return None
+    try:
+        return read_json(path).get("version")
+    except (json.JSONDecodeError, OSError):
+        return None
+
+
+def working_version(root: Path) -> Optional[str]:
+    return _read_pointer_version(working_pointer_path(root))
+
+
+def working_last_good_version(root: Path) -> Optional[str]:
+    return _read_pointer_version(working_last_good_pointer_path(root))
+
+
+def working_pointer(root: Path) -> Optional[Dict[str, Any]]:
+    path = working_pointer_path(root)
+    if not path.is_file():
+        return None
+    try:
+        return read_json(path)
+    except (json.JSONDecodeError, OSError):
+        return None
+
+
+def working_last_good_pointer(root: Path) -> Optional[Dict[str, Any]]:
+    path = working_last_good_pointer_path(root)
+    if not path.is_file():
+        return None
+    try:
+        return read_json(path)
+    except (json.JSONDecodeError, OSError):
+        return None
+
+
 # ---------------------------------------------------------------- heartbeat
 
 
