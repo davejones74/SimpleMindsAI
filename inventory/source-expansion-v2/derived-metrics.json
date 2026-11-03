@@ -1,0 +1,3989 @@
+{
+  "schema": "sma/source-inventory-derived-metrics@2",
+  "inventoryVersion": "2.0.0",
+  "generatedAt": "2026-11-02T00:00:00Z",
+  "policy": {
+    "schema": "sma/source-composition-policy@2",
+    "targetNovelTokens": 7750000,
+    "minimumHeadroomRatio": 0.35,
+    "plannedDrawPool": "unrestricted",
+    "minimumPlannedNovelTokens": 10462500,
+    "maxPublisherShare": 0.15,
+    "maxPublisherGroupShare": 0.18,
+    "maxSourceFamilyShare": 0.15,
+    "maxSubjectShare": 0.3,
+    "minSubjectShare": 0.05,
+    "maxFormatShare": 0.35,
+    "maxUsFederalShare": 0.35,
+    "minIndependentPublishers": 20,
+    "minSourceFamilies": 25,
+    "minSubjectCategories": 10,
+    "notes": [
+      "Capacity is measured after fetch, quality, deduplication, v1-overlap and cross-source-overlap allowances, then multiplied by an explicit uncertainty factor.",
+      "The planned draw is a subset of capacity chosen under publisher, source-family, subject, format and governance caps.",
+      "Share-alike and non-commercial sources are excluded from the unrestricted target pool and reported separately.",
+      "Publisher diversity and source-family diversity are measured separately; parent/subsidiary/aggregator relationships are grouped.",
+      "No source may contribute more than 2% of the planned draw through a single document; long books are deliberately limited by document counts."
+    ]
+  },
+  "counts": {
+    "totalSources": 45,
+    "approvedUnrestricted": 37,
+    "approvedShareAlike": 3,
+    "restrictedNonCommercial": 5,
+    "excludedCandidates": 19,
+    "unrestrictedPublishers": 35,
+    "unrestrictedSourceFamilies": 37,
+    "unrestrictedSubjects": 10,
+    "candidateUrlsCapacity": 9976,
+    "candidateUrlsPlanned": 4903
+  },
+  "pools": {
+    "unrestricted": {
+      "sources": 37,
+      "publishers": 35,
+      "sourceFamilies": 37,
+      "capacityDocuments": 9976,
+      "plannedDocuments": 4903,
+      "grossCapacityTokens": 94310000,
+      "expectedNovelCapacityTokens": 68052174,
+      "conservativeNovelCapacityTokens": 40221444,
+      "grossPlannedTokens": 44830000,
+      "expectedPlannedNovelTokens": 32342127,
+      "conservativePlannedNovelTokens": 19051548
+    },
+    "share-alike": {
+      "sources": 3,
+      "publishers": 2,
+      "sourceFamilies": 3,
+      "capacityDocuments": 2200,
+      "plannedDocuments": 1100,
+      "grossCapacityTokens": 9700000,
+      "expectedNovelCapacityTokens": 6760314,
+      "conservativeNovelCapacityTokens": 3664102,
+      "grossPlannedTokens": 4850000,
+      "expectedPlannedNovelTokens": 3380158,
+      "conservativePlannedNovelTokens": 1832051
+    },
+    "non-commercial": {
+      "sources": 5,
+      "publishers": 5,
+      "sourceFamilies": 5,
+      "capacityDocuments": 2600,
+      "plannedDocuments": 0,
+      "grossCapacityTokens": 11100000,
+      "expectedNovelCapacityTokens": 6984745,
+      "conservativeNovelCapacityTokens": 3005191,
+      "grossPlannedTokens": 0,
+      "expectedPlannedNovelTokens": 0,
+      "conservativePlannedNovelTokens": 0
+    }
+  },
+  "candidateUrls": {
+    "schema": "sma/source-candidate-urls@2",
+    "note": "Candidate URL counts are document counts allocated across subject shares. They are planning estimates, not enumerated URLs. Example URLs and URL-generation rules are in source-inventory.json.",
+    "rows": [
+      {
+        "sourceId": "project-gutenberg",
+        "publisherId": "gutenberg.org",
+        "publisherGroupId": "gutenberg.org",
+        "sourceFamilyId": "project-gutenberg",
+        "subject": "humanities-philosophy-literature",
+        "pool": "unrestricted",
+        "format": "book",
+        "plannedCandidateUrls": 33,
+        "capacityCandidateUrls": 82.5,
+        "plannedNovelTokens": 828641,
+        "capacityNovelTokens": 2071603,
+        "exampleUrls": [
+          "https://www.gutenberg.org/cache/epub/11/pg11.txt",
+          "https://www.gutenberg.org/cache/epub/98/pg98.txt",
+          "https://www.gutenberg.org/cache/epub/2600/pg2600.txt"
+        ],
+        "urlGenerationRule": "Select book IDs from the Gutenberg bookshelf/offline catalog; download plain text from /cache/epub/<id>/pg<id>.txt. Exclude v1 IDs 1342 and 1661 and titles selected from Standard Ebooks."
+      },
+      {
+        "sourceId": "project-gutenberg",
+        "publisherId": "gutenberg.org",
+        "publisherGroupId": "gutenberg.org",
+        "sourceFamilyId": "project-gutenberg",
+        "subject": "history-historical-reference",
+        "pool": "unrestricted",
+        "format": "book",
+        "plannedCandidateUrls": 12,
+        "capacityCandidateUrls": 30,
+        "plannedNovelTokens": 301324,
+        "capacityNovelTokens": 753310,
+        "exampleUrls": [
+          "https://www.gutenberg.org/cache/epub/11/pg11.txt",
+          "https://www.gutenberg.org/cache/epub/98/pg98.txt",
+          "https://www.gutenberg.org/cache/epub/2600/pg2600.txt"
+        ],
+        "urlGenerationRule": "Select book IDs from the Gutenberg bookshelf/offline catalog; download plain text from /cache/epub/<id>/pg<id>.txt. Exclude v1 IDs 1342 and 1661 and titles selected from Standard Ebooks."
+      },
+      {
+        "sourceId": "project-gutenberg",
+        "publisherId": "gutenberg.org",
+        "publisherGroupId": "gutenberg.org",
+        "sourceFamilyId": "project-gutenberg",
+        "subject": "general-reference-education",
+        "pool": "unrestricted",
+        "format": "book",
+        "plannedCandidateUrls": 9,
+        "capacityCandidateUrls": 22.5,
+        "plannedNovelTokens": 225993,
+        "capacityNovelTokens": 564983,
+        "exampleUrls": [
+          "https://www.gutenberg.org/cache/epub/11/pg11.txt",
+          "https://www.gutenberg.org/cache/epub/98/pg98.txt",
+          "https://www.gutenberg.org/cache/epub/2600/pg2600.txt"
+        ],
+        "urlGenerationRule": "Select book IDs from the Gutenberg bookshelf/offline catalog; download plain text from /cache/epub/<id>/pg<id>.txt. Exclude v1 IDs 1342 and 1661 and titles selected from Standard Ebooks."
+      },
+      {
+        "sourceId": "project-gutenberg",
+        "publisherId": "gutenberg.org",
+        "publisherGroupId": "gutenberg.org",
+        "sourceFamilyId": "project-gutenberg",
+        "subject": "mathematics-formal-sciences",
+        "pool": "unrestricted",
+        "format": "book",
+        "plannedCandidateUrls": 3,
+        "capacityCandidateUrls": 7.5,
+        "plannedNovelTokens": 75331,
+        "capacityNovelTokens": 188328,
+        "exampleUrls": [
+          "https://www.gutenberg.org/cache/epub/11/pg11.txt",
+          "https://www.gutenberg.org/cache/epub/98/pg98.txt",
+          "https://www.gutenberg.org/cache/epub/2600/pg2600.txt"
+        ],
+        "urlGenerationRule": "Select book IDs from the Gutenberg bookshelf/offline catalog; download plain text from /cache/epub/<id>/pg<id>.txt. Exclude v1 IDs 1342 and 1661 and titles selected from Standard Ebooks."
+      },
+      {
+        "sourceId": "project-gutenberg",
+        "publisherId": "gutenberg.org",
+        "publisherGroupId": "gutenberg.org",
+        "sourceFamilyId": "project-gutenberg",
+        "subject": "economics-social-political",
+        "pool": "unrestricted",
+        "format": "book",
+        "plannedCandidateUrls": 3,
+        "capacityCandidateUrls": 7.5,
+        "plannedNovelTokens": 75331,
+        "capacityNovelTokens": 188328,
+        "exampleUrls": [
+          "https://www.gutenberg.org/cache/epub/11/pg11.txt",
+          "https://www.gutenberg.org/cache/epub/98/pg98.txt",
+          "https://www.gutenberg.org/cache/epub/2600/pg2600.txt"
+        ],
+        "urlGenerationRule": "Select book IDs from the Gutenberg bookshelf/offline catalog; download plain text from /cache/epub/<id>/pg<id>.txt. Exclude v1 IDs 1342 and 1661 and titles selected from Standard Ebooks."
+      },
+      {
+        "sourceId": "standard-ebooks",
+        "publisherId": "standardebooks.org",
+        "publisherGroupId": "standardebooks.org",
+        "sourceFamilyId": "standard-ebooks",
+        "subject": "humanities-philosophy-literature",
+        "pool": "unrestricted",
+        "format": "book",
+        "plannedCandidateUrls": 26,
+        "capacityCandidateUrls": 65,
+        "plannedNovelTokens": 746983,
+        "capacityNovelTokens": 1867459,
+        "exampleUrls": [
+          "https://standardebooks.org/ebooks/jane-austen/pride-and-prejudice",
+          "https://standardebooks.org/ebooks/charles-dickens/a-tale-of-two-cities",
+          "https://standardebooks.org/ebooks/homer/the-odyssey"
+        ],
+        "urlGenerationRule": "Enumerate catalogue pages at /ebooks; fetch EPUB/XHTML text from the ebook page. Prefer prose works and exclude titles used by Project Gutenberg."
+      },
+      {
+        "sourceId": "standard-ebooks",
+        "publisherId": "standardebooks.org",
+        "publisherGroupId": "standardebooks.org",
+        "sourceFamilyId": "standard-ebooks",
+        "subject": "history-historical-reference",
+        "pool": "unrestricted",
+        "format": "book",
+        "plannedCandidateUrls": 8,
+        "capacityCandidateUrls": 20,
+        "plannedNovelTokens": 229841,
+        "capacityNovelTokens": 574603,
+        "exampleUrls": [
+          "https://standardebooks.org/ebooks/jane-austen/pride-and-prejudice",
+          "https://standardebooks.org/ebooks/charles-dickens/a-tale-of-two-cities",
+          "https://standardebooks.org/ebooks/homer/the-odyssey"
+        ],
+        "urlGenerationRule": "Enumerate catalogue pages at /ebooks; fetch EPUB/XHTML text from the ebook page. Prefer prose works and exclude titles used by Project Gutenberg."
+      },
+      {
+        "sourceId": "standard-ebooks",
+        "publisherId": "standardebooks.org",
+        "publisherGroupId": "standardebooks.org",
+        "sourceFamilyId": "standard-ebooks",
+        "subject": "general-reference-education",
+        "pool": "unrestricted",
+        "format": "book",
+        "plannedCandidateUrls": 6,
+        "capacityCandidateUrls": 15,
+        "plannedNovelTokens": 172381,
+        "capacityNovelTokens": 430952,
+        "exampleUrls": [
+          "https://standardebooks.org/ebooks/jane-austen/pride-and-prejudice",
+          "https://standardebooks.org/ebooks/charles-dickens/a-tale-of-two-cities",
+          "https://standardebooks.org/ebooks/homer/the-odyssey"
+        ],
+        "urlGenerationRule": "Enumerate catalogue pages at /ebooks; fetch EPUB/XHTML text from the ebook page. Prefer prose works and exclude titles used by Project Gutenberg."
+      },
+      {
+        "sourceId": "oapen-ccby",
+        "publisherId": "oapen.org",
+        "publisherGroupId": "oapen.org",
+        "sourceFamilyId": "oapen-ccby",
+        "subject": "humanities-philosophy-literature",
+        "pool": "unrestricted",
+        "format": "book",
+        "plannedCandidateUrls": 36,
+        "capacityCandidateUrls": 80,
+        "plannedNovelTokens": 700861,
+        "capacityNovelTokens": 1557468,
+        "exampleUrls": [
+          "https://library.oapen.org/",
+          "https://library.oapen.org/oai/request?verb=ListMetadataFormats"
+        ],
+        "urlGenerationRule": "Harvest OAI-PMH records from https://library.oapen.org/oai/request; retain only records whose licence field is CC BY 4.0 and whose language is English. Download the book PDF/EPUB from the item handle."
+      },
+      {
+        "sourceId": "oapen-ccby",
+        "publisherId": "oapen.org",
+        "publisherGroupId": "oapen.org",
+        "sourceFamilyId": "oapen-ccby",
+        "subject": "history-historical-reference",
+        "pool": "unrestricted",
+        "format": "book",
+        "plannedCandidateUrls": 18,
+        "capacityCandidateUrls": 40,
+        "plannedNovelTokens": 350430,
+        "capacityNovelTokens": 778734,
+        "exampleUrls": [
+          "https://library.oapen.org/",
+          "https://library.oapen.org/oai/request?verb=ListMetadataFormats"
+        ],
+        "urlGenerationRule": "Harvest OAI-PMH records from https://library.oapen.org/oai/request; retain only records whose licence field is CC BY 4.0 and whose language is English. Download the book PDF/EPUB from the item handle."
+      },
+      {
+        "sourceId": "oapen-ccby",
+        "publisherId": "oapen.org",
+        "publisherGroupId": "oapen.org",
+        "sourceFamilyId": "oapen-ccby",
+        "subject": "economics-social-political",
+        "pool": "unrestricted",
+        "format": "book",
+        "plannedCandidateUrls": 22.5,
+        "capacityCandidateUrls": 50,
+        "plannedNovelTokens": 438038,
+        "capacityNovelTokens": 973418,
+        "exampleUrls": [
+          "https://library.oapen.org/",
+          "https://library.oapen.org/oai/request?verb=ListMetadataFormats"
+        ],
+        "urlGenerationRule": "Harvest OAI-PMH records from https://library.oapen.org/oai/request; retain only records whose licence field is CC BY 4.0 and whose language is English. Download the book PDF/EPUB from the item handle."
+      },
+      {
+        "sourceId": "oapen-ccby",
+        "publisherId": "oapen.org",
+        "publisherGroupId": "oapen.org",
+        "sourceFamilyId": "oapen-ccby",
+        "subject": "general-reference-education",
+        "pool": "unrestricted",
+        "format": "book",
+        "plannedCandidateUrls": 13.5,
+        "capacityCandidateUrls": 30,
+        "plannedNovelTokens": 262823,
+        "capacityNovelTokens": 584051,
+        "exampleUrls": [
+          "https://library.oapen.org/",
+          "https://library.oapen.org/oai/request?verb=ListMetadataFormats"
+        ],
+        "urlGenerationRule": "Harvest OAI-PMH records from https://library.oapen.org/oai/request; retain only records whose licence field is CC BY 4.0 and whose language is English. Download the book PDF/EPUB from the item handle."
+      },
+      {
+        "sourceId": "arxiv-ccby",
+        "publisherId": "arxiv.org",
+        "publisherGroupId": "arxiv.org",
+        "sourceFamilyId": "arxiv-ccby",
+        "subject": "mathematics-formal-sciences",
+        "pool": "unrestricted",
+        "format": "article",
+        "plannedCandidateUrls": 105,
+        "capacityCandidateUrls": 240,
+        "plannedNovelTokens": 421127,
+        "capacityNovelTokens": 962577,
+        "exampleUrls": [
+          "https://arxiv.org/abs/2301.00001",
+          "https://export.arxiv.org/oai2?verb=ListRecords&metadataPrefix=arXiv"
+        ],
+        "urlGenerationRule": "Use arXiv OAI-PMH/API metadata to select records with licence 'CC BY 4.0'; fetch the PDF/HTML for those records only. Do not mine non-CC-BY records."
+      },
+      {
+        "sourceId": "arxiv-ccby",
+        "publisherId": "arxiv.org",
+        "publisherGroupId": "arxiv.org",
+        "sourceFamilyId": "arxiv-ccby",
+        "subject": "physics-chemistry-biology",
+        "pool": "unrestricted",
+        "format": "article",
+        "plannedCandidateUrls": 122.5,
+        "capacityCandidateUrls": 280,
+        "plannedNovelTokens": 491315,
+        "capacityNovelTokens": 1123006,
+        "exampleUrls": [
+          "https://arxiv.org/abs/2301.00001",
+          "https://export.arxiv.org/oai2?verb=ListRecords&metadataPrefix=arXiv"
+        ],
+        "urlGenerationRule": "Use arXiv OAI-PMH/API metadata to select records with licence 'CC BY 4.0'; fetch the PDF/HTML for those records only. Do not mine non-CC-BY records."
+      },
+      {
+        "sourceId": "arxiv-ccby",
+        "publisherId": "arxiv.org",
+        "publisherGroupId": "arxiv.org",
+        "sourceFamilyId": "arxiv-ccby",
+        "subject": "computer-science-software",
+        "pool": "unrestricted",
+        "format": "article",
+        "plannedCandidateUrls": 70,
+        "capacityCandidateUrls": 160,
+        "plannedNovelTokens": 280752,
+        "capacityNovelTokens": 641718,
+        "exampleUrls": [
+          "https://arxiv.org/abs/2301.00001",
+          "https://export.arxiv.org/oai2?verb=ListRecords&metadataPrefix=arXiv"
+        ],
+        "urlGenerationRule": "Use arXiv OAI-PMH/API metadata to select records with licence 'CC BY 4.0'; fetch the PDF/HTML for those records only. Do not mine non-CC-BY records."
+      },
+      {
+        "sourceId": "arxiv-ccby",
+        "publisherId": "arxiv.org",
+        "publisherGroupId": "arxiv.org",
+        "sourceFamilyId": "arxiv-ccby",
+        "subject": "engineering-applied-sciences",
+        "pool": "unrestricted",
+        "format": "article",
+        "plannedCandidateUrls": 52.5,
+        "capacityCandidateUrls": 120,
+        "plannedNovelTokens": 210564,
+        "capacityNovelTokens": 481288,
+        "exampleUrls": [
+          "https://arxiv.org/abs/2301.00001",
+          "https://export.arxiv.org/oai2?verb=ListRecords&metadataPrefix=arXiv"
+        ],
+        "urlGenerationRule": "Use arXiv OAI-PMH/API metadata to select records with licence 'CC BY 4.0'; fetch the PDF/HTML for those records only. Do not mine non-CC-BY records."
+      },
+      {
+        "sourceId": "plos",
+        "publisherId": "journals.plos.org",
+        "publisherGroupId": "plos.org",
+        "sourceFamilyId": "plos",
+        "subject": "medicine-public-health",
+        "pool": "unrestricted",
+        "format": "article",
+        "plannedCandidateUrls": 180,
+        "capacityCandidateUrls": 360,
+        "plannedNovelTokens": 570960,
+        "capacityNovelTokens": 1141920,
+        "exampleUrls": [
+          "https://journals.plos.org/plosone/",
+          "https://journals.plos.org/plosbiology/"
+        ],
+        "urlGenerationRule": "Use PLOS journal search/API or sitemaps to enumerate research articles; fetch the HTML full text. Exclude articles whose DOI is already selected from PMC."
+      },
+      {
+        "sourceId": "plos",
+        "publisherId": "journals.plos.org",
+        "publisherGroupId": "plos.org",
+        "sourceFamilyId": "plos",
+        "subject": "physics-chemistry-biology",
+        "pool": "unrestricted",
+        "format": "article",
+        "plannedCandidateUrls": 120,
+        "capacityCandidateUrls": 240,
+        "plannedNovelTokens": 380640,
+        "capacityNovelTokens": 761280,
+        "exampleUrls": [
+          "https://journals.plos.org/plosone/",
+          "https://journals.plos.org/plosbiology/"
+        ],
+        "urlGenerationRule": "Use PLOS journal search/API or sitemaps to enumerate research articles; fetch the HTML full text. Exclude articles whose DOI is already selected from PMC."
+      },
+      {
+        "sourceId": "elife",
+        "publisherId": "elifesciences.org",
+        "publisherGroupId": "elifesciences.org",
+        "sourceFamilyId": "elife",
+        "subject": "medicine-public-health",
+        "pool": "unrestricted",
+        "format": "article",
+        "plannedCandidateUrls": 108,
+        "capacityCandidateUrls": 216,
+        "plannedNovelTokens": 456920,
+        "capacityNovelTokens": 913840,
+        "exampleUrls": [
+          "https://elifesciences.org/articles/00001",
+          "https://elifesciences.org/subjects"
+        ],
+        "urlGenerationRule": "Enumerate article URLs from the eLife sitemap; fetch HTML full text. Exclude DOIs selected via PMC."
+      },
+      {
+        "sourceId": "elife",
+        "publisherId": "elifesciences.org",
+        "publisherGroupId": "elifesciences.org",
+        "sourceFamilyId": "elife",
+        "subject": "physics-chemistry-biology",
+        "pool": "unrestricted",
+        "format": "article",
+        "plannedCandidateUrls": 72,
+        "capacityCandidateUrls": 144,
+        "plannedNovelTokens": 304613,
+        "capacityNovelTokens": 609226,
+        "exampleUrls": [
+          "https://elifesciences.org/articles/00001",
+          "https://elifesciences.org/subjects"
+        ],
+        "urlGenerationRule": "Enumerate article URLs from the eLife sitemap; fetch HTML full text. Exclude DOIs selected via PMC."
+      },
+      {
+        "sourceId": "pmc-oa-ccby",
+        "publisherId": "pmc.ncbi.nlm.nih.gov",
+        "publisherGroupId": "nih-pmc",
+        "sourceFamilyId": "pmc-oa-ccby",
+        "subject": "medicine-public-health",
+        "pool": "unrestricted",
+        "format": "article",
+        "plannedCandidateUrls": 280,
+        "capacityCandidateUrls": 560,
+        "plannedNovelTokens": 296995,
+        "capacityNovelTokens": 593989,
+        "exampleUrls": [
+          "https://www.ncbi.nlm.nih.gov/pmc/tools/openftlist/",
+          "https://www.ncbi.nlm.nih.gov/pmc/tools/oai/"
+        ],
+        "urlGenerationRule": "Use PMC Cloud Service, OAI-PMH, E-utilities or BioC API; filter to the OA subset and to articles whose licence is CC BY 4.0. Exclude DOIs already selected from publisher-specific sources."
+      },
+      {
+        "sourceId": "pmc-oa-ccby",
+        "publisherId": "pmc.ncbi.nlm.nih.gov",
+        "publisherGroupId": "nih-pmc",
+        "sourceFamilyId": "pmc-oa-ccby",
+        "subject": "physics-chemistry-biology",
+        "pool": "unrestricted",
+        "format": "article",
+        "plannedCandidateUrls": 120,
+        "capacityCandidateUrls": 240,
+        "plannedNovelTokens": 127283,
+        "capacityNovelTokens": 254567,
+        "exampleUrls": [
+          "https://www.ncbi.nlm.nih.gov/pmc/tools/openftlist/",
+          "https://www.ncbi.nlm.nih.gov/pmc/tools/oai/"
+        ],
+        "urlGenerationRule": "Use PMC Cloud Service, OAI-PMH, E-utilities or BioC API; filter to the OA subset and to articles whose licence is CC BY 4.0. Exclude DOIs already selected from publisher-specific sources."
+      },
+      {
+        "sourceId": "frontiers",
+        "publisherId": "frontiersin.org",
+        "publisherGroupId": "frontiersin.org",
+        "sourceFamilyId": "frontiers",
+        "subject": "medicine-public-health",
+        "pool": "unrestricted",
+        "format": "article",
+        "plannedCandidateUrls": 90,
+        "capacityCandidateUrls": 180,
+        "plannedNovelTokens": 228948,
+        "capacityNovelTokens": 457896,
+        "exampleUrls": [
+          "https://www.frontiersin.org/journals/psychology",
+          "https://www.frontiersin.org/journals/public-health"
+        ],
+        "urlGenerationRule": "Enumerate articles from journal sitemaps or the Frontiers API; fetch HTML full text. Exclude DOIs selected via PMC."
+      },
+      {
+        "sourceId": "frontiers",
+        "publisherId": "frontiersin.org",
+        "publisherGroupId": "frontiersin.org",
+        "sourceFamilyId": "frontiers",
+        "subject": "physics-chemistry-biology",
+        "pool": "unrestricted",
+        "format": "article",
+        "plannedCandidateUrls": 90,
+        "capacityCandidateUrls": 180,
+        "plannedNovelTokens": 228948,
+        "capacityNovelTokens": 457896,
+        "exampleUrls": [
+          "https://www.frontiersin.org/journals/psychology",
+          "https://www.frontiersin.org/journals/public-health"
+        ],
+        "urlGenerationRule": "Enumerate articles from journal sitemaps or the Frontiers API; fetch HTML full text. Exclude DOIs selected via PMC."
+      },
+      {
+        "sourceId": "bmc-springeropen-ccby",
+        "publisherId": "biomedcentral.com",
+        "publisherGroupId": "springer-nature",
+        "sourceFamilyId": "bmc-springeropen-ccby",
+        "subject": "medicine-public-health",
+        "pool": "unrestricted",
+        "format": "article",
+        "plannedCandidateUrls": 108,
+        "capacityCandidateUrls": 216,
+        "plannedNovelTokens": 274738,
+        "capacityNovelTokens": 549475,
+        "exampleUrls": [
+          "https://bmcbiol.biomedcentral.com/",
+          "https://www.springeropen.com/journals"
+        ],
+        "urlGenerationRule": "Enumerate articles from BMC/SpringerOpen journal sitemaps; fetch HTML full text. Exclude DOIs selected via PMC."
+      },
+      {
+        "sourceId": "bmc-springeropen-ccby",
+        "publisherId": "biomedcentral.com",
+        "publisherGroupId": "springer-nature",
+        "sourceFamilyId": "bmc-springeropen-ccby",
+        "subject": "physics-chemistry-biology",
+        "pool": "unrestricted",
+        "format": "article",
+        "plannedCandidateUrls": 72,
+        "capacityCandidateUrls": 144,
+        "plannedNovelTokens": 183158,
+        "capacityNovelTokens": 366316,
+        "exampleUrls": [
+          "https://bmcbiol.biomedcentral.com/",
+          "https://www.springeropen.com/journals"
+        ],
+        "urlGenerationRule": "Enumerate articles from BMC/SpringerOpen journal sitemaps; fetch HTML full text. Exclude DOIs selected via PMC."
+      },
+      {
+        "sourceId": "mdpi-ccby",
+        "publisherId": "mdpi.com",
+        "publisherGroupId": "mdpi.com",
+        "sourceFamilyId": "mdpi-ccby",
+        "subject": "medicine-public-health",
+        "pool": "unrestricted",
+        "format": "article",
+        "plannedCandidateUrls": 72,
+        "capacityCandidateUrls": 144,
+        "plannedNovelTokens": 159268,
+        "capacityNovelTokens": 318536,
+        "exampleUrls": [
+          "https://www.mdpi.com/",
+          "https://www.mdpi.com/about/journals"
+        ],
+        "urlGenerationRule": "Enumerate articles from MDPI journal sitemaps; fetch HTML full text. Prefer substantial research articles and exclude DOIs selected via PMC."
+      },
+      {
+        "sourceId": "mdpi-ccby",
+        "publisherId": "mdpi.com",
+        "publisherGroupId": "mdpi.com",
+        "sourceFamilyId": "mdpi-ccby",
+        "subject": "physics-chemistry-biology",
+        "pool": "unrestricted",
+        "format": "article",
+        "plannedCandidateUrls": 54,
+        "capacityCandidateUrls": 108,
+        "plannedNovelTokens": 119451,
+        "capacityNovelTokens": 238902,
+        "exampleUrls": [
+          "https://www.mdpi.com/",
+          "https://www.mdpi.com/about/journals"
+        ],
+        "urlGenerationRule": "Enumerate articles from MDPI journal sitemaps; fetch HTML full text. Prefer substantial research articles and exclude DOIs selected via PMC."
+      },
+      {
+        "sourceId": "mdpi-ccby",
+        "publisherId": "mdpi.com",
+        "publisherGroupId": "mdpi.com",
+        "sourceFamilyId": "mdpi-ccby",
+        "subject": "engineering-applied-sciences",
+        "pool": "unrestricted",
+        "format": "article",
+        "plannedCandidateUrls": 54,
+        "capacityCandidateUrls": 108,
+        "plannedNovelTokens": 119451,
+        "capacityNovelTokens": 238902,
+        "exampleUrls": [
+          "https://www.mdpi.com/",
+          "https://www.mdpi.com/about/journals"
+        ],
+        "urlGenerationRule": "Enumerate articles from MDPI journal sitemaps; fetch HTML full text. Prefer substantial research articles and exclude DOIs selected via PMC."
+      },
+      {
+        "sourceId": "copernicus-ccby",
+        "publisherId": "copernicus.org",
+        "publisherGroupId": "copernicus.org",
+        "sourceFamilyId": "copernicus-ccby",
+        "subject": "geography-earth-environmental",
+        "pool": "unrestricted",
+        "format": "article",
+        "plannedCandidateUrls": 127.5,
+        "capacityCandidateUrls": 255,
+        "plannedNovelTokens": 437158,
+        "capacityNovelTokens": 874315,
+        "exampleUrls": [
+          "https://acp.copernicus.org/articles/",
+          "https://www.copernicus.org/journals/"
+        ],
+        "urlGenerationRule": "Enumerate articles from Copernicus journal sitemaps; fetch HTML/PDF full text."
+      },
+      {
+        "sourceId": "copernicus-ccby",
+        "publisherId": "copernicus.org",
+        "publisherGroupId": "copernicus.org",
+        "sourceFamilyId": "copernicus-ccby",
+        "subject": "physics-chemistry-biology",
+        "pool": "unrestricted",
+        "format": "article",
+        "plannedCandidateUrls": 22.5,
+        "capacityCandidateUrls": 45,
+        "plannedNovelTokens": 77145,
+        "capacityNovelTokens": 154291,
+        "exampleUrls": [
+          "https://acp.copernicus.org/articles/",
+          "https://www.copernicus.org/journals/"
+        ],
+        "urlGenerationRule": "Enumerate articles from Copernicus journal sitemaps; fetch HTML/PDF full text."
+      },
+      {
+        "sourceId": "usgs",
+        "publisherId": "usgs.gov",
+        "publisherGroupId": "usgs.gov",
+        "sourceFamilyId": "usgs",
+        "subject": "geography-earth-environmental",
+        "pool": "unrestricted",
+        "format": "report",
+        "plannedCandidateUrls": 126,
+        "capacityCandidateUrls": 252,
+        "plannedNovelTokens": 669446,
+        "capacityNovelTokens": 1338891,
+        "exampleUrls": [
+          "https://pubs.usgs.gov/",
+          "https://pubs.usgs.gov/publication/"
+        ],
+        "urlGenerationRule": "Use the USGS Publications Warehouse API/catalog to select USGS-authored reports and fact sheets; fetch PDF/HTML."
+      },
+      {
+        "sourceId": "usgs",
+        "publisherId": "usgs.gov",
+        "publisherGroupId": "usgs.gov",
+        "sourceFamilyId": "usgs",
+        "subject": "engineering-applied-sciences",
+        "pool": "unrestricted",
+        "format": "report",
+        "plannedCandidateUrls": 36,
+        "capacityCandidateUrls": 72,
+        "plannedNovelTokens": 191270,
+        "capacityNovelTokens": 382540,
+        "exampleUrls": [
+          "https://pubs.usgs.gov/",
+          "https://pubs.usgs.gov/publication/"
+        ],
+        "urlGenerationRule": "Use the USGS Publications Warehouse API/catalog to select USGS-authored reports and fact sheets; fetch PDF/HTML."
+      },
+      {
+        "sourceId": "usgs",
+        "publisherId": "usgs.gov",
+        "publisherGroupId": "usgs.gov",
+        "sourceFamilyId": "usgs",
+        "subject": "history-historical-reference",
+        "pool": "unrestricted",
+        "format": "report",
+        "plannedCandidateUrls": 18,
+        "capacityCandidateUrls": 36,
+        "plannedNovelTokens": 95635,
+        "capacityNovelTokens": 191270,
+        "exampleUrls": [
+          "https://pubs.usgs.gov/",
+          "https://pubs.usgs.gov/publication/"
+        ],
+        "urlGenerationRule": "Use the USGS Publications Warehouse API/catalog to select USGS-authored reports and fact sheets; fetch PDF/HTML."
+      },
+      {
+        "sourceId": "noaa",
+        "publisherId": "noaa.gov",
+        "publisherGroupId": "noaa.gov",
+        "sourceFamilyId": "noaa",
+        "subject": "geography-earth-environmental",
+        "pool": "unrestricted",
+        "format": "report",
+        "plannedCandidateUrls": 120,
+        "capacityCandidateUrls": 240,
+        "plannedNovelTokens": 461823,
+        "capacityNovelTokens": 923646,
+        "exampleUrls": [
+          "https://repository.library.noaa.gov/",
+          "https://www.noaa.gov/"
+        ],
+        "urlGenerationRule": "Use the NOAA Institutional Repository/catalog and NOAA science pages; select NOAA-authored reports and long-form pages."
+      },
+      {
+        "sourceId": "noaa",
+        "publisherId": "noaa.gov",
+        "publisherGroupId": "noaa.gov",
+        "sourceFamilyId": "noaa",
+        "subject": "physics-chemistry-biology",
+        "pool": "unrestricted",
+        "format": "report",
+        "plannedCandidateUrls": 30,
+        "capacityCandidateUrls": 60,
+        "plannedNovelTokens": 115456,
+        "capacityNovelTokens": 230912,
+        "exampleUrls": [
+          "https://repository.library.noaa.gov/",
+          "https://www.noaa.gov/"
+        ],
+        "urlGenerationRule": "Use the NOAA Institutional Repository/catalog and NOAA science pages; select NOAA-authored reports and long-form pages."
+      },
+      {
+        "sourceId": "nasa",
+        "publisherId": "nasa.gov",
+        "publisherGroupId": "nasa.gov",
+        "sourceFamilyId": "nasa",
+        "subject": "physics-chemistry-biology",
+        "pool": "unrestricted",
+        "format": "report",
+        "plannedCandidateUrls": 45,
+        "capacityCandidateUrls": 90,
+        "plannedNovelTokens": 81948,
+        "capacityNovelTokens": 163896,
+        "exampleUrls": [
+          "https://science.nasa.gov/",
+          "https://ntrs.nasa.gov/"
+        ],
+        "urlGenerationRule": "Enumerate NASA science pages and NTRS records; fetch HTML/PDF for NASA-authored text."
+      },
+      {
+        "sourceId": "nasa",
+        "publisherId": "nasa.gov",
+        "publisherGroupId": "nasa.gov",
+        "sourceFamilyId": "nasa",
+        "subject": "engineering-applied-sciences",
+        "pool": "unrestricted",
+        "format": "report",
+        "plannedCandidateUrls": 82.5,
+        "capacityCandidateUrls": 165,
+        "plannedNovelTokens": 150238,
+        "capacityNovelTokens": 300475,
+        "exampleUrls": [
+          "https://science.nasa.gov/",
+          "https://ntrs.nasa.gov/"
+        ],
+        "urlGenerationRule": "Enumerate NASA science pages and NTRS records; fetch HTML/PDF for NASA-authored text."
+      },
+      {
+        "sourceId": "nasa",
+        "publisherId": "nasa.gov",
+        "publisherGroupId": "nasa.gov",
+        "sourceFamilyId": "nasa",
+        "subject": "geography-earth-environmental",
+        "pool": "unrestricted",
+        "format": "report",
+        "plannedCandidateUrls": 15,
+        "capacityCandidateUrls": 30,
+        "plannedNovelTokens": 27316,
+        "capacityNovelTokens": 54632,
+        "exampleUrls": [
+          "https://science.nasa.gov/",
+          "https://ntrs.nasa.gov/"
+        ],
+        "urlGenerationRule": "Enumerate NASA science pages and NTRS records; fetch HTML/PDF for NASA-authored text."
+      },
+      {
+        "sourceId": "nasa",
+        "publisherId": "nasa.gov",
+        "publisherGroupId": "nasa.gov",
+        "sourceFamilyId": "nasa",
+        "subject": "general-reference-education",
+        "pool": "unrestricted",
+        "format": "report",
+        "plannedCandidateUrls": 7.5,
+        "capacityCandidateUrls": 15,
+        "plannedNovelTokens": 13658,
+        "capacityNovelTokens": 27316,
+        "exampleUrls": [
+          "https://science.nasa.gov/",
+          "https://ntrs.nasa.gov/"
+        ],
+        "urlGenerationRule": "Enumerate NASA science pages and NTRS records; fetch HTML/PDF for NASA-authored text."
+      },
+      {
+        "sourceId": "nist",
+        "publisherId": "nist.gov",
+        "publisherGroupId": "nist.gov",
+        "sourceFamilyId": "nist",
+        "subject": "physics-chemistry-biology",
+        "pool": "unrestricted",
+        "format": "report",
+        "plannedCandidateUrls": 36,
+        "capacityCandidateUrls": 72,
+        "plannedNovelTokens": 83097,
+        "capacityNovelTokens": 166193,
+        "exampleUrls": [
+          "https://www.nist.gov/publications",
+          "https://nvlpubs.nist.gov/"
+        ],
+        "urlGenerationRule": "Enumerate NIST publications from the NIST publications catalog/NVL Pubs; fetch PDF/HTML."
+      },
+      {
+        "sourceId": "nist",
+        "publisherId": "nist.gov",
+        "publisherGroupId": "nist.gov",
+        "sourceFamilyId": "nist",
+        "subject": "engineering-applied-sciences",
+        "pool": "unrestricted",
+        "format": "report",
+        "plannedCandidateUrls": 66,
+        "capacityCandidateUrls": 132,
+        "plannedNovelTokens": 152344,
+        "capacityNovelTokens": 304688,
+        "exampleUrls": [
+          "https://www.nist.gov/publications",
+          "https://nvlpubs.nist.gov/"
+        ],
+        "urlGenerationRule": "Enumerate NIST publications from the NIST publications catalog/NVL Pubs; fetch PDF/HTML."
+      },
+      {
+        "sourceId": "nist",
+        "publisherId": "nist.gov",
+        "publisherGroupId": "nist.gov",
+        "sourceFamilyId": "nist",
+        "subject": "mathematics-formal-sciences",
+        "pool": "unrestricted",
+        "format": "report",
+        "plannedCandidateUrls": 12,
+        "capacityCandidateUrls": 24,
+        "plannedNovelTokens": 27699,
+        "capacityNovelTokens": 55398,
+        "exampleUrls": [
+          "https://www.nist.gov/publications",
+          "https://nvlpubs.nist.gov/"
+        ],
+        "urlGenerationRule": "Enumerate NIST publications from the NIST publications catalog/NVL Pubs; fetch PDF/HTML."
+      },
+      {
+        "sourceId": "nist",
+        "publisherId": "nist.gov",
+        "publisherGroupId": "nist.gov",
+        "sourceFamilyId": "nist",
+        "subject": "computer-science-software",
+        "pool": "unrestricted",
+        "format": "report",
+        "plannedCandidateUrls": 6,
+        "capacityCandidateUrls": 12,
+        "plannedNovelTokens": 13849,
+        "capacityNovelTokens": 27699,
+        "exampleUrls": [
+          "https://www.nist.gov/publications",
+          "https://nvlpubs.nist.gov/"
+        ],
+        "urlGenerationRule": "Enumerate NIST publications from the NIST publications catalog/NVL Pubs; fetch PDF/HTML."
+      },
+      {
+        "sourceId": "doe-osti-govwork",
+        "publisherId": "osti.gov",
+        "publisherGroupId": "osti.gov",
+        "sourceFamilyId": "doe-osti-govwork",
+        "subject": "physics-chemistry-biology",
+        "pool": "unrestricted",
+        "format": "report",
+        "plannedCandidateUrls": 36,
+        "capacityCandidateUrls": 72,
+        "plannedNovelTokens": 149234,
+        "capacityNovelTokens": 298468,
+        "exampleUrls": [
+          "https://www.osti.gov/",
+          "https://www.osti.gov/biblio/"
+        ],
+        "urlGenerationRule": "Use OSTI bibliographic records to select reports marked U.S. Government Work; fetch the public full text."
+      },
+      {
+        "sourceId": "doe-osti-govwork",
+        "publisherId": "osti.gov",
+        "publisherGroupId": "osti.gov",
+        "sourceFamilyId": "doe-osti-govwork",
+        "subject": "engineering-applied-sciences",
+        "pool": "unrestricted",
+        "format": "report",
+        "plannedCandidateUrls": 66,
+        "capacityCandidateUrls": 132,
+        "plannedNovelTokens": 273595,
+        "capacityNovelTokens": 547191,
+        "exampleUrls": [
+          "https://www.osti.gov/",
+          "https://www.osti.gov/biblio/"
+        ],
+        "urlGenerationRule": "Use OSTI bibliographic records to select reports marked U.S. Government Work; fetch the public full text."
+      },
+      {
+        "sourceId": "doe-osti-govwork",
+        "publisherId": "osti.gov",
+        "publisherGroupId": "osti.gov",
+        "sourceFamilyId": "doe-osti-govwork",
+        "subject": "geography-earth-environmental",
+        "pool": "unrestricted",
+        "format": "report",
+        "plannedCandidateUrls": 18,
+        "capacityCandidateUrls": 36,
+        "plannedNovelTokens": 74617,
+        "capacityNovelTokens": 149234,
+        "exampleUrls": [
+          "https://www.osti.gov/",
+          "https://www.osti.gov/biblio/"
+        ],
+        "urlGenerationRule": "Use OSTI bibliographic records to select reports marked U.S. Government Work; fetch the public full text."
+      },
+      {
+        "sourceId": "nist-dlmf",
+        "publisherId": "dlmf.nist.gov",
+        "publisherGroupId": "nist.gov",
+        "sourceFamilyId": "nist-dlmf",
+        "subject": "mathematics-formal-sciences",
+        "pool": "unrestricted",
+        "format": "reference",
+        "plannedCandidateUrls": 12,
+        "capacityCandidateUrls": 24,
+        "plannedNovelTokens": 161111,
+        "capacityNovelTokens": 322223,
+        "exampleUrls": [
+          "https://dlmf.nist.gov/",
+          "https://dlmf.nist.gov/1"
+        ],
+        "urlGenerationRule": "Enumerate DLMF chapters/sections under dlmf.nist.gov; fetch HTML and extract prose."
+      },
+      {
+        "sourceId": "nps",
+        "publisherId": "nps.gov",
+        "publisherGroupId": "nps.gov",
+        "sourceFamilyId": "nps",
+        "subject": "history-historical-reference",
+        "pool": "unrestricted",
+        "format": "web",
+        "plannedCandidateUrls": 30,
+        "capacityCandidateUrls": 60,
+        "plannedNovelTokens": 28290,
+        "capacityNovelTokens": 56581,
+        "exampleUrls": [
+          "https://www.nps.gov/subjects/history/index.htm",
+          "https://www.nps.gov/subjects/geology/index.htm"
+        ],
+        "urlGenerationRule": "Enumerate NPS subject pages; fetch HTML and clean navigation."
+      },
+      {
+        "sourceId": "nps",
+        "publisherId": "nps.gov",
+        "publisherGroupId": "nps.gov",
+        "sourceFamilyId": "nps",
+        "subject": "geography-earth-environmental",
+        "pool": "unrestricted",
+        "format": "web",
+        "plannedCandidateUrls": 30,
+        "capacityCandidateUrls": 60,
+        "plannedNovelTokens": 28290,
+        "capacityNovelTokens": 56581,
+        "exampleUrls": [
+          "https://www.nps.gov/subjects/history/index.htm",
+          "https://www.nps.gov/subjects/geology/index.htm"
+        ],
+        "urlGenerationRule": "Enumerate NPS subject pages; fetch HTML and clean navigation."
+      },
+      {
+        "sourceId": "cdc",
+        "publisherId": "cdc.gov",
+        "publisherGroupId": "cdc.gov",
+        "sourceFamilyId": "cdc",
+        "subject": "medicine-public-health",
+        "pool": "unrestricted",
+        "format": "web",
+        "plannedCandidateUrls": 108,
+        "capacityCandidateUrls": 216,
+        "plannedNovelTokens": 121148,
+        "capacityNovelTokens": 242297,
+        "exampleUrls": [
+          "https://www.cdc.gov/",
+          "https://www.cdc.gov/az/"
+        ],
+        "urlGenerationRule": "Enumerate CDC topic pages and long-form guidance from sitemaps; fetch HTML and clean boilerplate."
+      },
+      {
+        "sourceId": "cdc",
+        "publisherId": "cdc.gov",
+        "publisherGroupId": "cdc.gov",
+        "sourceFamilyId": "cdc",
+        "subject": "general-reference-education",
+        "pool": "unrestricted",
+        "format": "web",
+        "plannedCandidateUrls": 12,
+        "capacityCandidateUrls": 24,
+        "plannedNovelTokens": 13461,
+        "capacityNovelTokens": 26922,
+        "exampleUrls": [
+          "https://www.cdc.gov/",
+          "https://www.cdc.gov/az/"
+        ],
+        "urlGenerationRule": "Enumerate CDC topic pages and long-form guidance from sitemaps; fetch HTML and clean boilerplate."
+      },
+      {
+        "sourceId": "nih-nlm",
+        "publisherId": "nlm.nih.gov",
+        "publisherGroupId": "nih-nlm",
+        "sourceFamilyId": "nih-nlm",
+        "subject": "medicine-public-health",
+        "pool": "unrestricted",
+        "format": "web",
+        "plannedCandidateUrls": 90,
+        "capacityCandidateUrls": 180,
+        "plannedNovelTokens": 100958,
+        "capacityNovelTokens": 201914,
+        "exampleUrls": [
+          "https://medlineplus.gov/",
+          "https://www.nlm.nih.gov/"
+        ],
+        "urlGenerationRule": "Enumerate MedlinePlus/NLM topic pages; fetch HTML and clean boilerplate."
+      },
+      {
+        "sourceId": "nih-nlm",
+        "publisherId": "nlm.nih.gov",
+        "publisherGroupId": "nih-nlm",
+        "sourceFamilyId": "nih-nlm",
+        "subject": "physics-chemistry-biology",
+        "pool": "unrestricted",
+        "format": "web",
+        "plannedCandidateUrls": 10,
+        "capacityCandidateUrls": 20,
+        "plannedNovelTokens": 11218,
+        "capacityNovelTokens": 22435,
+        "exampleUrls": [
+          "https://medlineplus.gov/",
+          "https://www.nlm.nih.gov/"
+        ],
+        "urlGenerationRule": "Enumerate MedlinePlus/NLM topic pages; fetch HTML and clean boilerplate."
+      },
+      {
+        "sourceId": "usda",
+        "publisherId": "usda.gov",
+        "publisherGroupId": "usda.gov",
+        "sourceFamilyId": "usda",
+        "subject": "physics-chemistry-biology",
+        "pool": "unrestricted",
+        "format": "web",
+        "plannedCandidateUrls": 50,
+        "capacityCandidateUrls": 100,
+        "plannedNovelTokens": 56384,
+        "capacityNovelTokens": 112768,
+        "exampleUrls": [
+          "https://www.usda.gov/",
+          "https://www.nal.usda.gov/"
+        ],
+        "urlGenerationRule": "Enumerate USDA agency topic pages and publications; fetch HTML/PDF."
+      },
+      {
+        "sourceId": "usda",
+        "publisherId": "usda.gov",
+        "publisherGroupId": "usda.gov",
+        "sourceFamilyId": "usda",
+        "subject": "geography-earth-environmental",
+        "pool": "unrestricted",
+        "format": "web",
+        "plannedCandidateUrls": 30,
+        "capacityCandidateUrls": 60,
+        "plannedNovelTokens": 33830,
+        "capacityNovelTokens": 67661,
+        "exampleUrls": [
+          "https://www.usda.gov/",
+          "https://www.nal.usda.gov/"
+        ],
+        "urlGenerationRule": "Enumerate USDA agency topic pages and publications; fetch HTML/PDF."
+      },
+      {
+        "sourceId": "usda",
+        "publisherId": "usda.gov",
+        "publisherGroupId": "usda.gov",
+        "sourceFamilyId": "usda",
+        "subject": "engineering-applied-sciences",
+        "pool": "unrestricted",
+        "format": "web",
+        "plannedCandidateUrls": 20,
+        "capacityCandidateUrls": 40,
+        "plannedNovelTokens": 22554,
+        "capacityNovelTokens": 45107,
+        "exampleUrls": [
+          "https://www.usda.gov/",
+          "https://www.nal.usda.gov/"
+        ],
+        "urlGenerationRule": "Enumerate USDA agency topic pages and publications; fetch HTML/PDF."
+      },
+      {
+        "sourceId": "us-census",
+        "publisherId": "census.gov",
+        "publisherGroupId": "census.gov",
+        "sourceFamilyId": "us-census",
+        "subject": "economics-social-political",
+        "pool": "unrestricted",
+        "format": "web",
+        "plannedCandidateUrls": 70,
+        "capacityCandidateUrls": 140,
+        "plannedNovelTokens": 76952,
+        "capacityNovelTokens": 153903,
+        "exampleUrls": [
+          "https://www.census.gov/topics/population.html",
+          "https://www.census.gov/programs-surveys/acs/about.html"
+        ],
+        "urlGenerationRule": "Enumerate Census topic/program pages; fetch HTML and clean tables/boilerplate."
+      },
+      {
+        "sourceId": "us-census",
+        "publisherId": "census.gov",
+        "publisherGroupId": "census.gov",
+        "sourceFamilyId": "us-census",
+        "subject": "geography-earth-environmental",
+        "pool": "unrestricted",
+        "format": "web",
+        "plannedCandidateUrls": 30,
+        "capacityCandidateUrls": 60,
+        "plannedNovelTokens": 32979,
+        "capacityNovelTokens": 65959,
+        "exampleUrls": [
+          "https://www.census.gov/topics/population.html",
+          "https://www.census.gov/programs-surveys/acs/about.html"
+        ],
+        "urlGenerationRule": "Enumerate Census topic/program pages; fetch HTML and clean tables/boilerplate."
+      },
+      {
+        "sourceId": "us-bls",
+        "publisherId": "bls.gov",
+        "publisherGroupId": "bls.gov",
+        "sourceFamilyId": "us-bls",
+        "subject": "economics-social-political",
+        "pool": "unrestricted",
+        "format": "web",
+        "plannedCandidateUrls": 80,
+        "capacityCandidateUrls": 160,
+        "plannedNovelTokens": 89740,
+        "capacityNovelTokens": 179479,
+        "exampleUrls": [
+          "https://www.bls.gov/",
+          "https://www.bls.gov/bls/newsrels.htm"
+        ],
+        "urlGenerationRule": "Enumerate BLS topic and publication pages; fetch HTML."
+      },
+      {
+        "sourceId": "epa",
+        "publisherId": "epa.gov",
+        "publisherGroupId": "epa.gov",
+        "sourceFamilyId": "epa",
+        "subject": "geography-earth-environmental",
+        "pool": "unrestricted",
+        "format": "web",
+        "plannedCandidateUrls": 64,
+        "capacityCandidateUrls": 128,
+        "plannedNovelTokens": 68202,
+        "capacityNovelTokens": 136404,
+        "exampleUrls": [
+          "https://www.epa.gov/",
+          "https://www.epa.gov/environmental-topics"
+        ],
+        "urlGenerationRule": "Enumerate EPA topic pages and reports; fetch HTML/PDF."
+      },
+      {
+        "sourceId": "epa",
+        "publisherId": "epa.gov",
+        "publisherGroupId": "epa.gov",
+        "sourceFamilyId": "epa",
+        "subject": "medicine-public-health",
+        "pool": "unrestricted",
+        "format": "web",
+        "plannedCandidateUrls": 16,
+        "capacityCandidateUrls": 32,
+        "plannedNovelTokens": 17051,
+        "capacityNovelTokens": 34101,
+        "exampleUrls": [
+          "https://www.epa.gov/",
+          "https://www.epa.gov/environmental-topics"
+        ],
+        "urlGenerationRule": "Enumerate EPA topic pages and reports; fetch HTML/PDF."
+      },
+      {
+        "sourceId": "uk-govuk",
+        "publisherId": "gov.uk",
+        "publisherGroupId": "gov.uk",
+        "sourceFamilyId": "uk-govuk",
+        "subject": "economics-social-political",
+        "pool": "unrestricted",
+        "format": "report",
+        "plannedCandidateUrls": 108,
+        "capacityCandidateUrls": 216,
+        "plannedNovelTokens": 203022,
+        "capacityNovelTokens": 406045,
+        "exampleUrls": [
+          "https://www.gov.uk/government/publications",
+          "https://www.gov.uk/guidance"
+        ],
+        "urlGenerationRule": "Use the GOV.UK Content API/search API to select guidance and publications; fetch HTML and clean navigation/boilerplate."
+      },
+      {
+        "sourceId": "uk-govuk",
+        "publisherId": "gov.uk",
+        "publisherGroupId": "gov.uk",
+        "sourceFamilyId": "uk-govuk",
+        "subject": "history-historical-reference",
+        "pool": "unrestricted",
+        "format": "report",
+        "plannedCandidateUrls": 36,
+        "capacityCandidateUrls": 72,
+        "plannedNovelTokens": 67674,
+        "capacityNovelTokens": 135348,
+        "exampleUrls": [
+          "https://www.gov.uk/government/publications",
+          "https://www.gov.uk/guidance"
+        ],
+        "urlGenerationRule": "Use the GOV.UK Content API/search API to select guidance and publications; fetch HTML and clean navigation/boilerplate."
+      },
+      {
+        "sourceId": "uk-govuk",
+        "publisherId": "gov.uk",
+        "publisherGroupId": "gov.uk",
+        "sourceFamilyId": "uk-govuk",
+        "subject": "medicine-public-health",
+        "pool": "unrestricted",
+        "format": "report",
+        "plannedCandidateUrls": 18,
+        "capacityCandidateUrls": 36,
+        "plannedNovelTokens": 33837,
+        "capacityNovelTokens": 67674,
+        "exampleUrls": [
+          "https://www.gov.uk/government/publications",
+          "https://www.gov.uk/guidance"
+        ],
+        "urlGenerationRule": "Use the GOV.UK Content API/search API to select guidance and publications; fetch HTML and clean navigation/boilerplate."
+      },
+      {
+        "sourceId": "uk-govuk",
+        "publisherId": "gov.uk",
+        "publisherGroupId": "gov.uk",
+        "sourceFamilyId": "uk-govuk",
+        "subject": "general-reference-education",
+        "pool": "unrestricted",
+        "format": "report",
+        "plannedCandidateUrls": 18,
+        "capacityCandidateUrls": 36,
+        "plannedNovelTokens": 33837,
+        "capacityNovelTokens": 67674,
+        "exampleUrls": [
+          "https://www.gov.uk/government/publications",
+          "https://www.gov.uk/guidance"
+        ],
+        "urlGenerationRule": "Use the GOV.UK Content API/search API to select guidance and publications; fetch HTML and clean navigation/boilerplate."
+      },
+      {
+        "sourceId": "eu-eurlex-op",
+        "publisherId": "europa.eu",
+        "publisherGroupId": "european-union",
+        "sourceFamilyId": "eu-eurlex-op",
+        "subject": "economics-social-political",
+        "pool": "unrestricted",
+        "format": "report",
+        "plannedCandidateUrls": 96,
+        "capacityCandidateUrls": 192,
+        "plannedNovelTokens": 446510,
+        "capacityNovelTokens": 893018,
+        "exampleUrls": [
+          "https://eur-lex.europa.eu/",
+          "https://op.europa.eu/"
+        ],
+        "urlGenerationRule": "Use EUR-Lex/Publications Office search and OAI/SPARQL endpoints to select English documents with reuse-permitting notices; fetch HTML/PDF."
+      },
+      {
+        "sourceId": "eu-eurlex-op",
+        "publisherId": "europa.eu",
+        "publisherGroupId": "european-union",
+        "sourceFamilyId": "eu-eurlex-op",
+        "subject": "history-historical-reference",
+        "pool": "unrestricted",
+        "format": "report",
+        "plannedCandidateUrls": 12,
+        "capacityCandidateUrls": 24,
+        "plannedNovelTokens": 55814,
+        "capacityNovelTokens": 111627,
+        "exampleUrls": [
+          "https://eur-lex.europa.eu/",
+          "https://op.europa.eu/"
+        ],
+        "urlGenerationRule": "Use EUR-Lex/Publications Office search and OAI/SPARQL endpoints to select English documents with reuse-permitting notices; fetch HTML/PDF."
+      },
+      {
+        "sourceId": "eu-eurlex-op",
+        "publisherId": "europa.eu",
+        "publisherGroupId": "european-union",
+        "sourceFamilyId": "eu-eurlex-op",
+        "subject": "general-reference-education",
+        "pool": "unrestricted",
+        "format": "report",
+        "plannedCandidateUrls": 12,
+        "capacityCandidateUrls": 24,
+        "plannedNovelTokens": 55814,
+        "capacityNovelTokens": 111627,
+        "exampleUrls": [
+          "https://eur-lex.europa.eu/",
+          "https://op.europa.eu/"
+        ],
+        "urlGenerationRule": "Use EUR-Lex/Publications Office search and OAI/SPARQL endpoints to select English documents with reuse-permitting notices; fetch HTML/PDF."
+      },
+      {
+        "sourceId": "world-bank-okr",
+        "publisherId": "worldbank.org",
+        "publisherGroupId": "worldbank.org",
+        "sourceFamilyId": "world-bank-okr",
+        "subject": "economics-social-political",
+        "pool": "unrestricted",
+        "format": "report",
+        "plannedCandidateUrls": 105,
+        "capacityCandidateUrls": 210,
+        "plannedNovelTokens": 1202536,
+        "capacityNovelTokens": 2405073,
+        "exampleUrls": [
+          "https://openknowledge.worldbank.org/",
+          "https://openknowledge.worldbank.org/oai/request"
+        ],
+        "urlGenerationRule": "Harvest OKR OAI-PMH metadata; retain items with CC BY 4.0/3.0 IGO rights and English language. Fetch the PDF from the item handle."
+      },
+      {
+        "sourceId": "world-bank-okr",
+        "publisherId": "worldbank.org",
+        "publisherGroupId": "worldbank.org",
+        "sourceFamilyId": "world-bank-okr",
+        "subject": "geography-earth-environmental",
+        "pool": "unrestricted",
+        "format": "report",
+        "plannedCandidateUrls": 30,
+        "capacityCandidateUrls": 60,
+        "plannedNovelTokens": 343582,
+        "capacityNovelTokens": 687164,
+        "exampleUrls": [
+          "https://openknowledge.worldbank.org/",
+          "https://openknowledge.worldbank.org/oai/request"
+        ],
+        "urlGenerationRule": "Harvest OKR OAI-PMH metadata; retain items with CC BY 4.0/3.0 IGO rights and English language. Fetch the PDF from the item handle."
+      },
+      {
+        "sourceId": "world-bank-okr",
+        "publisherId": "worldbank.org",
+        "publisherGroupId": "worldbank.org",
+        "sourceFamilyId": "world-bank-okr",
+        "subject": "general-reference-education",
+        "pool": "unrestricted",
+        "format": "report",
+        "plannedCandidateUrls": 15,
+        "capacityCandidateUrls": 30,
+        "plannedNovelTokens": 171791,
+        "capacityNovelTokens": 343582,
+        "exampleUrls": [
+          "https://openknowledge.worldbank.org/",
+          "https://openknowledge.worldbank.org/oai/request"
+        ],
+        "urlGenerationRule": "Harvest OKR OAI-PMH metadata; retain items with CC BY 4.0/3.0 IGO rights and English language. Fetch the PDF from the item handle."
+      },
+      {
+        "sourceId": "oecd",
+        "publisherId": "oecd.org",
+        "publisherGroupId": "oecd.org",
+        "sourceFamilyId": "oecd",
+        "subject": "economics-social-political",
+        "pool": "unrestricted",
+        "format": "report",
+        "plannedCandidateUrls": 96,
+        "capacityCandidateUrls": 192,
+        "plannedNovelTokens": 763459,
+        "capacityNovelTokens": 1526918,
+        "exampleUrls": [
+          "https://www.oecd.org/en/publications.html",
+          "https://www.oecd.org/en/topics.html"
+        ],
+        "urlGenerationRule": "Enumerate OECD publications from oecd.org/oecd-ilibrary; check the copyright page and select CC BY 4.0 or equivalent terms; fetch HTML/PDF."
+      },
+      {
+        "sourceId": "oecd",
+        "publisherId": "oecd.org",
+        "publisherGroupId": "oecd.org",
+        "sourceFamilyId": "oecd",
+        "subject": "general-reference-education",
+        "pool": "unrestricted",
+        "format": "report",
+        "plannedCandidateUrls": 24,
+        "capacityCandidateUrls": 48,
+        "plannedNovelTokens": 190865,
+        "capacityNovelTokens": 381730,
+        "exampleUrls": [
+          "https://www.oecd.org/en/publications.html",
+          "https://www.oecd.org/en/topics.html"
+        ],
+        "urlGenerationRule": "Enumerate OECD publications from oecd.org/oecd-ilibrary; check the copyright page and select CC BY 4.0 or equivalent terms; fetch HTML/PDF."
+      },
+      {
+        "sourceId": "ourworldindata",
+        "publisherId": "ourworldindata.org",
+        "publisherGroupId": "ourworldindata.org",
+        "sourceFamilyId": "ourworldindata",
+        "subject": "economics-social-political",
+        "pool": "unrestricted",
+        "format": "web",
+        "plannedCandidateUrls": 48,
+        "capacityCandidateUrls": 96,
+        "plannedNovelTokens": 55896,
+        "capacityNovelTokens": 111792,
+        "exampleUrls": [
+          "https://ourworldindata.org/",
+          "https://ourworldindata.org/topics"
+        ],
+        "urlGenerationRule": "Enumerate OWID article pages; fetch HTML and keep OWID-authored prose, excluding embedded third-party charts/data."
+      },
+      {
+        "sourceId": "ourworldindata",
+        "publisherId": "ourworldindata.org",
+        "publisherGroupId": "ourworldindata.org",
+        "sourceFamilyId": "ourworldindata",
+        "subject": "geography-earth-environmental",
+        "pool": "unrestricted",
+        "format": "web",
+        "plannedCandidateUrls": 36,
+        "capacityCandidateUrls": 72,
+        "plannedNovelTokens": 41922,
+        "capacityNovelTokens": 83844,
+        "exampleUrls": [
+          "https://ourworldindata.org/",
+          "https://ourworldindata.org/topics"
+        ],
+        "urlGenerationRule": "Enumerate OWID article pages; fetch HTML and keep OWID-authored prose, excluding embedded third-party charts/data."
+      },
+      {
+        "sourceId": "ourworldindata",
+        "publisherId": "ourworldindata.org",
+        "publisherGroupId": "ourworldindata.org",
+        "sourceFamilyId": "ourworldindata",
+        "subject": "medicine-public-health",
+        "pool": "unrestricted",
+        "format": "web",
+        "plannedCandidateUrls": 36,
+        "capacityCandidateUrls": 72,
+        "plannedNovelTokens": 41922,
+        "capacityNovelTokens": 83844,
+        "exampleUrls": [
+          "https://ourworldindata.org/",
+          "https://ourworldindata.org/topics"
+        ],
+        "urlGenerationRule": "Enumerate OWID article pages; fetch HTML and keep OWID-authored prose, excluding embedded third-party charts/data."
+      },
+      {
+        "sourceId": "open-logic-project",
+        "publisherId": "openlogicproject.org",
+        "publisherGroupId": "open-logic-project",
+        "sourceFamilyId": "open-logic-project",
+        "subject": "mathematics-formal-sciences",
+        "pool": "unrestricted",
+        "format": "book",
+        "plannedCandidateUrls": 20,
+        "capacityCandidateUrls": 40,
+        "plannedNovelTokens": 662579,
+        "capacityNovelTokens": 1325159,
+        "exampleUrls": [
+          "https://openlogicproject.org/",
+          "https://github.com/OpenLogicProject/OpenLogic"
+        ],
+        "urlGenerationRule": "Select book/part PDFs or HTML from the Open Logic Project catalogue; exclude duplicate remixes and works already covered by forall x."
+      },
+      {
+        "sourceId": "open-logic-project",
+        "publisherId": "openlogicproject.org",
+        "publisherGroupId": "open-logic-project",
+        "sourceFamilyId": "open-logic-project",
+        "subject": "humanities-philosophy-literature",
+        "pool": "unrestricted",
+        "format": "book",
+        "plannedCandidateUrls": 5,
+        "capacityCandidateUrls": 10,
+        "plannedNovelTokens": 165645,
+        "capacityNovelTokens": 331290,
+        "exampleUrls": [
+          "https://openlogicproject.org/",
+          "https://github.com/OpenLogicProject/OpenLogic"
+        ],
+        "urlGenerationRule": "Select book/part PDFs or HTML from the Open Logic Project catalogue; exclude duplicate remixes and works already covered by forall x."
+      },
+      {
+        "sourceId": "forallx-calgary",
+        "publisherId": "forallx.openlogicproject.org",
+        "publisherGroupId": "open-logic-project",
+        "sourceFamilyId": "forallx-calgary",
+        "subject": "mathematics-formal-sciences",
+        "pool": "unrestricted",
+        "format": "book",
+        "plannedCandidateUrls": 4.2,
+        "capacityCandidateUrls": 8.4,
+        "plannedNovelTokens": 180534,
+        "capacityNovelTokens": 361068,
+        "exampleUrls": [
+          "https://forallx.openlogicproject.org/",
+          "https://forallx.openlogicproject.org/html/"
+        ],
+        "urlGenerationRule": "Select distinct editions from forallx.openlogicproject.org (PDF and HTML); avoid duplicate revisions."
+      },
+      {
+        "sourceId": "forallx-calgary",
+        "publisherId": "forallx.openlogicproject.org",
+        "publisherGroupId": "open-logic-project",
+        "sourceFamilyId": "forallx-calgary",
+        "subject": "humanities-philosophy-literature",
+        "pool": "unrestricted",
+        "format": "book",
+        "plannedCandidateUrls": 1.8,
+        "capacityCandidateUrls": 3.6,
+        "plannedNovelTokens": 77372,
+        "capacityNovelTokens": 154743,
+        "exampleUrls": [
+          "https://forallx.openlogicproject.org/",
+          "https://forallx.openlogicproject.org/html/"
+        ],
+        "urlGenerationRule": "Select distinct editions from forallx.openlogicproject.org (PDF and HTML); avoid duplicate revisions."
+      },
+      {
+        "sourceId": "python-docs",
+        "publisherId": "docs.python.org",
+        "publisherGroupId": "python-software-foundation",
+        "sourceFamilyId": "python-docs",
+        "subject": "computer-science-software",
+        "pool": "unrestricted",
+        "format": "documentation",
+        "plannedCandidateUrls": 120,
+        "capacityCandidateUrls": 240,
+        "plannedNovelTokens": 288686,
+        "capacityNovelTokens": 577372,
+        "exampleUrls": [
+          "https://docs.python.org/3/reference/",
+          "https://docs.python.org/3/library/"
+        ],
+        "urlGenerationRule": "Enumerate docs.python.org/3 tutorial/library/reference pages; exclude v1 URLs and select prose-rich pages."
+      },
+      {
+        "sourceId": "rust-docs",
+        "publisherId": "doc.rust-lang.org",
+        "publisherGroupId": "rust-project",
+        "sourceFamilyId": "rust-docs",
+        "subject": "computer-science-software",
+        "pool": "unrestricted",
+        "format": "documentation",
+        "plannedCandidateUrls": 120,
+        "capacityCandidateUrls": 240,
+        "plannedNovelTokens": 156895,
+        "capacityNovelTokens": 313789,
+        "exampleUrls": [
+          "https://doc.rust-lang.org/book/",
+          "https://doc.rust-lang.org/std/"
+        ],
+        "urlGenerationRule": "Enumerate doc.rust-lang.org book/reference pages; fetch HTML and clean navigation/code."
+      },
+      {
+        "sourceId": "go-docs",
+        "publisherId": "go.dev",
+        "publisherGroupId": "go-project",
+        "sourceFamilyId": "go-docs",
+        "subject": "computer-science-software",
+        "pool": "unrestricted",
+        "format": "documentation",
+        "plannedCandidateUrls": 120,
+        "capacityCandidateUrls": 240,
+        "plannedNovelTokens": 156895,
+        "capacityNovelTokens": 313789,
+        "exampleUrls": [
+          "https://go.dev/doc/",
+          "https://go.dev/ref/spec"
+        ],
+        "urlGenerationRule": "Enumerate go.dev/doc and go.dev/ref pages; fetch HTML and clean code/navigation."
+      },
+      {
+        "sourceId": "postgresql-docs",
+        "publisherId": "postgresql.org",
+        "publisherGroupId": "postgresql-global-development-group",
+        "sourceFamilyId": "postgresql-docs",
+        "subject": "computer-science-software",
+        "pool": "unrestricted",
+        "format": "documentation",
+        "plannedCandidateUrls": 120,
+        "capacityCandidateUrls": 240,
+        "plannedNovelTokens": 186333,
+        "capacityNovelTokens": 372665,
+        "exampleUrls": [
+          "https://www.postgresql.org/docs/current/",
+          "https://www.postgresql.org/docs/current/tutorial.html"
+        ],
+        "urlGenerationRule": "Enumerate the current PostgreSQL manual sections under /docs/current/; fetch HTML."
+      },
+      {
+        "sourceId": "kubernetes-docs",
+        "publisherId": "kubernetes.io",
+        "publisherGroupId": "cncf",
+        "sourceFamilyId": "kubernetes-docs",
+        "subject": "computer-science-software",
+        "pool": "unrestricted",
+        "format": "documentation",
+        "plannedCandidateUrls": 120,
+        "capacityCandidateUrls": 240,
+        "plannedNovelTokens": 140217,
+        "capacityNovelTokens": 280434,
+        "exampleUrls": [
+          "https://kubernetes.io/docs/concepts/",
+          "https://kubernetes.io/docs/tasks/"
+        ],
+        "urlGenerationRule": "Enumerate kubernetes.io/docs pages; fetch HTML and keep prose-rich concept/task pages."
+      },
+      {
+        "sourceId": "tensorflow-docs",
+        "publisherId": "tensorflow.org",
+        "publisherGroupId": "google",
+        "sourceFamilyId": "tensorflow-docs",
+        "subject": "computer-science-software",
+        "pool": "unrestricted",
+        "format": "documentation",
+        "plannedCandidateUrls": 100,
+        "capacityCandidateUrls": 200,
+        "plannedNovelTokens": 107110,
+        "capacityNovelTokens": 214220,
+        "exampleUrls": [
+          "https://www.tensorflow.org/tutorials",
+          "https://www.tensorflow.org/guide"
+        ],
+        "urlGenerationRule": "Enumerate tensorflow.org tutorials/guide pages; fetch HTML and keep prose-rich pages."
+      },
+      {
+        "sourceId": "wikipedia-en",
+        "publisherId": "en.wikipedia.org",
+        "publisherGroupId": "wikimedia",
+        "sourceFamilyId": "wikipedia-en",
+        "subject": "general-reference-education",
+        "pool": "share-alike",
+        "format": "encyclopedia",
+        "plannedCandidateUrls": 0,
+        "capacityCandidateUrls": 0,
+        "plannedNovelTokens": 0,
+        "capacityNovelTokens": 0,
+        "exampleUrls": [
+          "https://en.wikipedia.org/wiki/Mathematics",
+          "https://en.wikipedia.org/wiki/Philosophy"
+        ],
+        "urlGenerationRule": "Use the MediaWiki API/category listings to select long-form articles; exclude v1 titles and list/index pages."
+      },
+      {
+        "sourceId": "wikibooks-en",
+        "publisherId": "en.wikibooks.org",
+        "publisherGroupId": "wikimedia",
+        "sourceFamilyId": "wikibooks-en",
+        "subject": "general-reference-education",
+        "pool": "share-alike",
+        "format": "textbook",
+        "plannedCandidateUrls": 0,
+        "capacityCandidateUrls": 0,
+        "plannedNovelTokens": 0,
+        "capacityNovelTokens": 0,
+        "exampleUrls": [
+          "https://en.wikibooks.org/wiki/Subject:Mathematics",
+          "https://en.wikibooks.org/wiki/Subject:Science"
+        ],
+        "urlGenerationRule": "Use the MediaWiki API to enumerate book chapters; select substantial prose books."
+      },
+      {
+        "sourceId": "mdn-web-docs",
+        "publisherId": "developer.mozilla.org",
+        "publisherGroupId": "mozilla",
+        "sourceFamilyId": "mdn-web-docs",
+        "subject": "computer-science-software",
+        "pool": "share-alike",
+        "format": "documentation",
+        "plannedCandidateUrls": 0,
+        "capacityCandidateUrls": 0,
+        "plannedNovelTokens": 0,
+        "capacityNovelTokens": 0,
+        "exampleUrls": [
+          "https://developer.mozilla.org/en-US/docs/Web/JavaScript",
+          "https://developer.mozilla.org/en-US/docs/Web/CSS"
+        ],
+        "urlGenerationRule": "Enumerate developer.mozilla.org/en-US/docs pages; fetch HTML and keep prose-rich guides/references."
+      },
+      {
+        "sourceId": "openstax-current",
+        "publisherId": "openstax.org",
+        "publisherGroupId": "openstax.org",
+        "sourceFamilyId": "openstax-current",
+        "subject": "general-reference-education",
+        "pool": "non-commercial",
+        "format": "textbook",
+        "plannedCandidateUrls": 0,
+        "capacityCandidateUrls": 0,
+        "plannedNovelTokens": 0,
+        "capacityNovelTokens": 0,
+        "exampleUrls": [
+          "https://openstax.org/books/",
+          "https://openstax.org/blog/openstax-licensing"
+        ],
+        "urlGenerationRule": "Deferred until non-commercial suitability is explicitly established. Legacy CC BY editions require per-book licence evidence."
+      },
+      {
+        "sourceId": "mit-ocw",
+        "publisherId": "ocw.mit.edu",
+        "publisherGroupId": "mit",
+        "sourceFamilyId": "mit-ocw",
+        "subject": "general-reference-education",
+        "pool": "non-commercial",
+        "format": "courseware",
+        "plannedCandidateUrls": 0,
+        "capacityCandidateUrls": 0,
+        "plannedNovelTokens": 0,
+        "capacityNovelTokens": 0,
+        "exampleUrls": [
+          "https://ocw.mit.edu/terms/",
+          "https://ocw.mit.edu/courses/"
+        ],
+        "urlGenerationRule": "Deferred until non-commercial suitability is explicitly established."
+      },
+      {
+        "sourceId": "khan-academy",
+        "publisherId": "khanacademy.org",
+        "publisherGroupId": "khan-academy",
+        "sourceFamilyId": "khan-academy",
+        "subject": "general-reference-education",
+        "pool": "non-commercial",
+        "format": "courseware",
+        "plannedCandidateUrls": 0,
+        "capacityCandidateUrls": 0,
+        "plannedNovelTokens": 0,
+        "capacityNovelTokens": 0,
+        "exampleUrls": [
+          "https://www.khanacademy.org/about/tos"
+        ],
+        "urlGenerationRule": "Deferred until non-commercial suitability is explicitly established."
+      },
+      {
+        "sourceId": "who",
+        "publisherId": "who.int",
+        "publisherGroupId": "who",
+        "sourceFamilyId": "who",
+        "subject": "medicine-public-health",
+        "pool": "non-commercial",
+        "format": "report",
+        "plannedCandidateUrls": 0,
+        "capacityCandidateUrls": 0,
+        "plannedNovelTokens": 0,
+        "capacityNovelTokens": 0,
+        "exampleUrls": [
+          "https://www.who.int/publications",
+          "https://www.who.int/about/policies/publishing/copyright"
+        ],
+        "urlGenerationRule": "Deferred until non-commercial suitability is explicitly established."
+      },
+      {
+        "sourceId": "fao",
+        "publisherId": "fao.org",
+        "publisherGroupId": "fao",
+        "sourceFamilyId": "fao",
+        "subject": "physics-chemistry-biology",
+        "pool": "non-commercial",
+        "format": "report",
+        "plannedCandidateUrls": 0,
+        "capacityCandidateUrls": 0,
+        "plannedNovelTokens": 0,
+        "capacityNovelTokens": 0,
+        "exampleUrls": [
+          "https://www.fao.org/publications/en/",
+          "https://www.fao.org/contact-us/terms/en/"
+        ],
+        "urlGenerationRule": "Deferred until non-commercial suitability is explicitly established."
+      },
+      {
+        "sourceId": "fao",
+        "publisherId": "fao.org",
+        "publisherGroupId": "fao",
+        "sourceFamilyId": "fao",
+        "subject": "geography-earth-environmental",
+        "pool": "non-commercial",
+        "format": "report",
+        "plannedCandidateUrls": 0,
+        "capacityCandidateUrls": 0,
+        "plannedNovelTokens": 0,
+        "capacityNovelTokens": 0,
+        "exampleUrls": [
+          "https://www.fao.org/publications/en/",
+          "https://www.fao.org/contact-us/terms/en/"
+        ],
+        "urlGenerationRule": "Deferred until non-commercial suitability is explicitly established."
+      }
+    ],
+    "unrestricted": {
+      "byPublisherGroup": [
+        {
+          "key": "oapen.org",
+          "plannedCandidateUrls": 90,
+          "capacityCandidateUrls": 200,
+          "plannedNovelTokens": 1752152,
+          "capacityNovelTokens": 3893671,
+          "plannedTokenShare": 0.09196901
+        },
+        {
+          "key": "worldbank.org",
+          "plannedCandidateUrls": 150,
+          "capacityCandidateUrls": 300,
+          "plannedNovelTokens": 1717909,
+          "capacityNovelTokens": 3435819,
+          "plannedTokenShare": 0.09017162
+        },
+        {
+          "key": "gutenberg.org",
+          "plannedCandidateUrls": 60,
+          "capacityCandidateUrls": 150,
+          "plannedNovelTokens": 1506620,
+          "capacityNovelTokens": 3766552,
+          "plannedTokenShare": 0.07908124
+        },
+        {
+          "key": "arxiv.org",
+          "plannedCandidateUrls": 350,
+          "capacityCandidateUrls": 800,
+          "plannedNovelTokens": 1403758,
+          "capacityNovelTokens": 3208589,
+          "plannedTokenShare": 0.0736821
+        },
+        {
+          "key": "standardebooks.org",
+          "plannedCandidateUrls": 40,
+          "capacityCandidateUrls": 100,
+          "plannedNovelTokens": 1149205,
+          "capacityNovelTokens": 2873014,
+          "plannedTokenShare": 0.06032082
+        },
+        {
+          "key": "open-logic-project",
+          "plannedCandidateUrls": 31,
+          "capacityCandidateUrls": 62,
+          "plannedNovelTokens": 1086130,
+          "capacityNovelTokens": 2172260,
+          "plannedTokenShare": 0.05701007
+        },
+        {
+          "key": "usgs.gov",
+          "plannedCandidateUrls": 180,
+          "capacityCandidateUrls": 360,
+          "plannedNovelTokens": 956351,
+          "capacityNovelTokens": 1912701,
+          "plannedTokenShare": 0.05019807
+        },
+        {
+          "key": "oecd.org",
+          "plannedCandidateUrls": 120,
+          "capacityCandidateUrls": 240,
+          "plannedNovelTokens": 954324,
+          "capacityNovelTokens": 1908648,
+          "plannedTokenShare": 0.05009168
+        },
+        {
+          "key": "plos.org",
+          "plannedCandidateUrls": 300,
+          "capacityCandidateUrls": 600,
+          "plannedNovelTokens": 951600,
+          "capacityNovelTokens": 1903200,
+          "plannedTokenShare": 0.0499487
+        },
+        {
+          "key": "elifesciences.org",
+          "plannedCandidateUrls": 180,
+          "capacityCandidateUrls": 360,
+          "plannedNovelTokens": 761533,
+          "capacityNovelTokens": 1523066,
+          "plannedTokenShare": 0.03997224
+        },
+        {
+          "key": "noaa.gov",
+          "plannedCandidateUrls": 150,
+          "capacityCandidateUrls": 300,
+          "plannedNovelTokens": 577279,
+          "capacityNovelTokens": 1154558,
+          "plannedTokenShare": 0.0303009
+        },
+        {
+          "key": "european-union",
+          "plannedCandidateUrls": 120,
+          "capacityCandidateUrls": 240,
+          "plannedNovelTokens": 558138,
+          "capacityNovelTokens": 1116272,
+          "plannedTokenShare": 0.0292962
+        },
+        {
+          "key": "copernicus.org",
+          "plannedCandidateUrls": 150,
+          "capacityCandidateUrls": 300,
+          "plannedNovelTokens": 514303,
+          "capacityNovelTokens": 1028606,
+          "plannedTokenShare": 0.02699534
+        },
+        {
+          "key": "osti.gov",
+          "plannedCandidateUrls": 120,
+          "capacityCandidateUrls": 240,
+          "plannedNovelTokens": 497446,
+          "capacityNovelTokens": 994893,
+          "plannedTokenShare": 0.02611053
+        },
+        {
+          "key": "frontiersin.org",
+          "plannedCandidateUrls": 180,
+          "capacityCandidateUrls": 360,
+          "plannedNovelTokens": 457896,
+          "capacityNovelTokens": 915792,
+          "plannedTokenShare": 0.02403458
+        },
+        {
+          "key": "springer-nature",
+          "plannedCandidateUrls": 180,
+          "capacityCandidateUrls": 360,
+          "plannedNovelTokens": 457896,
+          "capacityNovelTokens": 915791,
+          "plannedTokenShare": 0.02403458
+        },
+        {
+          "key": "nist.gov",
+          "plannedCandidateUrls": 132,
+          "capacityCandidateUrls": 264,
+          "plannedNovelTokens": 438100,
+          "capacityNovelTokens": 876201,
+          "plannedTokenShare": 0.02299551
+        },
+        {
+          "key": "nih-pmc",
+          "plannedCandidateUrls": 400,
+          "capacityCandidateUrls": 800,
+          "plannedNovelTokens": 424278,
+          "capacityNovelTokens": 848556,
+          "plannedTokenShare": 0.02227
+        },
+        {
+          "key": "mdpi.com",
+          "plannedCandidateUrls": 180,
+          "capacityCandidateUrls": 360,
+          "plannedNovelTokens": 398170,
+          "capacityNovelTokens": 796340,
+          "plannedTokenShare": 0.02089961
+        },
+        {
+          "key": "gov.uk",
+          "plannedCandidateUrls": 180,
+          "capacityCandidateUrls": 360,
+          "plannedNovelTokens": 338370,
+          "capacityNovelTokens": 676741,
+          "plannedTokenShare": 0.01776076
+        },
+        {
+          "key": "python-software-foundation",
+          "plannedCandidateUrls": 120,
+          "capacityCandidateUrls": 240,
+          "plannedNovelTokens": 288686,
+          "capacityNovelTokens": 577372,
+          "plannedTokenShare": 0.01515289
+        },
+        {
+          "key": "nasa.gov",
+          "plannedCandidateUrls": 150,
+          "capacityCandidateUrls": 300,
+          "plannedNovelTokens": 273160,
+          "capacityNovelTokens": 546319,
+          "plannedTokenShare": 0.01433794
+        },
+        {
+          "key": "postgresql-global-development-group",
+          "plannedCandidateUrls": 120,
+          "capacityCandidateUrls": 240,
+          "plannedNovelTokens": 186333,
+          "capacityNovelTokens": 372665,
+          "plannedTokenShare": 0.00978047
+        },
+        {
+          "key": "go-project",
+          "plannedCandidateUrls": 120,
+          "capacityCandidateUrls": 240,
+          "plannedNovelTokens": 156895,
+          "capacityNovelTokens": 313789,
+          "plannedTokenShare": 0.00823529
+        },
+        {
+          "key": "rust-project",
+          "plannedCandidateUrls": 120,
+          "capacityCandidateUrls": 240,
+          "plannedNovelTokens": 156895,
+          "capacityNovelTokens": 313789,
+          "plannedTokenShare": 0.00823529
+        },
+        {
+          "key": "cncf",
+          "plannedCandidateUrls": 120,
+          "capacityCandidateUrls": 240,
+          "plannedNovelTokens": 140217,
+          "capacityNovelTokens": 280434,
+          "plannedTokenShare": 0.00735987
+        },
+        {
+          "key": "ourworldindata.org",
+          "plannedCandidateUrls": 120,
+          "capacityCandidateUrls": 240,
+          "plannedNovelTokens": 139740,
+          "capacityNovelTokens": 279480,
+          "plannedTokenShare": 0.00733484
+        },
+        {
+          "key": "cdc.gov",
+          "plannedCandidateUrls": 120,
+          "capacityCandidateUrls": 240,
+          "plannedNovelTokens": 134609,
+          "capacityNovelTokens": 269219,
+          "plannedTokenShare": 0.00706552
+        },
+        {
+          "key": "usda.gov",
+          "plannedCandidateUrls": 100,
+          "capacityCandidateUrls": 200,
+          "plannedNovelTokens": 112768,
+          "capacityNovelTokens": 225536,
+          "plannedTokenShare": 0.0059191
+        },
+        {
+          "key": "nih-nlm",
+          "plannedCandidateUrls": 100,
+          "capacityCandidateUrls": 200,
+          "plannedNovelTokens": 112176,
+          "capacityNovelTokens": 224349,
+          "plannedTokenShare": 0.00588803
+        },
+        {
+          "key": "census.gov",
+          "plannedCandidateUrls": 100,
+          "capacityCandidateUrls": 200,
+          "plannedNovelTokens": 109931,
+          "capacityNovelTokens": 219862,
+          "plannedTokenShare": 0.00577019
+        },
+        {
+          "key": "google",
+          "plannedCandidateUrls": 100,
+          "capacityCandidateUrls": 200,
+          "plannedNovelTokens": 107110,
+          "capacityNovelTokens": 214220,
+          "plannedTokenShare": 0.00562212
+        },
+        {
+          "key": "bls.gov",
+          "plannedCandidateUrls": 80,
+          "capacityCandidateUrls": 160,
+          "plannedNovelTokens": 89740,
+          "capacityNovelTokens": 179479,
+          "plannedTokenShare": 0.00471038
+        },
+        {
+          "key": "epa.gov",
+          "plannedCandidateUrls": 80,
+          "capacityCandidateUrls": 160,
+          "plannedNovelTokens": 85253,
+          "capacityNovelTokens": 170505,
+          "plannedTokenShare": 0.00447486
+        },
+        {
+          "key": "nps.gov",
+          "plannedCandidateUrls": 60,
+          "capacityCandidateUrls": 120,
+          "plannedNovelTokens": 56580,
+          "capacityNovelTokens": 113162,
+          "plannedTokenShare": 0.00296984
+        }
+      ],
+      "bySourceFamily": [
+        {
+          "key": "oapen-ccby",
+          "plannedCandidateUrls": 90,
+          "capacityCandidateUrls": 200,
+          "plannedNovelTokens": 1752152,
+          "capacityNovelTokens": 3893671,
+          "plannedTokenShare": 0.09196901
+        },
+        {
+          "key": "world-bank-okr",
+          "plannedCandidateUrls": 150,
+          "capacityCandidateUrls": 300,
+          "plannedNovelTokens": 1717909,
+          "capacityNovelTokens": 3435819,
+          "plannedTokenShare": 0.09017162
+        },
+        {
+          "key": "project-gutenberg",
+          "plannedCandidateUrls": 60,
+          "capacityCandidateUrls": 150,
+          "plannedNovelTokens": 1506620,
+          "capacityNovelTokens": 3766552,
+          "plannedTokenShare": 0.07908124
+        },
+        {
+          "key": "arxiv-ccby",
+          "plannedCandidateUrls": 350,
+          "capacityCandidateUrls": 800,
+          "plannedNovelTokens": 1403758,
+          "capacityNovelTokens": 3208589,
+          "plannedTokenShare": 0.0736821
+        },
+        {
+          "key": "standard-ebooks",
+          "plannedCandidateUrls": 40,
+          "capacityCandidateUrls": 100,
+          "plannedNovelTokens": 1149205,
+          "capacityNovelTokens": 2873014,
+          "plannedTokenShare": 0.06032082
+        },
+        {
+          "key": "usgs",
+          "plannedCandidateUrls": 180,
+          "capacityCandidateUrls": 360,
+          "plannedNovelTokens": 956351,
+          "capacityNovelTokens": 1912701,
+          "plannedTokenShare": 0.05019807
+        },
+        {
+          "key": "oecd",
+          "plannedCandidateUrls": 120,
+          "capacityCandidateUrls": 240,
+          "plannedNovelTokens": 954324,
+          "capacityNovelTokens": 1908648,
+          "plannedTokenShare": 0.05009168
+        },
+        {
+          "key": "plos",
+          "plannedCandidateUrls": 300,
+          "capacityCandidateUrls": 600,
+          "plannedNovelTokens": 951600,
+          "capacityNovelTokens": 1903200,
+          "plannedTokenShare": 0.0499487
+        },
+        {
+          "key": "open-logic-project",
+          "plannedCandidateUrls": 25,
+          "capacityCandidateUrls": 50,
+          "plannedNovelTokens": 828224,
+          "capacityNovelTokens": 1656449,
+          "plannedTokenShare": 0.04347279
+        },
+        {
+          "key": "elife",
+          "plannedCandidateUrls": 180,
+          "capacityCandidateUrls": 360,
+          "plannedNovelTokens": 761533,
+          "capacityNovelTokens": 1523066,
+          "plannedTokenShare": 0.03997224
+        },
+        {
+          "key": "noaa",
+          "plannedCandidateUrls": 150,
+          "capacityCandidateUrls": 300,
+          "plannedNovelTokens": 577279,
+          "capacityNovelTokens": 1154558,
+          "plannedTokenShare": 0.0303009
+        },
+        {
+          "key": "eu-eurlex-op",
+          "plannedCandidateUrls": 120,
+          "capacityCandidateUrls": 240,
+          "plannedNovelTokens": 558138,
+          "capacityNovelTokens": 1116272,
+          "plannedTokenShare": 0.0292962
+        },
+        {
+          "key": "copernicus-ccby",
+          "plannedCandidateUrls": 150,
+          "capacityCandidateUrls": 300,
+          "plannedNovelTokens": 514303,
+          "capacityNovelTokens": 1028606,
+          "plannedTokenShare": 0.02699534
+        },
+        {
+          "key": "doe-osti-govwork",
+          "plannedCandidateUrls": 120,
+          "capacityCandidateUrls": 240,
+          "plannedNovelTokens": 497446,
+          "capacityNovelTokens": 994893,
+          "plannedTokenShare": 0.02611053
+        },
+        {
+          "key": "bmc-springeropen-ccby",
+          "plannedCandidateUrls": 180,
+          "capacityCandidateUrls": 360,
+          "plannedNovelTokens": 457896,
+          "capacityNovelTokens": 915791,
+          "plannedTokenShare": 0.02403458
+        },
+        {
+          "key": "frontiers",
+          "plannedCandidateUrls": 180,
+          "capacityCandidateUrls": 360,
+          "plannedNovelTokens": 457896,
+          "capacityNovelTokens": 915792,
+          "plannedTokenShare": 0.02403458
+        },
+        {
+          "key": "pmc-oa-ccby",
+          "plannedCandidateUrls": 400,
+          "capacityCandidateUrls": 800,
+          "plannedNovelTokens": 424278,
+          "capacityNovelTokens": 848556,
+          "plannedTokenShare": 0.02227
+        },
+        {
+          "key": "mdpi-ccby",
+          "plannedCandidateUrls": 180,
+          "capacityCandidateUrls": 360,
+          "plannedNovelTokens": 398170,
+          "capacityNovelTokens": 796340,
+          "plannedTokenShare": 0.02089961
+        },
+        {
+          "key": "uk-govuk",
+          "plannedCandidateUrls": 180,
+          "capacityCandidateUrls": 360,
+          "plannedNovelTokens": 338370,
+          "capacityNovelTokens": 676741,
+          "plannedTokenShare": 0.01776076
+        },
+        {
+          "key": "python-docs",
+          "plannedCandidateUrls": 120,
+          "capacityCandidateUrls": 240,
+          "plannedNovelTokens": 288686,
+          "capacityNovelTokens": 577372,
+          "plannedTokenShare": 0.01515289
+        },
+        {
+          "key": "nist",
+          "plannedCandidateUrls": 120,
+          "capacityCandidateUrls": 240,
+          "plannedNovelTokens": 276989,
+          "capacityNovelTokens": 553978,
+          "plannedTokenShare": 0.01453892
+        },
+        {
+          "key": "nasa",
+          "plannedCandidateUrls": 150,
+          "capacityCandidateUrls": 300,
+          "plannedNovelTokens": 273160,
+          "capacityNovelTokens": 546319,
+          "plannedTokenShare": 0.01433794
+        },
+        {
+          "key": "forallx-calgary",
+          "plannedCandidateUrls": 6,
+          "capacityCandidateUrls": 12,
+          "plannedNovelTokens": 257906,
+          "capacityNovelTokens": 515811,
+          "plannedTokenShare": 0.01353727
+        },
+        {
+          "key": "postgresql-docs",
+          "plannedCandidateUrls": 120,
+          "capacityCandidateUrls": 240,
+          "plannedNovelTokens": 186333,
+          "capacityNovelTokens": 372665,
+          "plannedTokenShare": 0.00978047
+        },
+        {
+          "key": "nist-dlmf",
+          "plannedCandidateUrls": 12,
+          "capacityCandidateUrls": 24,
+          "plannedNovelTokens": 161111,
+          "capacityNovelTokens": 322223,
+          "plannedTokenShare": 0.00845658
+        },
+        {
+          "key": "go-docs",
+          "plannedCandidateUrls": 120,
+          "capacityCandidateUrls": 240,
+          "plannedNovelTokens": 156895,
+          "capacityNovelTokens": 313789,
+          "plannedTokenShare": 0.00823529
+        },
+        {
+          "key": "rust-docs",
+          "plannedCandidateUrls": 120,
+          "capacityCandidateUrls": 240,
+          "plannedNovelTokens": 156895,
+          "capacityNovelTokens": 313789,
+          "plannedTokenShare": 0.00823529
+        },
+        {
+          "key": "kubernetes-docs",
+          "plannedCandidateUrls": 120,
+          "capacityCandidateUrls": 240,
+          "plannedNovelTokens": 140217,
+          "capacityNovelTokens": 280434,
+          "plannedTokenShare": 0.00735987
+        },
+        {
+          "key": "ourworldindata",
+          "plannedCandidateUrls": 120,
+          "capacityCandidateUrls": 240,
+          "plannedNovelTokens": 139740,
+          "capacityNovelTokens": 279480,
+          "plannedTokenShare": 0.00733484
+        },
+        {
+          "key": "cdc",
+          "plannedCandidateUrls": 120,
+          "capacityCandidateUrls": 240,
+          "plannedNovelTokens": 134609,
+          "capacityNovelTokens": 269219,
+          "plannedTokenShare": 0.00706552
+        },
+        {
+          "key": "usda",
+          "plannedCandidateUrls": 100,
+          "capacityCandidateUrls": 200,
+          "plannedNovelTokens": 112768,
+          "capacityNovelTokens": 225536,
+          "plannedTokenShare": 0.0059191
+        },
+        {
+          "key": "nih-nlm",
+          "plannedCandidateUrls": 100,
+          "capacityCandidateUrls": 200,
+          "plannedNovelTokens": 112176,
+          "capacityNovelTokens": 224349,
+          "plannedTokenShare": 0.00588803
+        },
+        {
+          "key": "us-census",
+          "plannedCandidateUrls": 100,
+          "capacityCandidateUrls": 200,
+          "plannedNovelTokens": 109931,
+          "capacityNovelTokens": 219862,
+          "plannedTokenShare": 0.00577019
+        },
+        {
+          "key": "tensorflow-docs",
+          "plannedCandidateUrls": 100,
+          "capacityCandidateUrls": 200,
+          "plannedNovelTokens": 107110,
+          "capacityNovelTokens": 214220,
+          "plannedTokenShare": 0.00562212
+        },
+        {
+          "key": "us-bls",
+          "plannedCandidateUrls": 80,
+          "capacityCandidateUrls": 160,
+          "plannedNovelTokens": 89740,
+          "capacityNovelTokens": 179479,
+          "plannedTokenShare": 0.00471038
+        },
+        {
+          "key": "epa",
+          "plannedCandidateUrls": 80,
+          "capacityCandidateUrls": 160,
+          "plannedNovelTokens": 85253,
+          "capacityNovelTokens": 170505,
+          "plannedTokenShare": 0.00447486
+        },
+        {
+          "key": "nps",
+          "plannedCandidateUrls": 60,
+          "capacityCandidateUrls": 120,
+          "plannedNovelTokens": 56580,
+          "capacityNovelTokens": 113162,
+          "plannedTokenShare": 0.00296984
+        }
+      ],
+      "bySubject": [
+        {
+          "key": "economics-social-political",
+          "plannedCandidateUrls": 628.5,
+          "capacityCandidateUrls": 1263.5,
+          "plannedNovelTokens": 3351484,
+          "capacityNovelTokens": 6837974,
+          "plannedTokenShare": 0.17591662
+        },
+        {
+          "key": "humanities-philosophy-literature",
+          "plannedCandidateUrls": 101.8,
+          "capacityCandidateUrls": 241.1,
+          "plannedNovelTokens": 2519502,
+          "capacityNovelTokens": 5982563,
+          "plannedTokenShare": 0.13224658
+        },
+        {
+          "key": "physics-chemistry-biology",
+          "plannedCandidateUrls": 880,
+          "capacityCandidateUrls": 1795,
+          "plannedNovelTokens": 2409890,
+          "capacityNovelTokens": 4960156,
+          "plannedTokenShare": 0.12649313
+        },
+        {
+          "key": "medicine-public-health",
+          "plannedCandidateUrls": 1106,
+          "capacityCandidateUrls": 2212,
+          "plannedNovelTokens": 2302745,
+          "capacityNovelTokens": 4605486,
+          "plannedTokenShare": 0.12086918
+        },
+        {
+          "key": "geography-earth-environmental",
+          "plannedCandidateUrls": 626.5,
+          "capacityCandidateUrls": 1253,
+          "plannedNovelTokens": 2219165,
+          "capacityNovelTokens": 4438331,
+          "plannedTokenShare": 0.11648214
+        },
+        {
+          "key": "mathematics-formal-sciences",
+          "plannedCandidateUrls": 156.2,
+          "capacityCandidateUrls": 343.9,
+          "plannedNovelTokens": 1528381,
+          "capacityNovelTokens": 3214753,
+          "plannedTokenShare": 0.08022345
+        },
+        {
+          "key": "computer-science-software",
+          "plannedCandidateUrls": 776,
+          "capacityCandidateUrls": 1572,
+          "plannedNovelTokens": 1330737,
+          "capacityNovelTokens": 2741686,
+          "plannedTokenShare": 0.06984928
+        },
+        {
+          "key": "general-reference-education",
+          "plannedCandidateUrls": 117,
+          "capacityCandidateUrls": 244.5,
+          "plannedNovelTokens": 1140623,
+          "capacityNovelTokens": 2538837,
+          "plannedTokenShare": 0.05987036
+        },
+        {
+          "key": "history-historical-reference",
+          "plannedCandidateUrls": 134,
+          "capacityCandidateUrls": 282,
+          "plannedNovelTokens": 1129008,
+          "capacityNovelTokens": 2601473,
+          "plannedTokenShare": 0.0592607
+        },
+        {
+          "key": "engineering-applied-sciences",
+          "plannedCandidateUrls": 377,
+          "capacityCandidateUrls": 769,
+          "plannedNovelTokens": 1120016,
+          "capacityNovelTokens": 2300191,
+          "plannedTokenShare": 0.05878871
+        }
+      ]
+    }
+  },
+  "waterfall": {
+    "capacity": {
+      "grossTokens": 94310000,
+      "afterFetch": 88867500,
+      "afterQuality": 80035743,
+      "afterDedup": 74581997,
+      "afterNovelty": 68052174,
+      "conservative": 40221444
+    },
+    "planned": {
+      "grossTokens": 44830000,
+      "afterFetch": 42217000,
+      "afterQuality": 37959144,
+      "afterDedup": 35362533,
+      "afterNovelty": 32342127,
+      "conservative": 19051548
+    }
+  },
+  "concentration": {
+    "publishers": {
+      "planned": {
+        "distinct": 37,
+        "top1Share": 0.09196901,
+        "top5Share": 0.39522479,
+        "top10Share": 0.62890827,
+        "herfindahl": 0.04998887,
+        "distribution": [
+          {
+            "key": "oapen.org",
+            "tokens": 1752152,
+            "share": 0.09196901
+          },
+          {
+            "key": "worldbank.org",
+            "tokens": 1717909,
+            "share": 0.09017162
+          },
+          {
+            "key": "gutenberg.org",
+            "tokens": 1506620,
+            "share": 0.07908124
+          },
+          {
+            "key": "arxiv.org",
+            "tokens": 1403758,
+            "share": 0.0736821
+          },
+          {
+            "key": "standardebooks.org",
+            "tokens": 1149205,
+            "share": 0.06032082
+          },
+          {
+            "key": "usgs.gov",
+            "tokens": 956351,
+            "share": 0.05019807
+          },
+          {
+            "key": "oecd.org",
+            "tokens": 954324,
+            "share": 0.05009168
+          },
+          {
+            "key": "journals.plos.org",
+            "tokens": 951600,
+            "share": 0.0499487
+          },
+          {
+            "key": "openlogicproject.org",
+            "tokens": 828224,
+            "share": 0.04347279
+          },
+          {
+            "key": "elifesciences.org",
+            "tokens": 761533,
+            "share": 0.03997224
+          },
+          {
+            "key": "noaa.gov",
+            "tokens": 577279,
+            "share": 0.0303009
+          },
+          {
+            "key": "europa.eu",
+            "tokens": 558137,
+            "share": 0.02929615
+          },
+          {
+            "key": "copernicus.org",
+            "tokens": 514303,
+            "share": 0.02699534
+          },
+          {
+            "key": "osti.gov",
+            "tokens": 497446,
+            "share": 0.02611053
+          },
+          {
+            "key": "biomedcentral.com",
+            "tokens": 457896,
+            "share": 0.02403458
+          },
+          {
+            "key": "frontiersin.org",
+            "tokens": 457896,
+            "share": 0.02403458
+          },
+          {
+            "key": "pmc.ncbi.nlm.nih.gov",
+            "tokens": 424278,
+            "share": 0.02227
+          },
+          {
+            "key": "mdpi.com",
+            "tokens": 398170,
+            "share": 0.02089961
+          },
+          {
+            "key": "gov.uk",
+            "tokens": 338370,
+            "share": 0.01776076
+          },
+          {
+            "key": "docs.python.org",
+            "tokens": 288686,
+            "share": 0.01515289
+          },
+          {
+            "key": "nist.gov",
+            "tokens": 276989,
+            "share": 0.01453892
+          },
+          {
+            "key": "nasa.gov",
+            "tokens": 273160,
+            "share": 0.01433794
+          },
+          {
+            "key": "forallx.openlogicproject.org",
+            "tokens": 257906,
+            "share": 0.01353727
+          },
+          {
+            "key": "postgresql.org",
+            "tokens": 186333,
+            "share": 0.00978047
+          },
+          {
+            "key": "dlmf.nist.gov",
+            "tokens": 161111,
+            "share": 0.00845658
+          },
+          {
+            "key": "doc.rust-lang.org",
+            "tokens": 156895,
+            "share": 0.00823529
+          },
+          {
+            "key": "go.dev",
+            "tokens": 156895,
+            "share": 0.00823529
+          },
+          {
+            "key": "kubernetes.io",
+            "tokens": 140217,
+            "share": 0.00735987
+          },
+          {
+            "key": "ourworldindata.org",
+            "tokens": 139739,
+            "share": 0.00733478
+          },
+          {
+            "key": "cdc.gov",
+            "tokens": 134609,
+            "share": 0.00706552
+          },
+          {
+            "key": "usda.gov",
+            "tokens": 112768,
+            "share": 0.0059191
+          },
+          {
+            "key": "nlm.nih.gov",
+            "tokens": 112175,
+            "share": 0.00588797
+          },
+          {
+            "key": "census.gov",
+            "tokens": 109931,
+            "share": 0.00577019
+          },
+          {
+            "key": "tensorflow.org",
+            "tokens": 107110,
+            "share": 0.00562212
+          },
+          {
+            "key": "bls.gov",
+            "tokens": 89740,
+            "share": 0.00471038
+          },
+          {
+            "key": "epa.gov",
+            "tokens": 85253,
+            "share": 0.00447486
+          },
+          {
+            "key": "nps.gov",
+            "tokens": 56580,
+            "share": 0.00296984
+          }
+        ]
+      },
+      "capacity": {
+        "distinct": 37,
+        "top1Share": 0.09680582,
+        "top5Share": 0.42707669,
+        "top10Share": 0.64845275,
+        "herfindahl": 0.05312785,
+        "distribution": [
+          {
+            "key": "oapen.org",
+            "tokens": 3893670,
+            "share": 0.09680582
+          },
+          {
+            "key": "gutenberg.org",
+            "tokens": 3766550,
+            "share": 0.09364532
+          },
+          {
+            "key": "worldbank.org",
+            "tokens": 3435818,
+            "share": 0.08542254
+          },
+          {
+            "key": "arxiv.org",
+            "tokens": 3208589,
+            "share": 0.07977309
+          },
+          {
+            "key": "standardebooks.org",
+            "tokens": 2873014,
+            "share": 0.07142991
+          },
+          {
+            "key": "usgs.gov",
+            "tokens": 1912702,
+            "share": 0.04755428
+          },
+          {
+            "key": "oecd.org",
+            "tokens": 1908648,
+            "share": 0.04745349
+          },
+          {
+            "key": "journals.plos.org",
+            "tokens": 1903200,
+            "share": 0.04731804
+          },
+          {
+            "key": "openlogicproject.org",
+            "tokens": 1656449,
+            "share": 0.04118323
+          },
+          {
+            "key": "elifesciences.org",
+            "tokens": 1523066,
+            "share": 0.03786701
+          },
+          {
+            "key": "noaa.gov",
+            "tokens": 1154558,
+            "share": 0.02870504
+          },
+          {
+            "key": "europa.eu",
+            "tokens": 1116273,
+            "share": 0.02775318
+          },
+          {
+            "key": "copernicus.org",
+            "tokens": 1028606,
+            "share": 0.02557357
+          },
+          {
+            "key": "osti.gov",
+            "tokens": 994892,
+            "share": 0.02473536
+          },
+          {
+            "key": "biomedcentral.com",
+            "tokens": 915791,
+            "share": 0.02276873
+          },
+          {
+            "key": "frontiersin.org",
+            "tokens": 915791,
+            "share": 0.02276873
+          },
+          {
+            "key": "pmc.ncbi.nlm.nih.gov",
+            "tokens": 848556,
+            "share": 0.0210971
+          },
+          {
+            "key": "mdpi.com",
+            "tokens": 796340,
+            "share": 0.01979889
+          },
+          {
+            "key": "gov.uk",
+            "tokens": 676741,
+            "share": 0.01682538
+          },
+          {
+            "key": "docs.python.org",
+            "tokens": 577372,
+            "share": 0.01435483
+          }
+        ]
+      }
+    },
+    "publisherGroups": {
+      "planned": {
+        "distinct": 35,
+        "top1Share": 0.09196901,
+        "top5Share": 0.39522479,
+        "top10Share": 0.64244554,
+        "herfindahl": 0.05141177,
+        "distribution": [
+          {
+            "key": "oapen.org",
+            "tokens": 1752152,
+            "share": 0.09196901
+          },
+          {
+            "key": "worldbank.org",
+            "tokens": 1717909,
+            "share": 0.09017162
+          },
+          {
+            "key": "gutenberg.org",
+            "tokens": 1506620,
+            "share": 0.07908124
+          },
+          {
+            "key": "arxiv.org",
+            "tokens": 1403758,
+            "share": 0.0736821
+          },
+          {
+            "key": "standardebooks.org",
+            "tokens": 1149205,
+            "share": 0.06032082
+          },
+          {
+            "key": "open-logic-project",
+            "tokens": 1086130,
+            "share": 0.05701007
+          },
+          {
+            "key": "usgs.gov",
+            "tokens": 956351,
+            "share": 0.05019807
+          },
+          {
+            "key": "oecd.org",
+            "tokens": 954324,
+            "share": 0.05009168
+          },
+          {
+            "key": "plos.org",
+            "tokens": 951600,
+            "share": 0.0499487
+          },
+          {
+            "key": "elifesciences.org",
+            "tokens": 761533,
+            "share": 0.03997224
+          },
+          {
+            "key": "noaa.gov",
+            "tokens": 577279,
+            "share": 0.0303009
+          },
+          {
+            "key": "european-union",
+            "tokens": 558137,
+            "share": 0.02929615
+          },
+          {
+            "key": "copernicus.org",
+            "tokens": 514303,
+            "share": 0.02699534
+          },
+          {
+            "key": "osti.gov",
+            "tokens": 497446,
+            "share": 0.02611053
+          },
+          {
+            "key": "frontiersin.org",
+            "tokens": 457896,
+            "share": 0.02403458
+          },
+          {
+            "key": "springer-nature",
+            "tokens": 457896,
+            "share": 0.02403458
+          },
+          {
+            "key": "nist.gov",
+            "tokens": 438100,
+            "share": 0.02299551
+          },
+          {
+            "key": "nih-pmc",
+            "tokens": 424278,
+            "share": 0.02227
+          },
+          {
+            "key": "mdpi.com",
+            "tokens": 398170,
+            "share": 0.02089961
+          },
+          {
+            "key": "gov.uk",
+            "tokens": 338370,
+            "share": 0.01776076
+          },
+          {
+            "key": "python-software-foundation",
+            "tokens": 288686,
+            "share": 0.01515289
+          },
+          {
+            "key": "nasa.gov",
+            "tokens": 273160,
+            "share": 0.01433794
+          },
+          {
+            "key": "postgresql-global-development-group",
+            "tokens": 186333,
+            "share": 0.00978047
+          },
+          {
+            "key": "go-project",
+            "tokens": 156895,
+            "share": 0.00823529
+          },
+          {
+            "key": "rust-project",
+            "tokens": 156895,
+            "share": 0.00823529
+          },
+          {
+            "key": "cncf",
+            "tokens": 140217,
+            "share": 0.00735987
+          },
+          {
+            "key": "ourworldindata.org",
+            "tokens": 139739,
+            "share": 0.00733478
+          },
+          {
+            "key": "cdc.gov",
+            "tokens": 134609,
+            "share": 0.00706552
+          },
+          {
+            "key": "usda.gov",
+            "tokens": 112768,
+            "share": 0.0059191
+          },
+          {
+            "key": "nih-nlm",
+            "tokens": 112175,
+            "share": 0.00588797
+          },
+          {
+            "key": "census.gov",
+            "tokens": 109931,
+            "share": 0.00577019
+          },
+          {
+            "key": "google",
+            "tokens": 107110,
+            "share": 0.00562212
+          },
+          {
+            "key": "bls.gov",
+            "tokens": 89740,
+            "share": 0.00471038
+          },
+          {
+            "key": "epa.gov",
+            "tokens": 85253,
+            "share": 0.00447486
+          },
+          {
+            "key": "nps.gov",
+            "tokens": 56580,
+            "share": 0.00296984
+          }
+        ]
+      },
+      "capacity": {
+        "distinct": 35,
+        "top1Share": 0.09680582,
+        "top5Share": 0.42707669,
+        "top10Share": 0.66127703,
+        "herfindahl": 0.05440482,
+        "distribution": [
+          {
+            "key": "oapen.org",
+            "tokens": 3893670,
+            "share": 0.09680582
+          },
+          {
+            "key": "gutenberg.org",
+            "tokens": 3766550,
+            "share": 0.09364532
+          },
+          {
+            "key": "worldbank.org",
+            "tokens": 3435818,
+            "share": 0.08542254
+          },
+          {
+            "key": "arxiv.org",
+            "tokens": 3208589,
+            "share": 0.07977309
+          },
+          {
+            "key": "standardebooks.org",
+            "tokens": 2873014,
+            "share": 0.07142991
+          },
+          {
+            "key": "open-logic-project",
+            "tokens": 2172260,
+            "share": 0.05400751
+          },
+          {
+            "key": "usgs.gov",
+            "tokens": 1912702,
+            "share": 0.04755428
+          },
+          {
+            "key": "oecd.org",
+            "tokens": 1908648,
+            "share": 0.04745349
+          },
+          {
+            "key": "plos.org",
+            "tokens": 1903200,
+            "share": 0.04731804
+          },
+          {
+            "key": "elifesciences.org",
+            "tokens": 1523066,
+            "share": 0.03786701
+          },
+          {
+            "key": "noaa.gov",
+            "tokens": 1154558,
+            "share": 0.02870504
+          },
+          {
+            "key": "european-union",
+            "tokens": 1116273,
+            "share": 0.02775318
+          },
+          {
+            "key": "copernicus.org",
+            "tokens": 1028606,
+            "share": 0.02557357
+          },
+          {
+            "key": "osti.gov",
+            "tokens": 994892,
+            "share": 0.02473536
+          },
+          {
+            "key": "frontiersin.org",
+            "tokens": 915791,
+            "share": 0.02276873
+          },
+          {
+            "key": "springer-nature",
+            "tokens": 915791,
+            "share": 0.02276873
+          },
+          {
+            "key": "nist.gov",
+            "tokens": 876201,
+            "share": 0.02178442
+          },
+          {
+            "key": "nih-pmc",
+            "tokens": 848556,
+            "share": 0.0210971
+          },
+          {
+            "key": "mdpi.com",
+            "tokens": 796340,
+            "share": 0.01979889
+          },
+          {
+            "key": "gov.uk",
+            "tokens": 676741,
+            "share": 0.01682538
+          }
+        ]
+      }
+    },
+    "sourceFamilies": {
+      "planned": {
+        "distinct": 37,
+        "top1Share": 0.09196901,
+        "top5Share": 0.39522479,
+        "top10Share": 0.62890827,
+        "herfindahl": 0.04998887,
+        "distribution": [
+          {
+            "key": "oapen-ccby",
+            "tokens": 1752152,
+            "share": 0.09196901
+          },
+          {
+            "key": "world-bank-okr",
+            "tokens": 1717909,
+            "share": 0.09017162
+          },
+          {
+            "key": "project-gutenberg",
+            "tokens": 1506620,
+            "share": 0.07908124
+          },
+          {
+            "key": "arxiv-ccby",
+            "tokens": 1403758,
+            "share": 0.0736821
+          },
+          {
+            "key": "standard-ebooks",
+            "tokens": 1149205,
+            "share": 0.06032082
+          },
+          {
+            "key": "usgs",
+            "tokens": 956351,
+            "share": 0.05019807
+          },
+          {
+            "key": "oecd",
+            "tokens": 954324,
+            "share": 0.05009168
+          },
+          {
+            "key": "plos",
+            "tokens": 951600,
+            "share": 0.0499487
+          },
+          {
+            "key": "open-logic-project",
+            "tokens": 828224,
+            "share": 0.04347279
+          },
+          {
+            "key": "elife",
+            "tokens": 761533,
+            "share": 0.03997224
+          },
+          {
+            "key": "noaa",
+            "tokens": 577279,
+            "share": 0.0303009
+          },
+          {
+            "key": "eu-eurlex-op",
+            "tokens": 558137,
+            "share": 0.02929615
+          },
+          {
+            "key": "copernicus-ccby",
+            "tokens": 514303,
+            "share": 0.02699534
+          },
+          {
+            "key": "doe-osti-govwork",
+            "tokens": 497446,
+            "share": 0.02611053
+          },
+          {
+            "key": "bmc-springeropen-ccby",
+            "tokens": 457896,
+            "share": 0.02403458
+          },
+          {
+            "key": "frontiers",
+            "tokens": 457896,
+            "share": 0.02403458
+          },
+          {
+            "key": "pmc-oa-ccby",
+            "tokens": 424278,
+            "share": 0.02227
+          },
+          {
+            "key": "mdpi-ccby",
+            "tokens": 398170,
+            "share": 0.02089961
+          },
+          {
+            "key": "uk-govuk",
+            "tokens": 338370,
+            "share": 0.01776076
+          },
+          {
+            "key": "python-docs",
+            "tokens": 288686,
+            "share": 0.01515289
+          },
+          {
+            "key": "nist",
+            "tokens": 276989,
+            "share": 0.01453892
+          },
+          {
+            "key": "nasa",
+            "tokens": 273160,
+            "share": 0.01433794
+          },
+          {
+            "key": "forallx-calgary",
+            "tokens": 257906,
+            "share": 0.01353727
+          },
+          {
+            "key": "postgresql-docs",
+            "tokens": 186333,
+            "share": 0.00978047
+          },
+          {
+            "key": "nist-dlmf",
+            "tokens": 161111,
+            "share": 0.00845658
+          },
+          {
+            "key": "go-docs",
+            "tokens": 156895,
+            "share": 0.00823529
+          },
+          {
+            "key": "rust-docs",
+            "tokens": 156895,
+            "share": 0.00823529
+          },
+          {
+            "key": "kubernetes-docs",
+            "tokens": 140217,
+            "share": 0.00735987
+          },
+          {
+            "key": "ourworldindata",
+            "tokens": 139739,
+            "share": 0.00733478
+          },
+          {
+            "key": "cdc",
+            "tokens": 134609,
+            "share": 0.00706552
+          },
+          {
+            "key": "usda",
+            "tokens": 112768,
+            "share": 0.0059191
+          },
+          {
+            "key": "nih-nlm",
+            "tokens": 112175,
+            "share": 0.00588797
+          },
+          {
+            "key": "us-census",
+            "tokens": 109931,
+            "share": 0.00577019
+          },
+          {
+            "key": "tensorflow-docs",
+            "tokens": 107110,
+            "share": 0.00562212
+          },
+          {
+            "key": "us-bls",
+            "tokens": 89740,
+            "share": 0.00471038
+          },
+          {
+            "key": "epa",
+            "tokens": 85253,
+            "share": 0.00447486
+          },
+          {
+            "key": "nps",
+            "tokens": 56580,
+            "share": 0.00296984
+          }
+        ]
+      },
+      "capacity": {
+        "distinct": 37,
+        "top1Share": 0.09680582,
+        "top5Share": 0.42707669,
+        "top10Share": 0.64845275,
+        "herfindahl": 0.05312785,
+        "distribution": [
+          {
+            "key": "oapen-ccby",
+            "tokens": 3893670,
+            "share": 0.09680582
+          },
+          {
+            "key": "project-gutenberg",
+            "tokens": 3766550,
+            "share": 0.09364532
+          },
+          {
+            "key": "world-bank-okr",
+            "tokens": 3435818,
+            "share": 0.08542254
+          },
+          {
+            "key": "arxiv-ccby",
+            "tokens": 3208589,
+            "share": 0.07977309
+          },
+          {
+            "key": "standard-ebooks",
+            "tokens": 2873014,
+            "share": 0.07142991
+          },
+          {
+            "key": "usgs",
+            "tokens": 1912702,
+            "share": 0.04755428
+          },
+          {
+            "key": "oecd",
+            "tokens": 1908648,
+            "share": 0.04745349
+          },
+          {
+            "key": "plos",
+            "tokens": 1903200,
+            "share": 0.04731804
+          },
+          {
+            "key": "open-logic-project",
+            "tokens": 1656449,
+            "share": 0.04118323
+          },
+          {
+            "key": "elife",
+            "tokens": 1523066,
+            "share": 0.03786701
+          },
+          {
+            "key": "noaa",
+            "tokens": 1154558,
+            "share": 0.02870504
+          },
+          {
+            "key": "eu-eurlex-op",
+            "tokens": 1116273,
+            "share": 0.02775318
+          },
+          {
+            "key": "copernicus-ccby",
+            "tokens": 1028606,
+            "share": 0.02557357
+          },
+          {
+            "key": "doe-osti-govwork",
+            "tokens": 994892,
+            "share": 0.02473536
+          },
+          {
+            "key": "bmc-springeropen-ccby",
+            "tokens": 915791,
+            "share": 0.02276873
+          },
+          {
+            "key": "frontiers",
+            "tokens": 915791,
+            "share": 0.02276873
+          },
+          {
+            "key": "pmc-oa-ccby",
+            "tokens": 848556,
+            "share": 0.0210971
+          },
+          {
+            "key": "mdpi-ccby",
+            "tokens": 796340,
+            "share": 0.01979889
+          },
+          {
+            "key": "uk-govuk",
+            "tokens": 676741,
+            "share": 0.01682538
+          },
+          {
+            "key": "python-docs",
+            "tokens": 577372,
+            "share": 0.01435483
+          }
+        ]
+      }
+    },
+    "formats": {
+      "planned": {
+        "distinct": 6,
+        "top1Share": 0.32280658,
+        "top5Share": 0.99154342,
+        "top10Share": 1,
+        "herfindahl": 0.27177698,
+        "distribution": [
+          {
+            "key": "report",
+            "tokens": 6149965,
+            "share": 0.32280658
+          },
+          {
+            "key": "book",
+            "tokens": 5494107,
+            "share": 0.28838113
+          },
+          {
+            "key": "article",
+            "tokens": 5369434,
+            "share": 0.28183715
+          },
+          {
+            "key": "documentation",
+            "tokens": 1036136,
+            "share": 0.05438592
+          },
+          {
+            "key": "web",
+            "tokens": 840795,
+            "share": 0.04413263
+          },
+          {
+            "key": "reference",
+            "tokens": 161111,
+            "share": 0.00845658
+          }
+        ]
+      },
+      "capacity": {
+        "distinct": 6,
+        "top1Share": 0.31588856,
+        "top5Share": 0.99198878,
+        "top10Share": 1,
+        "herfindahl": 0.27447872,
+        "distribution": [
+          {
+            "key": "book",
+            "tokens": 12705494,
+            "share": 0.31588856
+          },
+          {
+            "key": "report",
+            "tokens": 12299929,
+            "share": 0.30580526
+          },
+          {
+            "key": "article",
+            "tokens": 11139939,
+            "share": 0.27696517
+          },
+          {
+            "key": "documentation",
+            "tokens": 2072269,
+            "share": 0.0515215
+          },
+          {
+            "key": "web",
+            "tokens": 1681590,
+            "share": 0.0418083
+          },
+          {
+            "key": "reference",
+            "tokens": 322223,
+            "share": 0.00801122
+          }
+        ]
+      }
+    },
+    "governanceGroups": {
+      "planned": {
+        "distinct": 4,
+        "top1Share": 0.74993229,
+        "top5Share": 1,
+        "top10Share": 1,
+        "herfindahl": 0.60478553,
+        "distribution": [
+          {
+            "key": "independent",
+            "tokens": 14287371,
+            "share": 0.74993229
+          },
+          {
+            "key": "us-federal",
+            "tokens": 3867670,
+            "share": 0.2030108
+          },
+          {
+            "key": "eu",
+            "tokens": 558137,
+            "share": 0.02929615
+          },
+          {
+            "key": "uk-government",
+            "tokens": 338370,
+            "share": 0.01776076
+          }
+        ]
+      },
+      "capacity": {
+        "distinct": 4,
+        "top1Share": 0.76310266,
+        "top5Share": 1,
+        "top10Share": 1,
+        "herfindahl": 0.62036552,
+        "distribution": [
+          {
+            "key": "independent",
+            "tokens": 30693091,
+            "share": 0.76310266
+          },
+          {
+            "key": "us-federal",
+            "tokens": 7735339,
+            "share": 0.19231878
+          },
+          {
+            "key": "eu",
+            "tokens": 1116273,
+            "share": 0.02775318
+          },
+          {
+            "key": "uk-government",
+            "tokens": 676741,
+            "share": 0.01682538
+          }
+        ]
+      }
+    },
+    "subjects": {
+      "planned": {
+        "distinct": 10,
+        "top1Share": 0.17591657,
+        "top5Share": 0.67200755,
+        "top10Share": 1.00000005,
+        "herfindahl": 0.11448087,
+        "distribution": [
+          {
+            "key": "economics-social-political",
+            "tokens": 3351483,
+            "share": 0.17591659
+          },
+          {
+            "key": "humanities-philosophy-literature",
+            "tokens": 2519502,
+            "share": 0.13224656
+          },
+          {
+            "key": "physics-chemistry-biology",
+            "tokens": 2409891,
+            "share": 0.12649316
+          },
+          {
+            "key": "medicine-public-health",
+            "tokens": 2302743,
+            "share": 0.12086907
+          },
+          {
+            "key": "geography-earth-environmental",
+            "tokens": 2219165,
+            "share": 0.11648213
+          },
+          {
+            "key": "mathematics-formal-sciences",
+            "tokens": 1528382,
+            "share": 0.08022349
+          },
+          {
+            "key": "computer-science-software",
+            "tokens": 1330737,
+            "share": 0.06984929
+          },
+          {
+            "key": "general-reference-education",
+            "tokens": 1140622,
+            "share": 0.0598703
+          },
+          {
+            "key": "history-historical-reference",
+            "tokens": 1129008,
+            "share": 0.05926071
+          },
+          {
+            "key": "engineering-applied-sciences",
+            "tokens": 1120016,
+            "share": 0.0587887
+          }
+        ]
+      },
+      "capacity": {
+        "distinct": 10,
+        "top1Share": 0.17000814,
+        "top5Share": 0.66692051,
+        "top10Share": 1.00000002,
+        "herfindahl": 0.11399498,
+        "distribution": [
+          {
+            "key": "economics-social-political",
+            "tokens": 6837973,
+            "share": 0.17000814
+          },
+          {
+            "key": "humanities-philosophy-literature",
+            "tokens": 5982563,
+            "share": 0.14874062
+          },
+          {
+            "key": "physics-chemistry-biology",
+            "tokens": 4960155,
+            "share": 0.12332117
+          },
+          {
+            "key": "medicine-public-health",
+            "tokens": 4605485,
+            "share": 0.11450322
+          },
+          {
+            "key": "geography-earth-environmental",
+            "tokens": 4438330,
+            "share": 0.11034735
+          },
+          {
+            "key": "mathematics-formal-sciences",
+            "tokens": 3214752,
+            "share": 0.07992632
+          },
+          {
+            "key": "computer-science-software",
+            "tokens": 2741686,
+            "share": 0.06816478
+          },
+          {
+            "key": "history-historical-reference",
+            "tokens": 2601473,
+            "share": 0.06467876
+          },
+          {
+            "key": "general-reference-education",
+            "tokens": 2538836,
+            "share": 0.06312145
+          },
+          {
+            "key": "engineering-applied-sciences",
+            "tokens": 2300192,
+            "share": 0.0571882
+          }
+        ]
+      }
+    }
+  },
+  "licenceBreakdown": [
+    {
+      "licenceId": "CC-BY-4.0",
+      "name": "Creative Commons Attribution 4.0 International",
+      "spdx": "CC-BY-4.0",
+      "commercialUse": "allowed",
+      "shareAlike": false,
+      "nonCommercial": false,
+      "documents": 2291,
+      "plannedNovelTokens": 6842630,
+      "share": 0.35916399,
+      "capacityNovelTokens": 14086332
+    },
+    {
+      "licenceId": "US-Gov-Work",
+      "name": "U.S. Government work (17 U.S.C. 105) / agency public-domain posture",
+      "spdx": "LicenseRef-US-Gov-Work",
+      "commercialUse": "allowed",
+      "shareAlike": false,
+      "nonCommercial": false,
+      "documents": 970,
+      "plannedNovelTokens": 2234686,
+      "share": 0.11729682,
+      "capacityNovelTokens": 4469371
+    },
+    {
+      "licenceId": "OAPEN-CC-BY",
+      "name": "OAPEN Library book-level CC BY 4.0",
+      "spdx": "CC-BY-4.0",
+      "commercialUse": "allowed",
+      "shareAlike": false,
+      "nonCommercial": false,
+      "documents": 90,
+      "plannedNovelTokens": 1752152,
+      "share": 0.09196901,
+      "capacityNovelTokens": 3893670
+    },
+    {
+      "licenceId": "World-Bank-CC-BY",
+      "name": "World Bank CC BY 4.0 / CC BY 3.0 IGO",
+      "spdx": "CC-BY-4.0",
+      "commercialUse": "allowed",
+      "shareAlike": false,
+      "nonCommercial": false,
+      "documents": 150,
+      "plannedNovelTokens": 1717909,
+      "share": 0.09017162,
+      "capacityNovelTokens": 3435818
+    },
+    {
+      "licenceId": "Gutenberg-PD-US",
+      "name": "Project Gutenberg Terms of Use / U.S. public domain",
+      "spdx": "LicenseRef-PublicDomain-US",
+      "commercialUse": "allowed",
+      "shareAlike": false,
+      "nonCommercial": false,
+      "documents": 60,
+      "plannedNovelTokens": 1506620,
+      "share": 0.07908124,
+      "capacityNovelTokens": 3766550
+    },
+    {
+      "licenceId": "StandardEbooks-CC0",
+      "name": "Standard Ebooks public-domain edition / CC0 1.0",
+      "spdx": "CC0-1.0",
+      "commercialUse": "allowed",
+      "shareAlike": false,
+      "nonCommercial": false,
+      "documents": 40,
+      "plannedNovelTokens": 1149205,
+      "share": 0.06032082,
+      "capacityNovelTokens": 2873014
+    },
+    {
+      "licenceId": "OECD-CC-BY-4.0",
+      "name": "OECD written content under CC BY 4.0 (from 1 July 2024) / OECD terms for earlier content",
+      "spdx": "CC-BY-4.0",
+      "commercialUse": "allowed",
+      "shareAlike": false,
+      "nonCommercial": false,
+      "documents": 120,
+      "plannedNovelTokens": 954324,
+      "share": 0.05009168,
+      "capacityNovelTokens": 1908648
+    },
+    {
+      "licenceId": "EU-CC-BY-4.0",
+      "name": "European Union reuse policy / CC BY 4.0",
+      "spdx": "CC-BY-4.0",
+      "commercialUse": "allowed",
+      "shareAlike": false,
+      "nonCommercial": false,
+      "documents": 120,
+      "plannedNovelTokens": 558137,
+      "share": 0.02929615,
+      "capacityNovelTokens": 1116273
+    },
+    {
+      "licenceId": "OSTI-Gov-Work",
+      "name": "DOE U.S. Government work marked content / OSTI copyright guidance",
+      "spdx": "LicenseRef-OSTI-Gov-Work",
+      "commercialUse": "allowed",
+      "shareAlike": false,
+      "nonCommercial": false,
+      "documents": 120,
+      "plannedNovelTokens": 497446,
+      "share": 0.02611053,
+      "capacityNovelTokens": 994892
+    },
+    {
+      "licenceId": "NIST-Gov-Work",
+      "name": "NIST-authored U.S. Government work / NIST copyrights and disclaimers",
+      "spdx": "LicenseRef-NIST-Gov-Work",
+      "commercialUse": "allowed",
+      "shareAlike": false,
+      "nonCommercial": false,
+      "documents": 132,
+      "plannedNovelTokens": 438100,
+      "share": 0.02299551,
+      "capacityNovelTokens": 876201
+    },
+    {
+      "licenceId": "OGL-3.0",
+      "name": "Open Government Licence v3.0",
+      "spdx": "OGL-3.0",
+      "commercialUse": "allowed",
+      "shareAlike": false,
+      "nonCommercial": false,
+      "documents": 180,
+      "plannedNovelTokens": 338370,
+      "share": 0.01776076,
+      "capacityNovelTokens": 676741
+    },
+    {
+      "licenceId": "PSF-2.0",
+      "name": "Python Software Foundation License / Python documentation licence",
+      "spdx": "PSF-2.0",
+      "commercialUse": "allowed",
+      "shareAlike": false,
+      "nonCommercial": false,
+      "documents": 120,
+      "plannedNovelTokens": 288686,
+      "share": 0.01515289,
+      "capacityNovelTokens": 577372
+    },
+    {
+      "licenceId": "NASA-Gov-Work",
+      "name": "NASA-authored U.S. Government work / NASA media usage guidelines",
+      "spdx": "LicenseRef-NASA-Gov-Work",
+      "commercialUse": "allowed",
+      "shareAlike": false,
+      "nonCommercial": false,
+      "documents": 150,
+      "plannedNovelTokens": 273160,
+      "share": 0.01433794,
+      "capacityNovelTokens": 546319
+    },
+    {
+      "licenceId": "PostgreSQL",
+      "name": "PostgreSQL License",
+      "spdx": "PostgreSQL",
+      "commercialUse": "allowed",
+      "shareAlike": false,
+      "nonCommercial": false,
+      "documents": 120,
+      "plannedNovelTokens": 186333,
+      "share": 0.00978047,
+      "capacityNovelTokens": 372665
+    },
+    {
+      "licenceId": "MIT",
+      "name": "MIT License",
+      "spdx": "MIT",
+      "commercialUse": "allowed",
+      "shareAlike": false,
+      "nonCommercial": false,
+      "documents": 120,
+      "plannedNovelTokens": 156895,
+      "share": 0.00823529,
+      "capacityNovelTokens": 313789
+    },
+    {
+      "licenceId": "BSD-3-Clause",
+      "name": "BSD 3-Clause License",
+      "spdx": "BSD-3-Clause",
+      "commercialUse": "allowed",
+      "shareAlike": false,
+      "nonCommercial": false,
+      "documents": 120,
+      "plannedNovelTokens": 156895,
+      "share": 0.00823529,
+      "capacityNovelTokens": 313789
+    }
+  ],
+  "checks": [
+    {
+      "id": "capacity-exceeds-target",
+      "ok": true,
+      "detail": "40221444 >= 7750000"
+    },
+    {
+      "id": "capacity-headroom",
+      "ok": true,
+      "detail": "40221444 >= 10462500"
+    },
+    {
+      "id": "planned-exceeds-target",
+      "ok": true,
+      "detail": "19051548 >= 7750000"
+    },
+    {
+      "id": "planned-headroom",
+      "ok": true,
+      "detail": "19051548 >= 10462500"
+    },
+    {
+      "id": "max-publisher-share",
+      "ok": true,
+      "detail": "0.09196901 <= 0.15"
+    },
+    {
+      "id": "max-publisher-group-share",
+      "ok": true,
+      "detail": "0.09196901 <= 0.18"
+    },
+    {
+      "id": "max-source-family-share",
+      "ok": true,
+      "detail": "0.09196901 <= 0.15"
+    },
+    {
+      "id": "max-subject-share",
+      "ok": true,
+      "detail": "0.17591657 <= 0.3"
+    },
+    {
+      "id": "max-format-share",
+      "ok": true,
+      "detail": "0.32280658 <= 0.35"
+    },
+    {
+      "id": "max-us-federal-share",
+      "ok": true,
+      "detail": "0.2030108 <= 0.35"
+    },
+    {
+      "id": "subject-min:mathematics-formal-sciences",
+      "ok": true,
+      "detail": "0.08022349 >= 0.05"
+    },
+    {
+      "id": "subject-min:physics-chemistry-biology",
+      "ok": true,
+      "detail": "0.12649316 >= 0.05"
+    },
+    {
+      "id": "subject-min:computer-science-software",
+      "ok": true,
+      "detail": "0.06984929 >= 0.05"
+    },
+    {
+      "id": "subject-min:engineering-applied-sciences",
+      "ok": true,
+      "detail": "0.0587887 >= 0.05"
+    },
+    {
+      "id": "subject-min:medicine-public-health",
+      "ok": true,
+      "detail": "0.12086907 >= 0.05"
+    },
+    {
+      "id": "subject-min:history-historical-reference",
+      "ok": true,
+      "detail": "0.05926071 >= 0.05"
+    },
+    {
+      "id": "subject-min:humanities-philosophy-literature",
+      "ok": true,
+      "detail": "0.13224656 >= 0.05"
+    },
+    {
+      "id": "subject-min:geography-earth-environmental",
+      "ok": true,
+      "detail": "0.11648213 >= 0.05"
+    },
+    {
+      "id": "subject-min:economics-social-political",
+      "ok": true,
+      "detail": "0.17591659 >= 0.05"
+    },
+    {
+      "id": "subject-min:general-reference-education",
+      "ok": true,
+      "detail": "0.0598703 >= 0.05"
+    },
+    {
+      "id": "min-publishers",
+      "ok": true,
+      "detail": "35 >= 20"
+    },
+    {
+      "id": "min-source-families",
+      "ok": true,
+      "detail": "37 >= 25"
+    },
+    {
+      "id": "min-subject-categories",
+      "ok": true,
+      "detail": "10 >= 10"
+    },
+    {
+      "id": "no-restricted-in-target",
+      "ok": true,
+      "detail": "all unrestricted sources are commercial-use allowed, non-SA, non-NC, non-ND"
+    }
+  ],
+  "allChecksPassed": true
+}

@@ -1,0 +1,135 @@
+[
+  {
+    "candidate": "LibreTexts",
+    "status": "excluded",
+    "reason": "Content-level Creative Commons licences vary by page and book; prior pilot could not establish a uniform reuse basis.",
+    "licenceStatus": "ambiguous/varied",
+    "revisit": "yes, if page-level licence automation is built and legal review completed"
+  },
+  {
+    "candidate": "Open Textbook Library",
+    "status": "excluded",
+    "reason": "Per-book licences vary, including CC BY, CC BY-SA, CC BY-NC and all-rights-reserved. No safe bulk basis without item-level verification.",
+    "licenceStatus": "varied",
+    "revisit": "yes, with item-level licence metadata and exclusion of NC/ND"
+  },
+  {
+    "candidate": "DOAB",
+    "status": "excluded-as-content-source",
+    "reason": "DOAB is a discovery directory, not a content host; it points to OAPEN and other platforms. Only metadata is CC0.",
+    "licenceStatus": "metadata CC0; content varies",
+    "revisit": "use OAPEN or publisher platforms directly"
+  },
+  {
+    "candidate": "CORE / OpenAIRE",
+    "status": "excluded",
+    "reason": "Aggregators with per-record licences and mixed full-text availability; provenance and licence can be ambiguous.",
+    "licenceStatus": "varied",
+    "revisit": "only with record-level licence and provenance verification"
+  },
+  {
+    "candidate": "Internet Archive",
+    "status": "excluded",
+    "reason": "Mixed rights, lending restrictions and unclear public-domain status for many items.",
+    "licenceStatus": "mixed/restricted",
+    "revisit": "only for explicitly public-domain collections with item-level evidence"
+  },
+  {
+    "candidate": "HathiTrust",
+    "status": "excluded",
+    "reason": "Public-domain determination is possible but access controls and bulk-use terms are restrictive.",
+    "licenceStatus": "public-domain subset with access restrictions",
+    "revisit": "only with an authorised data-use agreement"
+  },
+  {
+    "candidate": "Google Books",
+    "status": "excluded",
+    "reason": "Predominantly in-copyright; bulk text not openly licensed.",
+    "licenceStatus": "in-copyright",
+    "revisit": "no"
+  },
+  {
+    "candidate": "Stack Overflow / Stack Exchange",
+    "status": "excluded",
+    "reason": "CC BY-SA content but fragmented Q&A, code-heavy, and not coherent educational documents; share-alike plus quality concerns.",
+    "licenceStatus": "CC BY-SA 4.0",
+    "revisit": "no for this corpus design"
+  },
+  {
+    "candidate": "Common Crawl / FineWeb / C4-style web corpora",
+    "status": "excluded",
+    "reason": "Per-document licensing and provenance are unclear; unknown v1 overlap; licence filtering cannot be guaranteed at document level.",
+    "licenceStatus": "mixed/unclear",
+    "revisit": "no for a licence-clean corpus"
+  },
+  {
+    "candidate": "arXiv non-CC-BY records",
+    "status": "excluded-subset",
+    "reason": "Most arXiv records use the arXiv perpetual licence or other terms that do not clearly permit commercial reuse; only the CC BY 4.0 subset is approved.",
+    "licenceStatus": "per-article, mixed",
+    "revisit": "only CC BY 4.0 subset"
+  },
+  {
+    "candidate": "PMC non-CC-BY records",
+    "status": "excluded-subset",
+    "reason": "PMC OA includes CC BY-NC and CC BY-NC-ND content; only CC BY 4.0 records are approved.",
+    "licenceStatus": "per-article, mixed",
+    "revisit": "only CC BY 4.0 subset"
+  },
+  {
+    "candidate": "OSTI copyrighted journal articles / unmarked documents",
+    "status": "excluded-subset",
+    "reason": "OSTI hosts copyrighted articles and unmarked works; only explicit U.S. Government Work reports are approved.",
+    "licenceStatus": "mixed/copyrighted",
+    "revisit": "only explicit U.S. Government Work reports"
+  },
+  {
+    "candidate": "NASA/NIST third-party images, insignia and co-authored journal articles",
+    "status": "excluded-subset",
+    "reason": "These components are not U.S. Government works or are subject to third-party rights; text-only, gov-work filtering is required.",
+    "licenceStatus": "mixed/third-party",
+    "revisit": "per-item rights review only"
+  },
+  {
+    "candidate": "International Monetary Fund (IMF) publications",
+    "status": "excluded",
+    "reason": "Terms vary and many publications are not openly licensed for commercial reuse.",
+    "licenceStatus": "restrictive/varied",
+    "revisit": "only with explicit reuse permission"
+  },
+  {
+    "candidate": "UNESCO publications",
+    "status": "deferred-share-alike",
+    "reason": "Many UNESCO works use CC BY-SA IGO, which is share-alike; not included in the unrestricted target.",
+    "licenceStatus": "CC BY-SA IGO",
+    "revisit": "share-alike pool after legal review"
+  },
+  {
+    "candidate": "OECD pre-1 July 2024 third-party material and items with restrictive notices",
+    "status": "excluded-subset",
+    "reason": "OECD terms changed in 2024 and some items contain third-party or restricted material; only CC BY 4.0 or equivalent items are approved.",
+    "licenceStatus": "per-item",
+    "revisit": "per-item licence review"
+  },
+  {
+    "candidate": "World Bank CC BY-NC / CC BY-NC-ND items",
+    "status": "excluded-subset",
+    "reason": "A subset of OKR content is non-commercial or no-derivatives; only CC BY items are approved.",
+    "licenceStatus": "per-item",
+    "revisit": "non-commercial pool after legal review"
+  },
+  {
+    "candidate": "EU documents with third-party rights, personal data or restrictive notices",
+    "status": "excluded-subset",
+    "reason": "EU reuse policy excludes certain third-party and personal-data content; per-item rights check required.",
+    "licenceStatus": "per-item",
+    "revisit": "per-item rights review"
+  },
+  {
+    "candidate": "Crown copyright material not covered by OGL",
+    "status": "excluded-subset",
+    "reason": "GOV.UK content is not uniformly OGL; only OGL-marked content is approved.",
+    "licenceStatus": "per-item",
+    "revisit": "per-item licence review"
+  }
+]

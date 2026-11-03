@@ -1,0 +1,24 @@
+{
+  "schema": "sma/source-composition-policy@2",
+  "targetNovelTokens": 7750000,
+  "minimumHeadroomRatio": 0.35,
+  "plannedDrawPool": "unrestricted",
+  "minimumPlannedNovelTokens": 10462500,
+  "maxPublisherShare": 0.15,
+  "maxPublisherGroupShare": 0.18,
+  "maxSourceFamilyShare": 0.15,
+  "maxSubjectShare": 0.3,
+  "minSubjectShare": 0.05,
+  "maxFormatShare": 0.35,
+  "maxUsFederalShare": 0.35,
+  "minIndependentPublishers": 20,
+  "minSourceFamilies": 25,
+  "minSubjectCategories": 10,
+  "notes": [
+    "Capacity is measured after fetch, quality, deduplication, v1-overlap and cross-source-overlap allowances, then multiplied by an explicit uncertainty factor.",
+    "The planned draw is a subset of capacity chosen under publisher, source-family, subject, format and governance caps.",
+    "Share-alike and non-commercial sources are excluded from the unrestricted target pool and reported separately.",
+    "Publisher diversity and source-family diversity are measured separately; parent/subsidiary/aggregator relationships are grouped.",
+    "No source may contribute more than 2% of the planned draw through a single document; long books are deliberately limited by document counts."
+  ]
+}

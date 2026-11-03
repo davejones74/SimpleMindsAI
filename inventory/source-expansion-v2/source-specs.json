@@ -1,0 +1,3687 @@
+{
+  "schema": "sma/source-inventory-specs@2",
+  "inventoryVersion": "2.0.0",
+  "createdAt": "2026-11-02T00:00:00Z",
+  "meta": {
+    "schema": "sma/source-inventory-specs@2",
+    "inventoryVersion": "2.0.0",
+    "createdAt": "2026-11-02T00:00:00Z",
+    "title": "SimpleMindsAI Source Expansion Inventory v2",
+    "description": "Versioned source inventory for a larger controlled corpus experiment. Inventory development only; no acquisition, training or production state is authorised or changed.",
+    "authorisation": {
+      "bulkAcquisitionAuthorised": false,
+      "trainingAuthorised": false,
+      "productionWriteAuthorised": false,
+      "nextStageRequiresSeparateAuthorisation": true
+    }
+  },
+  "baseline": {
+    "frozenV1": {
+      "root": "/home/dave/sma-experiments/prospective-rebalanced-20261030T224516Z",
+      "manifestSha256": "44fd36ae0ddb1378023e26c299dd16f6d74d9d3d1162e44462e47c863fde6e35",
+      "trainSha256": "552ffad836b9b95f6609c4062531bd2883a5f1f7a7e9833366bdd54d7a68b446",
+      "validationSha256": "95aa6f130a73b0516253f52fd3572da853598ea8285e259a79a5d84418f176ae",
+      "documents": 128,
+      "trainingDocuments": 87,
+      "validationDocuments": 20,
+      "acceptedTokenizedDocuments": 107,
+      "cleanedTokens": 914005,
+      "trainTokens": 775434,
+      "validationTokens": 138571,
+      "publishers": 14,
+      "sourceFamilies": 12
+    },
+    "pilotV2": {
+      "root": "/home/dave/sma-experiments/workpackages/test-hygiene-v3-pilot-20261101T230420Z/acquisition/pilot-v2-20261101T232039Z",
+      "manifestSha256": "e08543dd2a3d441f0af68606d32222f506d34fc8ab9310647dcf592616816a98",
+      "screeningSha256": "b3c982ef3b3163e9f890046189b3c5e231967baa49335835796536a3f1565a8d",
+      "acceptedDocuments": 100,
+      "cleanedTokens": 476081,
+      "overlappingDocuments": 92,
+      "novelDocuments": 8,
+      "novelTokens": 113254,
+      "novelTokenShare": 0.23788,
+      "publishers": 13,
+      "sourceFamilies": 11
+    }
+  },
+  "compositionPolicy": {
+    "schema": "sma/source-composition-policy@2",
+    "targetNovelTokens": 7750000,
+    "minimumHeadroomRatio": 0.35,
+    "plannedDrawPool": "unrestricted",
+    "minimumPlannedNovelTokens": 10462500,
+    "maxPublisherShare": 0.15,
+    "maxPublisherGroupShare": 0.18,
+    "maxSourceFamilyShare": 0.15,
+    "maxSubjectShare": 0.3,
+    "minSubjectShare": 0.05,
+    "maxFormatShare": 0.35,
+    "maxUsFederalShare": 0.35,
+    "minIndependentPublishers": 20,
+    "minSourceFamilies": 25,
+    "minSubjectCategories": 10,
+    "notes": [
+      "Capacity is measured after fetch, quality, deduplication, v1-overlap and cross-source-overlap allowances, then multiplied by an explicit uncertainty factor.",
+      "The planned draw is a subset of capacity chosen under publisher, source-family, subject, format and governance caps.",
+      "Share-alike and non-commercial sources are excluded from the unrestricted target pool and reported separately.",
+      "Publisher diversity and source-family diversity are measured separately; parent/subsidiary/aggregator relationships are grouped.",
+      "No source may contribute more than 2% of the planned draw through a single document; long books are deliberately limited by document counts."
+    ]
+  },
+  "licences": {
+    "PD-US": {
+      "name": "U.S. public domain",
+      "version": "n/a",
+      "spdx": "LicenseRef-PublicDomain-US",
+      "url": "https://www.copyright.gov/title17/",
+      "commercialUse": "allowed",
+      "attribution": "requested by publisher; not a statutory condition",
+      "shareAlike": false,
+      "nonCommercial": false,
+      "noDerivatives": false,
+      "conditions": [
+        "U.S. public-domain status verified per work",
+        "non-U.S. users must check local copyright",
+        "third-party editorial matter may remain copyrighted"
+      ],
+      "legalReview": "required for non-U.S. use and for works with editorial additions"
+    },
+    "CC0-1.0": {
+      "name": "Creative Commons CC0 1.0 Universal Public Domain Dedication",
+      "version": "1.0",
+      "spdx": "CC0-1.0",
+      "url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "commercialUse": "allowed",
+      "attribution": "not required",
+      "shareAlike": false,
+      "nonCommercial": false,
+      "noDerivatives": false,
+      "conditions": [
+        "public-domain dedication to the extent permitted by law"
+      ],
+      "legalReview": "none expected"
+    },
+    "CC-BY-4.0": {
+      "name": "Creative Commons Attribution 4.0 International",
+      "version": "4.0",
+      "spdx": "CC-BY-4.0",
+      "url": "https://creativecommons.org/licenses/by/4.0/",
+      "commercialUse": "allowed",
+      "attribution": "required",
+      "shareAlike": false,
+      "nonCommercial": false,
+      "noDerivatives": false,
+      "conditions": [
+        "attribute author/publisher",
+        "link to licence",
+        "indicate changes",
+        "do not imply endorsement"
+      ],
+      "legalReview": "none expected; attribution compliance required"
+    },
+    "CC-BY-3.0-IGO": {
+      "name": "Creative Commons Attribution 3.0 IGO",
+      "version": "3.0 IGO",
+      "spdx": "CC-BY-3.0-IGO",
+      "url": "https://creativecommons.org/licenses/by/3.0/igo/",
+      "commercialUse": "allowed",
+      "attribution": "required",
+      "shareAlike": false,
+      "nonCommercial": false,
+      "noDerivatives": false,
+      "conditions": [
+        "attribute author/publisher",
+        "link to licence",
+        "indicate changes"
+      ],
+      "legalReview": "none expected; attribution compliance required"
+    },
+    "OGL-3.0": {
+      "name": "Open Government Licence v3.0",
+      "version": "3.0",
+      "spdx": "OGL-3.0",
+      "url": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+      "commercialUse": "allowed",
+      "attribution": "required",
+      "shareAlike": false,
+      "nonCommercial": false,
+      "noDerivatives": false,
+      "conditions": [
+        "acknowledge source and Crown copyright",
+        "link to OGL",
+        "exclude third-party material and personal data"
+      ],
+      "legalReview": "required for Crown copyright material not explicitly covered by OGL"
+    },
+    "PSF-2.0": {
+      "name": "Python Software Foundation License / Python documentation licence",
+      "version": "2.0",
+      "spdx": "PSF-2.0",
+      "url": "https://docs.python.org/3/license.html",
+      "commercialUse": "allowed",
+      "attribution": "required (retain notices)",
+      "shareAlike": false,
+      "nonCommercial": false,
+      "noDerivatives": false,
+      "conditions": [
+        "retain copyright and licence notices",
+        "do not use PSF marks to imply endorsement"
+      ],
+      "legalReview": "none expected"
+    },
+    "MIT": {
+      "name": "MIT License",
+      "version": "n/a",
+      "spdx": "MIT",
+      "url": "https://opensource.org/license/mit",
+      "commercialUse": "allowed",
+      "attribution": "required (retain notice)",
+      "shareAlike": false,
+      "nonCommercial": false,
+      "noDerivatives": false,
+      "conditions": [
+        "retain copyright and permission notice"
+      ],
+      "legalReview": "none expected"
+    },
+    "Apache-2.0": {
+      "name": "Apache License 2.0",
+      "version": "2.0",
+      "spdx": "Apache-2.0",
+      "url": "https://www.apache.org/licenses/LICENSE-2.0",
+      "commercialUse": "allowed",
+      "attribution": "required (retain notices)",
+      "shareAlike": false,
+      "nonCommercial": false,
+      "noDerivatives": false,
+      "conditions": [
+        "retain notices",
+        "state changes",
+        "patent grant/termination terms"
+      ],
+      "legalReview": "none expected"
+    },
+    "BSD-3-Clause": {
+      "name": "BSD 3-Clause License",
+      "version": "n/a",
+      "spdx": "BSD-3-Clause",
+      "url": "https://opensource.org/license/bsd-3-clause",
+      "commercialUse": "allowed",
+      "attribution": "required (retain notice)",
+      "shareAlike": false,
+      "nonCommercial": false,
+      "noDerivatives": false,
+      "conditions": [
+        "retain copyright notice and disclaimer",
+        "no endorsement"
+      ],
+      "legalReview": "none expected"
+    },
+    "PostgreSQL": {
+      "name": "PostgreSQL License",
+      "version": "n/a",
+      "spdx": "PostgreSQL",
+      "url": "https://www.postgresql.org/about/licence/",
+      "commercialUse": "allowed",
+      "attribution": "required (retain notice)",
+      "shareAlike": false,
+      "nonCommercial": false,
+      "noDerivatives": false,
+      "conditions": [
+        "retain copyright notice and permission notice"
+      ],
+      "legalReview": "none expected"
+    },
+    "CC-BY-SA-4.0": {
+      "name": "Creative Commons Attribution-ShareAlike 4.0 International",
+      "version": "4.0",
+      "spdx": "CC-BY-SA-4.0",
+      "url": "https://creativecommons.org/licenses/by-sa/4.0/",
+      "commercialUse": "allowed",
+      "attribution": "required",
+      "shareAlike": true,
+      "nonCommercial": false,
+      "noDerivatives": false,
+      "conditions": [
+        "attribute author/publisher",
+        "share adaptations under the same licence",
+        "link to licence"
+      ],
+      "legalReview": "required: whether model training/weights trigger share-alike obligations"
+    },
+    "CC-BY-SA-2.5": {
+      "name": "Creative Commons Attribution-ShareAlike 2.5",
+      "version": "2.5",
+      "spdx": "CC-BY-SA-2.5",
+      "url": "https://creativecommons.org/licenses/by-sa/2.5/",
+      "commercialUse": "allowed",
+      "attribution": "required",
+      "shareAlike": true,
+      "nonCommercial": false,
+      "noDerivatives": false,
+      "conditions": [
+        "attribute author/publisher",
+        "share adaptations under the same licence"
+      ],
+      "legalReview": "required: whether model training/weights trigger share-alike obligations"
+    },
+    "CC-BY-NC-SA-4.0": {
+      "name": "Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International",
+      "version": "4.0",
+      "spdx": "CC-BY-NC-SA-4.0",
+      "url": "https://creativecommons.org/licenses/by-nc-sa/4.0/",
+      "commercialUse": "not allowed",
+      "attribution": "required",
+      "shareAlike": true,
+      "nonCommercial": true,
+      "noDerivatives": false,
+      "conditions": [
+        "attribute author/publisher",
+        "non-commercial use only",
+        "share adaptations under the same licence"
+      ],
+      "legalReview": "required: non-commercial scope and share-alike for model training"
+    },
+    "CC-BY-NC-SA-3.0-IGO": {
+      "name": "Creative Commons Attribution-NonCommercial-ShareAlike 3.0 IGO",
+      "version": "3.0 IGO",
+      "spdx": "CC-BY-NC-SA-3.0-IGO",
+      "url": "https://creativecommons.org/licenses/by-nc-sa/3.0/igo/",
+      "commercialUse": "not allowed",
+      "attribution": "required",
+      "shareAlike": true,
+      "nonCommercial": true,
+      "noDerivatives": false,
+      "conditions": [
+        "attribute author/publisher",
+        "non-commercial use only",
+        "share adaptations under the same licence"
+      ],
+      "legalReview": "required: non-commercial scope and share-alike for model training"
+    },
+    "US-Gov-Work": {
+      "name": "U.S. Government work (17 U.S.C. 105) / agency public-domain posture",
+      "version": "n/a",
+      "spdx": "LicenseRef-US-Gov-Work",
+      "url": "https://www.law.cornell.edu/uscode/text/17/105",
+      "commercialUse": "allowed",
+      "attribution": "requested/required by agency policy",
+      "shareAlike": false,
+      "nonCommercial": false,
+      "noDerivatives": false,
+      "conditions": [
+        "only works authored solely by federal employees",
+        "exclude third-party images, text and journal articles",
+        "check agency-specific notices"
+      ],
+      "legalReview": "required for mixed-authorship and third-party content"
+    },
+    "NASA-Gov-Work": {
+      "name": "NASA-authored U.S. Government work / NASA media usage guidelines",
+      "version": "n/a",
+      "spdx": "LicenseRef-NASA-Gov-Work",
+      "url": "https://www.nasa.gov/nasa-brand-center/images-and-media/",
+      "commercialUse": "allowed",
+      "attribution": "requested; NASA insignia restrictions apply",
+      "shareAlike": false,
+      "nonCommercial": false,
+      "noDerivatives": false,
+      "conditions": [
+        "text only",
+        "exclude NASA insignia, logotypes and third-party media",
+        "review each document for contractor-authored material"
+      ],
+      "legalReview": "required for contractor-authored and third-party content"
+    },
+    "NIST-Gov-Work": {
+      "name": "NIST-authored U.S. Government work / NIST copyrights and disclaimers",
+      "version": "n/a",
+      "spdx": "LicenseRef-NIST-Gov-Work",
+      "url": "https://www.nist.gov/copyrights-disclaimers",
+      "commercialUse": "allowed",
+      "attribution": "requested/required",
+      "shareAlike": false,
+      "nonCommercial": false,
+      "noDerivatives": false,
+      "conditions": [
+        "only NIST-authored publications",
+        "exclude co-authored journal articles and third-party material"
+      ],
+      "legalReview": "required for co-authored and third-party content"
+    },
+    "OSTI-Gov-Work": {
+      "name": "DOE U.S. Government work marked content / OSTI copyright guidance",
+      "version": "n/a",
+      "spdx": "LicenseRef-OSTI-Gov-Work",
+      "url": "https://www.osti.gov/copyright",
+      "commercialUse": "allowed",
+      "attribution": "requested/required",
+      "shareAlike": false,
+      "nonCommercial": false,
+      "noDerivatives": false,
+      "conditions": [
+        "only documents explicitly marked 'U.S. Government Work'",
+        "exclude copyrighted journal articles and conference proceedings"
+      ],
+      "legalReview": "required for mixed and unmarked documents"
+    },
+    "OECD-CC-BY-4.0": {
+      "name": "OECD written content under CC BY 4.0 (from 1 July 2024) / OECD terms for earlier content",
+      "version": "4.0",
+      "spdx": "CC-BY-4.0",
+      "url": "https://www.oecd.org/en/about/terms-conditions.html",
+      "commercialUse": "allowed",
+      "attribution": "required",
+      "shareAlike": false,
+      "nonCommercial": false,
+      "noDerivatives": false,
+      "conditions": [
+        "attribute as [OECD (year), Title, URL]",
+        "exclude third-party material",
+        "do not use OECD logo/cover image in translations"
+      ],
+      "legalReview": "required for pre-1 July 2024 items and third-party content"
+    },
+    "World-Bank-CC-BY": {
+      "name": "World Bank CC BY 4.0 / CC BY 3.0 IGO",
+      "version": "4.0 or 3.0 IGO",
+      "spdx": "CC-BY-4.0",
+      "url": "https://openknowledge.worldbank.org/pages/terms-of-use",
+      "commercialUse": "allowed",
+      "attribution": "required",
+      "shareAlike": false,
+      "nonCommercial": false,
+      "noDerivatives": false,
+      "conditions": [
+        "only items labelled CC BY 4.0 or CC BY 3.0 IGO",
+        "exclude CC BY-NC and CC BY-NC-ND items",
+        "attribute World Bank"
+      ],
+      "legalReview": "required for items with third-party content"
+    },
+    "EU-CC-BY-4.0": {
+      "name": "European Union reuse policy / CC BY 4.0",
+      "version": "4.0",
+      "spdx": "CC-BY-4.0",
+      "url": "https://commission.europa.eu/about/service/contact/reuse-commission-content_en",
+      "commercialUse": "allowed",
+      "attribution": "required",
+      "shareAlike": false,
+      "nonCommercial": false,
+      "noDerivatives": false,
+      "conditions": [
+        "attribute EU source",
+        "exclude third-party material, logos, personal data",
+        "per-item rights check"
+      ],
+      "legalReview": "required for third-party and personal-data content"
+    },
+    "Gutenberg-PD-US": {
+      "name": "Project Gutenberg Terms of Use / U.S. public domain",
+      "version": "n/a",
+      "spdx": "LicenseRef-PublicDomain-US",
+      "url": "https://www.gutenberg.org/policy/terms_of_use.html",
+      "commercialUse": "allowed",
+      "attribution": "Project Gutenberg terms request credit and preservation of headers",
+      "shareAlike": false,
+      "nonCommercial": false,
+      "noDerivatives": false,
+      "conditions": [
+        "verify U.S. public-domain status per book",
+        "non-U.S. copyright may apply",
+        "strip Project Gutenberg boilerplate and trademark references from training text"
+      ],
+      "legalReview": "required for non-U.S. use"
+    },
+    "StandardEbooks-CC0": {
+      "name": "Standard Ebooks public-domain edition / CC0 1.0",
+      "version": "1.0",
+      "spdx": "CC0-1.0",
+      "url": "https://standardebooks.org/about/standard-ebooks-and-the-public-domain",
+      "commercialUse": "allowed",
+      "attribution": "not required",
+      "shareAlike": false,
+      "nonCommercial": false,
+      "noDerivatives": false,
+      "conditions": [
+        "verify U.S. public-domain status per work",
+        "non-U.S. copyright may apply"
+      ],
+      "legalReview": "required for non-U.S. use"
+    },
+    "OAPEN-CC-BY": {
+      "name": "OAPEN Library book-level CC BY 4.0",
+      "version": "4.0",
+      "spdx": "CC-BY-4.0",
+      "url": "https://creativecommons.org/licenses/by/4.0/",
+      "commercialUse": "allowed",
+      "attribution": "required",
+      "shareAlike": false,
+      "nonCommercial": false,
+      "noDerivatives": false,
+      "conditions": [
+        "only books with item-level CC BY 4.0 metadata",
+        "exclude CC BY-NC, CC BY-NC-ND and free-to-read-only items",
+        "attribute author/publisher"
+      ],
+      "legalReview": "required for third-party content within books"
+    },
+    "CC-BY-NC-SA-4.0-openstax": {
+      "name": "OpenStax current library CC BY-NC-SA 4.0",
+      "version": "4.0",
+      "spdx": "CC-BY-NC-SA-4.0",
+      "url": "https://openstax.org/blog/openstax-licensing",
+      "commercialUse": "not allowed",
+      "attribution": "required",
+      "shareAlike": true,
+      "nonCommercial": true,
+      "noDerivatives": false,
+      "conditions": [
+        "current OpenStax editions are non-commercial",
+        "legacy CC BY editions require per-book licence evidence",
+        "attribute OpenStax and book title"
+      ],
+      "legalReview": "required: non-commercial scope and legacy CC BY verification"
+    },
+    "MIT-OCW-CC-BY-NC-SA": {
+      "name": "MIT OpenCourseWare CC BY-NC-SA",
+      "version": "4.0",
+      "spdx": "CC-BY-NC-SA-4.0",
+      "url": "https://ocw.mit.edu/terms/",
+      "commercialUse": "not allowed",
+      "attribution": "required",
+      "shareAlike": true,
+      "nonCommercial": true,
+      "noDerivatives": false,
+      "conditions": [
+        "non-commercial use only",
+        "exclude third-party course materials",
+        "attribute MIT OpenCourseWare"
+      ],
+      "legalReview": "required: non-commercial scope and third-party materials"
+    },
+    "Khan-CC-BY-NC-SA": {
+      "name": "Khan Academy CC BY-NC-SA",
+      "version": "4.0",
+      "spdx": "CC-BY-NC-SA-4.0",
+      "url": "https://www.khanacademy.org/about/tos",
+      "commercialUse": "not allowed",
+      "attribution": "required",
+      "shareAlike": true,
+      "nonCommercial": true,
+      "noDerivatives": false,
+      "conditions": [
+        "non-commercial use only",
+        "attribute Khan Academy",
+        "exclude third-party content"
+      ],
+      "legalReview": "required: non-commercial scope and third-party content"
+    },
+    "WHO-CC-BY-NC-SA": {
+      "name": "WHO CC BY-NC-SA 3.0 IGO",
+      "version": "3.0 IGO",
+      "spdx": "CC-BY-NC-SA-3.0-IGO",
+      "url": "https://www.who.int/about/policies/publishing/copyright",
+      "commercialUse": "not allowed",
+      "attribution": "required",
+      "shareAlike": true,
+      "nonCommercial": true,
+      "noDerivatives": false,
+      "conditions": [
+        "non-commercial use only",
+        "attribute WHO",
+        "exclude third-party content"
+      ],
+      "legalReview": "required: non-commercial scope and third-party content"
+    },
+    "FAO-CC-BY-NC-SA": {
+      "name": "FAO CC BY-NC-SA 3.0 IGO",
+      "version": "3.0 IGO",
+      "spdx": "CC-BY-NC-SA-3.0-IGO",
+      "url": "https://www.fao.org/contact-us/terms/en/",
+      "commercialUse": "not allowed",
+      "attribution": "required",
+      "shareAlike": true,
+      "nonCommercial": true,
+      "noDerivatives": false,
+      "conditions": [
+        "non-commercial use only",
+        "attribute FAO",
+        "exclude third-party content"
+      ],
+      "legalReview": "required: non-commercial scope and third-party content"
+    }
+  },
+  "sources": [
+    {
+      "sourceId": "project-gutenberg",
+      "publisherId": "gutenberg.org",
+      "publisherGroupId": "gutenberg.org",
+      "sourceFamilyId": "project-gutenberg",
+      "governanceGroupId": "independent",
+      "status": "approved",
+      "pool": "unrestricted",
+      "subjectShares": {
+        "humanities-philosophy-literature": 0.55,
+        "history-historical-reference": 0.2,
+        "general-reference-education": 0.15,
+        "mathematics-formal-sciences": 0.05,
+        "economics-social-political": 0.05
+      },
+      "format": "book",
+      "title": "Project Gutenberg",
+      "description": "Long-form U.S. public-domain books (literature, history, philosophy, science, reference).",
+      "licenceId": "Gutenberg-PD-US",
+      "access": {
+        "method": "bulk-download",
+        "urlGenerationRule": "Select book IDs from the Gutenberg bookshelf/offline catalog; download plain text from /cache/epub/<id>/pg<id>.txt. Exclude v1 IDs 1342 and 1661 and titles selected from Standard Ebooks.",
+        "exampleUrls": [
+          "https://www.gutenberg.org/cache/epub/11/pg11.txt",
+          "https://www.gutenberg.org/cache/epub/98/pg98.txt",
+          "https://www.gutenberg.org/cache/epub/2600/pg2600.txt"
+        ],
+        "requiresAccount": false,
+        "requiresPayment": false,
+        "requiresTermsAcceptance": false,
+        "robotsReview": "required-before-acquisition"
+      },
+      "estimates": {
+        "capacityDocuments": 150,
+        "plannedDocuments": 60,
+        "tokensPerDocument": 55000,
+        "fetchSuccess": 0.95,
+        "qualityAcceptance": 0.93,
+        "dedupRemoval": 0.06,
+        "v1Overlap": 0.005,
+        "crossSourceOverlap": 0.15,
+        "estimateUncertainty": 0.65,
+        "basis": "Pilot v1 measured 132k-166k tokens for two long novels; 55k is a conservative book average after cleaning.",
+        "limitations": "Book length varies widely; some texts are multi-volume, dramatic or non-prose; boilerplate/header removal needed."
+      },
+      "v1Overlap": {
+        "knownDocuments": 2,
+        "knownSourceIds": [
+          "https://gutenberg.org/cache/epub/1342/pg1342.txt",
+          "https://gutenberg.org/cache/epub/1661/pg1661.txt"
+        ],
+        "method": "URL/book-ID exclusion against frozen v1 source IDs and title-level exclusion of the two v1 works.",
+        "limitations": "Exact v1 overlap only; other editions of the same work may still overlap."
+      },
+      "screening": {
+        "method": "Book-ID/title selection; no bulk fetch in this work package",
+        "representativeSample": null,
+        "knownExclusions": [
+          "Project Gutenberg headers/footers and trademark references",
+          "works not clearly U.S. public domain",
+          "works already selected from Standard Ebooks"
+        ],
+        "licenseFilter": "per-book U.S. public-domain check"
+      },
+      "notes": "Large headroom; capped to avoid publisher dominance and literary-format dominance.",
+      "subjects": [
+        "economics-social-political",
+        "general-reference-education",
+        "history-historical-reference",
+        "humanities-philosophy-literature",
+        "mathematics-formal-sciences"
+      ]
+    },
+    {
+      "sourceId": "standard-ebooks",
+      "publisherId": "standardebooks.org",
+      "publisherGroupId": "standardebooks.org",
+      "sourceFamilyId": "standard-ebooks",
+      "governanceGroupId": "independent",
+      "status": "approved",
+      "pool": "unrestricted",
+      "subjectShares": {
+        "humanities-philosophy-literature": 0.65,
+        "history-historical-reference": 0.2,
+        "general-reference-education": 0.15
+      },
+      "format": "book",
+      "title": "Standard Ebooks",
+      "description": "Carefully edited U.S. public-domain literature and selected non-fiction, dedicated to the public domain via CC0.",
+      "licenceId": "StandardEbooks-CC0",
+      "access": {
+        "method": "url-rule",
+        "urlGenerationRule": "Enumerate catalogue pages at /ebooks; fetch EPUB/XHTML text from the ebook page. Prefer prose works and exclude titles used by Project Gutenberg.",
+        "exampleUrls": [
+          "https://standardebooks.org/ebooks/jane-austen/pride-and-prejudice",
+          "https://standardebooks.org/ebooks/charles-dickens/a-tale-of-two-cities",
+          "https://standardebooks.org/ebooks/homer/the-odyssey"
+        ],
+        "requiresAccount": false,
+        "requiresPayment": false,
+        "requiresTermsAcceptance": false,
+        "robotsReview": "required-before-acquisition"
+      },
+      "estimates": {
+        "capacityDocuments": 100,
+        "plannedDocuments": 40,
+        "tokensPerDocument": 60000,
+        "fetchSuccess": 0.95,
+        "qualityAcceptance": 0.95,
+        "dedupRemoval": 0.03,
+        "v1Overlap": 0.01,
+        "crossSourceOverlap": 0.15,
+        "estimateUncertainty": 0.65,
+        "basis": "Public-domain book-length works; 60k tokens per cleaned book is conservative.",
+        "limitations": "Catalogue overlaps Gutenberg source texts; title-level exclusion needed. Strong literary bias."
+      },
+      "v1Overlap": {
+        "knownDocuments": 0,
+        "knownSourceIds": [],
+        "method": "No frozen-v1 Standard Ebooks source IDs; title-level exclusion of v1 Gutenberg works.",
+        "limitations": "Text may derive from the same public-domain edition as a Gutenberg text."
+      },
+      "screening": {
+        "method": "Catalogue/title selection; no bulk fetch",
+        "representativeSample": null,
+        "knownExclusions": [
+          "titles already selected from Project Gutenberg",
+          "drama/poetry with atypical formatting",
+          "non-U.S. public-domain uncertainty"
+        ],
+        "licenseFilter": "CC0 dedication stated on each ebook imprint"
+      },
+      "notes": "Editorial work is CC0; underlying text is U.S. public domain. Some v1 books are also available here, so title-level exclusion is mandatory.",
+      "subjects": [
+        "general-reference-education",
+        "history-historical-reference",
+        "humanities-philosophy-literature"
+      ]
+    },
+    {
+      "sourceId": "oapen-ccby",
+      "publisherId": "oapen.org",
+      "publisherGroupId": "oapen.org",
+      "sourceFamilyId": "oapen-ccby",
+      "governanceGroupId": "independent",
+      "status": "approved",
+      "pool": "unrestricted",
+      "subjectShares": {
+        "humanities-philosophy-literature": 0.4,
+        "history-historical-reference": 0.2,
+        "economics-social-political": 0.25,
+        "general-reference-education": 0.15
+      },
+      "format": "book",
+      "title": "OAPEN Library (CC BY subset)",
+      "description": "Peer-reviewed open-access scholarly books from hundreds of publishers; only item-level CC BY books are approved.",
+      "licenceId": "OAPEN-CC-BY",
+      "access": {
+        "method": "oai-pmh",
+        "urlGenerationRule": "Harvest OAI-PMH records from https://library.oapen.org/oai/request; retain only records whose licence field is CC BY 4.0 and whose language is English. Download the book PDF/EPUB from the item handle.",
+        "exampleUrls": [
+          "https://library.oapen.org/",
+          "https://library.oapen.org/oai/request?verb=ListMetadataFormats"
+        ],
+        "requiresAccount": false,
+        "requiresPayment": false,
+        "requiresTermsAcceptance": false,
+        "robotsReview": "required-before-acquisition"
+      },
+      "estimates": {
+        "capacityDocuments": 200,
+        "plannedDocuments": 90,
+        "tokensPerDocument": 50000,
+        "fetchSuccess": 0.95,
+        "qualityAcceptance": 0.9,
+        "dedupRemoval": 0.08,
+        "v1Overlap": 0,
+        "crossSourceOverlap": 0.1,
+        "estimateUncertainty": 0.55,
+        "basis": "Book-length scholarly monographs; 50k tokens per cleaned book after front/back matter removal.",
+        "limitations": "OAPEN is a host/aggregator; underlying publisher diversity is high but must be recorded item by item. Some books are CC BY-NC/ND and must be excluded."
+      },
+      "v1Overlap": {
+        "knownDocuments": 0,
+        "knownSourceIds": [],
+        "method": "No frozen-v1 OAPEN source IDs; content-family review only.",
+        "limitations": "No full-text v1 screening of OAPEN books yet."
+      },
+      "screening": {
+        "method": "OAI-PMH/metadata filter on item-level licence; no bulk fetch",
+        "representativeSample": null,
+        "knownExclusions": [
+          "CC BY-NC",
+          "CC BY-NC-ND",
+          "free-to-read-only items",
+          "non-English books"
+        ],
+        "licenseFilter": "item-level dc:rights must contain CC BY 4.0"
+      },
+      "notes": "Underlying publishers are counted from item metadata for publisher-diversity analysis; OAPEN itself is treated as one publisher group. Open Book Publishers is covered within OAPEN and is not counted as a separate source.",
+      "subjects": [
+        "economics-social-political",
+        "general-reference-education",
+        "history-historical-reference",
+        "humanities-philosophy-literature"
+      ]
+    },
+    {
+      "sourceId": "arxiv-ccby",
+      "publisherId": "arxiv.org",
+      "publisherGroupId": "arxiv.org",
+      "sourceFamilyId": "arxiv-ccby",
+      "governanceGroupId": "independent",
+      "status": "approved",
+      "pool": "unrestricted",
+      "subjectShares": {
+        "mathematics-formal-sciences": 0.3,
+        "physics-chemistry-biology": 0.35,
+        "computer-science-software": 0.2,
+        "engineering-applied-sciences": 0.15
+      },
+      "format": "article",
+      "title": "arXiv (CC BY 4.0 subset)",
+      "description": "Preprints in mathematics, physics, computer science and engineering; only articles whose arXiv licence is CC BY 4.0 are approved.",
+      "licenceId": "CC-BY-4.0",
+      "access": {
+        "method": "oai-pmh",
+        "urlGenerationRule": "Use arXiv OAI-PMH/API metadata to select records with licence 'CC BY 4.0'; fetch the PDF/HTML for those records only. Do not mine non-CC-BY records.",
+        "exampleUrls": [
+          "https://arxiv.org/abs/2301.00001",
+          "https://export.arxiv.org/oai2?verb=ListRecords&metadataPrefix=arXiv"
+        ],
+        "requiresAccount": false,
+        "requiresPayment": false,
+        "requiresTermsAcceptance": false,
+        "robotsReview": "required-before-acquisition"
+      },
+      "estimates": {
+        "capacityDocuments": 800,
+        "plannedDocuments": 350,
+        "tokensPerDocument": 8000,
+        "fetchSuccess": 0.97,
+        "qualityAcceptance": 0.93,
+        "dedupRemoval": 0.1,
+        "v1Overlap": 0,
+        "crossSourceOverlap": 0.05,
+        "estimateUncertainty": 0.65,
+        "basis": "Research articles typically 5k-15k tokens; 8k is a conservative cleaned average. arXiv bulk metadata and PDFs are stable.",
+        "limitations": "Licence is per article; the default arXiv licence is not CC BY. LaTeX/PDF extraction can include formulas, references and appendices. Preprints may overlap with published versions."
+      },
+      "v1Overlap": {
+        "knownDocuments": 0,
+        "knownSourceIds": [],
+        "method": "No frozen-v1 arXiv source IDs; lexical screening still required.",
+        "limitations": "Preprint/published-version overlap is not measured."
+      },
+      "screening": {
+        "method": "OAI-PMH/metadata licence filter; no bulk download",
+        "representativeSample": null,
+        "knownExclusions": [
+          "non-CC-BY arXiv licences",
+          "withdrawn/retracted papers",
+          "non-English papers",
+          "papers whose PDF extraction fails quality checks",
+          "papers duplicated by a publisher source"
+        ],
+        "licenseFilter": "arXiv licence metadata must equal CC BY 4.0"
+      },
+      "notes": "The CC BY subset provides large math/physics/CS capacity without relying on Wikipedia or OpenStax.",
+      "subjects": [
+        "computer-science-software",
+        "engineering-applied-sciences",
+        "mathematics-formal-sciences",
+        "physics-chemistry-biology"
+      ]
+    },
+    {
+      "sourceId": "plos",
+      "publisherId": "journals.plos.org",
+      "publisherGroupId": "plos.org",
+      "sourceFamilyId": "plos",
+      "governanceGroupId": "independent",
+      "status": "approved",
+      "pool": "unrestricted",
+      "subjectShares": {
+        "medicine-public-health": 0.6,
+        "physics-chemistry-biology": 0.4
+      },
+      "format": "article",
+      "title": "PLOS journals",
+      "description": "Peer-reviewed open-access science and medicine articles published under CC BY 4.0.",
+      "licenceId": "CC-BY-4.0",
+      "access": {
+        "method": "api",
+        "urlGenerationRule": "Use PLOS journal search/API or sitemaps to enumerate research articles; fetch the HTML full text. Exclude articles whose DOI is already selected from PMC.",
+        "exampleUrls": [
+          "https://journals.plos.org/plosone/",
+          "https://journals.plos.org/plosbiology/"
+        ],
+        "requiresAccount": false,
+        "requiresPayment": false,
+        "requiresTermsAcceptance": false,
+        "robotsReview": "required-before-acquisition"
+      },
+      "estimates": {
+        "capacityDocuments": 600,
+        "plannedDocuments": 300,
+        "tokensPerDocument": 6000,
+        "fetchSuccess": 0.97,
+        "qualityAcceptance": 0.92,
+        "dedupRemoval": 0.07,
+        "v1Overlap": 0,
+        "crossSourceOverlap": 0.02,
+        "estimateUncertainty": 0.65,
+        "basis": "Research articles typically 4k-10k tokens; 6k conservative after reference removal.",
+        "limitations": "PLOS articles are also indexed in PMC; cross-source overlap must be managed. Some articles contain third-party figures/text."
+      },
+      "v1Overlap": {
+        "knownDocuments": 0,
+        "knownSourceIds": [],
+        "method": "No frozen-v1 PLOS IDs.",
+        "limitations": "Not full-text screened against v1 yet."
+      },
+      "screening": {
+        "method": "Journal/API metadata; no bulk fetch",
+        "representativeSample": null,
+        "knownExclusions": [
+          "non-research front matter",
+          "corrections/retractions",
+          "articles already selected via PMC"
+        ],
+        "licenseFilter": "article-level CC BY 4.0"
+      },
+      "notes": "Strong medicine/biology capacity; publisher diversity is real but cross-source overlap with PMC is material.",
+      "subjects": [
+        "medicine-public-health",
+        "physics-chemistry-biology"
+      ]
+    },
+    {
+      "sourceId": "elife",
+      "publisherId": "elifesciences.org",
+      "publisherGroupId": "elifesciences.org",
+      "sourceFamilyId": "elife",
+      "governanceGroupId": "independent",
+      "status": "approved",
+      "pool": "unrestricted",
+      "subjectShares": {
+        "medicine-public-health": 0.6,
+        "physics-chemistry-biology": 0.4
+      },
+      "format": "article",
+      "title": "eLife",
+      "description": "Peer-reviewed life-science and biomedical research articles under CC BY 4.0.",
+      "licenceId": "CC-BY-4.0",
+      "access": {
+        "method": "sitemap",
+        "urlGenerationRule": "Enumerate article URLs from the eLife sitemap; fetch HTML full text. Exclude DOIs selected via PMC.",
+        "exampleUrls": [
+          "https://elifesciences.org/articles/00001",
+          "https://elifesciences.org/subjects"
+        ],
+        "requiresAccount": false,
+        "requiresPayment": false,
+        "requiresTermsAcceptance": false,
+        "robotsReview": "required-before-acquisition"
+      },
+      "estimates": {
+        "capacityDocuments": 360,
+        "plannedDocuments": 180,
+        "tokensPerDocument": 8000,
+        "fetchSuccess": 0.96,
+        "qualityAcceptance": 0.92,
+        "dedupRemoval": 0.06,
+        "v1Overlap": 0,
+        "crossSourceOverlap": 0.02,
+        "estimateUncertainty": 0.65,
+        "basis": "Long-form research articles; 8k conservative cleaned tokens.",
+        "limitations": "eLife articles are also in PMC; overlap must be managed. Some reviews/editorials are not research articles."
+      },
+      "v1Overlap": {
+        "knownDocuments": 0,
+        "knownSourceIds": [],
+        "method": "No frozen-v1 eLife IDs.",
+        "limitations": "Not full-text screened against v1 yet."
+      },
+      "screening": {
+        "method": "Journal sitemap/API; no bulk fetch",
+        "representativeSample": null,
+        "knownExclusions": [
+          "editorials",
+          "feature articles",
+          "articles selected via PMC"
+        ],
+        "licenseFilter": "article-level CC BY 4.0"
+      },
+      "notes": "",
+      "subjects": [
+        "medicine-public-health",
+        "physics-chemistry-biology"
+      ]
+    },
+    {
+      "sourceId": "pmc-oa-ccby",
+      "publisherId": "pmc.ncbi.nlm.nih.gov",
+      "publisherGroupId": "nih-pmc",
+      "sourceFamilyId": "pmc-oa-ccby",
+      "governanceGroupId": "us-federal",
+      "status": "approved",
+      "pool": "unrestricted",
+      "subjectShares": {
+        "medicine-public-health": 0.7,
+        "physics-chemistry-biology": 0.3
+      },
+      "format": "article",
+      "title": "PubMed Central Open Access Subset (CC BY only)",
+      "description": "Biomedical and life-science full text from the PMC Open Access Subset; only CC BY 4.0 articles are approved.",
+      "licenceId": "CC-BY-4.0",
+      "access": {
+        "method": "api",
+        "urlGenerationRule": "Use PMC Cloud Service, OAI-PMH, E-utilities or BioC API; filter to the OA subset and to articles whose licence is CC BY 4.0. Exclude DOIs already selected from publisher-specific sources.",
+        "exampleUrls": [
+          "https://www.ncbi.nlm.nih.gov/pmc/tools/openftlist/",
+          "https://www.ncbi.nlm.nih.gov/pmc/tools/oai/"
+        ],
+        "requiresAccount": false,
+        "requiresPayment": false,
+        "requiresTermsAcceptance": false,
+        "robotsReview": "required-before-acquisition"
+      },
+      "estimates": {
+        "capacityDocuments": 800,
+        "plannedDocuments": 400,
+        "tokensPerDocument": 5000,
+        "fetchSuccess": 0.97,
+        "qualityAcceptance": 0.9,
+        "dedupRemoval": 0.1,
+        "v1Overlap": 0,
+        "crossSourceOverlap": 0.55,
+        "estimateUncertainty": 0.6,
+        "basis": "PMC OA articles typically 3k-8k tokens; 5k conservative. Retrieval via PMC Cloud/OAI/E-utilities is designed for text mining.",
+        "limitations": "PMC is a distributor, not a single publisher. Licence varies per article. A large share of PMC content is also available from PLOS/eLife/Frontiers/BMC/MDPI, so capacity is discounted heavily for cross-source overlap."
+      },
+      "v1Overlap": {
+        "knownDocuments": 0,
+        "knownSourceIds": [],
+        "method": "No frozen-v1 PMC IDs.",
+        "limitations": "PMC includes many publishers; v1 could contain the same article through another source."
+      },
+      "screening": {
+        "method": "PMC OA service with licence metadata filter; no bulk fetch",
+        "representativeSample": null,
+        "knownExclusions": [
+          "CC BY-NC",
+          "CC BY-NC-ND",
+          "author manuscripts without reuse licence",
+          "articles from publishers already selected via PLOS/eLife/Frontiers/BMC/MDPI",
+          "retracted articles"
+        ],
+        "licenseFilter": "article-level CC BY 4.0 only"
+      },
+      "notes": "Heavy cross-source-overlap discount prevents double counting with publisher-specific sources.",
+      "subjects": [
+        "medicine-public-health",
+        "physics-chemistry-biology"
+      ]
+    },
+    {
+      "sourceId": "frontiers",
+      "publisherId": "frontiersin.org",
+      "publisherGroupId": "frontiersin.org",
+      "sourceFamilyId": "frontiers",
+      "governanceGroupId": "independent",
+      "status": "approved",
+      "pool": "unrestricted",
+      "subjectShares": {
+        "medicine-public-health": 0.5,
+        "physics-chemistry-biology": 0.5
+      },
+      "format": "article",
+      "title": "Frontiers journals",
+      "description": "Peer-reviewed open-access science, health and engineering articles under CC BY 4.0.",
+      "licenceId": "CC-BY-4.0",
+      "access": {
+        "method": "sitemap",
+        "urlGenerationRule": "Enumerate articles from journal sitemaps or the Frontiers API; fetch HTML full text. Exclude DOIs selected via PMC.",
+        "exampleUrls": [
+          "https://www.frontiersin.org/journals/psychology",
+          "https://www.frontiersin.org/journals/public-health"
+        ],
+        "requiresAccount": false,
+        "requiresPayment": false,
+        "requiresTermsAcceptance": false,
+        "robotsReview": "required-before-acquisition"
+      },
+      "estimates": {
+        "capacityDocuments": 360,
+        "plannedDocuments": 180,
+        "tokensPerDocument": 6000,
+        "fetchSuccess": 0.95,
+        "qualityAcceptance": 0.9,
+        "dedupRemoval": 0.08,
+        "v1Overlap": 0,
+        "crossSourceOverlap": 0.02,
+        "estimateUncertainty": 0.55,
+        "basis": "Research articles; 6k conservative cleaned tokens.",
+        "limitations": "Quality varies across journals; some articles are short or contain third-party material. Overlap with PMC."
+      },
+      "v1Overlap": {
+        "knownDocuments": 0,
+        "knownSourceIds": [],
+        "method": "No frozen-v1 Frontiers IDs.",
+        "limitations": "Not full-text screened against v1 yet."
+      },
+      "screening": {
+        "method": "Journal/sitemap metadata; no bulk fetch",
+        "representativeSample": null,
+        "knownExclusions": [
+          "non-research content",
+          "retracted articles",
+          "articles selected via PMC"
+        ],
+        "licenseFilter": "article-level CC BY 4.0"
+      },
+      "notes": "",
+      "subjects": [
+        "medicine-public-health",
+        "physics-chemistry-biology"
+      ]
+    },
+    {
+      "sourceId": "bmc-springeropen-ccby",
+      "publisherId": "biomedcentral.com",
+      "publisherGroupId": "springer-nature",
+      "sourceFamilyId": "bmc-springeropen-ccby",
+      "governanceGroupId": "independent",
+      "status": "approved",
+      "pool": "unrestricted",
+      "subjectShares": {
+        "medicine-public-health": 0.6,
+        "physics-chemistry-biology": 0.4
+      },
+      "format": "article",
+      "title": "BMC / SpringerOpen (CC BY subset)",
+      "description": "Open-access biomedical and life-science articles under CC BY 4.0.",
+      "licenceId": "CC-BY-4.0",
+      "access": {
+        "method": "sitemap",
+        "urlGenerationRule": "Enumerate articles from BMC/SpringerOpen journal sitemaps; fetch HTML full text. Exclude DOIs selected via PMC.",
+        "exampleUrls": [
+          "https://bmcbiol.biomedcentral.com/",
+          "https://www.springeropen.com/journals"
+        ],
+        "requiresAccount": false,
+        "requiresPayment": false,
+        "requiresTermsAcceptance": false,
+        "robotsReview": "required-before-acquisition"
+      },
+      "estimates": {
+        "capacityDocuments": 360,
+        "plannedDocuments": 180,
+        "tokensPerDocument": 6000,
+        "fetchSuccess": 0.95,
+        "qualityAcceptance": 0.9,
+        "dedupRemoval": 0.08,
+        "v1Overlap": 0,
+        "crossSourceOverlap": 0.02,
+        "estimateUncertainty": 0.55,
+        "basis": "Research articles; 6k conservative cleaned tokens.",
+        "limitations": "Some SpringerOpen content is CC BY-NC/ND; item-level filtering required. Overlap with PMC."
+      },
+      "v1Overlap": {
+        "knownDocuments": 0,
+        "knownSourceIds": [],
+        "method": "No frozen-v1 BMC/SpringerOpen IDs.",
+        "limitations": "Not full-text screened against v1 yet."
+      },
+      "screening": {
+        "method": "Journal/sitemap metadata; no bulk fetch",
+        "representativeSample": null,
+        "knownExclusions": [
+          "CC BY-NC/ND articles",
+          "non-research content",
+          "articles selected via PMC"
+        ],
+        "licenseFilter": "article-level CC BY 4.0"
+      },
+      "notes": "Springer Nature also publishes non-open content; only CC BY items qualify.",
+      "subjects": [
+        "medicine-public-health",
+        "physics-chemistry-biology"
+      ]
+    },
+    {
+      "sourceId": "mdpi-ccby",
+      "publisherId": "mdpi.com",
+      "publisherGroupId": "mdpi.com",
+      "sourceFamilyId": "mdpi-ccby",
+      "governanceGroupId": "independent",
+      "status": "approved",
+      "pool": "unrestricted",
+      "subjectShares": {
+        "medicine-public-health": 0.4,
+        "physics-chemistry-biology": 0.3,
+        "engineering-applied-sciences": 0.3
+      },
+      "format": "article",
+      "title": "MDPI (CC BY subset)",
+      "description": "Open-access science, engineering and medical articles under CC BY 4.0.",
+      "licenceId": "CC-BY-4.0",
+      "access": {
+        "method": "sitemap",
+        "urlGenerationRule": "Enumerate articles from MDPI journal sitemaps; fetch HTML full text. Prefer substantial research articles and exclude DOIs selected via PMC.",
+        "exampleUrls": [
+          "https://www.mdpi.com/",
+          "https://www.mdpi.com/about/journals"
+        ],
+        "requiresAccount": false,
+        "requiresPayment": false,
+        "requiresTermsAcceptance": false,
+        "robotsReview": "required-before-acquisition"
+      },
+      "estimates": {
+        "capacityDocuments": 360,
+        "plannedDocuments": 180,
+        "tokensPerDocument": 6000,
+        "fetchSuccess": 0.95,
+        "qualityAcceptance": 0.88,
+        "dedupRemoval": 0.1,
+        "v1Overlap": 0,
+        "crossSourceOverlap": 0.02,
+        "estimateUncertainty": 0.5,
+        "basis": "Research articles; 6k conservative cleaned tokens.",
+        "limitations": "Very large and uneven journal portfolio; quality review needed. Some special issues contain short papers. Overlap with PMC."
+      },
+      "v1Overlap": {
+        "knownDocuments": 0,
+        "knownSourceIds": [],
+        "method": "No frozen-v1 MDPI IDs.",
+        "limitations": "Not full-text screened against v1 yet."
+      },
+      "screening": {
+        "method": "Journal/sitemap metadata; no bulk fetch",
+        "representativeSample": null,
+        "knownExclusions": [
+          "editorials",
+          "short communications below quality floor",
+          "articles selected via PMC"
+        ],
+        "licenseFilter": "article-level CC BY 4.0"
+      },
+      "notes": "Lower uncertainty factor reflects heterogeneous quality.",
+      "subjects": [
+        "engineering-applied-sciences",
+        "medicine-public-health",
+        "physics-chemistry-biology"
+      ]
+    },
+    {
+      "sourceId": "copernicus-ccby",
+      "publisherId": "copernicus.org",
+      "publisherGroupId": "copernicus.org",
+      "sourceFamilyId": "copernicus-ccby",
+      "governanceGroupId": "independent",
+      "status": "approved",
+      "pool": "unrestricted",
+      "subjectShares": {
+        "geography-earth-environmental": 0.85,
+        "physics-chemistry-biology": 0.15
+      },
+      "format": "article",
+      "title": "Copernicus Publications",
+      "description": "Open-access earth, atmospheric, ocean and environmental science journals under CC BY 4.0.",
+      "licenceId": "CC-BY-4.0",
+      "access": {
+        "method": "sitemap",
+        "urlGenerationRule": "Enumerate articles from Copernicus journal sitemaps; fetch HTML/PDF full text.",
+        "exampleUrls": [
+          "https://acp.copernicus.org/articles/",
+          "https://www.copernicus.org/journals/"
+        ],
+        "requiresAccount": false,
+        "requiresPayment": false,
+        "requiresTermsAcceptance": false,
+        "robotsReview": "required-before-acquisition"
+      },
+      "estimates": {
+        "capacityDocuments": 300,
+        "plannedDocuments": 150,
+        "tokensPerDocument": 8000,
+        "fetchSuccess": 0.95,
+        "qualityAcceptance": 0.9,
+        "dedupRemoval": 0.07,
+        "v1Overlap": 0,
+        "crossSourceOverlap": 0.02,
+        "estimateUncertainty": 0.55,
+        "basis": "Research articles; 8k conservative cleaned tokens.",
+        "limitations": "Some articles are short; figures/tables and references need cleaning. Author-name/publisher concentration within geoscience."
+      },
+      "v1Overlap": {
+        "knownDocuments": 0,
+        "knownSourceIds": [],
+        "method": "No frozen-v1 Copernicus IDs.",
+        "limitations": "Not full-text screened against v1 yet."
+      },
+      "screening": {
+        "method": "Journal sitemap/API; no bulk fetch",
+        "representativeSample": null,
+        "knownExclusions": [
+          "abstract-only pages",
+          "conference abstracts",
+          "non-English content"
+        ],
+        "licenseFilter": "article-level CC BY 4.0"
+      },
+      "notes": "One of the strongest unrestricted earth-science sources.",
+      "subjects": [
+        "geography-earth-environmental",
+        "physics-chemistry-biology"
+      ]
+    },
+    {
+      "sourceId": "usgs",
+      "publisherId": "usgs.gov",
+      "publisherGroupId": "usgs.gov",
+      "sourceFamilyId": "usgs",
+      "governanceGroupId": "us-federal",
+      "status": "approved",
+      "pool": "unrestricted",
+      "subjectShares": {
+        "geography-earth-environmental": 0.7,
+        "engineering-applied-sciences": 0.2,
+        "history-historical-reference": 0.1
+      },
+      "format": "report",
+      "title": "U.S. Geological Survey publications",
+      "description": "USGS-authored reports, fact sheets and scientific information products in earth, water, environmental and natural-hazard science.",
+      "licenceId": "US-Gov-Work",
+      "access": {
+        "method": "api",
+        "urlGenerationRule": "Use the USGS Publications Warehouse API/catalog to select USGS-authored reports and fact sheets; fetch PDF/HTML.",
+        "exampleUrls": [
+          "https://pubs.usgs.gov/",
+          "https://pubs.usgs.gov/publication/"
+        ],
+        "requiresAccount": false,
+        "requiresPayment": false,
+        "requiresTermsAcceptance": false,
+        "robotsReview": "required-before-acquisition"
+      },
+      "estimates": {
+        "capacityDocuments": 360,
+        "plannedDocuments": 180,
+        "tokensPerDocument": 12000,
+        "fetchSuccess": 0.92,
+        "qualityAcceptance": 0.9,
+        "dedupRemoval": 0.06,
+        "v1Overlap": 0.002,
+        "crossSourceOverlap": 0.05,
+        "estimateUncertainty": 0.6,
+        "basis": "USGS reports/fact sheets are often long; 12k tokens conservative after cleaning.",
+        "limitations": "Some reports include third-party maps/photos; text-only extraction. Publication formats vary (PDF, HTML)."
+      },
+      "v1Overlap": {
+        "knownDocuments": 0,
+        "knownSourceIds": [],
+        "method": "Agency/source-family review; no USGS documents in v1 manifest.",
+        "limitations": "No full-text v1 screening yet."
+      },
+      "screening": {
+        "method": "USGS Publications Warehouse metadata/API; no bulk fetch",
+        "representativeSample": null,
+        "knownExclusions": [
+          "third-party images/maps",
+          "non-USGS-authored content",
+          "administrative pages"
+        ],
+        "licenseFilter": "USGS-authored or produced text only"
+      },
+      "notes": "Clear public-domain posture with third-party-content caveat.",
+      "subjects": [
+        "engineering-applied-sciences",
+        "geography-earth-environmental",
+        "history-historical-reference"
+      ]
+    },
+    {
+      "sourceId": "noaa",
+      "publisherId": "noaa.gov",
+      "publisherGroupId": "noaa.gov",
+      "sourceFamilyId": "noaa",
+      "governanceGroupId": "us-federal",
+      "status": "approved",
+      "pool": "unrestricted",
+      "subjectShares": {
+        "geography-earth-environmental": 0.8,
+        "physics-chemistry-biology": 0.2
+      },
+      "format": "report",
+      "title": "NOAA publications and science pages",
+      "description": "NOAA-authored ocean, atmosphere, climate, weather and fisheries science content.",
+      "licenceId": "US-Gov-Work",
+      "access": {
+        "method": "api",
+        "urlGenerationRule": "Use the NOAA Institutional Repository/catalog and NOAA science pages; select NOAA-authored reports and long-form pages.",
+        "exampleUrls": [
+          "https://repository.library.noaa.gov/",
+          "https://www.noaa.gov/"
+        ],
+        "requiresAccount": false,
+        "requiresPayment": false,
+        "requiresTermsAcceptance": false,
+        "robotsReview": "required-before-acquisition"
+      },
+      "estimates": {
+        "capacityDocuments": 300,
+        "plannedDocuments": 150,
+        "tokensPerDocument": 10000,
+        "fetchSuccess": 0.9,
+        "qualityAcceptance": 0.88,
+        "dedupRemoval": 0.07,
+        "v1Overlap": 0,
+        "crossSourceOverlap": 0.05,
+        "estimateUncertainty": 0.55,
+        "basis": "Mix of reports and web pages; 10k tokens conservative for report-heavy draw.",
+        "limitations": "Many NOAA pages are short; repository items vary. Third-party figures and data products need exclusion."
+      },
+      "v1Overlap": {
+        "knownDocuments": 0,
+        "knownSourceIds": [],
+        "method": "No frozen-v1 NOAA source IDs.",
+        "limitations": "No full-text v1 screening yet."
+      },
+      "screening": {
+        "method": "NOAA repository/catalog metadata; no bulk fetch",
+        "representativeSample": null,
+        "knownExclusions": [
+          "data-only pages",
+          "third-party media",
+          "non-NOAA-authored content"
+        ],
+        "licenseFilter": "NOAA-authored text only"
+      },
+      "notes": "",
+      "subjects": [
+        "geography-earth-environmental",
+        "physics-chemistry-biology"
+      ]
+    },
+    {
+      "sourceId": "nasa",
+      "publisherId": "nasa.gov",
+      "publisherGroupId": "nasa.gov",
+      "sourceFamilyId": "nasa",
+      "governanceGroupId": "us-federal",
+      "status": "approved",
+      "pool": "unrestricted",
+      "subjectShares": {
+        "physics-chemistry-biology": 0.3,
+        "engineering-applied-sciences": 0.55,
+        "geography-earth-environmental": 0.1,
+        "general-reference-education": 0.05
+      },
+      "format": "report",
+      "title": "NASA science, technical reports and mission content",
+      "description": "NASA-authored science, mission, aeronautics and space-technology pages and NTRS technical reports.",
+      "licenceId": "NASA-Gov-Work",
+      "access": {
+        "method": "api",
+        "urlGenerationRule": "Enumerate NASA science pages and NTRS records; fetch HTML/PDF for NASA-authored text.",
+        "exampleUrls": [
+          "https://science.nasa.gov/",
+          "https://ntrs.nasa.gov/"
+        ],
+        "requiresAccount": false,
+        "requiresPayment": false,
+        "requiresTermsAcceptance": false,
+        "robotsReview": "required-before-acquisition"
+      },
+      "estimates": {
+        "capacityDocuments": 300,
+        "plannedDocuments": 150,
+        "tokensPerDocument": 5000,
+        "fetchSuccess": 0.9,
+        "qualityAcceptance": 0.85,
+        "dedupRemoval": 0.08,
+        "v1Overlap": 0.03,
+        "crossSourceOverlap": 0.03,
+        "estimateUncertainty": 0.55,
+        "basis": "Mix of short web pages and long NTRS reports; 5k conservative average.",
+        "limitations": "Web pages are often short; NTRS reports are long but may be contractor-authored. Text-only; exclude images/insignia."
+      },
+      "v1Overlap": {
+        "knownDocuments": 7,
+        "knownSourceIds": [],
+        "method": "NASA source-family review plus URL exclusion of the 7 v1 NASA pages.",
+        "limitations": "Not full-text screened yet."
+      },
+      "screening": {
+        "method": "NASA science sitemaps + NTRS metadata; no bulk fetch",
+        "representativeSample": null,
+        "knownExclusions": [
+          "v1 NASA URLs",
+          "images/insignia/logotypes",
+          "contractor-authored or third-party content",
+          "short mission pages"
+        ],
+        "licenseFilter": "NASA-authored U.S. Government work only"
+      },
+      "notes": "NTRS adds long-form engineering/space reports; web pages alone have low yield.",
+      "subjects": [
+        "engineering-applied-sciences",
+        "general-reference-education",
+        "geography-earth-environmental",
+        "physics-chemistry-biology"
+      ]
+    },
+    {
+      "sourceId": "nist",
+      "publisherId": "nist.gov",
+      "publisherGroupId": "nist.gov",
+      "sourceFamilyId": "nist",
+      "governanceGroupId": "us-federal",
+      "status": "approved",
+      "pool": "unrestricted",
+      "subjectShares": {
+        "physics-chemistry-biology": 0.3,
+        "engineering-applied-sciences": 0.55,
+        "mathematics-formal-sciences": 0.1,
+        "computer-science-software": 0.05
+      },
+      "format": "report",
+      "title": "NIST publications and measurement science",
+      "description": "NIST-authored standards, measurement-science, cybersecurity and laboratory publications.",
+      "licenceId": "NIST-Gov-Work",
+      "access": {
+        "method": "api",
+        "urlGenerationRule": "Enumerate NIST publications from the NIST publications catalog/NVL Pubs; fetch PDF/HTML.",
+        "exampleUrls": [
+          "https://www.nist.gov/publications",
+          "https://nvlpubs.nist.gov/"
+        ],
+        "requiresAccount": false,
+        "requiresPayment": false,
+        "requiresTermsAcceptance": false,
+        "robotsReview": "required-before-acquisition"
+      },
+      "estimates": {
+        "capacityDocuments": 240,
+        "plannedDocuments": 120,
+        "tokensPerDocument": 6000,
+        "fetchSuccess": 0.92,
+        "qualityAcceptance": 0.86,
+        "dedupRemoval": 0.07,
+        "v1Overlap": 0.03,
+        "crossSourceOverlap": 0.02,
+        "estimateUncertainty": 0.55,
+        "basis": "NIST special publications/handbooks are long; 6k conservative after cleaning.",
+        "limitations": "NIST co-publishes journal articles with third parties; only NIST-authored publications qualify. v1 has 3 NIST pages."
+      },
+      "v1Overlap": {
+        "knownDocuments": 3,
+        "knownSourceIds": [],
+        "method": "NIST source-family review plus URL/title exclusion of the 3 v1 NIST pages.",
+        "limitations": "Not full-text screened yet."
+      },
+      "screening": {
+        "method": "NIST publications catalog/NVL Pubs; no bulk fetch",
+        "representativeSample": null,
+        "knownExclusions": [
+          "v1 NIST URLs",
+          "co-authored journal articles",
+          "third-party content",
+          "short news pages"
+        ],
+        "licenseFilter": "NIST-authored U.S. Government work only"
+      },
+      "notes": "",
+      "subjects": [
+        "computer-science-software",
+        "engineering-applied-sciences",
+        "mathematics-formal-sciences",
+        "physics-chemistry-biology"
+      ]
+    },
+    {
+      "sourceId": "doe-osti-govwork",
+      "publisherId": "osti.gov",
+      "publisherGroupId": "osti.gov",
+      "sourceFamilyId": "doe-osti-govwork",
+      "governanceGroupId": "us-federal",
+      "status": "approved",
+      "pool": "unrestricted",
+      "subjectShares": {
+        "physics-chemistry-biology": 0.3,
+        "engineering-applied-sciences": 0.55,
+        "geography-earth-environmental": 0.15
+      },
+      "format": "report",
+      "title": "DOE OSTI U.S. Government Work reports",
+      "description": "DOE/OSTI technical reports and scientific information explicitly marked U.S. Government Work.",
+      "licenceId": "OSTI-Gov-Work",
+      "access": {
+        "method": "api",
+        "urlGenerationRule": "Use OSTI bibliographic records to select reports marked U.S. Government Work; fetch the public full text.",
+        "exampleUrls": [
+          "https://www.osti.gov/",
+          "https://www.osti.gov/biblio/"
+        ],
+        "requiresAccount": false,
+        "requiresPayment": false,
+        "requiresTermsAcceptance": false,
+        "robotsReview": "required-before-acquisition"
+      },
+      "estimates": {
+        "capacityDocuments": 240,
+        "plannedDocuments": 120,
+        "tokensPerDocument": 12000,
+        "fetchSuccess": 0.92,
+        "qualityAcceptance": 0.85,
+        "dedupRemoval": 0.07,
+        "v1Overlap": 0,
+        "crossSourceOverlap": 0.05,
+        "estimateUncertainty": 0.5,
+        "basis": "DOE technical reports are often long; 12k conservative after cleaning.",
+        "limitations": "OSTI hosts copyrighted journal articles and conference proceedings; only explicit U.S. Government Work documents qualify. Unmarked documents are treated as copyrighted."
+      },
+      "v1Overlap": {
+        "knownDocuments": 0,
+        "knownSourceIds": [],
+        "method": "No frozen-v1 OSTI source IDs.",
+        "limitations": "No full-text v1 screening yet."
+      },
+      "screening": {
+        "method": "OSTI bibliographic/metadata filter; no bulk fetch",
+        "representativeSample": null,
+        "knownExclusions": [
+          "copyrighted journal articles",
+          "conference proceedings",
+          "unmarked documents",
+          "third-party content"
+        ],
+        "licenseFilter": "explicit 'U.S. Government Work' marking only"
+      },
+      "notes": "Strong engineering/physics capacity after strict filtering.",
+      "subjects": [
+        "engineering-applied-sciences",
+        "geography-earth-environmental",
+        "physics-chemistry-biology"
+      ]
+    },
+    {
+      "sourceId": "nist-dlmf",
+      "publisherId": "dlmf.nist.gov",
+      "publisherGroupId": "nist.gov",
+      "sourceFamilyId": "nist-dlmf",
+      "governanceGroupId": "us-federal",
+      "status": "approved",
+      "pool": "unrestricted",
+      "subjectShares": {
+        "mathematics-formal-sciences": 1
+      },
+      "format": "reference",
+      "title": "NIST Digital Library of Mathematical Functions (DLMF)",
+      "description": "NIST-authored mathematical reference with formulas, definitions and chapters.",
+      "licenceId": "NIST-Gov-Work",
+      "access": {
+        "method": "url-rule",
+        "urlGenerationRule": "Enumerate DLMF chapters/sections under dlmf.nist.gov; fetch HTML and extract prose.",
+        "exampleUrls": [
+          "https://dlmf.nist.gov/",
+          "https://dlmf.nist.gov/1"
+        ],
+        "requiresAccount": false,
+        "requiresPayment": false,
+        "requiresTermsAcceptance": false,
+        "robotsReview": "required-before-acquisition"
+      },
+      "estimates": {
+        "capacityDocuments": 24,
+        "plannedDocuments": 12,
+        "tokensPerDocument": 30000,
+        "fetchSuccess": 0.95,
+        "qualityAcceptance": 0.92,
+        "dedupRemoval": 0.05,
+        "v1Overlap": 0,
+        "crossSourceOverlap": 0.02,
+        "estimateUncertainty": 0.55,
+        "basis": "DLMF chapters are long; 30k conservative after formula/notation handling.",
+        "limitations": "Mathematics is formula-heavy; cleaned prose tokens are lower than raw text. Some chapters include third-party contributions."
+      },
+      "v1Overlap": {
+        "knownDocuments": 0,
+        "knownSourceIds": [],
+        "method": "No frozen-v1 DLMF IDs.",
+        "limitations": "Not full-text screened yet."
+      },
+      "screening": {
+        "method": "DLMF chapter index; no bulk fetch",
+        "representativeSample": null,
+        "knownExclusions": [
+          "formula-only sections",
+          "third-party contributions"
+        ],
+        "licenseFilter": "NIST-authored content only"
+      },
+      "notes": "Same publisher group as NIST; measured as one publisher for concentration.",
+      "subjects": [
+        "mathematics-formal-sciences"
+      ]
+    },
+    {
+      "sourceId": "nps",
+      "publisherId": "nps.gov",
+      "publisherGroupId": "nps.gov",
+      "sourceFamilyId": "nps",
+      "governanceGroupId": "us-federal",
+      "status": "approved",
+      "pool": "unrestricted",
+      "subjectShares": {
+        "history-historical-reference": 0.5,
+        "geography-earth-environmental": 0.5
+      },
+      "format": "web",
+      "title": "U.S. National Park Service heritage and natural-resource pages",
+      "description": "NPS-authored natural and cultural heritage, geology, climate and history content.",
+      "licenceId": "US-Gov-Work",
+      "access": {
+        "method": "sitemap",
+        "urlGenerationRule": "Enumerate NPS subject pages; fetch HTML and clean navigation.",
+        "exampleUrls": [
+          "https://www.nps.gov/subjects/history/index.htm",
+          "https://www.nps.gov/subjects/geology/index.htm"
+        ],
+        "requiresAccount": false,
+        "requiresPayment": false,
+        "requiresTermsAcceptance": false,
+        "robotsReview": "required-before-acquisition"
+      },
+      "estimates": {
+        "capacityDocuments": 120,
+        "plannedDocuments": 60,
+        "tokensPerDocument": 3000,
+        "fetchSuccess": 0.88,
+        "qualityAcceptance": 0.8,
+        "dedupRemoval": 0.06,
+        "v1Overlap": 0,
+        "crossSourceOverlap": 0.05,
+        "estimateUncertainty": 0.5,
+        "basis": "NPS web pages are often short; 3k conservative.",
+        "limitations": "Short pages and navigation; third-party content; quality filtering needed."
+      },
+      "v1Overlap": {
+        "knownDocuments": 0,
+        "knownSourceIds": [],
+        "method": "No frozen-v1 NPS source IDs.",
+        "limitations": "Not full-text screened yet."
+      },
+      "screening": {
+        "method": "NPS subject sitemaps; no bulk fetch",
+        "representativeSample": null,
+        "knownExclusions": [
+          "navigation pages",
+          "third-party content",
+          "pages below quality floor"
+        ],
+        "licenseFilter": "NPS-authored text only"
+      },
+      "notes": "Adds history/earth breadth, but yield per URL is low.",
+      "subjects": [
+        "geography-earth-environmental",
+        "history-historical-reference"
+      ]
+    },
+    {
+      "sourceId": "cdc",
+      "publisherId": "cdc.gov",
+      "publisherGroupId": "cdc.gov",
+      "sourceFamilyId": "cdc",
+      "governanceGroupId": "us-federal",
+      "status": "approved",
+      "pool": "unrestricted",
+      "subjectShares": {
+        "medicine-public-health": 0.9,
+        "general-reference-education": 0.1
+      },
+      "format": "web",
+      "title": "U.S. Centers for Disease Control and Prevention",
+      "description": "CDC-authored public-health, epidemiology, prevention and health-communication content.",
+      "licenceId": "US-Gov-Work",
+      "access": {
+        "method": "sitemap",
+        "urlGenerationRule": "Enumerate CDC topic pages and long-form guidance from sitemaps; fetch HTML and clean boilerplate.",
+        "exampleUrls": [
+          "https://www.cdc.gov/",
+          "https://www.cdc.gov/az/"
+        ],
+        "requiresAccount": false,
+        "requiresPayment": false,
+        "requiresTermsAcceptance": false,
+        "robotsReview": "required-before-acquisition"
+      },
+      "estimates": {
+        "capacityDocuments": 240,
+        "plannedDocuments": 120,
+        "tokensPerDocument": 3000,
+        "fetchSuccess": 0.9,
+        "qualityAcceptance": 0.82,
+        "dedupRemoval": 0.06,
+        "v1Overlap": 0,
+        "crossSourceOverlap": 0.02,
+        "estimateUncertainty": 0.55,
+        "basis": "CDC web pages are often short; 3k tokens conservative after boilerplate removal.",
+        "limitations": "Many pages are navigation/boilerplate or data tables; quality filtering needed. Some content is third-party or dated."
+      },
+      "v1Overlap": {
+        "knownDocuments": 0,
+        "knownSourceIds": [],
+        "method": "No frozen-v1 CDC source IDs.",
+        "limitations": "No full-text v1 screening yet."
+      },
+      "screening": {
+        "method": "CDC sitemap/topic index; no bulk fetch",
+        "representativeSample": null,
+        "knownExclusions": [
+          "navigation/boilerplate pages",
+          "data tables",
+          "third-party content",
+          "pages below quality floor"
+        ],
+        "licenseFilter": "CDC-authored text only"
+      },
+      "notes": "Useful for public-health vocabulary and practical prose but lower yield per URL.",
+      "subjects": [
+        "general-reference-education",
+        "medicine-public-health"
+      ]
+    },
+    {
+      "sourceId": "nih-nlm",
+      "publisherId": "nlm.nih.gov",
+      "publisherGroupId": "nih-nlm",
+      "sourceFamilyId": "nih-nlm",
+      "governanceGroupId": "us-federal",
+      "status": "approved",
+      "pool": "unrestricted",
+      "subjectShares": {
+        "medicine-public-health": 0.9,
+        "physics-chemistry-biology": 0.1
+      },
+      "format": "web",
+      "title": "NIH / National Library of Medicine consumer health and reference",
+      "description": "NLM-authored health reference, MedlinePlus and consumer-health content.",
+      "licenceId": "US-Gov-Work",
+      "access": {
+        "method": "sitemap",
+        "urlGenerationRule": "Enumerate MedlinePlus/NLM topic pages; fetch HTML and clean boilerplate.",
+        "exampleUrls": [
+          "https://medlineplus.gov/",
+          "https://www.nlm.nih.gov/"
+        ],
+        "requiresAccount": false,
+        "requiresPayment": false,
+        "requiresTermsAcceptance": false,
+        "robotsReview": "required-before-acquisition"
+      },
+      "estimates": {
+        "capacityDocuments": 200,
+        "plannedDocuments": 100,
+        "tokensPerDocument": 3000,
+        "fetchSuccess": 0.9,
+        "qualityAcceptance": 0.82,
+        "dedupRemoval": 0.06,
+        "v1Overlap": 0,
+        "crossSourceOverlap": 0.02,
+        "estimateUncertainty": 0.55,
+        "basis": "Consumer-health pages; 3k tokens conservative after cleaning.",
+        "limitations": "Short pages and boilerplate; some linked content is third-party. Avoid duplicating PMC journal articles."
+      },
+      "v1Overlap": {
+        "knownDocuments": 0,
+        "knownSourceIds": [],
+        "method": "No frozen-v1 NLM source IDs.",
+        "limitations": "No full-text v1 screening yet."
+      },
+      "screening": {
+        "method": "NLM sitemap/topic index; no bulk fetch",
+        "representativeSample": null,
+        "knownExclusions": [
+          "navigation pages",
+          "third-party content",
+          "duplicate PMC articles"
+        ],
+        "licenseFilter": "NLM-authored text only"
+      },
+      "notes": "",
+      "subjects": [
+        "medicine-public-health",
+        "physics-chemistry-biology"
+      ]
+    },
+    {
+      "sourceId": "usda",
+      "publisherId": "usda.gov",
+      "publisherGroupId": "usda.gov",
+      "sourceFamilyId": "usda",
+      "governanceGroupId": "us-federal",
+      "status": "approved",
+      "pool": "unrestricted",
+      "subjectShares": {
+        "physics-chemistry-biology": 0.5,
+        "geography-earth-environmental": 0.3,
+        "engineering-applied-sciences": 0.2
+      },
+      "format": "web",
+      "title": "U.S. Department of Agriculture",
+      "description": "USDA-authored agriculture, nutrition, food science, forestry and environmental content.",
+      "licenceId": "US-Gov-Work",
+      "access": {
+        "method": "sitemap",
+        "urlGenerationRule": "Enumerate USDA agency topic pages and publications; fetch HTML/PDF.",
+        "exampleUrls": [
+          "https://www.usda.gov/",
+          "https://www.nal.usda.gov/"
+        ],
+        "requiresAccount": false,
+        "requiresPayment": false,
+        "requiresTermsAcceptance": false,
+        "robotsReview": "required-before-acquisition"
+      },
+      "estimates": {
+        "capacityDocuments": 200,
+        "plannedDocuments": 100,
+        "tokensPerDocument": 3500,
+        "fetchSuccess": 0.88,
+        "qualityAcceptance": 0.82,
+        "dedupRemoval": 0.06,
+        "v1Overlap": 0,
+        "crossSourceOverlap": 0.05,
+        "estimateUncertainty": 0.5,
+        "basis": "Mix of short web pages and longer reports; 3.5k conservative.",
+        "limitations": "Agency sub-sites vary; third-party content and data tables need exclusion."
+      },
+      "v1Overlap": {
+        "knownDocuments": 0,
+        "knownSourceIds": [],
+        "method": "No frozen-v1 USDA source IDs.",
+        "limitations": "No full-text v1 screening yet."
+      },
+      "screening": {
+        "method": "USDA agency/topic sitemaps; no bulk fetch",
+        "representativeSample": null,
+        "knownExclusions": [
+          "data tables",
+          "third-party content",
+          "navigation pages"
+        ],
+        "licenseFilter": "USDA-authored text only"
+      },
+      "notes": "",
+      "subjects": [
+        "engineering-applied-sciences",
+        "geography-earth-environmental",
+        "physics-chemistry-biology"
+      ]
+    },
+    {
+      "sourceId": "us-census",
+      "publisherId": "census.gov",
+      "publisherGroupId": "census.gov",
+      "sourceFamilyId": "us-census",
+      "governanceGroupId": "us-federal",
+      "status": "approved",
+      "pool": "unrestricted",
+      "subjectShares": {
+        "economics-social-political": 0.7,
+        "geography-earth-environmental": 0.3
+      },
+      "format": "web",
+      "title": "U.S. Census Bureau",
+      "description": "Census-authored population, society, economy, housing and geography reference content.",
+      "licenceId": "US-Gov-Work",
+      "access": {
+        "method": "sitemap",
+        "urlGenerationRule": "Enumerate Census topic/program pages; fetch HTML and clean tables/boilerplate.",
+        "exampleUrls": [
+          "https://www.census.gov/topics/population.html",
+          "https://www.census.gov/programs-surveys/acs/about.html"
+        ],
+        "requiresAccount": false,
+        "requiresPayment": false,
+        "requiresTermsAcceptance": false,
+        "robotsReview": "required-before-acquisition"
+      },
+      "estimates": {
+        "capacityDocuments": 200,
+        "plannedDocuments": 100,
+        "tokensPerDocument": 3000,
+        "fetchSuccess": 0.9,
+        "qualityAcceptance": 0.82,
+        "dedupRemoval": 0.06,
+        "v1Overlap": 0.02,
+        "crossSourceOverlap": 0.02,
+        "estimateUncertainty": 0.55,
+        "basis": "Census explanatory pages; 3k tokens conservative after cleaning.",
+        "limitations": "Many pages are data tables or short definitions; v1 already has 3 Census pages."
+      },
+      "v1Overlap": {
+        "knownDocuments": 3,
+        "knownSourceIds": [],
+        "method": "Census source-family review plus URL/title exclusion of the v1 Census pages.",
+        "limitations": "Not full-text screened yet."
+      },
+      "screening": {
+        "method": "Census topic/program sitemaps; no bulk fetch",
+        "representativeSample": null,
+        "knownExclusions": [
+          "data tables",
+          "v1 Census URLs",
+          "navigation pages"
+        ],
+        "licenseFilter": "Census-authored text only"
+      },
+      "notes": "",
+      "subjects": [
+        "economics-social-political",
+        "geography-earth-environmental"
+      ]
+    },
+    {
+      "sourceId": "us-bls",
+      "publisherId": "bls.gov",
+      "publisherGroupId": "bls.gov",
+      "sourceFamilyId": "us-bls",
+      "governanceGroupId": "us-federal",
+      "status": "approved",
+      "pool": "unrestricted",
+      "subjectShares": {
+        "economics-social-political": 1
+      },
+      "format": "web",
+      "title": "U.S. Bureau of Labor Statistics",
+      "description": "BLS-authored labor, employment, inflation and economic reference content.",
+      "licenceId": "US-Gov-Work",
+      "access": {
+        "method": "sitemap",
+        "urlGenerationRule": "Enumerate BLS topic and publication pages; fetch HTML.",
+        "exampleUrls": [
+          "https://www.bls.gov/",
+          "https://www.bls.gov/bls/newsrels.htm"
+        ],
+        "requiresAccount": false,
+        "requiresPayment": false,
+        "requiresTermsAcceptance": false,
+        "robotsReview": "required-before-acquisition"
+      },
+      "estimates": {
+        "capacityDocuments": 160,
+        "plannedDocuments": 80,
+        "tokensPerDocument": 3000,
+        "fetchSuccess": 0.9,
+        "qualityAcceptance": 0.82,
+        "dedupRemoval": 0.06,
+        "v1Overlap": 0,
+        "crossSourceOverlap": 0.02,
+        "estimateUncertainty": 0.55,
+        "basis": "BLS explanatory pages; 3k tokens conservative.",
+        "limitations": "Short explanatory pages and statistical tables; quality filtering needed."
+      },
+      "v1Overlap": {
+        "knownDocuments": 0,
+        "knownSourceIds": [],
+        "method": "No frozen-v1 BLS source IDs.",
+        "limitations": "No full-text v1 screening yet."
+      },
+      "screening": {
+        "method": "BLS topic/sitemap pages; no bulk fetch",
+        "representativeSample": null,
+        "knownExclusions": [
+          "data tables",
+          "navigation pages",
+          "technical notices"
+        ],
+        "licenseFilter": "BLS-authored text only"
+      },
+      "notes": "",
+      "subjects": [
+        "economics-social-political"
+      ]
+    },
+    {
+      "sourceId": "epa",
+      "publisherId": "epa.gov",
+      "publisherGroupId": "epa.gov",
+      "sourceFamilyId": "epa",
+      "governanceGroupId": "us-federal",
+      "status": "approved",
+      "pool": "unrestricted",
+      "subjectShares": {
+        "geography-earth-environmental": 0.8,
+        "medicine-public-health": 0.2
+      },
+      "format": "web",
+      "title": "U.S. Environmental Protection Agency",
+      "description": "EPA-authored environmental science, regulation, health and pollution-prevention content.",
+      "licenceId": "US-Gov-Work",
+      "access": {
+        "method": "sitemap",
+        "urlGenerationRule": "Enumerate EPA topic pages and reports; fetch HTML/PDF.",
+        "exampleUrls": [
+          "https://www.epa.gov/",
+          "https://www.epa.gov/environmental-topics"
+        ],
+        "requiresAccount": false,
+        "requiresPayment": false,
+        "requiresTermsAcceptance": false,
+        "robotsReview": "required-before-acquisition"
+      },
+      "estimates": {
+        "capacityDocuments": 160,
+        "plannedDocuments": 80,
+        "tokensPerDocument": 3000,
+        "fetchSuccess": 0.9,
+        "qualityAcceptance": 0.82,
+        "dedupRemoval": 0.06,
+        "v1Overlap": 0.02,
+        "crossSourceOverlap": 0.05,
+        "estimateUncertainty": 0.55,
+        "basis": "EPA pages vary from short guidance to longer reports; 3k conservative.",
+        "limitations": "v1 already has one EPA page; third-party content and data tables need exclusion."
+      },
+      "v1Overlap": {
+        "knownDocuments": 1,
+        "knownSourceIds": [],
+        "method": "EPA source-family review plus URL/title exclusion of the v1 EPA page.",
+        "limitations": "Not full-text screened yet."
+      },
+      "screening": {
+        "method": "EPA topic/sitemap pages; no bulk fetch",
+        "representativeSample": null,
+        "knownExclusions": [
+          "v1 EPA URL",
+          "data tables",
+          "third-party content",
+          "navigation pages"
+        ],
+        "licenseFilter": "EPA-authored text only"
+      },
+      "notes": "",
+      "subjects": [
+        "geography-earth-environmental",
+        "medicine-public-health"
+      ]
+    },
+    {
+      "sourceId": "uk-govuk",
+      "publisherId": "gov.uk",
+      "publisherGroupId": "gov.uk",
+      "sourceFamilyId": "uk-govuk",
+      "governanceGroupId": "uk-government",
+      "status": "approved",
+      "pool": "unrestricted",
+      "subjectShares": {
+        "economics-social-political": 0.6,
+        "history-historical-reference": 0.2,
+        "medicine-public-health": 0.1,
+        "general-reference-education": 0.1
+      },
+      "format": "report",
+      "title": "GOV.UK (Open Government Licence)",
+      "description": "UK government guidance, policy papers, statistics and public-service publications under OGL v3.0.",
+      "licenceId": "OGL-3.0",
+      "access": {
+        "method": "api",
+        "urlGenerationRule": "Use the GOV.UK Content API/search API to select guidance and publications; fetch HTML and clean navigation/boilerplate.",
+        "exampleUrls": [
+          "https://www.gov.uk/government/publications",
+          "https://www.gov.uk/guidance"
+        ],
+        "requiresAccount": false,
+        "requiresPayment": false,
+        "requiresTermsAcceptance": false,
+        "robotsReview": "required-before-acquisition"
+      },
+      "estimates": {
+        "capacityDocuments": 360,
+        "plannedDocuments": 180,
+        "tokensPerDocument": 5000,
+        "fetchSuccess": 0.9,
+        "qualityAcceptance": 0.85,
+        "dedupRemoval": 0.06,
+        "v1Overlap": 0.03,
+        "crossSourceOverlap": 0.02,
+        "estimateUncertainty": 0.55,
+        "basis": "Mix of guidance pages and long policy publications; 5k conservative.",
+        "limitations": "Some GOV.UK content is short or 404-prone; Crown copyright material not covered by OGL must be excluded. v1 has 5 GOV.UK pages."
+      },
+      "v1Overlap": {
+        "knownDocuments": 5,
+        "knownSourceIds": [],
+        "method": "GOV.UK source-family review plus URL exclusion of the 5 v1 GOV.UK pages.",
+        "limitations": "Not full-text screened yet."
+      },
+      "screening": {
+        "method": "GOV.UK content API/search; no bulk fetch",
+        "representativeSample": null,
+        "knownExclusions": [
+          "v1 GOV.UK URLs",
+          "non-OGL Crown copyright content",
+          "third-party material",
+          "short news/consultation pages"
+        ],
+        "licenseFilter": "OGL v3.0 stated content only"
+      },
+      "notes": "",
+      "subjects": [
+        "economics-social-political",
+        "general-reference-education",
+        "history-historical-reference",
+        "medicine-public-health"
+      ]
+    },
+    {
+      "sourceId": "eu-eurlex-op",
+      "publisherId": "europa.eu",
+      "publisherGroupId": "european-union",
+      "sourceFamilyId": "eu-eurlex-op",
+      "governanceGroupId": "eu",
+      "status": "approved",
+      "pool": "unrestricted",
+      "subjectShares": {
+        "economics-social-political": 0.8,
+        "history-historical-reference": 0.1,
+        "general-reference-education": 0.1
+      },
+      "format": "report",
+      "title": "EUR-Lex and EU Publications Office",
+      "description": "EU legislation, policy, reports and publications available for reuse under the EU reuse policy/CC BY 4.0.",
+      "licenceId": "EU-CC-BY-4.0",
+      "access": {
+        "method": "api",
+        "urlGenerationRule": "Use EUR-Lex/Publications Office search and OAI/SPARQL endpoints to select English documents with reuse-permitting notices; fetch HTML/PDF.",
+        "exampleUrls": [
+          "https://eur-lex.europa.eu/",
+          "https://op.europa.eu/"
+        ],
+        "requiresAccount": false,
+        "requiresPayment": false,
+        "requiresTermsAcceptance": false,
+        "robotsReview": "required-before-acquisition"
+      },
+      "estimates": {
+        "capacityDocuments": 240,
+        "plannedDocuments": 120,
+        "tokensPerDocument": 12000,
+        "fetchSuccess": 0.9,
+        "qualityAcceptance": 0.85,
+        "dedupRemoval": 0.06,
+        "v1Overlap": 0,
+        "crossSourceOverlap": 0.02,
+        "estimateUncertainty": 0.55,
+        "basis": "EU reports/legislation are often long; 12k conservative after cleaning.",
+        "limitations": "Third-party content, personal data, logos and some documents are excluded from the reuse decision. Per-item rights check required."
+      },
+      "v1Overlap": {
+        "knownDocuments": 0,
+        "knownSourceIds": [],
+        "method": "No frozen-v1 EU source IDs.",
+        "limitations": "No full-text v1 screening yet."
+      },
+      "screening": {
+        "method": "EUR-Lex/Publications Office metadata; no bulk fetch",
+        "representativeSample": null,
+        "knownExclusions": [
+          "third-party content",
+          "personal data",
+          "logos",
+          "documents with restrictive notices"
+        ],
+        "licenseFilter": "EU reuse decision/CC BY 4.0 stated content only"
+      },
+      "notes": "",
+      "subjects": [
+        "economics-social-political",
+        "general-reference-education",
+        "history-historical-reference"
+      ]
+    },
+    {
+      "sourceId": "world-bank-okr",
+      "publisherId": "worldbank.org",
+      "publisherGroupId": "worldbank.org",
+      "sourceFamilyId": "world-bank-okr",
+      "governanceGroupId": "independent",
+      "status": "approved",
+      "pool": "unrestricted",
+      "subjectShares": {
+        "economics-social-political": 0.7,
+        "geography-earth-environmental": 0.2,
+        "general-reference-education": 0.1
+      },
+      "format": "report",
+      "title": "World Bank Open Knowledge Repository (CC BY subset)",
+      "description": "World Bank formal publications and policy research working papers under CC BY 4.0/3.0 IGO.",
+      "licenceId": "World-Bank-CC-BY",
+      "access": {
+        "method": "oai-pmh",
+        "urlGenerationRule": "Harvest OKR OAI-PMH metadata; retain items with CC BY 4.0/3.0 IGO rights and English language. Fetch the PDF from the item handle.",
+        "exampleUrls": [
+          "https://openknowledge.worldbank.org/",
+          "https://openknowledge.worldbank.org/oai/request"
+        ],
+        "requiresAccount": false,
+        "requiresPayment": false,
+        "requiresTermsAcceptance": false,
+        "robotsReview": "required-before-acquisition"
+      },
+      "estimates": {
+        "capacityDocuments": 300,
+        "plannedDocuments": 150,
+        "tokensPerDocument": 25000,
+        "fetchSuccess": 0.95,
+        "qualityAcceptance": 0.9,
+        "dedupRemoval": 0.06,
+        "v1Overlap": 0,
+        "crossSourceOverlap": 0.05,
+        "estimateUncertainty": 0.6,
+        "basis": "World Bank reports/books are long; 25k conservative after cleaning.",
+        "limitations": "Some OKR items are CC BY-NC or CC BY-NC-ND; item-level filter required. External-publisher manuscripts may have different terms."
+      },
+      "v1Overlap": {
+        "knownDocuments": 0,
+        "knownSourceIds": [],
+        "method": "No frozen-v1 World Bank IDs.",
+        "limitations": "No full-text v1 screening yet."
+      },
+      "screening": {
+        "method": "OKR OAI-PMH/metadata filter; no bulk fetch",
+        "representativeSample": null,
+        "knownExclusions": [
+          "CC BY-NC items",
+          "CC BY-NC-ND items",
+          "third-party content",
+          "non-English items"
+        ],
+        "licenseFilter": "item-level CC BY 4.0 or CC BY 3.0 IGO only"
+      },
+      "notes": "Strong economics/development capacity; item-level filtering is essential.",
+      "subjects": [
+        "economics-social-political",
+        "general-reference-education",
+        "geography-earth-environmental"
+      ]
+    },
+    {
+      "sourceId": "oecd",
+      "publisherId": "oecd.org",
+      "publisherGroupId": "oecd.org",
+      "sourceFamilyId": "oecd",
+      "governanceGroupId": "independent",
+      "status": "approved",
+      "pool": "unrestricted",
+      "subjectShares": {
+        "economics-social-political": 0.8,
+        "general-reference-education": 0.2
+      },
+      "format": "report",
+      "title": "OECD publications",
+      "description": "OECD reports, policy analysis and statistics under CC BY 4.0 (post-1 July 2024) or equivalent terms.",
+      "licenceId": "OECD-CC-BY-4.0",
+      "access": {
+        "method": "sitemap",
+        "urlGenerationRule": "Enumerate OECD publications from oecd.org/oecd-ilibrary; check the copyright page and select CC BY 4.0 or equivalent terms; fetch HTML/PDF.",
+        "exampleUrls": [
+          "https://www.oecd.org/en/publications.html",
+          "https://www.oecd.org/en/topics.html"
+        ],
+        "requiresAccount": false,
+        "requiresPayment": false,
+        "requiresTermsAcceptance": false,
+        "robotsReview": "required-before-acquisition"
+      },
+      "estimates": {
+        "capacityDocuments": 240,
+        "plannedDocuments": 120,
+        "tokensPerDocument": 20000,
+        "fetchSuccess": 0.92,
+        "qualityAcceptance": 0.88,
+        "dedupRemoval": 0.06,
+        "v1Overlap": 0,
+        "crossSourceOverlap": 0.05,
+        "estimateUncertainty": 0.55,
+        "basis": "OECD reports/books are long; 20k conservative after cleaning.",
+        "limitations": "Pre-1 July 2024 content is governed by OECD terms (generally CC BY-like but with exceptions). Third-party content must be excluded."
+      },
+      "v1Overlap": {
+        "knownDocuments": 0,
+        "knownSourceIds": [],
+        "method": "No frozen-v1 OECD IDs.",
+        "limitations": "No full-text v1 screening yet."
+      },
+      "screening": {
+        "method": "OECD publication metadata/terms; no bulk fetch",
+        "representativeSample": null,
+        "knownExclusions": [
+          "third-party content",
+          "content with restrictive notices",
+          "non-English items",
+          "data-only tables"
+        ],
+        "licenseFilter": "CC BY 4.0 or equivalent OECD terms, per item"
+      },
+      "notes": "Licence status changed in 2024; per-item verification is mandatory.",
+      "subjects": [
+        "economics-social-political",
+        "general-reference-education"
+      ]
+    },
+    {
+      "sourceId": "ourworldindata",
+      "publisherId": "ourworldindata.org",
+      "publisherGroupId": "ourworldindata.org",
+      "sourceFamilyId": "ourworldindata",
+      "governanceGroupId": "independent",
+      "status": "approved",
+      "pool": "unrestricted",
+      "subjectShares": {
+        "economics-social-political": 0.4,
+        "geography-earth-environmental": 0.3,
+        "medicine-public-health": 0.3
+      },
+      "format": "web",
+      "title": "Our World in Data",
+      "description": "Data-driven explanatory articles on global health, economics, environment, energy and development.",
+      "licenceId": "CC-BY-4.0",
+      "access": {
+        "method": "sitemap",
+        "urlGenerationRule": "Enumerate OWID article pages; fetch HTML and keep OWID-authored prose, excluding embedded third-party charts/data.",
+        "exampleUrls": [
+          "https://ourworldindata.org/",
+          "https://ourworldindata.org/topics"
+        ],
+        "requiresAccount": false,
+        "requiresPayment": false,
+        "requiresTermsAcceptance": false,
+        "robotsReview": "required-before-acquisition"
+      },
+      "estimates": {
+        "capacityDocuments": 240,
+        "plannedDocuments": 120,
+        "tokensPerDocument": 3000,
+        "fetchSuccess": 0.92,
+        "qualityAcceptance": 0.85,
+        "dedupRemoval": 0.05,
+        "v1Overlap": 0,
+        "crossSourceOverlap": 0.05,
+        "estimateUncertainty": 0.55,
+        "basis": "OWID articles are moderate-length; 3k conservative after cleaning.",
+        "limitations": "Some charts/data are third-party; only OWID-authored article text is approved. Short entries and data pages need filtering."
+      },
+      "v1Overlap": {
+        "knownDocuments": 0,
+        "knownSourceIds": [],
+        "method": "No frozen-v1 OWID IDs.",
+        "limitations": "No full-text v1 screening yet."
+      },
+      "screening": {
+        "method": "OWID sitemap/article index; no bulk fetch",
+        "representativeSample": null,
+        "knownExclusions": [
+          "third-party charts/data",
+          "data-only pages",
+          "short entries",
+          "non-English content"
+        ],
+        "licenseFilter": "OWID-authored article text under CC BY"
+      },
+      "notes": "",
+      "subjects": [
+        "economics-social-political",
+        "geography-earth-environmental",
+        "medicine-public-health"
+      ]
+    },
+    {
+      "sourceId": "open-logic-project",
+      "publisherId": "openlogicproject.org",
+      "publisherGroupId": "open-logic-project",
+      "sourceFamilyId": "open-logic-project",
+      "governanceGroupId": "independent",
+      "status": "approved",
+      "pool": "unrestricted",
+      "subjectShares": {
+        "mathematics-formal-sciences": 0.8,
+        "humanities-philosophy-literature": 0.2
+      },
+      "format": "book",
+      "title": "Open Logic Project",
+      "description": "Open-source logic and formal-reasoning textbooks and chapters.",
+      "licenceId": "CC-BY-4.0",
+      "access": {
+        "method": "url-rule",
+        "urlGenerationRule": "Select book/part PDFs or HTML from the Open Logic Project catalogue; exclude duplicate remixes and works already covered by forall x.",
+        "exampleUrls": [
+          "https://openlogicproject.org/",
+          "https://github.com/OpenLogicProject/OpenLogic"
+        ],
+        "requiresAccount": false,
+        "requiresPayment": false,
+        "requiresTermsAcceptance": false,
+        "robotsReview": "required-before-acquisition"
+      },
+      "estimates": {
+        "capacityDocuments": 50,
+        "plannedDocuments": 25,
+        "tokensPerDocument": 70000,
+        "fetchSuccess": 0.95,
+        "qualityAcceptance": 0.92,
+        "dedupRemoval": 0.05,
+        "v1Overlap": 0,
+        "crossSourceOverlap": 0.05,
+        "estimateUncertainty": 0.6,
+        "basis": "Book-length logic texts; 70k conservative.",
+        "limitations": "PDF/LaTeX extraction; mathematical notation is not natural-language prose. Multiple remixes/editions overlap."
+      },
+      "v1Overlap": {
+        "knownDocuments": 0,
+        "knownSourceIds": [],
+        "method": "No frozen-v1 Open Logic IDs.",
+        "limitations": "Not full-text screened yet."
+      },
+      "screening": {
+        "method": "Project catalogue/GitHub releases; no bulk fetch",
+        "representativeSample": null,
+        "knownExclusions": [
+          "PDF-only editions with poor extraction",
+          "duplicate remixes",
+          "exercise-only supplements"
+        ],
+        "licenseFilter": "CC BY 4.0 stated on the work"
+      },
+      "notes": "Same publisher group as forall x; measured as one publisher for concentration.",
+      "subjects": [
+        "humanities-philosophy-literature",
+        "mathematics-formal-sciences"
+      ]
+    },
+    {
+      "sourceId": "forallx-calgary",
+      "publisherId": "forallx.openlogicproject.org",
+      "publisherGroupId": "open-logic-project",
+      "sourceFamilyId": "forallx-calgary",
+      "governanceGroupId": "independent",
+      "status": "approved",
+      "pool": "unrestricted",
+      "subjectShares": {
+        "mathematics-formal-sciences": 0.7,
+        "humanities-philosophy-literature": 0.3
+      },
+      "format": "book",
+      "title": "forall x: Calgary",
+      "description": "Full-featured open introduction to formal logic, with exercises and solutions.",
+      "licenceId": "CC-BY-4.0",
+      "access": {
+        "method": "url-rule",
+        "urlGenerationRule": "Select distinct editions from forallx.openlogicproject.org (PDF and HTML); avoid duplicate revisions.",
+        "exampleUrls": [
+          "https://forallx.openlogicproject.org/",
+          "https://forallx.openlogicproject.org/html/"
+        ],
+        "requiresAccount": false,
+        "requiresPayment": false,
+        "requiresTermsAcceptance": false,
+        "robotsReview": "required-before-acquisition"
+      },
+      "estimates": {
+        "capacityDocuments": 12,
+        "plannedDocuments": 6,
+        "tokensPerDocument": 90000,
+        "fetchSuccess": 0.95,
+        "qualityAcceptance": 0.95,
+        "dedupRemoval": 0.02,
+        "v1Overlap": 0,
+        "crossSourceOverlap": 0.1,
+        "estimateUncertainty": 0.6,
+        "basis": "Book-length logic text; 90k conservative across editions.",
+        "limitations": "Multiple editions/revisions overlap heavily; select one or a few distinct editions. PDF/HTML extraction of notation."
+      },
+      "v1Overlap": {
+        "knownDocuments": 0,
+        "knownSourceIds": [],
+        "method": "No frozen-v1 forall x IDs.",
+        "limitations": "Not full-text screened yet."
+      },
+      "screening": {
+        "method": "Project catalogue; no bulk fetch",
+        "representativeSample": null,
+        "knownExclusions": [
+          "duplicate editions",
+          "solutions-only booklet"
+        ],
+        "licenseFilter": "CC BY 4.0 stated on the work"
+      },
+      "notes": "Related to Open Logic Project; grouped under open-logic-project for publisher concentration.",
+      "subjects": [
+        "humanities-philosophy-literature",
+        "mathematics-formal-sciences"
+      ]
+    },
+    {
+      "sourceId": "python-docs",
+      "publisherId": "docs.python.org",
+      "publisherGroupId": "python-software-foundation",
+      "sourceFamilyId": "python-docs",
+      "governanceGroupId": "independent",
+      "status": "approved",
+      "pool": "unrestricted",
+      "subjectShares": {
+        "computer-science-software": 1
+      },
+      "format": "documentation",
+      "title": "Python documentation",
+      "description": "Official Python language, standard-library and tutorial documentation.",
+      "licenceId": "PSF-2.0",
+      "access": {
+        "method": "sitemap",
+        "urlGenerationRule": "Enumerate docs.python.org/3 tutorial/library/reference pages; exclude v1 URLs and select prose-rich pages.",
+        "exampleUrls": [
+          "https://docs.python.org/3/reference/",
+          "https://docs.python.org/3/library/"
+        ],
+        "requiresAccount": false,
+        "requiresPayment": false,
+        "requiresTermsAcceptance": false,
+        "robotsReview": "required-before-acquisition"
+      },
+      "estimates": {
+        "capacityDocuments": 240,
+        "plannedDocuments": 120,
+        "tokensPerDocument": 5000,
+        "fetchSuccess": 0.97,
+        "qualityAcceptance": 0.92,
+        "dedupRemoval": 0.08,
+        "v1Overlap": 0.08,
+        "crossSourceOverlap": 0.02,
+        "estimateUncertainty": 0.65,
+        "basis": "Pilot v2 measured ~7.4k tokens per accepted Python docs page; 5k is conservative.",
+        "limitations": "v1 already has 24 Python documentation pages; select new pages and screen. Code-heavy pages have lower prose ratio."
+      },
+      "v1Overlap": {
+        "knownDocuments": 24,
+        "knownSourceIds": [],
+        "method": "Python source-family review plus URL exclusion of the 24 v1 Python docs pages.",
+        "limitations": "Not full-text screened yet; some pages may be re-fetched under different anchors."
+      },
+      "screening": {
+        "method": "Documentation index/sitemap; no bulk fetch",
+        "representativeSample": "pilot v2 measured 29 accepted Python docs pages",
+        "knownExclusions": [
+          "v1 Python docs URLs",
+          "pages below prose/quality floor",
+          "duplicate versioned pages"
+        ],
+        "licenseFilter": "PSF licence"
+      },
+      "notes": "",
+      "subjects": [
+        "computer-science-software"
+      ]
+    },
+    {
+      "sourceId": "rust-docs",
+      "publisherId": "doc.rust-lang.org",
+      "publisherGroupId": "rust-project",
+      "sourceFamilyId": "rust-docs",
+      "governanceGroupId": "independent",
+      "status": "approved",
+      "pool": "unrestricted",
+      "subjectShares": {
+        "computer-science-software": 1
+      },
+      "format": "documentation",
+      "title": "Rust documentation",
+      "description": "The Rust Book, standard-library reference, Rustonomicon and related official documentation.",
+      "licenceId": "MIT",
+      "access": {
+        "method": "sitemap",
+        "urlGenerationRule": "Enumerate doc.rust-lang.org book/reference pages; fetch HTML and clean navigation/code.",
+        "exampleUrls": [
+          "https://doc.rust-lang.org/book/",
+          "https://doc.rust-lang.org/std/"
+        ],
+        "requiresAccount": false,
+        "requiresPayment": false,
+        "requiresTermsAcceptance": false,
+        "robotsReview": "required-before-acquisition"
+      },
+      "estimates": {
+        "capacityDocuments": 240,
+        "plannedDocuments": 120,
+        "tokensPerDocument": 2500,
+        "fetchSuccess": 0.97,
+        "qualityAcceptance": 0.92,
+        "dedupRemoval": 0.08,
+        "v1Overlap": 0,
+        "crossSourceOverlap": 0.02,
+        "estimateUncertainty": 0.65,
+        "basis": "Documentation pages; 2.5k conservative after code/prose cleaning.",
+        "limitations": "Code blocks and navigation reduce prose yield; multiple books/references may overlap."
+      },
+      "v1Overlap": {
+        "knownDocuments": 0,
+        "knownSourceIds": [],
+        "method": "No frozen-v1 Rust docs IDs.",
+        "limitations": "Not full-text screened yet."
+      },
+      "screening": {
+        "method": "Documentation index/sitemap; no bulk fetch",
+        "representativeSample": null,
+        "knownExclusions": [
+          "duplicate versioned pages",
+          "code-only reference pages",
+          "pages below quality floor"
+        ],
+        "licenseFilter": "MIT (docs state MIT/Apache-2.0)"
+      },
+      "notes": "Rust source may be dual MIT/Apache-2.0; MIT is recorded as the permissive option.",
+      "subjects": [
+        "computer-science-software"
+      ]
+    },
+    {
+      "sourceId": "go-docs",
+      "publisherId": "go.dev",
+      "publisherGroupId": "go-project",
+      "sourceFamilyId": "go-docs",
+      "governanceGroupId": "independent",
+      "status": "approved",
+      "pool": "unrestricted",
+      "subjectShares": {
+        "computer-science-software": 1
+      },
+      "format": "documentation",
+      "title": "Go documentation",
+      "description": "Official Go language specification, tutorials, effective Go and package documentation.",
+      "licenceId": "BSD-3-Clause",
+      "access": {
+        "method": "sitemap",
+        "urlGenerationRule": "Enumerate go.dev/doc and go.dev/ref pages; fetch HTML and clean code/navigation.",
+        "exampleUrls": [
+          "https://go.dev/doc/",
+          "https://go.dev/ref/spec"
+        ],
+        "requiresAccount": false,
+        "requiresPayment": false,
+        "requiresTermsAcceptance": false,
+        "robotsReview": "required-before-acquisition"
+      },
+      "estimates": {
+        "capacityDocuments": 240,
+        "plannedDocuments": 120,
+        "tokensPerDocument": 2500,
+        "fetchSuccess": 0.97,
+        "qualityAcceptance": 0.92,
+        "dedupRemoval": 0.08,
+        "v1Overlap": 0,
+        "crossSourceOverlap": 0.02,
+        "estimateUncertainty": 0.65,
+        "basis": "Documentation pages; 2.5k conservative.",
+        "limitations": "Package reference pages can be code-heavy and repetitive; prefer tutorials/specification."
+      },
+      "v1Overlap": {
+        "knownDocuments": 0,
+        "knownSourceIds": [],
+        "method": "No frozen-v1 Go docs IDs.",
+        "limitations": "Not full-text screened yet."
+      },
+      "screening": {
+        "method": "Documentation index/sitemap; no bulk fetch",
+        "representativeSample": null,
+        "knownExclusions": [
+          "code-only package pages",
+          "duplicate versioned pages"
+        ],
+        "licenseFilter": "BSD-3-Clause"
+      },
+      "notes": "",
+      "subjects": [
+        "computer-science-software"
+      ]
+    },
+    {
+      "sourceId": "postgresql-docs",
+      "publisherId": "postgresql.org",
+      "publisherGroupId": "postgresql-global-development-group",
+      "sourceFamilyId": "postgresql-docs",
+      "governanceGroupId": "independent",
+      "status": "approved",
+      "pool": "unrestricted",
+      "subjectShares": {
+        "computer-science-software": 1
+      },
+      "format": "documentation",
+      "title": "PostgreSQL documentation",
+      "description": "Official PostgreSQL manual, tutorials and reference documentation.",
+      "licenceId": "PostgreSQL",
+      "access": {
+        "method": "url-rule",
+        "urlGenerationRule": "Enumerate the current PostgreSQL manual sections under /docs/current/; fetch HTML.",
+        "exampleUrls": [
+          "https://www.postgresql.org/docs/current/",
+          "https://www.postgresql.org/docs/current/tutorial.html"
+        ],
+        "requiresAccount": false,
+        "requiresPayment": false,
+        "requiresTermsAcceptance": false,
+        "robotsReview": "required-before-acquisition"
+      },
+      "estimates": {
+        "capacityDocuments": 240,
+        "plannedDocuments": 120,
+        "tokensPerDocument": 3000,
+        "fetchSuccess": 0.96,
+        "qualityAcceptance": 0.92,
+        "dedupRemoval": 0.08,
+        "v1Overlap": 0,
+        "crossSourceOverlap": 0.02,
+        "estimateUncertainty": 0.65,
+        "basis": "Documentation pages; 3k conservative.",
+        "limitations": "Reference pages contain SQL syntax and tables; prose ratio filtering needed."
+      },
+      "v1Overlap": {
+        "knownDocuments": 0,
+        "knownSourceIds": [],
+        "method": "No frozen-v1 PostgreSQL docs IDs.",
+        "limitations": "Not full-text screened yet."
+      },
+      "screening": {
+        "method": "Documentation index; no bulk fetch",
+        "representativeSample": null,
+        "knownExclusions": [
+          "SQL syntax-only pages",
+          "duplicate versioned pages"
+        ],
+        "licenseFilter": "PostgreSQL License"
+      },
+      "notes": "",
+      "subjects": [
+        "computer-science-software"
+      ]
+    },
+    {
+      "sourceId": "kubernetes-docs",
+      "publisherId": "kubernetes.io",
+      "publisherGroupId": "cncf",
+      "sourceFamilyId": "kubernetes-docs",
+      "governanceGroupId": "independent",
+      "status": "approved",
+      "pool": "unrestricted",
+      "subjectShares": {
+        "computer-science-software": 1
+      },
+      "format": "documentation",
+      "title": "Kubernetes documentation",
+      "description": "Official Kubernetes concepts, tasks, tutorials and reference documentation.",
+      "licenceId": "CC-BY-4.0",
+      "access": {
+        "method": "sitemap",
+        "urlGenerationRule": "Enumerate kubernetes.io/docs pages; fetch HTML and keep prose-rich concept/task pages.",
+        "exampleUrls": [
+          "https://kubernetes.io/docs/concepts/",
+          "https://kubernetes.io/docs/tasks/"
+        ],
+        "requiresAccount": false,
+        "requiresPayment": false,
+        "requiresTermsAcceptance": false,
+        "robotsReview": "required-before-acquisition"
+      },
+      "estimates": {
+        "capacityDocuments": 240,
+        "plannedDocuments": 120,
+        "tokensPerDocument": 2500,
+        "fetchSuccess": 0.96,
+        "qualityAcceptance": 0.9,
+        "dedupRemoval": 0.08,
+        "v1Overlap": 0,
+        "crossSourceOverlap": 0.02,
+        "estimateUncertainty": 0.6,
+        "basis": "Documentation pages; 2.5k conservative.",
+        "limitations": "Many pages are YAML-heavy; prose filtering needed. Versioned duplicates."
+      },
+      "v1Overlap": {
+        "knownDocuments": 0,
+        "knownSourceIds": [],
+        "method": "No frozen-v1 Kubernetes docs IDs.",
+        "limitations": "Not full-text screened yet."
+      },
+      "screening": {
+        "method": "Documentation sitemap; no bulk fetch",
+        "representativeSample": null,
+        "knownExclusions": [
+          "YAML-only pages",
+          "duplicate versioned pages",
+          "API reference auto-generated pages"
+        ],
+        "licenseFilter": "CC BY 4.0"
+      },
+      "notes": "",
+      "subjects": [
+        "computer-science-software"
+      ]
+    },
+    {
+      "sourceId": "tensorflow-docs",
+      "publisherId": "tensorflow.org",
+      "publisherGroupId": "google",
+      "sourceFamilyId": "tensorflow-docs",
+      "governanceGroupId": "independent",
+      "status": "approved",
+      "pool": "unrestricted",
+      "subjectShares": {
+        "computer-science-software": 1
+      },
+      "format": "documentation",
+      "title": "TensorFlow documentation",
+      "description": "Official TensorFlow tutorials, guides and API documentation.",
+      "licenceId": "CC-BY-4.0",
+      "access": {
+        "method": "sitemap",
+        "urlGenerationRule": "Enumerate tensorflow.org tutorials/guide pages; fetch HTML and keep prose-rich pages.",
+        "exampleUrls": [
+          "https://www.tensorflow.org/tutorials",
+          "https://www.tensorflow.org/guide"
+        ],
+        "requiresAccount": false,
+        "requiresPayment": false,
+        "requiresTermsAcceptance": false,
+        "robotsReview": "required-before-acquisition"
+      },
+      "estimates": {
+        "capacityDocuments": 200,
+        "plannedDocuments": 100,
+        "tokensPerDocument": 2500,
+        "fetchSuccess": 0.96,
+        "qualityAcceptance": 0.9,
+        "dedupRemoval": 0.08,
+        "v1Overlap": 0,
+        "crossSourceOverlap": 0.02,
+        "estimateUncertainty": 0.55,
+        "basis": "Documentation pages; 2.5k conservative.",
+        "limitations": "Tutorials are code-heavy; API pages can be auto-generated and repetitive. Verify documentation licence per page."
+      },
+      "v1Overlap": {
+        "knownDocuments": 0,
+        "knownSourceIds": [],
+        "method": "No frozen-v1 TensorFlow docs IDs.",
+        "limitations": "Not full-text screened yet."
+      },
+      "screening": {
+        "method": "Documentation sitemap; no bulk fetch",
+        "representativeSample": null,
+        "knownExclusions": [
+          "code-only API pages",
+          "duplicate versioned pages",
+          "notebook-only tutorials"
+        ],
+        "licenseFilter": "CC BY 4.0 for documentation; code under Apache-2.0"
+      },
+      "notes": "Licence split between documentation (CC BY) and code (Apache-2.0); record both.",
+      "subjects": [
+        "computer-science-software"
+      ]
+    },
+    {
+      "sourceId": "wikipedia-en",
+      "publisherId": "en.wikipedia.org",
+      "publisherGroupId": "wikimedia",
+      "sourceFamilyId": "wikipedia-en",
+      "governanceGroupId": "independent",
+      "status": "approved-share-alike",
+      "pool": "share-alike",
+      "subjectShares": {
+        "general-reference-education": 1
+      },
+      "format": "encyclopedia",
+      "title": "English Wikipedia",
+      "description": "English Wikipedia encyclopedic articles. Share-alike condition; reported separately from the unrestricted pool.",
+      "licenceId": "CC-BY-SA-4.0",
+      "access": {
+        "method": "api",
+        "urlGenerationRule": "Use the MediaWiki API/category listings to select long-form articles; exclude v1 titles and list/index pages.",
+        "exampleUrls": [
+          "https://en.wikipedia.org/wiki/Mathematics",
+          "https://en.wikipedia.org/wiki/Philosophy"
+        ],
+        "requiresAccount": false,
+        "requiresPayment": false,
+        "requiresTermsAcceptance": false,
+        "robotsReview": "required-before-acquisition"
+      },
+      "estimates": {
+        "capacityDocuments": 1200,
+        "plannedDocuments": 600,
+        "tokensPerDocument": 6000,
+        "fetchSuccess": 0.95,
+        "qualityAcceptance": 0.9,
+        "dedupRemoval": 0.1,
+        "v1Overlap": 0.05,
+        "crossSourceOverlap": 0.05,
+        "estimateUncertainty": 0.55,
+        "basis": "v1 measured 297k tokens over 16 articles (~18.6k each for selected long articles); 6k conservative across topics.",
+        "limitations": "v1 has 16 Wikipedia articles. Article quality/length varies; reference sections must be stripped. Share-alike obligations require legal review."
+      },
+      "v1Overlap": {
+        "knownDocuments": 16,
+        "knownSourceIds": [],
+        "method": "Wikipedia source-family review plus URL/title exclusion of the 16 v1 articles.",
+        "limitations": "Not full-text screened yet."
+      },
+      "screening": {
+        "method": "Article title/category selection; no bulk fetch",
+        "representativeSample": "v1/prospective corpus used 16 articles",
+        "knownExclusions": [
+          "v1 articles",
+          "lists/indexes/citation pages",
+          "very short stubs",
+          "reference sections"
+        ],
+        "licenseFilter": "CC BY-SA 4.0"
+      },
+      "notes": "Share-alike pool; not used to satisfy the unrestricted target.",
+      "subjects": [
+        "general-reference-education"
+      ]
+    },
+    {
+      "sourceId": "wikibooks-en",
+      "publisherId": "en.wikibooks.org",
+      "publisherGroupId": "wikimedia",
+      "sourceFamilyId": "wikibooks-en",
+      "governanceGroupId": "independent",
+      "status": "approved-share-alike",
+      "pool": "share-alike",
+      "subjectShares": {
+        "general-reference-education": 1
+      },
+      "format": "textbook",
+      "title": "English Wikibooks",
+      "description": "Open textbooks and instructional books. Share-alike condition; reported separately.",
+      "licenceId": "CC-BY-SA-4.0",
+      "access": {
+        "method": "api",
+        "urlGenerationRule": "Use the MediaWiki API to enumerate book chapters; select substantial prose books.",
+        "exampleUrls": [
+          "https://en.wikibooks.org/wiki/Subject:Mathematics",
+          "https://en.wikibooks.org/wiki/Subject:Science"
+        ],
+        "requiresAccount": false,
+        "requiresPayment": false,
+        "requiresTermsAcceptance": false,
+        "robotsReview": "required-before-acquisition"
+      },
+      "estimates": {
+        "capacityDocuments": 400,
+        "plannedDocuments": 200,
+        "tokensPerDocument": 4000,
+        "fetchSuccess": 0.93,
+        "qualityAcceptance": 0.85,
+        "dedupRemoval": 0.1,
+        "v1Overlap": 0,
+        "crossSourceOverlap": 0.05,
+        "estimateUncertainty": 0.5,
+        "basis": "Textbook chapters; 4k conservative after cleaning.",
+        "limitations": "Quality/completeness varies; some books are stubs or lists. Share-alike obligations require legal review."
+      },
+      "v1Overlap": {
+        "knownDocuments": 0,
+        "knownSourceIds": [],
+        "method": "No frozen-v1 Wikibooks IDs.",
+        "limitations": "Not full-text screened yet."
+      },
+      "screening": {
+        "method": "Book/chapter selection; no bulk fetch",
+        "representativeSample": null,
+        "knownExclusions": [
+          "stub books",
+          "list/index pages",
+          "books with poor prose ratio"
+        ],
+        "licenseFilter": "CC BY-SA 4.0"
+      },
+      "notes": "Wikimedia publisher group; share-alike pool.",
+      "subjects": [
+        "general-reference-education"
+      ]
+    },
+    {
+      "sourceId": "mdn-web-docs",
+      "publisherId": "developer.mozilla.org",
+      "publisherGroupId": "mozilla",
+      "sourceFamilyId": "mdn-web-docs",
+      "governanceGroupId": "independent",
+      "status": "approved-share-alike",
+      "pool": "share-alike",
+      "subjectShares": {
+        "computer-science-software": 1
+      },
+      "format": "documentation",
+      "title": "MDN Web Docs",
+      "description": "Web platform documentation for HTML, CSS, JavaScript and browser APIs. Share-alike condition; reported separately.",
+      "licenceId": "CC-BY-SA-2.5",
+      "access": {
+        "method": "sitemap",
+        "urlGenerationRule": "Enumerate developer.mozilla.org/en-US/docs pages; fetch HTML and keep prose-rich guides/references.",
+        "exampleUrls": [
+          "https://developer.mozilla.org/en-US/docs/Web/JavaScript",
+          "https://developer.mozilla.org/en-US/docs/Web/CSS"
+        ],
+        "requiresAccount": false,
+        "requiresPayment": false,
+        "requiresTermsAcceptance": false,
+        "robotsReview": "required-before-acquisition"
+      },
+      "estimates": {
+        "capacityDocuments": 600,
+        "plannedDocuments": 300,
+        "tokensPerDocument": 1500,
+        "fetchSuccess": 0.95,
+        "qualityAcceptance": 0.9,
+        "dedupRemoval": 0.1,
+        "v1Overlap": 0,
+        "crossSourceOverlap": 0.02,
+        "estimateUncertainty": 0.55,
+        "basis": "MDN pages are relatively short; 1.5k conservative after code/navigation cleaning.",
+        "limitations": "Code-heavy and navigation-heavy pages; share-alike obligations require legal review. Some content is third-party."
+      },
+      "v1Overlap": {
+        "knownDocuments": 0,
+        "knownSourceIds": [],
+        "method": "No frozen-v1 MDN IDs.",
+        "limitations": "Not full-text screened yet."
+      },
+      "screening": {
+        "method": "MDN sitemap; no bulk fetch",
+        "representativeSample": null,
+        "knownExclusions": [
+          "code-only pages",
+          "browser-compatibility tables",
+          "stub pages"
+        ],
+        "licenseFilter": "CC BY-SA 2.5 for prose; code samples CC0"
+      },
+      "notes": "Share-alike pool; not used to satisfy the unrestricted target.",
+      "subjects": [
+        "computer-science-software"
+      ]
+    },
+    {
+      "sourceId": "openstax-current",
+      "publisherId": "openstax.org",
+      "publisherGroupId": "openstax.org",
+      "sourceFamilyId": "openstax-current",
+      "governanceGroupId": "independent",
+      "status": "restricted",
+      "pool": "non-commercial",
+      "subjectShares": {
+        "general-reference-education": 1
+      },
+      "format": "textbook",
+      "title": "OpenStax current library",
+      "description": "OpenStax textbooks. The current library moved to CC BY-NC-SA 4.0 in 2026; excluded from the unrestricted pool.",
+      "licenceId": "CC-BY-NC-SA-4.0-openstax",
+      "access": {
+        "method": "sitemap",
+        "urlGenerationRule": "Deferred until non-commercial suitability is explicitly established. Legacy CC BY editions require per-book licence evidence.",
+        "exampleUrls": [
+          "https://openstax.org/books/",
+          "https://openstax.org/blog/openstax-licensing"
+        ],
+        "requiresAccount": false,
+        "requiresPayment": false,
+        "requiresTermsAcceptance": false,
+        "robotsReview": "required-before-acquisition"
+      },
+      "estimates": {
+        "capacityDocuments": 1200,
+        "plannedDocuments": 0,
+        "tokensPerDocument": 4000,
+        "fetchSuccess": 0.95,
+        "qualityAcceptance": 0.9,
+        "dedupRemoval": 0.1,
+        "v1Overlap": 0.15,
+        "crossSourceOverlap": 0.02,
+        "estimateUncertainty": 0.45,
+        "basis": "v1 measured ~3.8k tokens per OpenStax page; 4k conservative.",
+        "limitations": "Current editions are non-commercial. Legacy CC BY editions exist but require per-book evidence. v1 used OpenStax under older terms."
+      },
+      "v1Overlap": {
+        "knownDocuments": 41,
+        "knownSourceIds": [],
+        "method": "OpenStax source-family review; v1 contains 41 OpenStax pages.",
+        "limitations": "Legacy CC BY editions not yet separated from current NC editions."
+      },
+      "screening": {
+        "method": "Licence-page review; no acquisition",
+        "representativeSample": null,
+        "knownExclusions": [
+          "all current CC BY-NC-SA editions from unrestricted pool",
+          "third-party content"
+        ],
+        "licenseFilter": "non-commercial; not approved for the unrestricted target"
+      },
+      "notes": "Important 2026 licence change; do not reuse the v1 OpenStax licence assumption.",
+      "subjects": [
+        "general-reference-education"
+      ]
+    },
+    {
+      "sourceId": "mit-ocw",
+      "publisherId": "ocw.mit.edu",
+      "publisherGroupId": "mit",
+      "sourceFamilyId": "mit-ocw",
+      "governanceGroupId": "independent",
+      "status": "restricted",
+      "pool": "non-commercial",
+      "subjectShares": {
+        "general-reference-education": 1
+      },
+      "format": "courseware",
+      "title": "MIT OpenCourseWare",
+      "description": "MIT course readings and lecture notes under CC BY-NC-SA; excluded from the unrestricted pool.",
+      "licenceId": "MIT-OCW-CC-BY-NC-SA",
+      "access": {
+        "method": "sitemap",
+        "urlGenerationRule": "Deferred until non-commercial suitability is explicitly established.",
+        "exampleUrls": [
+          "https://ocw.mit.edu/terms/",
+          "https://ocw.mit.edu/courses/"
+        ],
+        "requiresAccount": false,
+        "requiresPayment": false,
+        "requiresTermsAcceptance": false,
+        "robotsReview": "required-before-acquisition"
+      },
+      "estimates": {
+        "capacityDocuments": 300,
+        "plannedDocuments": 0,
+        "tokensPerDocument": 6000,
+        "fetchSuccess": 0.85,
+        "qualityAcceptance": 0.85,
+        "dedupRemoval": 0.08,
+        "v1Overlap": 0.02,
+        "crossSourceOverlap": 0.02,
+        "estimateUncertainty": 0.45,
+        "basis": "Course readings vary; 6k conservative.",
+        "limitations": "Non-commercial/share-alike; redirect-limit fetch failures observed in prior pilot; third-party course materials."
+      },
+      "v1Overlap": {
+        "knownDocuments": 1,
+        "knownSourceIds": [],
+        "method": "MIT OCW source-family review; v1 has 1 MIT OCW page.",
+        "limitations": "Not full-text screened yet."
+      },
+      "screening": {
+        "method": "Licence-page review; no acquisition",
+        "representativeSample": null,
+        "knownExclusions": [
+          "third-party course materials",
+          "all content from unrestricted pool"
+        ],
+        "licenseFilter": "non-commercial; not approved for the unrestricted target"
+      },
+      "notes": "",
+      "subjects": [
+        "general-reference-education"
+      ]
+    },
+    {
+      "sourceId": "khan-academy",
+      "publisherId": "khanacademy.org",
+      "publisherGroupId": "khan-academy",
+      "sourceFamilyId": "khan-academy",
+      "governanceGroupId": "independent",
+      "status": "restricted",
+      "pool": "non-commercial",
+      "subjectShares": {
+        "general-reference-education": 1
+      },
+      "format": "courseware",
+      "title": "Khan Academy",
+      "description": "Khan Academy instructional content under CC BY-NC-SA; excluded from the unrestricted pool.",
+      "licenceId": "Khan-CC-BY-NC-SA",
+      "access": {
+        "method": "sitemap",
+        "urlGenerationRule": "Deferred until non-commercial suitability is explicitly established.",
+        "exampleUrls": [
+          "https://www.khanacademy.org/about/tos"
+        ],
+        "requiresAccount": false,
+        "requiresPayment": false,
+        "requiresTermsAcceptance": false,
+        "robotsReview": "required-before-acquisition"
+      },
+      "estimates": {
+        "capacityDocuments": 500,
+        "plannedDocuments": 0,
+        "tokensPerDocument": 3000,
+        "fetchSuccess": 0.85,
+        "qualityAcceptance": 0.8,
+        "dedupRemoval": 0.08,
+        "v1Overlap": 0,
+        "crossSourceOverlap": 0.02,
+        "estimateUncertainty": 0.4,
+        "basis": "Instructional pages/videos; 3k conservative for text content.",
+        "limitations": "Non-commercial/share-alike; much content is video/JS-heavy; text extraction may be poor."
+      },
+      "v1Overlap": {
+        "knownDocuments": 0,
+        "knownSourceIds": [],
+        "method": "No frozen-v1 Khan IDs.",
+        "limitations": "Not full-text screened yet."
+      },
+      "screening": {
+        "method": "Licence-page review; no acquisition",
+        "representativeSample": null,
+        "knownExclusions": [
+          "video-only content",
+          "third-party content",
+          "all content from unrestricted pool"
+        ],
+        "licenseFilter": "non-commercial; not approved for the unrestricted target"
+      },
+      "notes": "",
+      "subjects": [
+        "general-reference-education"
+      ]
+    },
+    {
+      "sourceId": "who",
+      "publisherId": "who.int",
+      "publisherGroupId": "who",
+      "sourceFamilyId": "who",
+      "governanceGroupId": "independent",
+      "status": "restricted",
+      "pool": "non-commercial",
+      "subjectShares": {
+        "medicine-public-health": 1
+      },
+      "format": "report",
+      "title": "World Health Organization publications",
+      "description": "WHO public-health reports and guidance under CC BY-NC-SA 3.0 IGO; excluded from the unrestricted pool.",
+      "licenceId": "WHO-CC-BY-NC-SA",
+      "access": {
+        "method": "sitemap",
+        "urlGenerationRule": "Deferred until non-commercial suitability is explicitly established.",
+        "exampleUrls": [
+          "https://www.who.int/publications",
+          "https://www.who.int/about/policies/publishing/copyright"
+        ],
+        "requiresAccount": false,
+        "requiresPayment": false,
+        "requiresTermsAcceptance": false,
+        "robotsReview": "required-before-acquisition"
+      },
+      "estimates": {
+        "capacityDocuments": 300,
+        "plannedDocuments": 0,
+        "tokensPerDocument": 5000,
+        "fetchSuccess": 0.85,
+        "qualityAcceptance": 0.8,
+        "dedupRemoval": 0.08,
+        "v1Overlap": 0,
+        "crossSourceOverlap": 0.02,
+        "estimateUncertainty": 0.4,
+        "basis": "WHO reports vary; 5k conservative.",
+        "limitations": "Non-commercial/share-alike; third-party content; some items are not CC licensed."
+      },
+      "v1Overlap": {
+        "knownDocuments": 0,
+        "knownSourceIds": [],
+        "method": "No frozen-v1 WHO IDs.",
+        "limitations": "Not full-text screened yet."
+      },
+      "screening": {
+        "method": "Licence-page review; no acquisition",
+        "representativeSample": null,
+        "knownExclusions": [
+          "third-party content",
+          "items with restrictive notices",
+          "all content from unrestricted pool"
+        ],
+        "licenseFilter": "non-commercial; not approved for the unrestricted target"
+      },
+      "notes": "",
+      "subjects": [
+        "medicine-public-health"
+      ]
+    },
+    {
+      "sourceId": "fao",
+      "publisherId": "fao.org",
+      "publisherGroupId": "fao",
+      "sourceFamilyId": "fao",
+      "governanceGroupId": "independent",
+      "status": "restricted",
+      "pool": "non-commercial",
+      "subjectShares": {
+        "physics-chemistry-biology": 0.6,
+        "geography-earth-environmental": 0.4
+      },
+      "format": "report",
+      "title": "Food and Agriculture Organization publications",
+      "description": "FAO agriculture, food-security and environmental publications under CC BY-NC-SA 3.0 IGO; excluded from the unrestricted pool.",
+      "licenceId": "FAO-CC-BY-NC-SA",
+      "access": {
+        "method": "sitemap",
+        "urlGenerationRule": "Deferred until non-commercial suitability is explicitly established.",
+        "exampleUrls": [
+          "https://www.fao.org/publications/en/",
+          "https://www.fao.org/contact-us/terms/en/"
+        ],
+        "requiresAccount": false,
+        "requiresPayment": false,
+        "requiresTermsAcceptance": false,
+        "robotsReview": "required-before-acquisition"
+      },
+      "estimates": {
+        "capacityDocuments": 300,
+        "plannedDocuments": 0,
+        "tokensPerDocument": 5000,
+        "fetchSuccess": 0.85,
+        "qualityAcceptance": 0.8,
+        "dedupRemoval": 0.08,
+        "v1Overlap": 0,
+        "crossSourceOverlap": 0.02,
+        "estimateUncertainty": 0.4,
+        "basis": "FAO reports vary; 5k conservative.",
+        "limitations": "Non-commercial/share-alike; third-party content; some items are not CC licensed."
+      },
+      "v1Overlap": {
+        "knownDocuments": 0,
+        "knownSourceIds": [],
+        "method": "No frozen-v1 FAO IDs.",
+        "limitations": "Not full-text screened yet."
+      },
+      "screening": {
+        "method": "Licence-page review; no acquisition",
+        "representativeSample": null,
+        "knownExclusions": [
+          "third-party content",
+          "items with restrictive notices",
+          "all content from unrestricted pool"
+        ],
+        "licenseFilter": "non-commercial; not approved for the unrestricted target"
+      },
+      "notes": "",
+      "subjects": [
+        "geography-earth-environmental",
+        "physics-chemistry-biology"
+      ]
+    }
+  ],
+  "exclusions": [
+    {
+      "candidate": "LibreTexts",
+      "status": "excluded",
+      "reason": "Content-level Creative Commons licences vary by page and book; prior pilot could not establish a uniform reuse basis.",
+      "licenceStatus": "ambiguous/varied",
+      "revisit": "yes, if page-level licence automation is built and legal review completed"
+    },
+    {
+      "candidate": "Open Textbook Library",
+      "status": "excluded",
+      "reason": "Per-book licences vary, including CC BY, CC BY-SA, CC BY-NC and all-rights-reserved. No safe bulk basis without item-level verification.",
+      "licenceStatus": "varied",
+      "revisit": "yes, with item-level licence metadata and exclusion of NC/ND"
+    },
+    {
+      "candidate": "DOAB",
+      "status": "excluded-as-content-source",
+      "reason": "DOAB is a discovery directory, not a content host; it points to OAPEN and other platforms. Only metadata is CC0.",
+      "licenceStatus": "metadata CC0; content varies",
+      "revisit": "use OAPEN or publisher platforms directly"
+    },
+    {
+      "candidate": "CORE / OpenAIRE",
+      "status": "excluded",
+      "reason": "Aggregators with per-record licences and mixed full-text availability; provenance and licence can be ambiguous.",
+      "licenceStatus": "varied",
+      "revisit": "only with record-level licence and provenance verification"
+    },
+    {
+      "candidate": "Internet Archive",
+      "status": "excluded",
+      "reason": "Mixed rights, lending restrictions and unclear public-domain status for many items.",
+      "licenceStatus": "mixed/restricted",
+      "revisit": "only for explicitly public-domain collections with item-level evidence"
+    },
+    {
+      "candidate": "HathiTrust",
+      "status": "excluded",
+      "reason": "Public-domain determination is possible but access controls and bulk-use terms are restrictive.",
+      "licenceStatus": "public-domain subset with access restrictions",
+      "revisit": "only with an authorised data-use agreement"
+    },
+    {
+      "candidate": "Google Books",
+      "status": "excluded",
+      "reason": "Predominantly in-copyright; bulk text not openly licensed.",
+      "licenceStatus": "in-copyright",
+      "revisit": "no"
+    },
+    {
+      "candidate": "Stack Overflow / Stack Exchange",
+      "status": "excluded",
+      "reason": "CC BY-SA content but fragmented Q&A, code-heavy, and not coherent educational documents; share-alike plus quality concerns.",
+      "licenceStatus": "CC BY-SA 4.0",
+      "revisit": "no for this corpus design"
+    },
+    {
+      "candidate": "Common Crawl / FineWeb / C4-style web corpora",
+      "status": "excluded",
+      "reason": "Per-document licensing and provenance are unclear; unknown v1 overlap; licence filtering cannot be guaranteed at document level.",
+      "licenceStatus": "mixed/unclear",
+      "revisit": "no for a licence-clean corpus"
+    },
+    {
+      "candidate": "arXiv non-CC-BY records",
+      "status": "excluded-subset",
+      "reason": "Most arXiv records use the arXiv perpetual licence or other terms that do not clearly permit commercial reuse; only the CC BY 4.0 subset is approved.",
+      "licenceStatus": "per-article, mixed",
+      "revisit": "only CC BY 4.0 subset"
+    },
+    {
+      "candidate": "PMC non-CC-BY records",
+      "status": "excluded-subset",
+      "reason": "PMC OA includes CC BY-NC and CC BY-NC-ND content; only CC BY 4.0 records are approved.",
+      "licenceStatus": "per-article, mixed",
+      "revisit": "only CC BY 4.0 subset"
+    },
+    {
+      "candidate": "OSTI copyrighted journal articles / unmarked documents",
+      "status": "excluded-subset",
+      "reason": "OSTI hosts copyrighted articles and unmarked works; only explicit U.S. Government Work reports are approved.",
+      "licenceStatus": "mixed/copyrighted",
+      "revisit": "only explicit U.S. Government Work reports"
+    },
+    {
+      "candidate": "NASA/NIST third-party images, insignia and co-authored journal articles",
+      "status": "excluded-subset",
+      "reason": "These components are not U.S. Government works or are subject to third-party rights; text-only, gov-work filtering is required.",
+      "licenceStatus": "mixed/third-party",
+      "revisit": "per-item rights review only"
+    },
+    {
+      "candidate": "International Monetary Fund (IMF) publications",
+      "status": "excluded",
+      "reason": "Terms vary and many publications are not openly licensed for commercial reuse.",
+      "licenceStatus": "restrictive/varied",
+      "revisit": "only with explicit reuse permission"
+    },
+    {
+      "candidate": "UNESCO publications",
+      "status": "deferred-share-alike",
+      "reason": "Many UNESCO works use CC BY-SA IGO, which is share-alike; not included in the unrestricted target.",
+      "licenceStatus": "CC BY-SA IGO",
+      "revisit": "share-alike pool after legal review"
+    },
+    {
+      "candidate": "OECD pre-1 July 2024 third-party material and items with restrictive notices",
+      "status": "excluded-subset",
+      "reason": "OECD terms changed in 2024 and some items contain third-party or restricted material; only CC BY 4.0 or equivalent items are approved.",
+      "licenceStatus": "per-item",
+      "revisit": "per-item licence review"
+    },
+    {
+      "candidate": "World Bank CC BY-NC / CC BY-NC-ND items",
+      "status": "excluded-subset",
+      "reason": "A subset of OKR content is non-commercial or no-derivatives; only CC BY items are approved.",
+      "licenceStatus": "per-item",
+      "revisit": "non-commercial pool after legal review"
+    },
+    {
+      "candidate": "EU documents with third-party rights, personal data or restrictive notices",
+      "status": "excluded-subset",
+      "reason": "EU reuse policy excludes certain third-party and personal-data content; per-item rights check required.",
+      "licenceStatus": "per-item",
+      "revisit": "per-item rights review"
+    },
+    {
+      "candidate": "Crown copyright material not covered by OGL",
+      "status": "excluded-subset",
+      "reason": "GOV.UK content is not uniformly OGL; only OGL-marked content is approved.",
+      "licenceStatus": "per-item",
+      "revisit": "per-item licence review"
+    }
+  ],
+  "uncertainties": [
+    {
+      "id": "U1",
+      "topic": "Legal characterisation of model training",
+      "detail": "Whether training a model on licensed text, and distributing model weights, constitutes adaptation or derivative use is jurisdiction-dependent and not settled for every licence.",
+      "affects": [
+        "CC-BY-SA-4.0",
+        "CC-BY-SA-2.5",
+        "CC-BY-NC-SA-4.0",
+        "GPL-style licences"
+      ],
+      "action": "Obtain legal review before using share-alike or non-commercial material."
+    },
+    {
+      "id": "U2",
+      "topic": "Non-commercial scope",
+      "detail": "OpenStax current editions, MIT OpenCourseWare, Khan Academy, WHO and FAO are non-commercial. A model that may later be used commercially is not safely within that scope without permission.",
+      "affects": [
+        "openstax-current",
+        "mit-ocw",
+        "khan-academy",
+        "who",
+        "fao"
+      ],
+      "action": "Keep out of the unrestricted pool; seek permission or a commercial-use licence if needed."
+    },
+    {
+      "id": "U3",
+      "topic": "Licence changes over time",
+      "detail": "OpenStax changed its current library to CC BY-NC-SA in 2026. Other publishers may change terms; the inventory records the terms observed on 2026-11-02.",
+      "affects": [
+        "all sources"
+      ],
+      "action": "Re-verify licences immediately before acquisition and freeze evidence hashes."
+    },
+    {
+      "id": "U4",
+      "topic": "Third-party content inside government and institutional publications",
+      "detail": "USGS, NOAA, NASA, NIST, OSTI, CDC, NIH, USDA, Census, BLS, EPA, GOV.UK and EU publications may embed third-party text, figures, maps or journal articles that are not covered by the government/institutional licence.",
+      "affects": [
+        "US-Gov-Work sources",
+        "OGL-3.0 sources",
+        "EU-CC-BY-4.0",
+        "OECD-CC-BY-4.0",
+        "World-Bank-CC-BY"
+      ],
+      "action": "Text-only extraction; exclude third-party material; item-level rights review before acquisition."
+    },
+    {
+      "id": "U5",
+      "topic": "Cross-source duplication",
+      "detail": "PMC overlaps with PLOS, eLife, Frontiers, BMC/SpringerOpen and MDPI. Standard Ebooks often derives from Project Gutenberg texts. The capacity model applies explicit discounts, but actual overlap is not yet measured.",
+      "affects": [
+        "pmc-oa-ccby",
+        "plos",
+        "elife",
+        "frontiers",
+        "bmc-springeropen-ccby",
+        "mdpi-ccby",
+        "standard-ebooks",
+        "project-gutenberg"
+      ],
+      "action": "Measure DOI/title overlap in a bounded acquisition pilot before final composition."
+    },
+    {
+      "id": "U6",
+      "topic": "Token-yield uncertainty",
+      "detail": "Token estimates use pilot measurements for some sources and conservative document-length assumptions for others. New sources have not been sampled at scale.",
+      "affects": [
+        "all sources"
+      ],
+      "action": "Run a bounded acquisition pilot and measure actual cleaned-token yield per source."
+    },
+    {
+      "id": "U7",
+      "topic": "Language filtering",
+      "detail": "OAPEN, EU, OECD, World Bank and some agency sources contain non-English documents. Estimates assume English-only filtering with a confidence threshold.",
+      "affects": [
+        "oapen-ccby",
+        "eu-eurlex-op",
+        "oecd",
+        "world-bank-okr",
+        "government sources"
+      ],
+      "action": "Apply the production language policy and record rejection rates."
+    },
+    {
+      "id": "U8",
+      "topic": "Robots, rate limits and access terms",
+      "detail": "Bulk retrieval terms differ by source; some require APIs, OAI-PMH or prior permission. This work package performed no bulk acquisition.",
+      "affects": [
+        "all sources"
+      ],
+      "action": "Complete robots/terms review per source before acquisition; honour rate limits and required user agents."
+    },
+    {
+      "id": "U9",
+      "topic": "Near-duplicate detection at scale",
+      "detail": "Lexical MinHash/Jaccard screening cannot reliably detect translations, substantial paraphrases or rewrites. Semantic duplication may remain.",
+      "affects": [
+        "all sources"
+      ],
+      "action": "Retain lexical dedup plus manual/semantic review for high-risk families."
+    },
+    {
+      "id": "U10",
+      "topic": "V1 overlap estimates",
+      "detail": "Known v1 overlap is recorded at source/title level for most families; full-text screening of the expanded inventory has not been performed.",
+      "affects": [
+        "all sources"
+      ],
+      "action": "Run full v1 exact/normalised/MinHash screening during the separately authorised acquisition pilot."
+    },
+    {
+      "id": "U11",
+      "topic": "Publisher concentration of aggregators",
+      "detail": "OAPEN and PMC are distributors with many underlying publishers. Publisher-diversity analysis must use item-level metadata, not just the distributor name.",
+      "affects": [
+        "oapen-ccby",
+        "pmc-oa-ccby"
+      ],
+      "action": "Extract underlying publisher metadata during acquisition and re-run concentration analysis."
+    },
+    {
+      "id": "U12",
+      "topic": "Licence evidence freshness",
+      "detail": "Licence pages and terms were reviewed by research on 2026-11-02; some pages could not be fetched or may change. No legal clearance is claimed.",
+      "affects": [
+        "all sources"
+      ],
+      "action": "Freeze licence-page evidence hashes immediately before acquisition; obtain legal review for flagged items."
+    }
+  ]
+}

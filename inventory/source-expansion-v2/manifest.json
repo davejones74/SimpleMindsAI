@@ -1,0 +1,53 @@
+{
+  "schema": "sma/source-inventory-manifest@2",
+  "inventoryVersion": "2.0.0",
+  "generatedAt": "2026-11-02T00:00:00Z",
+  "inventorySha256": "a7825d370306da30ede8224ddd830d674c2762aed5f79647411d6e6102732c56",
+  "files": {
+    "specs": {
+      "path": "/home/dave/Repositories/SimpleMindsAI/inventory/source-expansion-v2/source-specs.json",
+      "sha256": "db056b26d020c1b9616f53974e3882e42580ce849a8d34f0bac2d753c71df812"
+    },
+    "inventory": {
+      "path": "/home/dave/Repositories/SimpleMindsAI/inventory/source-expansion-v2/source-inventory.json",
+      "sha256": "a7825d370306da30ede8224ddd830d674c2762aed5f79647411d6e6102732c56"
+    },
+    "derivedMetrics": {
+      "path": "/home/dave/Repositories/SimpleMindsAI/inventory/source-expansion-v2/derived-metrics.json",
+      "sha256": "e7a3f9f2064b40e26515cbfa1d67d33e3a37a6cee61a98d08d9dd2381270fd88"
+    },
+    "compositionPolicy": {
+      "path": "/home/dave/Repositories/SimpleMindsAI/inventory/source-expansion-v2/composition-policy.json",
+      "sha256": "5badf3078be6be9e0181b16937d776364dba08daa15d629eb7b140f5c5741700"
+    },
+    "licenceRegister": {
+      "path": "/home/dave/Repositories/SimpleMindsAI/inventory/source-expansion-v2/licence-register.json",
+      "sha256": "15a1d071edb81ba645d4a68b8a88f5524b63696b50b1d95660782973078a56ff"
+    },
+    "exclusions": {
+      "path": "/home/dave/Repositories/SimpleMindsAI/inventory/source-expansion-v2/exclusions.json",
+      "sha256": "efc9b3f27a37383a1a38b2bded9f1b98e067735bc8fd02e13e957a4ffa6b5995"
+    },
+    "candidateUrls": {
+      "path": "/home/dave/Repositories/SimpleMindsAI/inventory/source-expansion-v2/candidate-urls.json",
+      "sha256": "9d12b1edc4fe3d6b0a405155ef5b1a51a08f8a70e8d25ca9d87c7abd94715996"
+    },
+    "summaryReport": {
+      "path": "/home/dave/Repositories/SimpleMindsAI/inventory/source-expansion-v2/summary-report.md",
+      "sha256": "cfb6b4a040614dc950824b6af531ceedee3d5df3397367dd15282994c8f87927"
+    },
+    "buildScript": {
+      "path": "/home/dave/Repositories/SimpleMindsAI/scripts/build-source-inventory.mjs",
+      "sha256": "8744dfdc39f13fd191dfa4aed9565c89cc72ea7ec68b39504bee734751e99337"
+    },
+    "test": {
+      "path": "/home/dave/Repositories/SimpleMindsAI/test/source-inventory.test.js",
+      "sha256": "1649718356ed7bda862c2b8ac543154087183c43daff2466800835f92bd0829d"
+    },
+    "readme": {
+      "path": "/home/dave/Repositories/SimpleMindsAI/inventory/source-expansion-v2/README.md",
+      "sha256": "ff301ae0aefe57c9489fcc6d11df781b6573105b5c4f6efe6b0d66198d30f106"
+    }
+  },
+  "verification": "Run `node scripts/build-source-inventory.mjs --check` to re-hash every file."
+}
