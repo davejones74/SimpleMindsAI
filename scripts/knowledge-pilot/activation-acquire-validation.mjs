@@ -50,7 +50,7 @@ try {
     admissionGateway,
     languageFilter: config.languageFilter,
   });
-  if (!crawl.documents?.length) throw new Error(`targeted acquisition returned no documents (failures=${crawl.failures?.length ?? 0})`);
+  if (!crawl.documents?.length) throw new Error(`targeted acquisition returned no documents (failures=${crawl.failures?.length ?? 0}): ${JSON.stringify((crawl.failures ?? []).slice(0, 3))}`);
   const ollama = new OllamaClient();
   const scorer = new ReviewScorer({ ollama });
   const learned = await runLearningCycle({
