@@ -1,0 +1,20 @@
+[1;91mE-001h rocSHMEM[0m Could not open libnuma. Returning	[90mNUMAWrapper@src/gda/numa_wrapper.cpp:48[0m
+[sma] train v001 from v389 on cuda for 1 step(s)
+Loading weights:   0%|          | 0/74 [00:00<?, ?it/s]Loading weights: 100%|██████████| 74/74 [00:00<00:00, 48963.32it/s]
+[sma] ingested 1 document(s) from 1 path(s)
+[sma] snapshotted 74 parameters and 2 buffers
+[sma] no optimizer state for working parent v389; starting a fresh optimizer
+[sma] packed 1 docs -> 28 blocks (916 tokens, 20 dropped); 28 train / 0 val (tail-split)
+/opt/simpleminds/python/.venv/lib/python3.14/site-packages/transformers/integrations/sdpa_attention.py:158: UserWarning: Flash Efficient attention on Current AMD GPU is still experimental. Enable it with TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL=1. (Triggered internally at /__w/rockrel/rockrel/external-builds/pytorch/pytorch/aten/src/ATen/native/transformers/hip/sdp_utils.cpp:323.)
+  attn_output = torch.nn.functional.scaled_dot_product_attention(
+/opt/simpleminds/python/.venv/lib/python3.14/site-packages/transformers/integrations/sdpa_attention.py:158: UserWarning: Mem Efficient attention on Current AMD GPU is still experimental. Enable it with TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL=1. (Triggered internally at /__w/rockrel/rockrel/external-builds/pytorch/pytorch/aten/src/ATen/native/transformers/hip/sdp_utils.cpp:383.)
+  attn_output = torch.nn.functional.scaled_dot_product_attention(
+[sma] initial train loss 9.0153 (uniform = ln(V))
+__SMA_TELEMETRY__ {"schema":"sma/training-telemetry@1","sessionId":"v001","version":"v001","parentVersion":"v389","seq":1,"at":1793754477747,"type":"started","step":0,"totalSteps":1,"learningRate":1e-05,"tokensSeen":0,"initialTrainLoss":9.01526165008545,"initialValidationLoss":null,"elapsedMs":1268.9}
+[sma] step    0/1  loss 9.2558  lr 1.00e-05  gnorm 9.675  (clipped)
+__SMA_TELEMETRY__ {"schema":"sma/training-telemetry@1","sessionId":"v001","version":"v001","parentVersion":"v389","seq":2,"at":1793754478327,"type":"snapshot","step":1,"totalSteps":1,"loss":9.255781173706055,"learningRate":1e-05,"gradNorm":9.675171852111816,"clipped":true,"tokensSeen":32,"stepSeconds":0.5792,"stepsPerSecond":0.541,"elapsedMs":1848.4}
+[sma] check 7: 74/74 parameters changed; 0 buffer(s) drifted
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:00<00:00,  9.27it/s]Writing model shards: 100%|██████████| 1/1 [00:00<00:00,  9.25it/s]
+[sma] staged v001 (unpublished candidate; awaiting promotion)
+__SMA_TELEMETRY__ {"schema":"sma/training-telemetry@1","sessionId":"v001","version":"v001","parentVersion":"v389","seq":3,"at":1793754483427,"type":"checkpoint","step":1,"staged":true}
+__SMA_TELEMETRY__ {"schema":"sma/training-telemetry@1","sessionId":"v001","version":"v001","parentVersion":"v389","seq":4,"at":1793754483427,"type":"completed","step":1,"totalSteps":1,"tokensSeen":32,"finalTrainLoss":9.255781173706055,"finalValidationLoss":null,"elapsedMs":1849.0}
