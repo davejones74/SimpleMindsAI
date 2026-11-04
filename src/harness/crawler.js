@@ -922,6 +922,7 @@ export async function harvest({
       allowedDomains: config.crawlAllowedDomains,
       deniedDomains: config.crawlDeniedDomains,
       mode: config.crawlDiscoveryPolicy,
+      urlQuality: config.discoveryUrlQuality,
     });
     // Run bounded cycles (unlimited unless CRAWL_TOTAL_BUDGET / depth caps bound it)
     // Use the caller's registry when provided (production injects the process

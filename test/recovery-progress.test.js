@@ -8,6 +8,7 @@ import { RegistryStore } from "../src/storage/registry-store.js";
 import { JobSupervisor } from "../src/jobs/supervisor.js";
 import { JOB_STATUS } from "../src/jobs/job-store.js";
 import { QUARANTINE_REASON } from "../src/domain/article.js";
+import { DEFAULT_POLICY } from "../src/domain/review-policy.js";
 
 /**
  * Slice 6 — recovery-driven progress. Training material is only reviewed,
@@ -37,7 +38,9 @@ async function waitFor(sup, jobId, predicate, timeoutMs = 8000) {
 }
 
 test("getStats reports no-eligible-unconsumed, the recoverable pipeline, and quarantine recovery", async () => {
-  const store = await ArticleStore.open(tmp());
+  // Disable the deterministic sample so the first article stays INGESTED; the
+  // article id is random and sampleRate=0.1 made this test flaky.
+  const store = await ArticleStore.open(tmp(), { policy: { ...DEFAULT_POLICY, sampleRate: 0 } });
 
   let s = store.getStats();
   assert.equal(s.trainable, 0);
@@ -102,7 +105,10 @@ test("continuous training reports recovery-pending when material can still becom
   const waiting = await waitFor(sup, job.jobId, (j) => j.phase === "waiting-for-eligible");
   assert.equal(waiting.meta.waitingReason, "recovery-pending");
   assert.match(waiting.note, /recoverable/i);
-  assert.equal(waiting.meta.recovery.ingested, 1);
+  // Ingest is sampled by a deterministic function of the RANDOM article id, so
+  // the article may be INGESTED or already PENDING_REVIEW. Both are recoverable;
+  // asserting only `ingested` is flaky even though the recovery pipeline is not.
+  assert.equal((waiting.meta.recovery.ingested ?? 0) + (waiting.meta.recovery.pendingReview ?? 0), 1);
 
   await sup.stop(job.jobId);
   await waitFor(sup, job.jobId, (j) => j.terminal);

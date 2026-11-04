@@ -601,6 +601,7 @@ main.brain-stage {
 .ka-headline-chips { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
 .ka-grid { display: grid; gap: 12px; }
 .ka-grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.ka-grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .ka-grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .ka-card, .ka-panel {
   border: 1px solid rgba(120, 153, 190, 0.2);
@@ -697,12 +698,13 @@ main.brain-stage {
 .ka-footer { display: flex; justify-content: space-between; gap: 14px; color: var(--brain-muted); font-size: 10px; padding-top: 4px; }
 @media (max-width: 1100px) {
   .ka-grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ka-grid-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 720px) {
   .brain-knowledge { inset: 8px; padding: 13px; }
   .ka-headline { display: block; }
   .ka-headline-chips { justify-content: flex-start; margin-top: 10px; }
-  .ka-grid-4, .ka-grid-2 { grid-template-columns: 1fr; }
+  .ka-grid-4, .ka-grid-3, .ka-grid-2 { grid-template-columns: 1fr; }
   .ka-title { font-size: 20px; }
   .ka-footer { display: block; }
 }

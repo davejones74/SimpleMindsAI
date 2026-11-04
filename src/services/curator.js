@@ -1,6 +1,8 @@
 import { readFile } from "node:fs/promises";
 import { OllamaClient } from "./ollama-client.js";
 import { authHeaders } from "../auth/simple-auth.js";
+import { config } from "../config.js";
+import { mergeAdjacentUnits, planCuration } from "./curator-segmentation.js";
 
 const GRAPHQL_URL = process.env.GRAPHQL_URL ?? "http://localhost:4000/graphql";
 const ARTICLE_M = `
@@ -35,17 +37,41 @@ export class Curator {
     return this.ollama.clean(rawText);
   }
 
-  async ingestArticleText({ text, domain, source, rawText, sourceUrl = null, htmlLang = null }) {
+  async ingestArticleText({ text, domain, source, rawText, sourceUrl = null, htmlLang = null, licenceId = null, licenceUrl = null, licenceAttribution = null }) {
     if (!text) return null;
     const data = await gql(ARTICLE_M, {
-      input: { text, domain: domain ?? "general", source, rawText, sourceUrl, htmlLang },
+      input: { text, domain: domain ?? "general", source, rawText, sourceUrl, htmlLang, licenceId, licenceUrl, licenceAttribution },
     });
     return data.ingestArticle ?? null;
   }
 
   /** One raw blob in -> N articles out (cleaned by the teacher model). */
-  async processRaw(rawText, { source = "harvest", concurrency = 2, domain = "general", sourceUrl = null, htmlLang = null } = {}) {
-    const cleaned = await this.clean(rawText);
+  async processRaw(rawText, {
+    source = "harvest",
+    concurrency = 2,
+    domain = "general",
+    sourceUrl = null,
+    htmlLang = null,
+    strategy = config.curatorStrategy,
+    licenceId = null,
+    licenceUrl = null,
+    licenceAttribution = null,
+  } = {}) {
+    const plan = planCuration(rawText, {
+      strategy,
+      legacyMaxChars: config.curatorLegacyMaxChars,
+      maxChars: config.curatorChunkMaxChars,
+      minChars: config.curatorChunkMinChars,
+      targetChars: config.curatorChunkTargetChars,
+    });
+    let cleaned = [];
+    for (const chunk of plan) cleaned.push(...await this.clean(chunk.text));
+    if (config.curatorMergeUnits) {
+      cleaned = mergeAdjacentUnits(cleaned, {
+        minChars: config.curatorMergeMinChars,
+        maxChars: config.curatorMergeMaxChars,
+      });
+    }
     const results = [];
     let i = 0;
     const worker = async () => {
@@ -61,6 +87,9 @@ export class Curator {
           rawText,
           sourceUrl,
           htmlLang,
+          licenceId,
+          licenceUrl,
+          licenceAttribution,
         });
         results.push({ ...unit, articleId: res?.articleId ?? null, ingested: !!res });
       }

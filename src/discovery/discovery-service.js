@@ -89,6 +89,7 @@ export class DiscoveryService {
         allowedDomains: config.crawlAllowedDomains,
         deniedDomains: config.crawlDeniedDomains,
         mode: config.crawlDiscoveryPolicy,
+        urlQuality: config.discoveryUrlQuality,
       });
     this.log = log;
     // Callers may inject the process-wide registry (the server does, so the

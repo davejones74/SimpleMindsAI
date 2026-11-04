@@ -1,4 +1,5 @@
 import { contentHash } from "../domain/article.js";
+import { licenceSnapshotFields } from "../domain/licence.js";
 import { preScreen } from "../domain/review-gates.js";
 import { config } from "../config.js";
 import { publisherFromUrl, normalizeSourceUrl } from "./partition.js";
@@ -180,6 +181,7 @@ export function corpusRowForArticle(article, {
     ...(article.sourceUrl ? { sourceUrl: article.sourceUrl } : {}),
     ...(article.fetchedContentHash ? { fetchedContentHash: article.fetchedContentHash } : {}),
     ...(article.model ? { teacherModel: article.model } : {}),
+    ...licenceSnapshotFields(article.licence),
     ...(effectiveMode !== "fragment" || selected.source !== "text"
       ? { corpusMode: effectiveMode, corpusTextSource: selected.source }
       : {}),

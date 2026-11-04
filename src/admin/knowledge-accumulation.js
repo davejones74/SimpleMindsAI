@@ -2,6 +2,8 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { readPythonStore } from "./python-store.js";
 import { validationAvailability } from "../training/validation-status.js";
+import { measureValidationAvailability } from "../training/tokenizer-measurement.js";
+import { buildLearningEffectiveness } from "../training/learning-effectiveness.js";
 
 function lastEvent(run) {
   return Array.isArray(run?.events) && run.events.length ? run.events.at(-1) : null;
@@ -191,6 +193,22 @@ export async function buildKnowledgeAccumulation({ store, registry, pythonStoreP
   const versions = new Map((py.versions ?? []).map((version) => [version.version, version]));
   const runs = registry.listRuns();
   const contributions = typeof store.listContributions === "function" ? store.listContributions() : (store.contributions ?? []);
+  const evaluations = typeof registry.listEvaluations === "function" ? registry.listEvaluations() : [];
+  const modelEvents = typeof registry.listModelEvents === "function" ? registry.listModelEvents() : [];
+  const stats = typeof store.getStats === "function" ? store.getStats() : {};
+  const activeVersionMeta = versions.get(py.activeVersion) ?? null;
+  const stableEvaluation = evaluations
+    .filter((record) => record.kind === "baseline" && record.ok && record.version === py.activeVersion && Number.isFinite(Number(record.loss)))
+    .sort((a, b) => String(a.at ?? "").localeCompare(String(b.at ?? "")))
+    .at(-1) ?? null;
+  const learningEffectiveness = buildLearningEffectiveness({
+    contributions,
+    evaluations,
+    modelEvents,
+    stableBaselineVersion: py.activeVersion,
+    stableLoss: stableEvaluation ? Number(stableEvaluation.loss) : activeVersionMeta?.trainState?.finalValidationLoss ?? null,
+    pointers: { active: py.active, working: py.working, workingLastGood: py.workingLastGood },
+  });
   const history = contributions.map((contribution) => contributionSummary(contribution, versions)).filter(Boolean);
   const workingHistory = history.filter((row) => row.workingDecision).slice(-20);
   const stableHistory = history.filter((row) => row.stableDecision).slice(-20);
@@ -201,11 +219,15 @@ export async function buildKnowledgeAccumulation({ store, registry, pythonStoreP
     : runs.at(-1) ?? null;
   const optimizer = optimizerSummary(py, py.workingVersion);
   const latest = latestRunSummary(latestRun, latestContribution, optimizer);
-  const validation = await validationAvailability(store, registry, config);
+  const validation = config?.knowledgeTokenizerMeasurement && pythonStorePath
+    ? await measureValidationAvailability(store, registry, {
+        config,
+        tokenizerPath: path.join(pythonStorePath, py.workingVersion ?? py.activeVersion ?? "", "tokenizer.json"),
+      }).catch(() => validationAvailability(store, registry, config))
+    : await validationAvailability(store, registry, config);
   const jobs = typeof supervisor?.listJobs === "function" ? supervisor.listJobs() : [];
   const trainingJob = jobs.filter((job) => job.kind === "training").sort((a, b) => String(a.jobId).localeCompare(String(b.jobId), undefined, { numeric: true })).at(-1) ?? null;
   const learningJob = jobs.filter((job) => job.kind === "learning").sort((a, b) => String(a.jobId).localeCompare(String(b.jobId), undefined, { numeric: true })).at(-1) ?? null;
-  const activeVersionMeta = versions.get(py.activeVersion) ?? null;
   const workingVersionMeta = versions.get(py.workingVersion) ?? null;
   const workingAdvances = workingHistory.filter((row) => row.workingDecision === "accepted").length;
   const workingRejections = workingHistory.filter((row) => row.workingDecision === "rejected").length;
@@ -302,6 +324,42 @@ export async function buildKnowledgeAccumulation({ store, registry, pythonStoreP
       stablePromotions: promotions.length,
       stableRejections: stableHistory.filter((row) => row.stableDecision === "rejected").length,
       stableInconclusive: stableHistory.filter((row) => row.stableDecision === "inconclusive").length,
+    },
+    // Knowledge-to-trainability funnel, licence provenance and cumulative
+    // learning effectiveness. These are derived read-only views; none of them
+    // feeds the stable promotion gate.
+    funnel: {
+      totalArticles: stats.totalArticles ?? null,
+      reviewed: stats.reviewed ?? null,
+      rejected: stats.rejected ?? null,
+      retired: stats.retired ?? null,
+      trainable: stats.trainable ?? null,
+      uniqueConsumed: stats.uniqueConsumed ?? null,
+      replayEligible: stats.replayEligible ?? null,
+      approvedRetired: stats.approvedRetired ?? null,
+      consumedApprovedRetired: stats.consumedApprovedRetired ?? null,
+      consumedApprovedRetiredReplayable: stats.consumedApprovedRetiredReplayable ?? null,
+      consumedApprovedRetiredNotReplayable: stats.consumedApprovedRetiredNotReplayable ?? null,
+      deferredFresh: stats.deferredFresh ?? null,
+      recoverable: stats.recoverable ?? null,
+    },
+    licence: {
+      byStatus: stats.byLicenceStatus ?? null,
+      safe: stats.licenceSafe ?? null,
+      uncertain: stats.licenceUncertain ?? null,
+      restricted: stats.licenceRestricted ?? null,
+      unknown: stats.licenceUnknown ?? null,
+      unresolved: stats.licenceUnresolved ?? null,
+    },
+    learningEffectiveness: {
+      schema: learningEffectiveness.schema,
+      references: learningEffectiveness.references,
+      activity: learningEffectiveness.activity,
+      summary: learningEffectiveness.effect.summary,
+      trajectory: learningEffectiveness.effect.trajectory.slice(-20),
+      prospective: learningEffectiveness.effect.prospective,
+      retention: learningEffectiveness.effect.retention,
+      limitations: learningEffectiveness.limitations,
     },
   };
 }

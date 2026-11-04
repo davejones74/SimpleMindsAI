@@ -2,6 +2,7 @@ import { config as defaultConfig } from "../config.js";
 import { throwIfAborted } from "./cancel.js";
 import { acquireReviewLock } from "./review-lock.js";
 import { preScreen, assessCompleteness } from "../domain/review-gates.js";
+import { prefilterReview } from "../domain/review-prefilter.js";
 import { AUTHORITY } from "../domain/article.js";
 
 /**
@@ -31,6 +32,8 @@ const EMPTY = {
   retired: 0,
   failed: 0,
   gatesRejected: 0,
+  prefilterRejected: 0,
+  prefilterShadow: 0,
   skippedCooldown: 0,
   skippedCap: 0,
   skippedTechnicalCap: 0,
@@ -131,6 +134,37 @@ export async function reviewPendingArticles(store, scorer, opts = {}) {
         // real, auditable verdict (authority=automation) recorded through the
         // SAME review path, so the ledger keeps one source of truth.
         const completeness = assessCompleteness(article.text);
+        // Deterministic pre-review filter, before the expensive critic. The
+        // default shadow mode records would-be rejections without changing the
+        // outcome; enforce turns hard non-prose / below-floor text into an
+        // automation reject so it cannot consume teacher capacity.
+        const prefilter = prefilterReview(article.text, {
+          mode: review.prefilterMode ?? "shadow",
+          minChars: review.prefilterMinChars,
+          minWords: review.prefilterMinWords,
+        });
+        if ((review.prefilterMode ?? "shadow") === "enforce" && prefilter.wouldReject) {
+          try {
+            await store.recordReview({
+              articleId: article.articleId,
+              verdict: "reject",
+              score: 0,
+              rationale: `pre-review filter: ${prefilter.reason}`,
+              authority: AUTHORITY.AUTOMATION,
+              gate: "prefilter",
+              reason: `pre-review filter: ${prefilter.reason}`,
+              completeness: prefilter.completeness ?? completeness,
+            });
+            counters.prefilterRejected++;
+            counters.reviewed++;
+            onProgress({ phase: "review", reviewed: counters.reviewed, retired: counters.retired, prefilterRejected: counters.prefilterRejected });
+          } catch (err) {
+            counters.failed++;
+            log("err", `prefilter record failed for ${article.articleId}: ${err.message}`);
+          }
+          continue;
+        }
+        if (prefilter.wouldReject || prefilter.wouldQuarantine) counters.prefilterShadow++;
         if (review.gatesEnabled !== false) {
           const gate = preScreen(article.text, {
             sourceUrl: article.sourceUrl ?? null,

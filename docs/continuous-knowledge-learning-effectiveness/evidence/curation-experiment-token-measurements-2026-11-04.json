@@ -1,0 +1,5884 @@
+{
+  "schema": "sma/curation-experiment-token-measurement@1",
+  "at": "2026-11-04T21:46:13.890Z",
+  "tokenizer": "/var/lib/simpleminds/store/v493/tokenizer.json",
+  "corpora": {
+    "legacy": {
+      "all": {
+        "schema": "sma/token-measurement@1",
+        "sequenceLength": 128,
+        "documentCount": 90,
+        "totalTokens": 20704,
+        "blocksIfConcatenated": 161,
+        "droppedTokens": 96,
+        "documentsMeetingOneBlock": 82,
+        "documents": [
+          {
+            "itemId": "legacy-pride-prejudice-0",
+            "tokens": 193,
+            "chars": 623,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-pride-prejudice-1",
+            "tokens": 276,
+            "chars": 1136,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-pride-prejudice-2",
+            "tokens": 129,
+            "chars": 563,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-pride-prejudice-3",
+            "tokens": 219,
+            "chars": 917,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-pride-prejudice-4",
+            "tokens": 282,
+            "chars": 1170,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-pride-prejudice-5",
+            "tokens": 230,
+            "chars": 1054,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-pride-prejudice-6",
+            "tokens": 50,
+            "chars": 227,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "legacy-pride-prejudice-7",
+            "tokens": 272,
+            "chars": 1132,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-pride-prejudice-8",
+            "tokens": 216,
+            "chars": 945,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-pride-prejudice-9",
+            "tokens": 241,
+            "chars": 974,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-pride-prejudice-10",
+            "tokens": 293,
+            "chars": 1131,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-pride-prejudice-11",
+            "tokens": 69,
+            "chars": 272,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "legacy-pride-prejudice-12",
+            "tokens": 256,
+            "chars": 1078,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-pride-prejudice-13",
+            "tokens": 210,
+            "chars": 954,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-pride-prejudice-14",
+            "tokens": 255,
+            "chars": 1017,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-pride-prejudice-15",
+            "tokens": 193,
+            "chars": 769,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-frankenstein-0",
+            "tokens": 223,
+            "chars": 774,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-frankenstein-1",
+            "tokens": 278,
+            "chars": 1164,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-frankenstein-2",
+            "tokens": 234,
+            "chars": 1035,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-frankenstein-3",
+            "tokens": 206,
+            "chars": 964,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-frankenstein-4",
+            "tokens": 119,
+            "chars": 531,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "legacy-frankenstein-5",
+            "tokens": 192,
+            "chars": 886,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-frankenstein-6",
+            "tokens": 258,
+            "chars": 1150,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-frankenstein-7",
+            "tokens": 272,
+            "chars": 1118,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-frankenstein-8",
+            "tokens": 269,
+            "chars": 1102,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-frankenstein-9",
+            "tokens": 153,
+            "chars": 679,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-frankenstein-10",
+            "tokens": 171,
+            "chars": 741,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-frankenstein-11",
+            "tokens": 230,
+            "chars": 1018,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-frankenstein-12",
+            "tokens": 223,
+            "chars": 984,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-frankenstein-13",
+            "tokens": 198,
+            "chars": 848,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-frankenstein-14",
+            "tokens": 231,
+            "chars": 980,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-moby-dick-0",
+            "tokens": 367,
+            "chars": 1198,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-moby-dick-1",
+            "tokens": 353,
+            "chars": 1165,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-moby-dick-2",
+            "tokens": 336,
+            "chars": 1165,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-moby-dick-3",
+            "tokens": 272,
+            "chars": 967,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-moby-dick-4",
+            "tokens": 295,
+            "chars": 1176,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-moby-dick-5",
+            "tokens": 189,
+            "chars": 448,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-moby-dick-6",
+            "tokens": 178,
+            "chars": 773,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-moby-dick-7",
+            "tokens": 301,
+            "chars": 1195,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-moby-dick-8",
+            "tokens": 291,
+            "chars": 1116,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-moby-dick-9",
+            "tokens": 264,
+            "chars": 1031,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-moby-dick-10",
+            "tokens": 277,
+            "chars": 987,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-moby-dick-11",
+            "tokens": 310,
+            "chars": 1169,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-moby-dick-12",
+            "tokens": 170,
+            "chars": 687,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-moby-dick-13",
+            "tokens": 240,
+            "chars": 854,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-sherlock-holmes-0",
+            "tokens": 145,
+            "chars": 525,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-sherlock-holmes-1",
+            "tokens": 262,
+            "chars": 1147,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-sherlock-holmes-2",
+            "tokens": 250,
+            "chars": 1143,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-sherlock-holmes-3",
+            "tokens": 272,
+            "chars": 1134,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-sherlock-holmes-4",
+            "tokens": 213,
+            "chars": 830,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-sherlock-holmes-5",
+            "tokens": 115,
+            "chars": 463,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "legacy-sherlock-holmes-6",
+            "tokens": 198,
+            "chars": 820,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-sherlock-holmes-7",
+            "tokens": 173,
+            "chars": 743,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-sherlock-holmes-8",
+            "tokens": 270,
+            "chars": 1125,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-sherlock-holmes-9",
+            "tokens": 218,
+            "chars": 843,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-sherlock-holmes-10",
+            "tokens": 318,
+            "chars": 1181,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-sherlock-holmes-11",
+            "tokens": 234,
+            "chars": 904,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-sherlock-holmes-12",
+            "tokens": 258,
+            "chars": 1126,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-sherlock-holmes-13",
+            "tokens": 289,
+            "chars": 1159,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-sherlock-holmes-14",
+            "tokens": 191,
+            "chars": 829,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-tale-two-cities-0",
+            "tokens": 255,
+            "chars": 1047,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-tale-two-cities-1",
+            "tokens": 266,
+            "chars": 1079,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-tale-two-cities-2",
+            "tokens": 78,
+            "chars": 331,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "legacy-tale-two-cities-3",
+            "tokens": 198,
+            "chars": 914,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-tale-two-cities-4",
+            "tokens": 284,
+            "chars": 1188,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-tale-two-cities-5",
+            "tokens": 79,
+            "chars": 352,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "legacy-tale-two-cities-6",
+            "tokens": 269,
+            "chars": 1133,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-tale-two-cities-7",
+            "tokens": 169,
+            "chars": 662,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-tale-two-cities-8",
+            "tokens": 137,
+            "chars": 590,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-tale-two-cities-9",
+            "tokens": 215,
+            "chars": 914,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-tale-two-cities-10",
+            "tokens": 268,
+            "chars": 1084,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-tale-two-cities-11",
+            "tokens": 280,
+            "chars": 1165,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-tale-two-cities-12",
+            "tokens": 183,
+            "chars": 721,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-tale-two-cities-13",
+            "tokens": 290,
+            "chars": 1160,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-tale-two-cities-14",
+            "tokens": 267,
+            "chars": 1119,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-tale-two-cities-15",
+            "tokens": 126,
+            "chars": 508,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "legacy-war-and-peace-0",
+            "tokens": 315,
+            "chars": 1183,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-war-and-peace-1",
+            "tokens": 327,
+            "chars": 1193,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-war-and-peace-2",
+            "tokens": 320,
+            "chars": 1187,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-war-and-peace-3",
+            "tokens": 325,
+            "chars": 1199,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-war-and-peace-4",
+            "tokens": 205,
+            "chars": 782,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-war-and-peace-5",
+            "tokens": 207,
+            "chars": 786,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-war-and-peace-6",
+            "tokens": 284,
+            "chars": 1163,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-war-and-peace-7",
+            "tokens": 149,
+            "chars": 609,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-war-and-peace-8",
+            "tokens": 157,
+            "chars": 714,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-war-and-peace-9",
+            "tokens": 280,
+            "chars": 1177,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-war-and-peace-10",
+            "tokens": 80,
+            "chars": 315,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "legacy-war-and-peace-11",
+            "tokens": 304,
+            "chars": 1176,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-war-and-peace-12",
+            "tokens": 262,
+            "chars": 1099,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-war-and-peace-13",
+            "tokens": 235,
+            "chars": 1009,
+            "meetsOneBlock": true
+          }
+        ]
+      },
+      "train": {
+        "schema": "sma/token-measurement@1",
+        "sequenceLength": 128,
+        "documentCount": 76,
+        "totalTokens": 17254,
+        "blocksIfConcatenated": 134,
+        "droppedTokens": 102,
+        "documentsMeetingOneBlock": 69,
+        "documents": [
+          {
+            "itemId": "legacy-pride-prejudice-0",
+            "tokens": 193,
+            "chars": 623,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-pride-prejudice-1",
+            "tokens": 276,
+            "chars": 1136,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-pride-prejudice-2",
+            "tokens": 129,
+            "chars": 563,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-pride-prejudice-3",
+            "tokens": 219,
+            "chars": 917,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-pride-prejudice-4",
+            "tokens": 282,
+            "chars": 1170,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-pride-prejudice-5",
+            "tokens": 230,
+            "chars": 1054,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-pride-prejudice-6",
+            "tokens": 50,
+            "chars": 227,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "legacy-pride-prejudice-7",
+            "tokens": 272,
+            "chars": 1132,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-pride-prejudice-8",
+            "tokens": 216,
+            "chars": 945,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-pride-prejudice-9",
+            "tokens": 241,
+            "chars": 974,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-pride-prejudice-10",
+            "tokens": 293,
+            "chars": 1131,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-pride-prejudice-11",
+            "tokens": 69,
+            "chars": 272,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "legacy-pride-prejudice-12",
+            "tokens": 256,
+            "chars": 1078,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-pride-prejudice-13",
+            "tokens": 210,
+            "chars": 954,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-pride-prejudice-14",
+            "tokens": 255,
+            "chars": 1017,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-pride-prejudice-15",
+            "tokens": 193,
+            "chars": 769,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-frankenstein-0",
+            "tokens": 223,
+            "chars": 774,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-frankenstein-1",
+            "tokens": 278,
+            "chars": 1164,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-frankenstein-2",
+            "tokens": 234,
+            "chars": 1035,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-frankenstein-3",
+            "tokens": 206,
+            "chars": 964,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-frankenstein-4",
+            "tokens": 119,
+            "chars": 531,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "legacy-frankenstein-5",
+            "tokens": 192,
+            "chars": 886,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-frankenstein-6",
+            "tokens": 258,
+            "chars": 1150,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-frankenstein-7",
+            "tokens": 272,
+            "chars": 1118,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-frankenstein-8",
+            "tokens": 269,
+            "chars": 1102,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-frankenstein-9",
+            "tokens": 153,
+            "chars": 679,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-frankenstein-10",
+            "tokens": 171,
+            "chars": 741,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-frankenstein-11",
+            "tokens": 230,
+            "chars": 1018,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-frankenstein-12",
+            "tokens": 223,
+            "chars": 984,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-frankenstein-13",
+            "tokens": 198,
+            "chars": 848,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-frankenstein-14",
+            "tokens": 231,
+            "chars": 980,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-moby-dick-0",
+            "tokens": 367,
+            "chars": 1198,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-moby-dick-1",
+            "tokens": 353,
+            "chars": 1165,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-moby-dick-2",
+            "tokens": 336,
+            "chars": 1165,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-moby-dick-3",
+            "tokens": 272,
+            "chars": 967,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-moby-dick-4",
+            "tokens": 295,
+            "chars": 1176,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-moby-dick-5",
+            "tokens": 189,
+            "chars": 448,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-moby-dick-6",
+            "tokens": 178,
+            "chars": 773,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-moby-dick-7",
+            "tokens": 301,
+            "chars": 1195,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-moby-dick-8",
+            "tokens": 291,
+            "chars": 1116,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-moby-dick-9",
+            "tokens": 264,
+            "chars": 1031,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-moby-dick-10",
+            "tokens": 277,
+            "chars": 987,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-moby-dick-11",
+            "tokens": 310,
+            "chars": 1169,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-moby-dick-12",
+            "tokens": 170,
+            "chars": 687,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-moby-dick-13",
+            "tokens": 240,
+            "chars": 854,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-sherlock-holmes-0",
+            "tokens": 145,
+            "chars": 525,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-sherlock-holmes-1",
+            "tokens": 262,
+            "chars": 1147,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-sherlock-holmes-2",
+            "tokens": 250,
+            "chars": 1143,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-sherlock-holmes-3",
+            "tokens": 272,
+            "chars": 1134,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-sherlock-holmes-4",
+            "tokens": 213,
+            "chars": 830,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-sherlock-holmes-5",
+            "tokens": 115,
+            "chars": 463,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "legacy-sherlock-holmes-6",
+            "tokens": 198,
+            "chars": 820,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-sherlock-holmes-7",
+            "tokens": 173,
+            "chars": 743,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-sherlock-holmes-8",
+            "tokens": 270,
+            "chars": 1125,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-sherlock-holmes-9",
+            "tokens": 218,
+            "chars": 843,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-sherlock-holmes-10",
+            "tokens": 318,
+            "chars": 1181,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-sherlock-holmes-11",
+            "tokens": 234,
+            "chars": 904,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-sherlock-holmes-12",
+            "tokens": 258,
+            "chars": 1126,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-sherlock-holmes-13",
+            "tokens": 289,
+            "chars": 1159,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-sherlock-holmes-14",
+            "tokens": 191,
+            "chars": 829,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-tale-two-cities-0",
+            "tokens": 255,
+            "chars": 1047,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-tale-two-cities-1",
+            "tokens": 266,
+            "chars": 1079,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-tale-two-cities-2",
+            "tokens": 78,
+            "chars": 331,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "legacy-tale-two-cities-3",
+            "tokens": 198,
+            "chars": 914,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-tale-two-cities-4",
+            "tokens": 284,
+            "chars": 1188,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-tale-two-cities-5",
+            "tokens": 79,
+            "chars": 352,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "legacy-tale-two-cities-6",
+            "tokens": 269,
+            "chars": 1133,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-tale-two-cities-7",
+            "tokens": 169,
+            "chars": 662,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-tale-two-cities-8",
+            "tokens": 137,
+            "chars": 590,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-tale-two-cities-9",
+            "tokens": 215,
+            "chars": 914,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-tale-two-cities-10",
+            "tokens": 268,
+            "chars": 1084,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-tale-two-cities-11",
+            "tokens": 280,
+            "chars": 1165,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-tale-two-cities-12",
+            "tokens": 183,
+            "chars": 721,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-tale-two-cities-13",
+            "tokens": 290,
+            "chars": 1160,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-tale-two-cities-14",
+            "tokens": 267,
+            "chars": 1119,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-tale-two-cities-15",
+            "tokens": 126,
+            "chars": 508,
+            "meetsOneBlock": false
+          }
+        ]
+      },
+      "validation": {
+        "schema": "sma/token-measurement@1",
+        "sequenceLength": 128,
+        "documentCount": 14,
+        "totalTokens": 3450,
+        "blocksIfConcatenated": 26,
+        "droppedTokens": 122,
+        "documentsMeetingOneBlock": 13,
+        "documents": [
+          {
+            "itemId": "legacy-war-and-peace-0",
+            "tokens": 315,
+            "chars": 1183,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-war-and-peace-1",
+            "tokens": 327,
+            "chars": 1193,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-war-and-peace-2",
+            "tokens": 320,
+            "chars": 1187,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-war-and-peace-3",
+            "tokens": 325,
+            "chars": 1199,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-war-and-peace-4",
+            "tokens": 205,
+            "chars": 782,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-war-and-peace-5",
+            "tokens": 207,
+            "chars": 786,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-war-and-peace-6",
+            "tokens": 284,
+            "chars": 1163,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-war-and-peace-7",
+            "tokens": 149,
+            "chars": 609,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-war-and-peace-8",
+            "tokens": 157,
+            "chars": 714,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-war-and-peace-9",
+            "tokens": 280,
+            "chars": 1177,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-war-and-peace-10",
+            "tokens": 80,
+            "chars": 315,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "legacy-war-and-peace-11",
+            "tokens": 304,
+            "chars": 1176,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-war-and-peace-12",
+            "tokens": 262,
+            "chars": 1099,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "legacy-war-and-peace-13",
+            "tokens": 235,
+            "chars": 1009,
+            "meetsOneBlock": true
+          }
+        ]
+      }
+    },
+    "segmented": {
+      "all": {
+        "schema": "sma/token-measurement@1",
+        "sequenceLength": 128,
+        "documentCount": 363,
+        "totalTokens": 83026,
+        "blocksIfConcatenated": 648,
+        "droppedTokens": 82,
+        "documentsMeetingOneBlock": 331,
+        "documents": [
+          {
+            "itemId": "segmented-pride-prejudice-0",
+            "tokens": 193,
+            "chars": 623,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-1",
+            "tokens": 276,
+            "chars": 1136,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-2",
+            "tokens": 129,
+            "chars": 563,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-3",
+            "tokens": 219,
+            "chars": 917,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-4",
+            "tokens": 282,
+            "chars": 1170,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-5",
+            "tokens": 230,
+            "chars": 1054,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-6",
+            "tokens": 50,
+            "chars": 227,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "segmented-pride-prejudice-7",
+            "tokens": 272,
+            "chars": 1132,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-8",
+            "tokens": 216,
+            "chars": 945,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-9",
+            "tokens": 241,
+            "chars": 974,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-10",
+            "tokens": 293,
+            "chars": 1131,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-11",
+            "tokens": 69,
+            "chars": 272,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "segmented-pride-prejudice-12",
+            "tokens": 256,
+            "chars": 1078,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-13",
+            "tokens": 210,
+            "chars": 954,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-14",
+            "tokens": 255,
+            "chars": 1017,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-15",
+            "tokens": 90,
+            "chars": 340,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "segmented-pride-prejudice-16",
+            "tokens": 244,
+            "chars": 1014,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-17",
+            "tokens": 127,
+            "chars": 544,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "segmented-pride-prejudice-18",
+            "tokens": 248,
+            "chars": 1022,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-19",
+            "tokens": 241,
+            "chars": 1019,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-20",
+            "tokens": 110,
+            "chars": 466,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "segmented-pride-prejudice-21",
+            "tokens": 274,
+            "chars": 1136,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-22",
+            "tokens": 285,
+            "chars": 1186,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-23",
+            "tokens": 242,
+            "chars": 1050,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-24",
+            "tokens": 92,
+            "chars": 404,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "segmented-pride-prejudice-25",
+            "tokens": 226,
+            "chars": 940,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-26",
+            "tokens": 238,
+            "chars": 993,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-27",
+            "tokens": 262,
+            "chars": 1126,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-28",
+            "tokens": 87,
+            "chars": 356,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "segmented-pride-prejudice-29",
+            "tokens": 314,
+            "chars": 1185,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-30",
+            "tokens": 350,
+            "chars": 1167,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-31",
+            "tokens": 341,
+            "chars": 1177,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-32",
+            "tokens": 321,
+            "chars": 1153,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-33",
+            "tokens": 304,
+            "chars": 1173,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-34",
+            "tokens": 278,
+            "chars": 1111,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-35",
+            "tokens": 279,
+            "chars": 1122,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-36",
+            "tokens": 214,
+            "chars": 833,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-37",
+            "tokens": 302,
+            "chars": 1167,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-38",
+            "tokens": 273,
+            "chars": 1044,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-39",
+            "tokens": 237,
+            "chars": 973,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-40",
+            "tokens": 327,
+            "chars": 1195,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-41",
+            "tokens": 242,
+            "chars": 1027,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-42",
+            "tokens": 274,
+            "chars": 1144,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-43",
+            "tokens": 127,
+            "chars": 545,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "segmented-pride-prejudice-44",
+            "tokens": 232,
+            "chars": 985,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-45",
+            "tokens": 270,
+            "chars": 1168,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-46",
+            "tokens": 267,
+            "chars": 1057,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-47",
+            "tokens": 157,
+            "chars": 667,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-48",
+            "tokens": 247,
+            "chars": 1080,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-49",
+            "tokens": 293,
+            "chars": 1121,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-50",
+            "tokens": 286,
+            "chars": 1144,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-51",
+            "tokens": 292,
+            "chars": 1171,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-52",
+            "tokens": 177,
+            "chars": 699,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-53",
+            "tokens": 229,
+            "chars": 1012,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-54",
+            "tokens": 270,
+            "chars": 1131,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-55",
+            "tokens": 188,
+            "chars": 777,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-56",
+            "tokens": 248,
+            "chars": 1052,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-57",
+            "tokens": 280,
+            "chars": 1160,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-58",
+            "tokens": 297,
+            "chars": 1166,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-59",
+            "tokens": 252,
+            "chars": 963,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-60",
+            "tokens": 261,
+            "chars": 986,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-61",
+            "tokens": 283,
+            "chars": 1136,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-62",
+            "tokens": 136,
+            "chars": 593,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-0",
+            "tokens": 223,
+            "chars": 774,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-1",
+            "tokens": 278,
+            "chars": 1164,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-2",
+            "tokens": 234,
+            "chars": 1035,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-3",
+            "tokens": 206,
+            "chars": 964,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-4",
+            "tokens": 119,
+            "chars": 531,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "segmented-frankenstein-5",
+            "tokens": 192,
+            "chars": 886,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-6",
+            "tokens": 258,
+            "chars": 1150,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-7",
+            "tokens": 272,
+            "chars": 1118,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-8",
+            "tokens": 269,
+            "chars": 1102,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-9",
+            "tokens": 153,
+            "chars": 679,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-10",
+            "tokens": 171,
+            "chars": 741,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-11",
+            "tokens": 230,
+            "chars": 1018,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-12",
+            "tokens": 223,
+            "chars": 984,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-13",
+            "tokens": 198,
+            "chars": 848,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-14",
+            "tokens": 250,
+            "chars": 1060,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-15",
+            "tokens": 142,
+            "chars": 609,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-16",
+            "tokens": 241,
+            "chars": 1047,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-17",
+            "tokens": 278,
+            "chars": 1168,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-18",
+            "tokens": 238,
+            "chars": 1036,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-19",
+            "tokens": 276,
+            "chars": 1159,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-20",
+            "tokens": 259,
+            "chars": 1139,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-21",
+            "tokens": 258,
+            "chars": 1116,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-22",
+            "tokens": 290,
+            "chars": 1199,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-23",
+            "tokens": 217,
+            "chars": 1010,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-24",
+            "tokens": 180,
+            "chars": 769,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-25",
+            "tokens": 248,
+            "chars": 1056,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-26",
+            "tokens": 109,
+            "chars": 440,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "segmented-frankenstein-27",
+            "tokens": 176,
+            "chars": 804,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-28",
+            "tokens": 273,
+            "chars": 1114,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-29",
+            "tokens": 180,
+            "chars": 761,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-30",
+            "tokens": 198,
+            "chars": 843,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-31",
+            "tokens": 279,
+            "chars": 1192,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-32",
+            "tokens": 229,
+            "chars": 940,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-33",
+            "tokens": 131,
+            "chars": 564,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-34",
+            "tokens": 223,
+            "chars": 1000,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-35",
+            "tokens": 180,
+            "chars": 794,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-36",
+            "tokens": 232,
+            "chars": 1033,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-37",
+            "tokens": 264,
+            "chars": 1160,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-38",
+            "tokens": 66,
+            "chars": 332,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "segmented-frankenstein-39",
+            "tokens": 248,
+            "chars": 1112,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-40",
+            "tokens": 285,
+            "chars": 1195,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-41",
+            "tokens": 94,
+            "chars": 418,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "segmented-frankenstein-42",
+            "tokens": 219,
+            "chars": 934,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-43",
+            "tokens": 172,
+            "chars": 785,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-44",
+            "tokens": 191,
+            "chars": 806,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-45",
+            "tokens": 257,
+            "chars": 1200,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-46",
+            "tokens": 223,
+            "chars": 930,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-47",
+            "tokens": 69,
+            "chars": 270,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "segmented-frankenstein-48",
+            "tokens": 234,
+            "chars": 1115,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-49",
+            "tokens": 262,
+            "chars": 1105,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-50",
+            "tokens": 139,
+            "chars": 643,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-51",
+            "tokens": 200,
+            "chars": 834,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-52",
+            "tokens": 176,
+            "chars": 805,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-53",
+            "tokens": 179,
+            "chars": 808,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-54",
+            "tokens": 128,
+            "chars": 572,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-55",
+            "tokens": 202,
+            "chars": 872,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-56",
+            "tokens": 144,
+            "chars": 640,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-57",
+            "tokens": 185,
+            "chars": 832,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-58",
+            "tokens": 236,
+            "chars": 1030,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-59",
+            "tokens": 225,
+            "chars": 1023,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-60",
+            "tokens": 114,
+            "chars": 507,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "segmented-frankenstein-61",
+            "tokens": 281,
+            "chars": 1186,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-62",
+            "tokens": 34,
+            "chars": 152,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "segmented-frankenstein-63",
+            "tokens": 240,
+            "chars": 1056,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-64",
+            "tokens": 257,
+            "chars": 1097,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-65",
+            "tokens": 262,
+            "chars": 1084,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-66",
+            "tokens": 124,
+            "chars": 528,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "segmented-moby-dick-0",
+            "tokens": 367,
+            "chars": 1198,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-1",
+            "tokens": 353,
+            "chars": 1165,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-2",
+            "tokens": 336,
+            "chars": 1165,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-3",
+            "tokens": 272,
+            "chars": 967,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-4",
+            "tokens": 295,
+            "chars": 1176,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-5",
+            "tokens": 189,
+            "chars": 448,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-6",
+            "tokens": 178,
+            "chars": 773,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-7",
+            "tokens": 301,
+            "chars": 1195,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-8",
+            "tokens": 291,
+            "chars": 1116,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-9",
+            "tokens": 264,
+            "chars": 1031,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-10",
+            "tokens": 277,
+            "chars": 987,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-11",
+            "tokens": 310,
+            "chars": 1169,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-12",
+            "tokens": 170,
+            "chars": 687,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-13",
+            "tokens": 330,
+            "chars": 1165,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-14",
+            "tokens": 243,
+            "chars": 958,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-15",
+            "tokens": 278,
+            "chars": 1110,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-16",
+            "tokens": 245,
+            "chars": 960,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-17",
+            "tokens": 285,
+            "chars": 1123,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-18",
+            "tokens": 308,
+            "chars": 1150,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-19",
+            "tokens": 221,
+            "chars": 859,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-20",
+            "tokens": 182,
+            "chars": 825,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-21",
+            "tokens": 293,
+            "chars": 1068,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-22",
+            "tokens": 229,
+            "chars": 958,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-23",
+            "tokens": 244,
+            "chars": 980,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-24",
+            "tokens": 286,
+            "chars": 1197,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-25",
+            "tokens": 284,
+            "chars": 1035,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-26",
+            "tokens": 255,
+            "chars": 1107,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-27",
+            "tokens": 273,
+            "chars": 1052,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-28",
+            "tokens": 149,
+            "chars": 592,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-29",
+            "tokens": 156,
+            "chars": 626,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-30",
+            "tokens": 293,
+            "chars": 1195,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-31",
+            "tokens": 183,
+            "chars": 750,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-32",
+            "tokens": 242,
+            "chars": 892,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-33",
+            "tokens": 142,
+            "chars": 543,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-34",
+            "tokens": 214,
+            "chars": 829,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-35",
+            "tokens": 194,
+            "chars": 775,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-36",
+            "tokens": 171,
+            "chars": 709,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-37",
+            "tokens": 283,
+            "chars": 1182,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-38",
+            "tokens": 195,
+            "chars": 792,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-39",
+            "tokens": 288,
+            "chars": 1147,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-40",
+            "tokens": 93,
+            "chars": 397,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "segmented-moby-dick-41",
+            "tokens": 257,
+            "chars": 1065,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-42",
+            "tokens": 187,
+            "chars": 746,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-43",
+            "tokens": 247,
+            "chars": 985,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-44",
+            "tokens": 215,
+            "chars": 831,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-45",
+            "tokens": 191,
+            "chars": 718,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-46",
+            "tokens": 137,
+            "chars": 540,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-47",
+            "tokens": 306,
+            "chars": 1189,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-48",
+            "tokens": 150,
+            "chars": 569,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-49",
+            "tokens": 232,
+            "chars": 883,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-50",
+            "tokens": 221,
+            "chars": 954,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-51",
+            "tokens": 255,
+            "chars": 1023,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-52",
+            "tokens": 105,
+            "chars": 454,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "segmented-moby-dick-53",
+            "tokens": 267,
+            "chars": 1063,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-54",
+            "tokens": 278,
+            "chars": 1128,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-55",
+            "tokens": 241,
+            "chars": 924,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-56",
+            "tokens": 206,
+            "chars": 802,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-57",
+            "tokens": 265,
+            "chars": 1009,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-58",
+            "tokens": 172,
+            "chars": 644,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-59",
+            "tokens": 257,
+            "chars": 1046,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-60",
+            "tokens": 274,
+            "chars": 1112,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-61",
+            "tokens": 279,
+            "chars": 1148,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-62",
+            "tokens": 157,
+            "chars": 585,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-63",
+            "tokens": 245,
+            "chars": 921,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-64",
+            "tokens": 93,
+            "chars": 380,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-0",
+            "tokens": 145,
+            "chars": 525,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-1",
+            "tokens": 262,
+            "chars": 1147,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-2",
+            "tokens": 250,
+            "chars": 1143,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-3",
+            "tokens": 272,
+            "chars": 1134,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-4",
+            "tokens": 213,
+            "chars": 830,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-5",
+            "tokens": 115,
+            "chars": 463,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-6",
+            "tokens": 198,
+            "chars": 820,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-7",
+            "tokens": 173,
+            "chars": 743,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-8",
+            "tokens": 270,
+            "chars": 1125,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-9",
+            "tokens": 218,
+            "chars": 843,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-10",
+            "tokens": 318,
+            "chars": 1181,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-11",
+            "tokens": 234,
+            "chars": 904,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-12",
+            "tokens": 258,
+            "chars": 1126,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-13",
+            "tokens": 289,
+            "chars": 1159,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-14",
+            "tokens": 240,
+            "chars": 1059,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-15",
+            "tokens": 268,
+            "chars": 1129,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-16",
+            "tokens": 295,
+            "chars": 1200,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-17",
+            "tokens": 286,
+            "chars": 1180,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-18",
+            "tokens": 284,
+            "chars": 1122,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-19",
+            "tokens": 200,
+            "chars": 769,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-20",
+            "tokens": 234,
+            "chars": 1020,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-21",
+            "tokens": 225,
+            "chars": 928,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-22",
+            "tokens": 204,
+            "chars": 852,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-23",
+            "tokens": 128,
+            "chars": 534,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-24",
+            "tokens": 209,
+            "chars": 775,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-25",
+            "tokens": 271,
+            "chars": 1128,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-26",
+            "tokens": 286,
+            "chars": 1103,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-27",
+            "tokens": 293,
+            "chars": 1154,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-28",
+            "tokens": 264,
+            "chars": 1084,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-29",
+            "tokens": 233,
+            "chars": 943,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-30",
+            "tokens": 274,
+            "chars": 1115,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-31",
+            "tokens": 196,
+            "chars": 766,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-32",
+            "tokens": 137,
+            "chars": 575,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-33",
+            "tokens": 279,
+            "chars": 1177,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-34",
+            "tokens": 278,
+            "chars": 1146,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-35",
+            "tokens": 289,
+            "chars": 1172,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-36",
+            "tokens": 182,
+            "chars": 699,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-37",
+            "tokens": 207,
+            "chars": 855,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-38",
+            "tokens": 286,
+            "chars": 1181,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-39",
+            "tokens": 213,
+            "chars": 828,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-40",
+            "tokens": 257,
+            "chars": 1059,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-41",
+            "tokens": 49,
+            "chars": 197,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-42",
+            "tokens": 279,
+            "chars": 1195,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-43",
+            "tokens": 280,
+            "chars": 1156,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-44",
+            "tokens": 283,
+            "chars": 1169,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-45",
+            "tokens": 261,
+            "chars": 1054,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-46",
+            "tokens": 274,
+            "chars": 1098,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-47",
+            "tokens": 216,
+            "chars": 891,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-48",
+            "tokens": 271,
+            "chars": 1108,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-49",
+            "tokens": 232,
+            "chars": 1026,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-50",
+            "tokens": 243,
+            "chars": 1116,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-51",
+            "tokens": 64,
+            "chars": 268,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-52",
+            "tokens": 255,
+            "chars": 1102,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-53",
+            "tokens": 268,
+            "chars": 1075,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-54",
+            "tokens": 292,
+            "chars": 1191,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-55",
+            "tokens": 278,
+            "chars": 1087,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-56",
+            "tokens": 270,
+            "chars": 1069,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-57",
+            "tokens": 242,
+            "chars": 922,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-58",
+            "tokens": 273,
+            "chars": 1044,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-59",
+            "tokens": 229,
+            "chars": 932,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-60",
+            "tokens": 273,
+            "chars": 1096,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-61",
+            "tokens": 93,
+            "chars": 383,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "segmented-tale-two-cities-0",
+            "tokens": 255,
+            "chars": 1047,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-1",
+            "tokens": 266,
+            "chars": 1079,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-2",
+            "tokens": 78,
+            "chars": 331,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "segmented-tale-two-cities-3",
+            "tokens": 198,
+            "chars": 914,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-4",
+            "tokens": 284,
+            "chars": 1188,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-5",
+            "tokens": 79,
+            "chars": 352,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "segmented-tale-two-cities-6",
+            "tokens": 269,
+            "chars": 1133,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-7",
+            "tokens": 169,
+            "chars": 662,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-8",
+            "tokens": 137,
+            "chars": 590,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-9",
+            "tokens": 215,
+            "chars": 914,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-10",
+            "tokens": 268,
+            "chars": 1084,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-11",
+            "tokens": 280,
+            "chars": 1165,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-12",
+            "tokens": 183,
+            "chars": 721,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-13",
+            "tokens": 290,
+            "chars": 1160,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-14",
+            "tokens": 267,
+            "chars": 1119,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-15",
+            "tokens": 258,
+            "chars": 998,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-16",
+            "tokens": 297,
+            "chars": 1129,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-17",
+            "tokens": 292,
+            "chars": 1139,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-18",
+            "tokens": 235,
+            "chars": 942,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-19",
+            "tokens": 206,
+            "chars": 809,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-20",
+            "tokens": 254,
+            "chars": 1072,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-21",
+            "tokens": 215,
+            "chars": 896,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-22",
+            "tokens": 258,
+            "chars": 1011,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-23",
+            "tokens": 287,
+            "chars": 1177,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-24",
+            "tokens": 251,
+            "chars": 1027,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-25",
+            "tokens": 279,
+            "chars": 1186,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-26",
+            "tokens": 193,
+            "chars": 772,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-27",
+            "tokens": 243,
+            "chars": 1009,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-28",
+            "tokens": 251,
+            "chars": 1094,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-29",
+            "tokens": 260,
+            "chars": 1015,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-30",
+            "tokens": 224,
+            "chars": 988,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-31",
+            "tokens": 292,
+            "chars": 1179,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-32",
+            "tokens": 44,
+            "chars": 202,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "segmented-tale-two-cities-33",
+            "tokens": 297,
+            "chars": 1190,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-34",
+            "tokens": 103,
+            "chars": 427,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "segmented-tale-two-cities-35",
+            "tokens": 235,
+            "chars": 976,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-36",
+            "tokens": 263,
+            "chars": 1089,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-37",
+            "tokens": 188,
+            "chars": 793,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-38",
+            "tokens": 251,
+            "chars": 1068,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-39",
+            "tokens": 80,
+            "chars": 324,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "segmented-tale-two-cities-40",
+            "tokens": 264,
+            "chars": 1063,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-41",
+            "tokens": 261,
+            "chars": 1051,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-42",
+            "tokens": 286,
+            "chars": 1182,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-43",
+            "tokens": 168,
+            "chars": 663,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-44",
+            "tokens": 224,
+            "chars": 925,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-45",
+            "tokens": 286,
+            "chars": 1158,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-46",
+            "tokens": 145,
+            "chars": 574,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-47",
+            "tokens": 226,
+            "chars": 924,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-48",
+            "tokens": 289,
+            "chars": 1176,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-49",
+            "tokens": 256,
+            "chars": 1107,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-50",
+            "tokens": 300,
+            "chars": 1153,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-51",
+            "tokens": 236,
+            "chars": 980,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-52",
+            "tokens": 249,
+            "chars": 1061,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-53",
+            "tokens": 213,
+            "chars": 830,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-54",
+            "tokens": 230,
+            "chars": 960,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-55",
+            "tokens": 69,
+            "chars": 273,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "segmented-tale-two-cities-56",
+            "tokens": 273,
+            "chars": 1131,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-57",
+            "tokens": 60,
+            "chars": 261,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "segmented-tale-two-cities-58",
+            "tokens": 284,
+            "chars": 1187,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-59",
+            "tokens": 215,
+            "chars": 832,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-60",
+            "tokens": 208,
+            "chars": 889,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-61",
+            "tokens": 187,
+            "chars": 801,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-62",
+            "tokens": 245,
+            "chars": 1014,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-63",
+            "tokens": 221,
+            "chars": 858,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-64",
+            "tokens": 210,
+            "chars": 851,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-0",
+            "tokens": 315,
+            "chars": 1183,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-1",
+            "tokens": 327,
+            "chars": 1193,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-2",
+            "tokens": 320,
+            "chars": 1187,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-3",
+            "tokens": 325,
+            "chars": 1199,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-4",
+            "tokens": 205,
+            "chars": 782,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-5",
+            "tokens": 207,
+            "chars": 786,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-6",
+            "tokens": 284,
+            "chars": 1163,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-7",
+            "tokens": 149,
+            "chars": 609,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-8",
+            "tokens": 157,
+            "chars": 714,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-9",
+            "tokens": 280,
+            "chars": 1177,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-10",
+            "tokens": 80,
+            "chars": 315,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "segmented-war-and-peace-11",
+            "tokens": 304,
+            "chars": 1176,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-12",
+            "tokens": 262,
+            "chars": 1099,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-13",
+            "tokens": 243,
+            "chars": 1048,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-14",
+            "tokens": 289,
+            "chars": 1174,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-15",
+            "tokens": 241,
+            "chars": 940,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-16",
+            "tokens": 192,
+            "chars": 762,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-17",
+            "tokens": 286,
+            "chars": 1183,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-18",
+            "tokens": 139,
+            "chars": 590,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-19",
+            "tokens": 242,
+            "chars": 1008,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-20",
+            "tokens": 305,
+            "chars": 1193,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-21",
+            "tokens": 237,
+            "chars": 1034,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-22",
+            "tokens": 277,
+            "chars": 1159,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-23",
+            "tokens": 227,
+            "chars": 969,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-24",
+            "tokens": 138,
+            "chars": 634,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-25",
+            "tokens": 154,
+            "chars": 618,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-26",
+            "tokens": 297,
+            "chars": 1148,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-27",
+            "tokens": 148,
+            "chars": 568,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-28",
+            "tokens": 281,
+            "chars": 1198,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-29",
+            "tokens": 275,
+            "chars": 1151,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-30",
+            "tokens": 243,
+            "chars": 1070,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-31",
+            "tokens": 274,
+            "chars": 1153,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-32",
+            "tokens": 232,
+            "chars": 997,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-33",
+            "tokens": 150,
+            "chars": 654,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-34",
+            "tokens": 271,
+            "chars": 1099,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-35",
+            "tokens": 267,
+            "chars": 1101,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-36",
+            "tokens": 223,
+            "chars": 905,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-37",
+            "tokens": 280,
+            "chars": 1098,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-38",
+            "tokens": 275,
+            "chars": 1085,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-39",
+            "tokens": 227,
+            "chars": 970,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-40",
+            "tokens": 114,
+            "chars": 445,
+            "meetsOneBlock": false
+          }
+        ]
+      },
+      "train": {
+        "schema": "sma/token-measurement@1",
+        "sequenceLength": 128,
+        "documentCount": 322,
+        "totalTokens": 73284,
+        "blocksIfConcatenated": 572,
+        "droppedTokens": 68,
+        "documentsMeetingOneBlock": 292,
+        "documents": [
+          {
+            "itemId": "segmented-pride-prejudice-0",
+            "tokens": 193,
+            "chars": 623,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-1",
+            "tokens": 276,
+            "chars": 1136,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-2",
+            "tokens": 129,
+            "chars": 563,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-3",
+            "tokens": 219,
+            "chars": 917,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-4",
+            "tokens": 282,
+            "chars": 1170,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-5",
+            "tokens": 230,
+            "chars": 1054,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-6",
+            "tokens": 50,
+            "chars": 227,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "segmented-pride-prejudice-7",
+            "tokens": 272,
+            "chars": 1132,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-8",
+            "tokens": 216,
+            "chars": 945,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-9",
+            "tokens": 241,
+            "chars": 974,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-10",
+            "tokens": 293,
+            "chars": 1131,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-11",
+            "tokens": 69,
+            "chars": 272,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "segmented-pride-prejudice-12",
+            "tokens": 256,
+            "chars": 1078,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-13",
+            "tokens": 210,
+            "chars": 954,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-14",
+            "tokens": 255,
+            "chars": 1017,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-15",
+            "tokens": 90,
+            "chars": 340,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "segmented-pride-prejudice-16",
+            "tokens": 244,
+            "chars": 1014,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-17",
+            "tokens": 127,
+            "chars": 544,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "segmented-pride-prejudice-18",
+            "tokens": 248,
+            "chars": 1022,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-19",
+            "tokens": 241,
+            "chars": 1019,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-20",
+            "tokens": 110,
+            "chars": 466,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "segmented-pride-prejudice-21",
+            "tokens": 274,
+            "chars": 1136,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-22",
+            "tokens": 285,
+            "chars": 1186,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-23",
+            "tokens": 242,
+            "chars": 1050,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-24",
+            "tokens": 92,
+            "chars": 404,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "segmented-pride-prejudice-25",
+            "tokens": 226,
+            "chars": 940,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-26",
+            "tokens": 238,
+            "chars": 993,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-27",
+            "tokens": 262,
+            "chars": 1126,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-28",
+            "tokens": 87,
+            "chars": 356,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "segmented-pride-prejudice-29",
+            "tokens": 314,
+            "chars": 1185,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-30",
+            "tokens": 350,
+            "chars": 1167,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-31",
+            "tokens": 341,
+            "chars": 1177,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-32",
+            "tokens": 321,
+            "chars": 1153,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-33",
+            "tokens": 304,
+            "chars": 1173,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-34",
+            "tokens": 278,
+            "chars": 1111,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-35",
+            "tokens": 279,
+            "chars": 1122,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-36",
+            "tokens": 214,
+            "chars": 833,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-37",
+            "tokens": 302,
+            "chars": 1167,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-38",
+            "tokens": 273,
+            "chars": 1044,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-39",
+            "tokens": 237,
+            "chars": 973,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-40",
+            "tokens": 327,
+            "chars": 1195,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-41",
+            "tokens": 242,
+            "chars": 1027,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-42",
+            "tokens": 274,
+            "chars": 1144,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-43",
+            "tokens": 127,
+            "chars": 545,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "segmented-pride-prejudice-44",
+            "tokens": 232,
+            "chars": 985,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-45",
+            "tokens": 270,
+            "chars": 1168,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-46",
+            "tokens": 267,
+            "chars": 1057,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-47",
+            "tokens": 157,
+            "chars": 667,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-48",
+            "tokens": 247,
+            "chars": 1080,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-49",
+            "tokens": 293,
+            "chars": 1121,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-50",
+            "tokens": 286,
+            "chars": 1144,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-51",
+            "tokens": 292,
+            "chars": 1171,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-52",
+            "tokens": 177,
+            "chars": 699,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-53",
+            "tokens": 229,
+            "chars": 1012,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-54",
+            "tokens": 270,
+            "chars": 1131,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-55",
+            "tokens": 188,
+            "chars": 777,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-56",
+            "tokens": 248,
+            "chars": 1052,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-57",
+            "tokens": 280,
+            "chars": 1160,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-58",
+            "tokens": 297,
+            "chars": 1166,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-59",
+            "tokens": 252,
+            "chars": 963,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-60",
+            "tokens": 261,
+            "chars": 986,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-61",
+            "tokens": 283,
+            "chars": 1136,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-pride-prejudice-62",
+            "tokens": 136,
+            "chars": 593,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-0",
+            "tokens": 223,
+            "chars": 774,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-1",
+            "tokens": 278,
+            "chars": 1164,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-2",
+            "tokens": 234,
+            "chars": 1035,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-3",
+            "tokens": 206,
+            "chars": 964,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-4",
+            "tokens": 119,
+            "chars": 531,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "segmented-frankenstein-5",
+            "tokens": 192,
+            "chars": 886,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-6",
+            "tokens": 258,
+            "chars": 1150,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-7",
+            "tokens": 272,
+            "chars": 1118,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-8",
+            "tokens": 269,
+            "chars": 1102,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-9",
+            "tokens": 153,
+            "chars": 679,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-10",
+            "tokens": 171,
+            "chars": 741,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-11",
+            "tokens": 230,
+            "chars": 1018,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-12",
+            "tokens": 223,
+            "chars": 984,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-13",
+            "tokens": 198,
+            "chars": 848,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-14",
+            "tokens": 250,
+            "chars": 1060,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-15",
+            "tokens": 142,
+            "chars": 609,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-16",
+            "tokens": 241,
+            "chars": 1047,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-17",
+            "tokens": 278,
+            "chars": 1168,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-18",
+            "tokens": 238,
+            "chars": 1036,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-19",
+            "tokens": 276,
+            "chars": 1159,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-20",
+            "tokens": 259,
+            "chars": 1139,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-21",
+            "tokens": 258,
+            "chars": 1116,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-22",
+            "tokens": 290,
+            "chars": 1199,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-23",
+            "tokens": 217,
+            "chars": 1010,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-24",
+            "tokens": 180,
+            "chars": 769,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-25",
+            "tokens": 248,
+            "chars": 1056,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-26",
+            "tokens": 109,
+            "chars": 440,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "segmented-frankenstein-27",
+            "tokens": 176,
+            "chars": 804,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-28",
+            "tokens": 273,
+            "chars": 1114,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-29",
+            "tokens": 180,
+            "chars": 761,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-30",
+            "tokens": 198,
+            "chars": 843,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-31",
+            "tokens": 279,
+            "chars": 1192,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-32",
+            "tokens": 229,
+            "chars": 940,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-33",
+            "tokens": 131,
+            "chars": 564,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-34",
+            "tokens": 223,
+            "chars": 1000,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-35",
+            "tokens": 180,
+            "chars": 794,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-36",
+            "tokens": 232,
+            "chars": 1033,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-37",
+            "tokens": 264,
+            "chars": 1160,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-38",
+            "tokens": 66,
+            "chars": 332,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "segmented-frankenstein-39",
+            "tokens": 248,
+            "chars": 1112,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-40",
+            "tokens": 285,
+            "chars": 1195,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-41",
+            "tokens": 94,
+            "chars": 418,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "segmented-frankenstein-42",
+            "tokens": 219,
+            "chars": 934,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-43",
+            "tokens": 172,
+            "chars": 785,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-44",
+            "tokens": 191,
+            "chars": 806,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-45",
+            "tokens": 257,
+            "chars": 1200,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-46",
+            "tokens": 223,
+            "chars": 930,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-47",
+            "tokens": 69,
+            "chars": 270,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "segmented-frankenstein-48",
+            "tokens": 234,
+            "chars": 1115,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-49",
+            "tokens": 262,
+            "chars": 1105,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-50",
+            "tokens": 139,
+            "chars": 643,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-51",
+            "tokens": 200,
+            "chars": 834,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-52",
+            "tokens": 176,
+            "chars": 805,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-53",
+            "tokens": 179,
+            "chars": 808,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-54",
+            "tokens": 128,
+            "chars": 572,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-55",
+            "tokens": 202,
+            "chars": 872,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-56",
+            "tokens": 144,
+            "chars": 640,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-57",
+            "tokens": 185,
+            "chars": 832,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-58",
+            "tokens": 236,
+            "chars": 1030,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-59",
+            "tokens": 225,
+            "chars": 1023,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-60",
+            "tokens": 114,
+            "chars": 507,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "segmented-frankenstein-61",
+            "tokens": 281,
+            "chars": 1186,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-62",
+            "tokens": 34,
+            "chars": 152,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "segmented-frankenstein-63",
+            "tokens": 240,
+            "chars": 1056,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-64",
+            "tokens": 257,
+            "chars": 1097,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-65",
+            "tokens": 262,
+            "chars": 1084,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-frankenstein-66",
+            "tokens": 124,
+            "chars": 528,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "segmented-moby-dick-0",
+            "tokens": 367,
+            "chars": 1198,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-1",
+            "tokens": 353,
+            "chars": 1165,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-2",
+            "tokens": 336,
+            "chars": 1165,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-3",
+            "tokens": 272,
+            "chars": 967,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-4",
+            "tokens": 295,
+            "chars": 1176,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-5",
+            "tokens": 189,
+            "chars": 448,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-6",
+            "tokens": 178,
+            "chars": 773,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-7",
+            "tokens": 301,
+            "chars": 1195,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-8",
+            "tokens": 291,
+            "chars": 1116,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-9",
+            "tokens": 264,
+            "chars": 1031,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-10",
+            "tokens": 277,
+            "chars": 987,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-11",
+            "tokens": 310,
+            "chars": 1169,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-12",
+            "tokens": 170,
+            "chars": 687,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-13",
+            "tokens": 330,
+            "chars": 1165,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-14",
+            "tokens": 243,
+            "chars": 958,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-15",
+            "tokens": 278,
+            "chars": 1110,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-16",
+            "tokens": 245,
+            "chars": 960,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-17",
+            "tokens": 285,
+            "chars": 1123,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-18",
+            "tokens": 308,
+            "chars": 1150,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-19",
+            "tokens": 221,
+            "chars": 859,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-20",
+            "tokens": 182,
+            "chars": 825,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-21",
+            "tokens": 293,
+            "chars": 1068,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-22",
+            "tokens": 229,
+            "chars": 958,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-23",
+            "tokens": 244,
+            "chars": 980,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-24",
+            "tokens": 286,
+            "chars": 1197,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-25",
+            "tokens": 284,
+            "chars": 1035,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-26",
+            "tokens": 255,
+            "chars": 1107,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-27",
+            "tokens": 273,
+            "chars": 1052,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-28",
+            "tokens": 149,
+            "chars": 592,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-29",
+            "tokens": 156,
+            "chars": 626,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-30",
+            "tokens": 293,
+            "chars": 1195,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-31",
+            "tokens": 183,
+            "chars": 750,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-32",
+            "tokens": 242,
+            "chars": 892,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-33",
+            "tokens": 142,
+            "chars": 543,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-34",
+            "tokens": 214,
+            "chars": 829,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-35",
+            "tokens": 194,
+            "chars": 775,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-36",
+            "tokens": 171,
+            "chars": 709,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-37",
+            "tokens": 283,
+            "chars": 1182,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-38",
+            "tokens": 195,
+            "chars": 792,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-39",
+            "tokens": 288,
+            "chars": 1147,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-40",
+            "tokens": 93,
+            "chars": 397,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "segmented-moby-dick-41",
+            "tokens": 257,
+            "chars": 1065,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-42",
+            "tokens": 187,
+            "chars": 746,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-43",
+            "tokens": 247,
+            "chars": 985,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-44",
+            "tokens": 215,
+            "chars": 831,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-45",
+            "tokens": 191,
+            "chars": 718,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-46",
+            "tokens": 137,
+            "chars": 540,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-47",
+            "tokens": 306,
+            "chars": 1189,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-48",
+            "tokens": 150,
+            "chars": 569,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-49",
+            "tokens": 232,
+            "chars": 883,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-50",
+            "tokens": 221,
+            "chars": 954,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-51",
+            "tokens": 255,
+            "chars": 1023,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-52",
+            "tokens": 105,
+            "chars": 454,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "segmented-moby-dick-53",
+            "tokens": 267,
+            "chars": 1063,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-54",
+            "tokens": 278,
+            "chars": 1128,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-55",
+            "tokens": 241,
+            "chars": 924,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-56",
+            "tokens": 206,
+            "chars": 802,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-57",
+            "tokens": 265,
+            "chars": 1009,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-58",
+            "tokens": 172,
+            "chars": 644,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-59",
+            "tokens": 257,
+            "chars": 1046,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-60",
+            "tokens": 274,
+            "chars": 1112,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-61",
+            "tokens": 279,
+            "chars": 1148,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-62",
+            "tokens": 157,
+            "chars": 585,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-63",
+            "tokens": 245,
+            "chars": 921,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-moby-dick-64",
+            "tokens": 93,
+            "chars": 380,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-0",
+            "tokens": 145,
+            "chars": 525,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-1",
+            "tokens": 262,
+            "chars": 1147,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-2",
+            "tokens": 250,
+            "chars": 1143,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-3",
+            "tokens": 272,
+            "chars": 1134,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-4",
+            "tokens": 213,
+            "chars": 830,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-5",
+            "tokens": 115,
+            "chars": 463,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-6",
+            "tokens": 198,
+            "chars": 820,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-7",
+            "tokens": 173,
+            "chars": 743,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-8",
+            "tokens": 270,
+            "chars": 1125,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-9",
+            "tokens": 218,
+            "chars": 843,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-10",
+            "tokens": 318,
+            "chars": 1181,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-11",
+            "tokens": 234,
+            "chars": 904,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-12",
+            "tokens": 258,
+            "chars": 1126,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-13",
+            "tokens": 289,
+            "chars": 1159,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-14",
+            "tokens": 240,
+            "chars": 1059,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-15",
+            "tokens": 268,
+            "chars": 1129,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-16",
+            "tokens": 295,
+            "chars": 1200,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-17",
+            "tokens": 286,
+            "chars": 1180,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-18",
+            "tokens": 284,
+            "chars": 1122,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-19",
+            "tokens": 200,
+            "chars": 769,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-20",
+            "tokens": 234,
+            "chars": 1020,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-21",
+            "tokens": 225,
+            "chars": 928,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-22",
+            "tokens": 204,
+            "chars": 852,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-23",
+            "tokens": 128,
+            "chars": 534,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-24",
+            "tokens": 209,
+            "chars": 775,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-25",
+            "tokens": 271,
+            "chars": 1128,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-26",
+            "tokens": 286,
+            "chars": 1103,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-27",
+            "tokens": 293,
+            "chars": 1154,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-28",
+            "tokens": 264,
+            "chars": 1084,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-29",
+            "tokens": 233,
+            "chars": 943,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-30",
+            "tokens": 274,
+            "chars": 1115,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-31",
+            "tokens": 196,
+            "chars": 766,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-32",
+            "tokens": 137,
+            "chars": 575,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-33",
+            "tokens": 279,
+            "chars": 1177,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-34",
+            "tokens": 278,
+            "chars": 1146,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-35",
+            "tokens": 289,
+            "chars": 1172,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-36",
+            "tokens": 182,
+            "chars": 699,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-37",
+            "tokens": 207,
+            "chars": 855,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-38",
+            "tokens": 286,
+            "chars": 1181,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-39",
+            "tokens": 213,
+            "chars": 828,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-40",
+            "tokens": 257,
+            "chars": 1059,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-41",
+            "tokens": 49,
+            "chars": 197,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-42",
+            "tokens": 279,
+            "chars": 1195,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-43",
+            "tokens": 280,
+            "chars": 1156,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-44",
+            "tokens": 283,
+            "chars": 1169,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-45",
+            "tokens": 261,
+            "chars": 1054,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-46",
+            "tokens": 274,
+            "chars": 1098,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-47",
+            "tokens": 216,
+            "chars": 891,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-48",
+            "tokens": 271,
+            "chars": 1108,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-49",
+            "tokens": 232,
+            "chars": 1026,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-50",
+            "tokens": 243,
+            "chars": 1116,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-51",
+            "tokens": 64,
+            "chars": 268,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-52",
+            "tokens": 255,
+            "chars": 1102,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-53",
+            "tokens": 268,
+            "chars": 1075,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-54",
+            "tokens": 292,
+            "chars": 1191,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-55",
+            "tokens": 278,
+            "chars": 1087,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-56",
+            "tokens": 270,
+            "chars": 1069,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-57",
+            "tokens": 242,
+            "chars": 922,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-58",
+            "tokens": 273,
+            "chars": 1044,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-59",
+            "tokens": 229,
+            "chars": 932,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-60",
+            "tokens": 273,
+            "chars": 1096,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-sherlock-holmes-61",
+            "tokens": 93,
+            "chars": 383,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "segmented-tale-two-cities-0",
+            "tokens": 255,
+            "chars": 1047,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-1",
+            "tokens": 266,
+            "chars": 1079,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-2",
+            "tokens": 78,
+            "chars": 331,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "segmented-tale-two-cities-3",
+            "tokens": 198,
+            "chars": 914,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-4",
+            "tokens": 284,
+            "chars": 1188,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-5",
+            "tokens": 79,
+            "chars": 352,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "segmented-tale-two-cities-6",
+            "tokens": 269,
+            "chars": 1133,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-7",
+            "tokens": 169,
+            "chars": 662,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-8",
+            "tokens": 137,
+            "chars": 590,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-9",
+            "tokens": 215,
+            "chars": 914,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-10",
+            "tokens": 268,
+            "chars": 1084,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-11",
+            "tokens": 280,
+            "chars": 1165,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-12",
+            "tokens": 183,
+            "chars": 721,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-13",
+            "tokens": 290,
+            "chars": 1160,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-14",
+            "tokens": 267,
+            "chars": 1119,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-15",
+            "tokens": 258,
+            "chars": 998,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-16",
+            "tokens": 297,
+            "chars": 1129,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-17",
+            "tokens": 292,
+            "chars": 1139,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-18",
+            "tokens": 235,
+            "chars": 942,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-19",
+            "tokens": 206,
+            "chars": 809,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-20",
+            "tokens": 254,
+            "chars": 1072,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-21",
+            "tokens": 215,
+            "chars": 896,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-22",
+            "tokens": 258,
+            "chars": 1011,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-23",
+            "tokens": 287,
+            "chars": 1177,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-24",
+            "tokens": 251,
+            "chars": 1027,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-25",
+            "tokens": 279,
+            "chars": 1186,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-26",
+            "tokens": 193,
+            "chars": 772,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-27",
+            "tokens": 243,
+            "chars": 1009,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-28",
+            "tokens": 251,
+            "chars": 1094,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-29",
+            "tokens": 260,
+            "chars": 1015,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-30",
+            "tokens": 224,
+            "chars": 988,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-31",
+            "tokens": 292,
+            "chars": 1179,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-32",
+            "tokens": 44,
+            "chars": 202,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "segmented-tale-two-cities-33",
+            "tokens": 297,
+            "chars": 1190,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-34",
+            "tokens": 103,
+            "chars": 427,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "segmented-tale-two-cities-35",
+            "tokens": 235,
+            "chars": 976,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-36",
+            "tokens": 263,
+            "chars": 1089,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-37",
+            "tokens": 188,
+            "chars": 793,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-38",
+            "tokens": 251,
+            "chars": 1068,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-39",
+            "tokens": 80,
+            "chars": 324,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "segmented-tale-two-cities-40",
+            "tokens": 264,
+            "chars": 1063,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-41",
+            "tokens": 261,
+            "chars": 1051,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-42",
+            "tokens": 286,
+            "chars": 1182,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-43",
+            "tokens": 168,
+            "chars": 663,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-44",
+            "tokens": 224,
+            "chars": 925,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-45",
+            "tokens": 286,
+            "chars": 1158,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-46",
+            "tokens": 145,
+            "chars": 574,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-47",
+            "tokens": 226,
+            "chars": 924,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-48",
+            "tokens": 289,
+            "chars": 1176,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-49",
+            "tokens": 256,
+            "chars": 1107,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-50",
+            "tokens": 300,
+            "chars": 1153,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-51",
+            "tokens": 236,
+            "chars": 980,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-52",
+            "tokens": 249,
+            "chars": 1061,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-53",
+            "tokens": 213,
+            "chars": 830,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-54",
+            "tokens": 230,
+            "chars": 960,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-55",
+            "tokens": 69,
+            "chars": 273,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "segmented-tale-two-cities-56",
+            "tokens": 273,
+            "chars": 1131,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-57",
+            "tokens": 60,
+            "chars": 261,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "segmented-tale-two-cities-58",
+            "tokens": 284,
+            "chars": 1187,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-59",
+            "tokens": 215,
+            "chars": 832,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-60",
+            "tokens": 208,
+            "chars": 889,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-61",
+            "tokens": 187,
+            "chars": 801,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-62",
+            "tokens": 245,
+            "chars": 1014,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-63",
+            "tokens": 221,
+            "chars": 858,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-tale-two-cities-64",
+            "tokens": 210,
+            "chars": 851,
+            "meetsOneBlock": true
+          }
+        ]
+      },
+      "validation": {
+        "schema": "sma/token-measurement@1",
+        "sequenceLength": 128,
+        "documentCount": 41,
+        "totalTokens": 9742,
+        "blocksIfConcatenated": 76,
+        "droppedTokens": 14,
+        "documentsMeetingOneBlock": 39,
+        "documents": [
+          {
+            "itemId": "segmented-war-and-peace-0",
+            "tokens": 315,
+            "chars": 1183,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-1",
+            "tokens": 327,
+            "chars": 1193,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-2",
+            "tokens": 320,
+            "chars": 1187,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-3",
+            "tokens": 325,
+            "chars": 1199,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-4",
+            "tokens": 205,
+            "chars": 782,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-5",
+            "tokens": 207,
+            "chars": 786,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-6",
+            "tokens": 284,
+            "chars": 1163,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-7",
+            "tokens": 149,
+            "chars": 609,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-8",
+            "tokens": 157,
+            "chars": 714,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-9",
+            "tokens": 280,
+            "chars": 1177,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-10",
+            "tokens": 80,
+            "chars": 315,
+            "meetsOneBlock": false
+          },
+          {
+            "itemId": "segmented-war-and-peace-11",
+            "tokens": 304,
+            "chars": 1176,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-12",
+            "tokens": 262,
+            "chars": 1099,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-13",
+            "tokens": 243,
+            "chars": 1048,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-14",
+            "tokens": 289,
+            "chars": 1174,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-15",
+            "tokens": 241,
+            "chars": 940,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-16",
+            "tokens": 192,
+            "chars": 762,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-17",
+            "tokens": 286,
+            "chars": 1183,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-18",
+            "tokens": 139,
+            "chars": 590,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-19",
+            "tokens": 242,
+            "chars": 1008,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-20",
+            "tokens": 305,
+            "chars": 1193,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-21",
+            "tokens": 237,
+            "chars": 1034,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-22",
+            "tokens": 277,
+            "chars": 1159,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-23",
+            "tokens": 227,
+            "chars": 969,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-24",
+            "tokens": 138,
+            "chars": 634,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-25",
+            "tokens": 154,
+            "chars": 618,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-26",
+            "tokens": 297,
+            "chars": 1148,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-27",
+            "tokens": 148,
+            "chars": 568,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-28",
+            "tokens": 281,
+            "chars": 1198,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-29",
+            "tokens": 275,
+            "chars": 1151,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-30",
+            "tokens": 243,
+            "chars": 1070,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-31",
+            "tokens": 274,
+            "chars": 1153,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-32",
+            "tokens": 232,
+            "chars": 997,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-33",
+            "tokens": 150,
+            "chars": 654,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-34",
+            "tokens": 271,
+            "chars": 1099,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-35",
+            "tokens": 267,
+            "chars": 1101,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-36",
+            "tokens": 223,
+            "chars": 905,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-37",
+            "tokens": 280,
+            "chars": 1098,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-38",
+            "tokens": 275,
+            "chars": 1085,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-39",
+            "tokens": 227,
+            "chars": 970,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "segmented-war-and-peace-40",
+            "tokens": 114,
+            "chars": 445,
+            "meetsOneBlock": false
+          }
+        ]
+      }
+    },
+    "raw-text": {
+      "all": {
+        "schema": "sma/token-measurement@1",
+        "sequenceLength": 128,
+        "documentCount": 6,
+        "totalTokens": 83110,
+        "blocksIfConcatenated": 649,
+        "droppedTokens": 38,
+        "documentsMeetingOneBlock": 6,
+        "documents": [
+          {
+            "itemId": "raw-pride-prejudice",
+            "tokens": 14811,
+            "chars": 60000,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "raw-frankenstein",
+            "tokens": 13827,
+            "chars": 60000,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "raw-moby-dick",
+            "tokens": 15463,
+            "chars": 60000,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "raw-sherlock-holmes",
+            "tokens": 14659,
+            "chars": 60000,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "raw-tale-two-cities",
+            "tokens": 14601,
+            "chars": 60000,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "raw-war-and-peace",
+            "tokens": 9749,
+            "chars": 40000,
+            "meetsOneBlock": true
+          }
+        ]
+      },
+      "train": {
+        "schema": "sma/token-measurement@1",
+        "sequenceLength": 128,
+        "documentCount": 5,
+        "totalTokens": 73361,
+        "blocksIfConcatenated": 573,
+        "droppedTokens": 17,
+        "documentsMeetingOneBlock": 5,
+        "documents": [
+          {
+            "itemId": "raw-pride-prejudice",
+            "tokens": 14811,
+            "chars": 60000,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "raw-frankenstein",
+            "tokens": 13827,
+            "chars": 60000,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "raw-moby-dick",
+            "tokens": 15463,
+            "chars": 60000,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "raw-sherlock-holmes",
+            "tokens": 14659,
+            "chars": 60000,
+            "meetsOneBlock": true
+          },
+          {
+            "itemId": "raw-tale-two-cities",
+            "tokens": 14601,
+            "chars": 60000,
+            "meetsOneBlock": true
+          }
+        ]
+      },
+      "validation": {
+        "schema": "sma/token-measurement@1",
+        "sequenceLength": 128,
+        "documentCount": 1,
+        "totalTokens": 9749,
+        "blocksIfConcatenated": 76,
+        "droppedTokens": 21,
+        "documentsMeetingOneBlock": 1,
+        "documents": [
+          {
+            "itemId": "raw-war-and-peace",
+            "tokens": 9749,
+            "chars": 40000,
+            "meetsOneBlock": true
+          }
+        ]
+      }
+    }
+  },
+  "cohorts": {
+    "prospective": {
+      "schema": "sma/token-measurement@1",
+      "sequenceLength": 128,
+      "documentCount": 30,
+      "totalTokens": 7861,
+      "blocksIfConcatenated": 61,
+      "droppedTokens": 53,
+      "documentsMeetingOneBlock": 28,
+      "documents": [
+        {
+          "itemId": "alice-prospective-0",
+          "tokens": 295,
+          "chars": 1169,
+          "meetsOneBlock": true
+        },
+        {
+          "itemId": "alice-prospective-1",
+          "tokens": 205,
+          "chars": 790,
+          "meetsOneBlock": true
+        },
+        {
+          "itemId": "alice-prospective-2",
+          "tokens": 294,
+          "chars": 1164,
+          "meetsOneBlock": true
+        },
+        {
+          "itemId": "alice-prospective-3",
+          "tokens": 323,
+          "chars": 1191,
+          "meetsOneBlock": true
+        },
+        {
+          "itemId": "alice-prospective-4",
+          "tokens": 249,
+          "chars": 1009,
+          "meetsOneBlock": true
+        },
+        {
+          "itemId": "war-worlds-prospective-0",
+          "tokens": 361,
+          "chars": 1112,
+          "meetsOneBlock": true
+        },
+        {
+          "itemId": "war-worlds-prospective-1",
+          "tokens": 133,
+          "chars": 565,
+          "meetsOneBlock": true
+        },
+        {
+          "itemId": "war-worlds-prospective-2",
+          "tokens": 283,
+          "chars": 1183,
+          "meetsOneBlock": true
+        },
+        {
+          "itemId": "war-worlds-prospective-3",
+          "tokens": 249,
+          "chars": 1009,
+          "meetsOneBlock": true
+        },
+        {
+          "itemId": "war-worlds-prospective-4",
+          "tokens": 123,
+          "chars": 472,
+          "meetsOneBlock": false
+        },
+        {
+          "itemId": "tom-sawyer-prospective-0",
+          "tokens": 321,
+          "chars": 1154,
+          "meetsOneBlock": true
+        },
+        {
+          "itemId": "tom-sawyer-prospective-1",
+          "tokens": 285,
+          "chars": 1019,
+          "meetsOneBlock": true
+        },
+        {
+          "itemId": "tom-sawyer-prospective-2",
+          "tokens": 206,
+          "chars": 830,
+          "meetsOneBlock": true
+        },
+        {
+          "itemId": "tom-sawyer-prospective-3",
+          "tokens": 278,
+          "chars": 1158,
+          "meetsOneBlock": true
+        },
+        {
+          "itemId": "tom-sawyer-prospective-4",
+          "tokens": 267,
+          "chars": 1021,
+          "meetsOneBlock": true
+        },
+        {
+          "itemId": "huck-finn-prospective-0",
+          "tokens": 324,
+          "chars": 1156,
+          "meetsOneBlock": true
+        },
+        {
+          "itemId": "huck-finn-prospective-1",
+          "tokens": 300,
+          "chars": 1130,
+          "meetsOneBlock": true
+        },
+        {
+          "itemId": "huck-finn-prospective-2",
+          "tokens": 238,
+          "chars": 936,
+          "meetsOneBlock": true
+        },
+        {
+          "itemId": "huck-finn-prospective-3",
+          "tokens": 250,
+          "chars": 998,
+          "meetsOneBlock": true
+        },
+        {
+          "itemId": "huck-finn-prospective-4",
+          "tokens": 383,
+          "chars": 1193,
+          "meetsOneBlock": true
+        },
+        {
+          "itemId": "dracula-prospective-0",
+          "tokens": 103,
+          "chars": 335,
+          "meetsOneBlock": false
+        },
+        {
+          "itemId": "dracula-prospective-1",
+          "tokens": 246,
+          "chars": 972,
+          "meetsOneBlock": true
+        },
+        {
+          "itemId": "dracula-prospective-2",
+          "tokens": 318,
+          "chars": 1171,
+          "meetsOneBlock": true
+        },
+        {
+          "itemId": "dracula-prospective-3",
+          "tokens": 252,
+          "chars": 979,
+          "meetsOneBlock": true
+        },
+        {
+          "itemId": "dracula-prospective-4",
+          "tokens": 213,
+          "chars": 849,
+          "meetsOneBlock": true
+        },
+        {
+          "itemId": "emma-prospective-0",
+          "tokens": 252,
+          "chars": 1077,
+          "meetsOneBlock": true
+        },
+        {
+          "itemId": "emma-prospective-1",
+          "tokens": 276,
+          "chars": 1130,
+          "meetsOneBlock": true
+        },
+        {
+          "itemId": "emma-prospective-2",
+          "tokens": 300,
+          "chars": 1179,
+          "meetsOneBlock": true
+        },
+        {
+          "itemId": "emma-prospective-3",
+          "tokens": 270,
+          "chars": 1193,
+          "meetsOneBlock": true
+        },
+        {
+          "itemId": "emma-prospective-4",
+          "tokens": 264,
+          "chars": 1153,
+          "meetsOneBlock": true
+        }
+      ]
+    },
+    "retention": {
+      "schema": "sma/token-measurement@1",
+      "sequenceLength": 128,
+      "documentCount": 10,
+      "totalTokens": 2017,
+      "blocksIfConcatenated": 15,
+      "droppedTokens": 97,
+      "documentsMeetingOneBlock": 9,
+      "documents": [
+        {
+          "itemId": "pride-prejudice-retention-0",
+          "tokens": 193,
+          "chars": 623,
+          "meetsOneBlock": true
+        },
+        {
+          "itemId": "pride-prejudice-retention-1",
+          "tokens": 166,
+          "chars": 698,
+          "meetsOneBlock": true
+        },
+        {
+          "itemId": "frankenstein-retention-0",
+          "tokens": 223,
+          "chars": 774,
+          "meetsOneBlock": true
+        },
+        {
+          "itemId": "frankenstein-retention-1",
+          "tokens": 237,
+          "chars": 966,
+          "meetsOneBlock": true
+        },
+        {
+          "itemId": "moby-dick-retention-0",
+          "tokens": 301,
+          "chars": 978,
+          "meetsOneBlock": true
+        },
+        {
+          "itemId": "moby-dick-retention-1",
+          "tokens": 301,
+          "chars": 989,
+          "meetsOneBlock": true
+        },
+        {
+          "itemId": "sherlock-holmes-retention-0",
+          "tokens": 145,
+          "chars": 525,
+          "meetsOneBlock": true
+        },
+        {
+          "itemId": "sherlock-holmes-retention-1",
+          "tokens": 197,
+          "chars": 874,
+          "meetsOneBlock": true
+        },
+        {
+          "itemId": "tale-two-cities-retention-0",
+          "tokens": 74,
+          "chars": 307,
+          "meetsOneBlock": false
+        },
+        {
+          "itemId": "tale-two-cities-retention-1",
+          "tokens": 180,
+          "chars": 738,
+          "meetsOneBlock": true
+        }
+      ]
+    }
+  }
+}

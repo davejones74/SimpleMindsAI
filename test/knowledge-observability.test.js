@@ -115,6 +115,35 @@ const fixture = {
     explanation: "paired improvement -0.0131 (95% CI -0.0262..0.0009) includes zero",
   },
   counts: { runs: 425, workingAdvances: 6, workingRejections: 0, stablePromotions: 2, stableRejections: 3, stableInconclusive: 3 },
+  funnel: {
+    totalArticles: 25825,
+    reviewed: 7517,
+    uniqueConsumed: 9917,
+    replayEligible: 7866,
+    trainable: 28,
+    retired: 10252,
+    approvedRetired: 8737,
+    consumedApprovedRetired: 7383,
+    consumedApprovedRetiredNotReplayable: 7006,
+  },
+  licence: { safe: 2765, uncertain: 8017, restricted: 0, unknown: 15043, unresolved: 0 },
+  learningEffectiveness: {
+    schema: "sma/learning-effectiveness@1",
+    summary: {
+      advances: 6,
+      measured: 6,
+      netDeltaVsStable: 0.011532278771096749,
+      bestDeltaVsStable: -0.006050832728122124,
+      bestVersion: "v497",
+      worstDeltaVsStable: 0.02771523911902296,
+      worstVersion: "v496",
+      regressionsVsStable: 4,
+      driftVelocity: 0.00230645575421935,
+    },
+    trajectory: [{ runId: "run-425", version: "v500", parentVersion: "v499", candidateLoss: 7.8217722, deltaVsStable: 0.0115323, freshTokens: 1909, replayShare: 0.3666 }],
+    prospective: null,
+    retention: null,
+  },
 };
 
 test("knowledge view renders stable, working, optimizer and measured replay evidence", () => {
@@ -131,6 +160,11 @@ test("knowledge view renders stable, working, optimizer and measured replay evid
   assert.match(html, /working guard accepted/);
   assert.match(html, /Per-group evaluation changes/);
   assert.match(html, /Internet/);
+  assert.match(html, /Knowledge-to-trainability funnel/);
+  assert.match(html, /Fresh trainable/);
+  assert.match(html, /Source licence provenance/);
+  assert.match(html, /Cumulative learning effect/);
+  assert.match(html, /not configured/);
   assert.doesNotMatch(html, /undefined/);
 });
 

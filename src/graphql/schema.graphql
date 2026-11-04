@@ -48,6 +48,24 @@ enum ReviewAuthority {
   AUTOMATION
 }
 
+"""Resolved source-licence provenance for an article."""
+type Licence {
+  schema: String!
+  policyVersion: String!
+  status: String!
+  decision: String!
+  id: String
+  name: String
+  url: String
+  sourceHost: String
+  attribution: String
+  attributionRequired: Boolean!
+  shareAlike: Boolean!
+  commercialUse: Boolean
+  reason: String
+  resolvedAt: DateTime
+}
+
 """A single continuous-text article — the training unit."""
 type Article {
   articleId: ID!
@@ -64,6 +82,7 @@ type Article {
   origin: String
   source: String
   model: String
+  licence: Licence
   rawText: String          # pre-cleaning text, kept only for debugging
   uncertainty: Float
   missionRelevance: Float
@@ -272,6 +291,9 @@ input ArticleInput {
   rawText: String
   sourceUrl: String
   htmlLang: String
+  licenceId: String
+  licenceUrl: String
+  licenceAttribution: String
   uncertainty: Float
   missionRelevance: Float
 }

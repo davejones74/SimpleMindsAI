@@ -25,6 +25,11 @@ import { canonicalDomain } from "../storage/domain-registry.js";
 import { DEFAULT_POLICY, evaluateVerdict, selectionDecision } from "../domain/review-policy.js";
 import { assess } from "../domain/language.js";
 import { scoreMissionRelevance } from "../domain/mission-relevance.js";
+import {
+  LICENCE_STATUS,
+  licenceAllowsTraining,
+  resolveLicence,
+} from "../domain/licence.js";
 import { config } from "../config.js";
 
 /**
@@ -67,8 +72,8 @@ const COLLECTIONS = {
 const LEGACY_FILES = ["prompts.ndjson", "completions.ndjson", "rewards.ndjson", "state.ndjson", "runs.ndjson"];
 
 export class ArticleStore {
-  static async open(dir = process.env.ARTICLE_DIR ?? process.env.BUFFER_DIR ?? path.resolve("data", "articles"), { readOnly = false, policy = DEFAULT_POLICY, domainRegistry = null, languageFilter = config.languageFilter, missionTexts = [], missionRelevanceEnabled = config.missionRelevanceEnabled } = {}) {
-    const s = new ArticleStore(dir, { readOnly, policy, domainRegistry, languageFilter, missionTexts, missionRelevanceEnabled });
+  static async open(dir = process.env.ARTICLE_DIR ?? process.env.BUFFER_DIR ?? path.resolve("data", "articles"), { readOnly = false, policy = DEFAULT_POLICY, domainRegistry = null, languageFilter = config.languageFilter, missionTexts = [], missionRelevanceEnabled = config.missionRelevanceEnabled, licence = config.licence } = {}) {
+    const s = new ArticleStore(dir, { readOnly, policy, domainRegistry, languageFilter, missionTexts, missionRelevanceEnabled, licence });
     await s.#loadFromDisk();
     return s;
   }
@@ -83,7 +88,7 @@ export class ArticleStore {
    * workspace's completed trial) can never create or mutate a file. Every
    * mutating method throws.
    */
-  constructor(dir, { policy = DEFAULT_POLICY, readOnly = false, domainRegistry = null, languageFilter = config.languageFilter, missionTexts = [], missionRelevanceEnabled = config.missionRelevanceEnabled } = {}) {
+  constructor(dir, { policy = DEFAULT_POLICY, readOnly = false, domainRegistry = null, languageFilter = config.languageFilter, missionTexts = [], missionRelevanceEnabled = config.missionRelevanceEnabled, licence = config.licence } = {}) {
     this.dir = dir;
     this.policy = policy;
     this.readOnly = readOnly;
@@ -102,6 +107,10 @@ export class ArticleStore {
     // reference is present. Never a rejection rule.
     this.missionTexts = Array.isArray(missionTexts) ? missionTexts : [];
     this.missionRelevanceEnabled = Boolean(missionRelevanceEnabled);
+    // Durable licence resolution. `off` stops resolution; `shadow` records the
+    // decision but does not gate ingress; `enforce` refuses restricted material.
+    this.licence = licence;
+    this.licenceSkipped = 0;
     if (!readOnly) mkdirSync(dir, { recursive: true });
 
     this.articles = new Map();
@@ -268,6 +277,9 @@ export class ArticleStore {
       a.replayEligible = false;
       a.replayExclusionReason = rec.reason ?? null;
       if (rec.excludedReason) a.excludedReason = rec.excludedReason;
+    } else if (rec.type === "licence") {
+      a.licence = rec.licence ?? null;
+      a.licenceResolvedAt = rec.licence?.resolvedAt ?? rec.at ?? null;
     }
   }
 
@@ -328,6 +340,13 @@ export class ArticleStore {
     uncertainty = null,
     missionRelevance = null,
     reviewRequested = false,
+    // Durable source licensing. Callers may declare an item-level licence; when
+    // they do not, the host/declared-licence policy resolves one. Resolution is
+    // recorded even in shadow mode; only `enforcement: "enforce"` gates ingress.
+    licence = null,
+    licenceId = null,
+    licenceUrl = null,
+    licenceAttribution = null,
   } = {}) {
     this.#assertWritable();
     if (!text || !String(text).trim()) throw new Error("article text is required");
@@ -370,6 +389,40 @@ export class ArticleStore {
           confidence: decision.detection.confidence,
         };
       }
+    }
+
+    // Resolve and record the source licence before dedup so the decision is
+    // durable even when the bytes collide with an earlier record. Resolution is
+    // deterministic from the source host plus an optional declared licence.
+    let resolvedLicence = licence && typeof licence === "object"
+      ? {
+          schema: "sma/licence@1",
+          policyVersion: "caller-supplied",
+          attributionRequired: false,
+          shareAlike: false,
+          ...licence,
+        }
+      : null;
+    if (!resolvedLicence && this.licence?.enforcement !== "off" && (sourceUrl || licenceId)) {
+      resolvedLicence = resolveLicence({
+        sourceUrl,
+        licenceId,
+        licenceUrl,
+        attribution: licenceAttribution,
+      });
+    }
+    if (
+      resolvedLicence &&
+      this.licence?.enforcement === "enforce" &&
+      !licenceAllowsTraining(resolvedLicence, { enforcement: "enforce" })
+    ) {
+      this.licenceSkipped += 1;
+      return {
+        skipped: true,
+        deduped: false,
+        reason: `licence-${resolvedLicence.status}`,
+        licence: resolvedLicence,
+      };
     }
 
     const hash = contentHash(text);
@@ -423,6 +476,7 @@ const rec = {
       ...(fetchedContentHash ? { fetchedContentHash } : {}),
       ...(fetchedAt ? { fetchedAt } : {}),
       ...(extraction ? { extraction } : {}),
+      ...(resolvedLicence ? { licence: resolvedLicence } : {}),
       uncertainty,
       missionRelevance,
       reviewRequested,
@@ -1004,6 +1058,32 @@ const rec = {
     return this.setReplayEligibility(articleId, { eligible: false, reason, excludedReason, actor });
   }
 
+  /**
+   * Record or replace an article's durable licence decision. Resolution can be
+   * supplied explicitly or derived from the article's source host. The event is
+   * append-only, so a later correction never rewrites history.
+   */
+  async setLicence(articleId, { licence = null, licenceId = null, licenceUrl = null, attribution = null, actor = AUTHORITY.AUTOMATION } = {}) {
+    this.#assertWritable();
+    const article = this.articles.get(articleId);
+    if (!article) throw new Error(`unknown article: ${articleId}`);
+    const resolved = licence && typeof licence === "object"
+      ? { ...licence }
+      : resolveLicence({
+          sourceUrl: article.sourceUrl ?? null,
+          sourceDomain: article.sourceDomain ?? null,
+          licenceId,
+          licenceUrl,
+          attribution,
+        });
+    const current = article.licence ?? null;
+    if (current && JSON.stringify(current) === JSON.stringify(resolved)) {
+      return { ...article, updated: false, alreadySet: true };
+    }
+    await this.#event({ type: "licence", articleId, licence: resolved, actor });
+    return { ...article, updated: true, licence: resolved };
+  }
+
   // ----------------------------------------------------- deferral / retire
   /**
    * Durable deferral of a batch a training run rejected.
@@ -1131,6 +1211,10 @@ const rec = {
     let replayExcluded = 0;
     let consumedAndRetired = 0;
     let retiredReplayEligible = 0;
+    let approvedRetired = 0;
+    let consumedApprovedRetired = 0;
+    let consumedApprovedRetiredReplayable = 0;
+    const byLicenceStatus = Object.fromEntries([...Object.values(LICENCE_STATUS), "unresolved"].map((s) => [s, 0]));
     for (const a of this.articles.values()) {
       byStatus[a.status] = (byStatus[a.status] ?? 0) + 1;
       byImportance[a.importance] = (byImportance[a.importance] ?? 0) + 1;
@@ -1145,6 +1229,14 @@ const rec = {
       if (isReplayExcluded(a) && (a.consumedAt || a.status === STATUS.REVIEWED || a.status === STATUS.RETIRED || a.status === STATUS.UNRESOLVED)) replayExcluded++;
       if (a.consumedAt && a.status === STATUS.RETIRED) consumedAndRetired++;
       if (a.status === STATUS.RETIRED && isReplayPool(a)) retiredReplayEligible++;
+      const reviews = this.reviews.get(a.articleId) ?? [];
+      const approved = reviews.some((r) => r.verdict === VERDICT.APPROVE && r.applied !== false);
+      if (approved && a.status === STATUS.RETIRED) approvedRetired++;
+      if (approved && a.status === STATUS.RETIRED && a.consumedAt) {
+        consumedApprovedRetired++;
+        if (isReplayPool(a)) consumedApprovedRetiredReplayable++;
+      }
+      byLicenceStatus[a.licence?.status ?? "unresolved"] = (byLicenceStatus[a.licence?.status ?? "unresolved"] ?? 0) + 1;
     }
     const scores = [];
     for (const arr of this.reviews.values()) for (const r of arr) if (Number.isFinite(r.score)) scores.push(r.score);
@@ -1171,6 +1263,16 @@ const rec = {
       replayExcluded,
       consumedAndRetired,
       retiredReplayEligible,
+      approvedRetired,
+      consumedApprovedRetired,
+      consumedApprovedRetiredReplayable,
+      consumedApprovedRetiredNotReplayable: consumedApprovedRetired - consumedApprovedRetiredReplayable,
+      byLicenceStatus,
+      licenceSafe: byLicenceStatus[LICENCE_STATUS.SAFE] ?? 0,
+      licenceUncertain: byLicenceStatus[LICENCE_STATUS.UNCERTAIN] ?? 0,
+      licenceRestricted: byLicenceStatus[LICENCE_STATUS.RESTRICTED] ?? 0,
+      licenceUnknown: byLicenceStatus[LICENCE_STATUS.UNKNOWN] ?? 0,
+      licenceUnresolved: byLicenceStatus.unresolved ?? 0,
       // Articles currently in a rejected-run cooldown (still REVIEWED, not yet
       // re-selectable as fresh), and articles whose fresh retries are exhausted
       // and now live in the replay pool (never retired, never deleted).

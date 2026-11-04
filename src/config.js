@@ -282,6 +282,12 @@ export const config = {
     // to be considered non-degenerate. Heuristic starting values, not guarantees.
     qualityMaxMojibakeRatio: num("REVIEW_QUALITY_MAX_MOJIBAKE_RATIO", 0.02),
     qualityMinBigramRatio: num("REVIEW_QUALITY_MIN_BIGRAM_RATIO", 0.15),
+    // Deterministic pre-review filter. It rejects only hard non-prose and text
+    // below a length/word floor. `shadow` (default) records would-be rejections
+    // without changing outcomes; `enforce` turns them into automation rejects.
+    prefilterMode: oneOf("REVIEW_PREFILTER_MODE", "shadow", ["off", "shadow", "enforce"]),
+    prefilterMinChars: num("REVIEW_PREFILTER_MIN_CHARS", 200),
+    prefilterMinWords: num("REVIEW_PREFILTER_MIN_WORDS", 20),
   },
 
   // ---- Review cycles (every N consumed articles; a checkpoint, not a cap) ----
@@ -491,6 +497,10 @@ export const config = {
   trainMinValidationClusters: num("TRAIN_MIN_VALIDATION_CLUSTERS", 1),
   trainValidationSeed: num("TRAIN_VALIDATION_SEED", 0),
   trainValidationRequireProspective: bool("TRAIN_VALIDATION_REQUIRE_PROSPECTIVE", true),
+  // Optional tokenizer-aware measurement in the knowledge observability view.
+  // Off by default because it spawns a short model-free Python process; when on,
+  // validation availability reports actual blocks instead of char/4 estimates.
+  knowledgeTokenizerMeasurement: bool("KNOWLEDGE_TOKENIZER_MEASUREMENT", false),
   // Corpus quality / diversity controls. Caps default to disabled (0); they are
   // configurable hypotheses, not fixed scientific truths.
   trainCorpusMaxFallbackTokenShare: num("TRAIN_CORPUS_MAX_FALLBACK_TOKEN_SHARE", 0),
@@ -573,6 +583,21 @@ export const config = {
   // unset reverts to legacy exactly.
   extractionMode: oneOf("EXTRACTION_MODE", "legacy", ["legacy", "readability"]),
 
+  // ---- Curator source segmentation ----
+  //   legacy    : historical single `rawText.slice(0, 14000)` teacher call.
+  //   segmented : send the whole source in sentence-aligned bounded chunks and
+  //               merge adjacent short teacher units within the same domain.
+  // The default is segmented so new deployments stop silently discarding the
+  // tail of long sources; set CURATOR_STRATEGY=legacy to restore the old path.
+  curatorStrategy: oneOf("CURATOR_STRATEGY", "segmented", ["legacy", "segmented"]),
+  curatorLegacyMaxChars: num("CURATOR_LEGACY_MAX_CHARS", 14_000),
+  curatorChunkMaxChars: num("CURATOR_CHUNK_MAX_CHARS", 12_000),
+  curatorChunkTargetChars: num("CURATOR_CHUNK_TARGET_CHARS", 4_000),
+  curatorChunkMinChars: num("CURATOR_CHUNK_MIN_CHARS", 1_000),
+  curatorMergeUnits: bool("CURATOR_MERGE_UNITS", true),
+  curatorMergeMinChars: num("CURATOR_MERGE_MIN_CHARS", 800),
+  curatorMergeMaxChars: num("CURATOR_MERGE_MAX_CHARS", 6_000),
+
   // ---- Phase 3: bounded crawling discovery ----
   // Domain allow-list: comma-separated; empty defaults to CRAWL_URLS hosts only.
   // Expanding requires explicit operator configuration via env var.
@@ -623,6 +648,12 @@ export const config = {
   // Advisory/optional: the ingest-time language filter (above) still inspects the
   // actual document text and remains the authoritative, independent backstop.
   discoveryLanguagePrior: oneOf("DISCOVERY_LANGUAGE_PRIOR", "warn", ["off", "warn", "reject"]),
+  // Deterministic URL-shape quality gate. File/Category/Special/Template pages,
+  // images and login/search endpoints cannot become useful training prose.
+  //   off     : disabled
+  //   shadow  : count would-be rejections but enqueue
+  //   enforce : DEFAULT — refuse obviously non-content URLs before fetch
+  discoveryUrlQuality: oneOf("DISCOVERY_URL_QUALITY", "enforce", ["off", "shadow", "enforce"]),
   // Always-prohibited destinations (comma-separated suffixes), any mode.
   crawlDeniedDomains: env("CRAWL_DENIED_DOMAINS", "").split(",").map((s) => s.trim()).filter(Boolean),
   // Cap links enqueued from a single fetched page (prevents link-farm blowups).
@@ -737,6 +768,15 @@ export const config = {
     shadow: bool("LANGUAGE_FILTER_SHADOW", false),
     minConfidence: confidence("LANGUAGE_FILTER_MIN_CONFIDENCE", 0.8),
     unknownPolicy: oneOf("LANGUAGE_FILTER_UNKNOWN_POLICY", "allow", ["allow", "reject"]),
+  },
+
+  // ---- Durable source licence policy ----
+  // Every ingested article gets a resolved licence record from its source host
+  // and/or an explicitly declared licence id. Resolution itself never blocks
+  // ingress; `enforcement` decides whether the decision is advisory (`shadow`,
+  // default) or authoritative (`enforce`). `off` skips resolution entirely.
+  licence: {
+    enforcement: oneOf("LICENCE_ENFORCEMENT", "shadow", ["off", "shadow", "enforce"]),
   },
 
   // ---- Observatory workspaces (allow-listed; `development` is implicit) ----

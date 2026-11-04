@@ -169,6 +169,9 @@ export function hasReplayText(article) {
  */
 export function isReplayEligible(article) {
   if (!hasReplayText(article)) return false;
+  // A resolved DENY/restricted licence is authoritative and can never be
+  // replayed, even if the review history was positive.
+  if (article.licence?.decision === "deny" || article.licence?.status === "restricted") return false;
   if (article.status === STATUS.REJECTED || article.status === STATUS.QUARANTINED || article.status === STATUS.UNRESOLVED) return false;
   if (article.quarantined === true) return false;
   if (article.excludedReason) return false;
@@ -192,7 +195,7 @@ export function isReplayPool(article) {
 
 /** True when an explicit/inferred exclusion keeps this article out of replay. */
 export function isReplayExcluded(article) {
-  return Boolean(article) && !isReplayEligible(article) && (article.replayEligible === false || article.status === STATUS.REJECTED || article.status === STATUS.QUARANTINED || article.status === STATUS.UNRESOLVED || Boolean(article.excludedReason) || Boolean(article.quarantined) || !hasReplayText(article));
+  return Boolean(article) && !isReplayEligible(article) && (article.replayEligible === false || article.licence?.decision === "deny" || article.licence?.status === "restricted" || article.status === STATUS.REJECTED || article.status === STATUS.QUARANTINED || article.status === STATUS.UNRESOLVED || Boolean(article.excludedReason) || Boolean(article.quarantined) || !hasReplayText(article));
 }
 
 /** Normalise an importance value, defaulting to Normal (never throws on read). */

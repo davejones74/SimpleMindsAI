@@ -1,0 +1,89 @@
+{
+  "schema": "sma/licence-backfill@1",
+  "at": "2026-11-04T21:07:20.725Z",
+  "mode": "dry-run",
+  "store": "/var/lib/simpleminds/data/articles",
+  "storeFingerprint": "cd3f2f39ff640a92ef239d2cb6fdded0aa6e8ee8f8a820d22deebdaf36549b98",
+  "scanned": 25849,
+  "alreadyResolved": 0,
+  "resolved": 25848,
+  "unresolvedNoSource": 1,
+  "byStatus": {
+    "uncertain:review": 8025,
+    "unknown:review": 15058,
+    "safe:allow": 2765
+  },
+  "samples": [
+    {
+      "articleId": "art_33245635-d95",
+      "sourceDomain": "en.wikipedia.org",
+      "status": "uncertain",
+      "decision": "review",
+      "id": "CC-BY-SA-4.0"
+    },
+    {
+      "articleId": "art_cf6d5a5b-ca2",
+      "sourceDomain": "en.wikipedia.org",
+      "status": "uncertain",
+      "decision": "review",
+      "id": "CC-BY-SA-4.0"
+    },
+    {
+      "articleId": "art_21573cf3-c5b",
+      "sourceDomain": "en.wikipedia.org",
+      "status": "uncertain",
+      "decision": "review",
+      "id": "CC-BY-SA-4.0"
+    },
+    {
+      "articleId": "art_2ea01093-bbf",
+      "sourceDomain": "en.wikipedia.org",
+      "status": "uncertain",
+      "decision": "review",
+      "id": "CC-BY-SA-4.0"
+    },
+    {
+      "articleId": "art_83facd56-34b",
+      "sourceDomain": "en.wikipedia.org",
+      "status": "uncertain",
+      "decision": "review",
+      "id": "CC-BY-SA-4.0"
+    },
+    {
+      "articleId": "art_c2caece9-d0b",
+      "sourceDomain": "en.wikipedia.org",
+      "status": "uncertain",
+      "decision": "review",
+      "id": "CC-BY-SA-4.0"
+    },
+    {
+      "articleId": "art_ae3593bf-3f3",
+      "sourceDomain": "en.wikipedia.org",
+      "status": "uncertain",
+      "decision": "review",
+      "id": "CC-BY-SA-4.0"
+    },
+    {
+      "articleId": "art_5d405b70-94e",
+      "sourceDomain": "en.wikipedia.org",
+      "status": "uncertain",
+      "decision": "review",
+      "id": "CC-BY-SA-4.0"
+    },
+    {
+      "articleId": "art_28532f23-045",
+      "sourceDomain": "en.wikipedia.org",
+      "status": "uncertain",
+      "decision": "review",
+      "id": "CC-BY-SA-4.0"
+    },
+    {
+      "articleId": "art_3b48a22c-f38",
+      "sourceDomain": "en.wikipedia.org",
+      "status": "uncertain",
+      "decision": "review",
+      "id": "CC-BY-SA-4.0"
+    }
+  ],
+  "note": "Licence decisions are provenance only unless LICENCE_ENFORCEMENT=enforce. No article text, review, consumption or replay eligibility is changed by this script."
+}

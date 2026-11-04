@@ -122,6 +122,12 @@ def test_carry_optimizer_moments_survive_a_new_corpus_configuration(tokenizer):
     assert second_step > first_step, "AdamW step counters continue across the working run"
     assert torch.isfinite(torch.tensor(second_step))
 
+    # The carried state must not erase the deliberately constructed no-decay
+    # group. This is a regression test for the v493 -> v495 transition where both
+    # groups silently became 0.01.
+    decay_by_group = [float(group["weight_decay"]) for group in opt2.param_groups]
+    assert decay_by_group == [0.01, 0.0], decay_by_group
+
 
 def test_incompatible_carried_optimizer_state_fails_closed(tokenizer):
     docs = data_mod.load_documents([FIXTURE_CORPUS])

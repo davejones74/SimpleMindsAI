@@ -3,6 +3,8 @@ import { config } from "../config.js";
 import { throwIfAborted } from "./cancel.js";
 import { reviewPendingArticles } from "./review-pass.js";
 import { ACQUISITION_STATE, classifyAcquisition } from "../discovery/acquisition-state.js";
+import { mergeAdjacentUnits, planCuration, segmentationStats } from "../services/curator-segmentation.js";
+import { prefilterReview } from "../domain/review-prefilter.js";
 
 /**
  * One acquisition cycle: harvest configured sources → curate (teacher) →
@@ -64,18 +66,52 @@ export async function runLearningCycle(ctx) {
       log("out", `skip unchanged source ${doc.url ?? doc.contentHash.slice(0, 12)}`);
       continue;
     }
-    let units;
-    try {
-      units = await ollama.clean(doc.text);
-    } catch (err) {
-      log("err", `curate failed for doc ${i + 1}: ${err.message.slice(0, 160)}`);
-      continue;
+    // Segment the FULL source before curation. The historical path sent only
+    // the first 14k chars and silently discarded the rest of long documents.
+    const plan = planCuration(doc.text, {
+      strategy: config.curatorStrategy,
+      legacyMaxChars: config.curatorLegacyMaxChars,
+      maxChars: config.curatorChunkMaxChars,
+      minChars: config.curatorChunkMinChars,
+      targetChars: config.curatorChunkTargetChars,
+    });
+    const stats = segmentationStats(plan, doc.text);
+    let units = [];
+    let chunkErrors = 0;
+    for (const chunk of plan) {
+      throwIfAborted(signal);
+      try {
+        const cleaned = await ollama.clean(chunk.text);
+        for (const unit of cleaned) units.push({ ...unit, sourceChunk: chunk.index });
+      } catch (err) {
+        chunkErrors += 1;
+        log("err", `curate failed for doc ${i + 1} chunk ${chunk.index + 1}/${plan.length}: ${err.message.slice(0, 140)}`);
+      }
+    }
+    if (!units.length) continue;
+    if (config.curatorMergeUnits) {
+      units = mergeAdjacentUnits(units, {
+        minChars: config.curatorMergeMinChars,
+        maxChars: config.curatorMergeMaxChars,
+      });
+    }
+    if (segmentationStats(plan, doc.text).chunks > 1) {
+      log("out", `curated full source ${doc.url ?? ""} chunks=${plan.length} coverage=${(stats.coverage * 100).toFixed(1)}%`);
     }
     const newArticleIds = [];
     for (const unit of units) {
       throwIfAborted(signal);
       const text = unit?.text ?? (unit?.prompt ? `${unit.prompt}\n\n${unit.completion ?? ""}`.trim() : null);
       if (!text) continue;
+      // In enforce mode, obvious non-prose is still retained for audit but is
+      // not immediately queued for the expensive teacher. Shadow mode (the
+      // default) keeps the historical review-all behaviour.
+      const prefilter = prefilterReview(text, {
+        mode: config.review.prefilterMode,
+        minChars: config.review.prefilterMinChars,
+        minWords: config.review.prefilterMinWords,
+      });
+      const requestReview = !(config.review.prefilterMode === "enforce" && prefilter.wouldReject);
       const rec = await store.ingestArticle({
         text,
         domain: unit.domain ?? doc.domain ?? "general",
@@ -87,7 +123,10 @@ export async function runLearningCycle(ctx) {
         fetchedAt: doc.fetchedAt ?? null,
         htmlLang: doc.htmlLang ?? null,
         extraction: doc.extraction ?? null,
-        reviewRequested: true,
+        licenceId: doc.licenceId ?? null,
+        licenceUrl: doc.licenceUrl ?? null,
+        licenceAttribution: doc.licenceAttribution ?? doc.attribution ?? null,
+        reviewRequested: requestReview,
       });
       if (rec.skipped) {
         languageSkipped++;
@@ -102,12 +141,17 @@ export async function runLearningCycle(ctx) {
     }
     // Record this source in the durable provenance ledger so future cycles
     // can skip re-curating identical fetched material.
-    if (doc.contentHash) {
+    // Record the source as curated only when every chunk succeeded. A partial
+    // pass is retried later; content-hash dedup prevents the successful chunks
+    // from being ingested twice.
+    if (doc.contentHash && chunkErrors === 0) {
       await store.recordRawSource({
         fetchedContentHash: doc.contentHash,
         sourceUrl: doc.url ?? null,
         articleIds: newArticleIds,
       });
+    } else if (chunkErrors > 0) {
+      log("out", `partial curation for ${doc.url ?? doc.contentHash}: ${chunkErrors}/${plan.length} chunk(s) failed; source not marked complete`);
     }
     onProgress({ phase: "curate", processedRawDocs: i + 1, rawDocs: cap, ingested, deduped, skippedUnchanged });
   }

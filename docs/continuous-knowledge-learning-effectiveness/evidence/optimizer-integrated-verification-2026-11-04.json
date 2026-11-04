@@ -1,0 +1,52 @@
+{
+  "schema": "sma/optimizer-integrated-verification@1",
+  "at": "2026-11-04T22:04:25.179441+00:00",
+  "store": "/tmp/opencode/sma-curation-experiment/stores",
+  "versions": {
+    "v494": {
+      "file": "v494.train-state.pt",
+      "bytes": 494802119,
+      "groupSizes": [
+        57,
+        17
+      ],
+      "weightDecay": [
+        0.01,
+        0.0
+      ],
+      "learningRate": [
+        1.0065996376699428e-05,
+        1.0065996376699428e-05
+      ],
+      "stepsUnique": [
+        68
+      ],
+      "stateEntries": 74,
+      "stepsCompleted": 68
+    },
+    "v495": {
+      "file": "v495.train-state.pt",
+      "bytes": 494802119,
+      "groupSizes": [
+        57,
+        17
+      ],
+      "weightDecay": [
+        0.01,
+        0.0
+      ],
+      "learningRate": [
+        5.5e-05,
+        5.5e-05
+      ],
+      "stepsUnique": [
+        70
+      ],
+      "stateEntries": 74,
+      "stepsCompleted": 2
+    }
+  },
+  "momentTensorsCompared": 148,
+  "momentTensorsChanged": 148,
+  "result": "carry preserved [0.01, 0.0] and continued step counters; moments changed"
+}

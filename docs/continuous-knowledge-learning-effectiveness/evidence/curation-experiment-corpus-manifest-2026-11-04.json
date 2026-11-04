@@ -1,0 +1,400 @@
+{
+  "schema": "sma/curation-experiment-corpus@1",
+  "at": "2026-11-04T21:46:05.525Z",
+  "workdir": "/tmp/opencode/sma-curation-experiment",
+  "trainSources": [
+    {
+      "id": "pride-prejudice",
+      "title": "Pride and Prejudice",
+      "url": "https://www.gutenberg.org/files/1342/1342-0.txt",
+      "chars": 60000,
+      "sha256": "e9958c92bfb540e8b699830c5634b31090f1074690de886c087149d77f58f213"
+    },
+    {
+      "id": "frankenstein",
+      "title": "Frankenstein",
+      "url": "https://www.gutenberg.org/files/84/84-0.txt",
+      "chars": 60000,
+      "sha256": "55460a86f5d4d8dca4be3b7824b55f54d77a35534d36d6242c87af051ea3ffcf"
+    },
+    {
+      "id": "moby-dick",
+      "title": "Moby Dick",
+      "url": "https://www.gutenberg.org/files/2701/2701-0.txt",
+      "chars": 60000,
+      "sha256": "78fb291d17a9838b3cadd97239563763e91bdf499dbc98436e9c0f1d8bc8e776"
+    },
+    {
+      "id": "sherlock-holmes",
+      "title": "The Adventures of Sherlock Holmes",
+      "url": "https://www.gutenberg.org/files/1661/1661-0.txt",
+      "chars": 60000,
+      "sha256": "6d1cde90c10271a57abf3eedfa2b99d1e100cc63823e344547e490bcd955d313"
+    },
+    {
+      "id": "tale-two-cities",
+      "title": "A Tale of Two Cities",
+      "url": "https://www.gutenberg.org/files/98/98-0.txt",
+      "chars": 60000,
+      "sha256": "50529101aa0836bb8c766b0fce1f382aa6b57cc9fa98d5b4aa0f2f70d6c07c19"
+    }
+  ],
+  "validationSource": {
+    "id": "war-and-peace",
+    "title": "War and Peace",
+    "url": "https://www.gutenberg.org/files/2600/2600-0.txt",
+    "chars": 40000,
+    "sha256": "a9e37724e86f330743e6647f930e207a5c7a745a8d46185b21e760b3a6071b26"
+  },
+  "prospectiveSources": [
+    {
+      "id": "alice",
+      "title": "Alice's Adventures in Wonderland",
+      "url": "https://www.gutenberg.org/files/11/11-0.txt"
+    },
+    {
+      "id": "war-worlds",
+      "title": "The War of the Worlds",
+      "url": "https://www.gutenberg.org/files/36/36-0.txt"
+    },
+    {
+      "id": "tom-sawyer",
+      "title": "The Adventures of Tom Sawyer",
+      "url": "https://www.gutenberg.org/files/74/74-0.txt"
+    },
+    {
+      "id": "huck-finn",
+      "title": "Adventures of Huckleberry Finn",
+      "url": "https://www.gutenberg.org/files/76/76-0.txt"
+    },
+    {
+      "id": "dracula",
+      "title": "Dracula",
+      "url": "https://www.gutenberg.org/files/345/345-0.txt"
+    },
+    {
+      "id": "emma",
+      "title": "Emma",
+      "url": "https://www.gutenberg.org/files/158/158-0.txt"
+    }
+  ],
+  "prospective": {
+    "schema": "sma/sealed-cohort@1",
+    "id": "curation-experiment-prospective-v1",
+    "kind": "prospective",
+    "createdAt": "2026-11-04T21:46:05.486Z",
+    "sealed": true,
+    "neverTrain": true,
+    "source": "Project Gutenberg public-domain texts",
+    "notes": "Six books disjoint from all training/validation sources.",
+    "trainedInVersions": null,
+    "itemCount": 30,
+    "chars": 30297,
+    "datasetHash": "43d9f15e84adb67f85d15add74f8512e77b8071ca5b281c561d1af5baf07f5b3",
+    "items": [
+      {
+        "itemId": "alice-prospective-0",
+        "contentHash": "347f7e25a89bb65542bdfb9cdba600a1468baa907bd0b203763716324e7847db",
+        "sourceUrl": "https://www.gutenberg.org/files/11/11-0.txt",
+        "chars": 1169
+      },
+      {
+        "itemId": "alice-prospective-1",
+        "contentHash": "c850a1b4bafecb82e0ec5119d2216f6aff0694c44721111fec2c8b7bcd3c1104",
+        "sourceUrl": "https://www.gutenberg.org/files/11/11-0.txt",
+        "chars": 790
+      },
+      {
+        "itemId": "alice-prospective-2",
+        "contentHash": "659421130e9360298d954e5412469ce453160dc5c200d8a5748aa33660e4aefb",
+        "sourceUrl": "https://www.gutenberg.org/files/11/11-0.txt",
+        "chars": 1164
+      },
+      {
+        "itemId": "alice-prospective-3",
+        "contentHash": "e492535cc9e7b1f8294a21945bf87b5297d44341ffab3cf53f135c0fd5a065a0",
+        "sourceUrl": "https://www.gutenberg.org/files/11/11-0.txt",
+        "chars": 1191
+      },
+      {
+        "itemId": "alice-prospective-4",
+        "contentHash": "17041e6b813fdfe2b8bb47d567f043381fc7da3e798353f44748421775fccd9e",
+        "sourceUrl": "https://www.gutenberg.org/files/11/11-0.txt",
+        "chars": 1009
+      },
+      {
+        "itemId": "war-worlds-prospective-0",
+        "contentHash": "8545b0ab2ba6d719c431ba3cab8e4a39a08bb9b3a89f602470d68b231c1a4b82",
+        "sourceUrl": "https://www.gutenberg.org/files/36/36-0.txt",
+        "chars": 1112
+      },
+      {
+        "itemId": "war-worlds-prospective-1",
+        "contentHash": "1be7ac181b5c8a8d11f2efe3c8d56be79db921a67e424c4216f0c808852402e4",
+        "sourceUrl": "https://www.gutenberg.org/files/36/36-0.txt",
+        "chars": 565
+      },
+      {
+        "itemId": "war-worlds-prospective-2",
+        "contentHash": "0376a1fcfac88732fd2104b3fd54740015d70a2febba1b2ecf94d9ab995a93a6",
+        "sourceUrl": "https://www.gutenberg.org/files/36/36-0.txt",
+        "chars": 1183
+      },
+      {
+        "itemId": "war-worlds-prospective-3",
+        "contentHash": "c40ee7e7ff857ee1273dd67fbcebb59b200fb4555f086ac097fc6303fd28f34f",
+        "sourceUrl": "https://www.gutenberg.org/files/36/36-0.txt",
+        "chars": 1009
+      },
+      {
+        "itemId": "war-worlds-prospective-4",
+        "contentHash": "069f8ec8aeaee71defb400b05649d062cebcd64f424a02edcaa91790f415a201",
+        "sourceUrl": "https://www.gutenberg.org/files/36/36-0.txt",
+        "chars": 472
+      },
+      {
+        "itemId": "tom-sawyer-prospective-0",
+        "contentHash": "8e003cf97630f0f8ecd1d9e736d481d8ebccecc2da3e50985d9408b5b24ad3fa",
+        "sourceUrl": "https://www.gutenberg.org/files/74/74-0.txt",
+        "chars": 1154
+      },
+      {
+        "itemId": "tom-sawyer-prospective-1",
+        "contentHash": "5582a95dc22f5ce824349098b9fc55c28ef2b3d3fe14ce766ff3a2ae7b1f031c",
+        "sourceUrl": "https://www.gutenberg.org/files/74/74-0.txt",
+        "chars": 1019
+      },
+      {
+        "itemId": "tom-sawyer-prospective-2",
+        "contentHash": "70ae977fea7fcc7884f6fd6e8002d6c1709a23ef40167b6d7f3710f028e9be05",
+        "sourceUrl": "https://www.gutenberg.org/files/74/74-0.txt",
+        "chars": 830
+      },
+      {
+        "itemId": "tom-sawyer-prospective-3",
+        "contentHash": "f29c1338cb57e14fefc2327f093995ebfe8d5fa1a595686d3fbbe1aac76e82ef",
+        "sourceUrl": "https://www.gutenberg.org/files/74/74-0.txt",
+        "chars": 1158
+      },
+      {
+        "itemId": "tom-sawyer-prospective-4",
+        "contentHash": "17316e84e337fd1ac8cafbbf0ef5cef360025999fcd650a6738c5fb51abd1465",
+        "sourceUrl": "https://www.gutenberg.org/files/74/74-0.txt",
+        "chars": 1021
+      },
+      {
+        "itemId": "huck-finn-prospective-0",
+        "contentHash": "4a2028af5c614e1a2bb62b7b3ef4718345aab0adadbcc2ef18631eb8b062c9cb",
+        "sourceUrl": "https://www.gutenberg.org/files/76/76-0.txt",
+        "chars": 1156
+      },
+      {
+        "itemId": "huck-finn-prospective-1",
+        "contentHash": "7aaa6165402ffbbea6eef5712028364eb53c05fe7f0bdabab08459c370a106b8",
+        "sourceUrl": "https://www.gutenberg.org/files/76/76-0.txt",
+        "chars": 1130
+      },
+      {
+        "itemId": "huck-finn-prospective-2",
+        "contentHash": "4e64d2942ddba5be0b84b06979d5717f8914c9bd298d2119e8bcbebc51a86733",
+        "sourceUrl": "https://www.gutenberg.org/files/76/76-0.txt",
+        "chars": 936
+      },
+      {
+        "itemId": "huck-finn-prospective-3",
+        "contentHash": "e20b4ff1f75330996f100cea2916ff2be83af7ab32e3a64cf84bf4ef96e256ea",
+        "sourceUrl": "https://www.gutenberg.org/files/76/76-0.txt",
+        "chars": 998
+      },
+      {
+        "itemId": "huck-finn-prospective-4",
+        "contentHash": "95f52c34f70ac66b0715a728376432be7a282951b1c4a560ba53d12841cba782",
+        "sourceUrl": "https://www.gutenberg.org/files/76/76-0.txt",
+        "chars": 1193
+      },
+      {
+        "itemId": "dracula-prospective-0",
+        "contentHash": "027bc2e58e56559b25536e58ff0299bf0dc419738c204aae31324ddad71a04c4",
+        "sourceUrl": "https://www.gutenberg.org/files/345/345-0.txt",
+        "chars": 335
+      },
+      {
+        "itemId": "dracula-prospective-1",
+        "contentHash": "ebf83b56e6e3b6319706b2033d2b2ce5b98693433ea1027826ed7f666e08ad1a",
+        "sourceUrl": "https://www.gutenberg.org/files/345/345-0.txt",
+        "chars": 972
+      },
+      {
+        "itemId": "dracula-prospective-2",
+        "contentHash": "6896ea2f68afc15a83e6f1c248bdee5c3df956eaf38b24c64e357bd86adfd2a0",
+        "sourceUrl": "https://www.gutenberg.org/files/345/345-0.txt",
+        "chars": 1171
+      },
+      {
+        "itemId": "dracula-prospective-3",
+        "contentHash": "ad4555b65cbcae2d80edce7d8d8df1e61c25b362959a4d114fefd0a723120f4f",
+        "sourceUrl": "https://www.gutenberg.org/files/345/345-0.txt",
+        "chars": 979
+      },
+      {
+        "itemId": "dracula-prospective-4",
+        "contentHash": "c0f8ab2d9d0c45e885a5fe85a15eba13b1be3f65851a0a7af0426d302473a553",
+        "sourceUrl": "https://www.gutenberg.org/files/345/345-0.txt",
+        "chars": 849
+      },
+      {
+        "itemId": "emma-prospective-0",
+        "contentHash": "fb4872871a246324edad49a512b091015d4b414277be00952f95ccf42413d3f6",
+        "sourceUrl": "https://www.gutenberg.org/files/158/158-0.txt",
+        "chars": 1077
+      },
+      {
+        "itemId": "emma-prospective-1",
+        "contentHash": "d5df8d15dde74dccb41cd7741325c1b3864b09b6f88ce45f0a0ec5dcec03488d",
+        "sourceUrl": "https://www.gutenberg.org/files/158/158-0.txt",
+        "chars": 1130
+      },
+      {
+        "itemId": "emma-prospective-2",
+        "contentHash": "93c16e5c718894517b826dddbb76405212900dc9016b02b8199600c179e413f8",
+        "sourceUrl": "https://www.gutenberg.org/files/158/158-0.txt",
+        "chars": 1179
+      },
+      {
+        "itemId": "emma-prospective-3",
+        "contentHash": "297ba786e6d14c4c4c5aa01e7663ba4f30ff8e2c864c20b126b0ff6b3ab00da0",
+        "sourceUrl": "https://www.gutenberg.org/files/158/158-0.txt",
+        "chars": 1193
+      },
+      {
+        "itemId": "emma-prospective-4",
+        "contentHash": "e8ebfbfceec8d670b9d3f45c4b8a956dff33e44f8843c3f24f553978a540968c",
+        "sourceUrl": "https://www.gutenberg.org/files/158/158-0.txt",
+        "chars": 1153
+      }
+    ]
+  },
+  "retention": {
+    "schema": "sma/sealed-cohort@1",
+    "id": "curation-experiment-retention-v1",
+    "kind": "retention",
+    "createdAt": "2026-11-04T21:46:05.487Z",
+    "sealed": true,
+    "neverTrain": true,
+    "source": "Held-out probe from the first 2k chars of each training source",
+    "notes": "The same text is included in every curation mode, so forgetting is comparable.",
+    "trainedInVersions": null,
+    "itemCount": 10,
+    "chars": 7472,
+    "datasetHash": "cfff2a6c3f41bc5b5923526f278f679dc28024b1ffe6fc9d83544cfeda96290f",
+    "items": [
+      {
+        "itemId": "pride-prejudice-retention-0",
+        "contentHash": "98a9306494a3f4d6ded4aaa64c448cb933354845123f9ddddbff0cce7e519fce",
+        "sourceUrl": "https://www.gutenberg.org/files/1342/1342-0.txt",
+        "chars": 623
+      },
+      {
+        "itemId": "pride-prejudice-retention-1",
+        "contentHash": "afd5261d29cd91bd835ce64519904306c49bdc72ed052c2f5e3f17f744823e16",
+        "sourceUrl": "https://www.gutenberg.org/files/1342/1342-0.txt",
+        "chars": 698
+      },
+      {
+        "itemId": "frankenstein-retention-0",
+        "contentHash": "699604bd9ab9dbd7994077379b74123d429db7b1126fdf7e9b0d1ad5f6558f12",
+        "sourceUrl": "https://www.gutenberg.org/files/84/84-0.txt",
+        "chars": 774
+      },
+      {
+        "itemId": "frankenstein-retention-1",
+        "contentHash": "6f316287c8da93a4b46dc993563a680a7b62d7d59ff28661e4121f99da2c4c6c",
+        "sourceUrl": "https://www.gutenberg.org/files/84/84-0.txt",
+        "chars": 966
+      },
+      {
+        "itemId": "moby-dick-retention-0",
+        "contentHash": "024edea6cd6c06acd00f36d7f63d4f39d566e1c979af9adfb1413f6251ee1b54",
+        "sourceUrl": "https://www.gutenberg.org/files/2701/2701-0.txt",
+        "chars": 978
+      },
+      {
+        "itemId": "moby-dick-retention-1",
+        "contentHash": "f7b922ad446b50ab30f8f6523a7a5db2ffc1334857ae73d69b27831f1cf7b08e",
+        "sourceUrl": "https://www.gutenberg.org/files/2701/2701-0.txt",
+        "chars": 989
+      },
+      {
+        "itemId": "sherlock-holmes-retention-0",
+        "contentHash": "4029c0852dd2ec7cfcf45948dde520e66164edd86af027148787f91b449f7b40",
+        "sourceUrl": "https://www.gutenberg.org/files/1661/1661-0.txt",
+        "chars": 525
+      },
+      {
+        "itemId": "sherlock-holmes-retention-1",
+        "contentHash": "0f4647055a3521eb21f3b215ca6e2962052e23b604e39642591ce1e0e582fa5b",
+        "sourceUrl": "https://www.gutenberg.org/files/1661/1661-0.txt",
+        "chars": 874
+      },
+      {
+        "itemId": "tale-two-cities-retention-0",
+        "contentHash": "e53a1adecff4391b5be2b79dbfb494d64bb9b0042f3bdb39dd8e3167463c436f",
+        "sourceUrl": "https://www.gutenberg.org/files/98/98-0.txt",
+        "chars": 307
+      },
+      {
+        "itemId": "tale-two-cities-retention-1",
+        "contentHash": "0f429ee395f7524ec546fc2b42d2c8c2fed5fd2f734f06549ccef5517ecd2f94",
+        "sourceUrl": "https://www.gutenberg.org/files/98/98-0.txt",
+        "chars": 738
+      }
+    ]
+  },
+  "corpora": {
+    "legacy": {
+      "file": "/tmp/opencode/sma-curation-experiment/corpora/legacy.jsonl",
+      "sha256": "f03248cfabebf574fdad9d539b513ae0a040d04a4144f8773c27073e79c7d712",
+      "rows": 90,
+      "trainRows": 76,
+      "validationRows": 14,
+      "chars": 83398,
+      "trainChars": 69806,
+      "validationChars": 13592
+    },
+    "segmented": {
+      "file": "/tmp/opencode/sma-curation-experiment/corpora/segmented.jsonl",
+      "sha256": "a1753dc3a5044dc073f1e6aebc73037c0c4155e01b0a4535bea353f1e5c8ed9a",
+      "rows": 363,
+      "trainRows": 322,
+      "validationRows": 41,
+      "chars": 338810,
+      "trainChars": 299273,
+      "validationChars": 39537
+    },
+    "raw-text": {
+      "file": "/tmp/opencode/sma-curation-experiment/corpora/raw-text.jsonl",
+      "sha256": "24d2d52bfd105e8dd5482aea1c639c4c7c69a4daa89ff52c86036ed7f8c9d556",
+      "rows": 6,
+      "trainRows": 5,
+      "validationRows": 1,
+      "chars": 340000,
+      "trainChars": 300000,
+      "validationChars": 40000
+    }
+  },
+  "verification": {
+    "prospectiveLeak": {
+      "ok": true,
+      "reason": null,
+      "itemCount": 30,
+      "datasetHash": "43d9f15e84adb67f85d15add74f8512e77b8071ca5b281c561d1af5baf07f5b3",
+      "leaks": []
+    },
+    "cohortDisjointness": {
+      "ok": true,
+      "reason": null,
+      "overlaps": []
+    },
+    "trainingRowHashes": 375
+  }
+}

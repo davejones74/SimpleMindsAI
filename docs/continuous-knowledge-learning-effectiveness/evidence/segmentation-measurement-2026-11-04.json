@@ -1,0 +1,586 @@
+{
+  "schema": "sma/segmentation-measurement@1",
+  "at": "2026-11-04T21:06:04.842Z",
+  "mode": "read-only",
+  "store": "/var/lib/simpleminds/data/articles",
+  "freshArticles": 40,
+  "uniqueSources": 13,
+  "curatedChars": 19007,
+  "rawChars": 487860,
+  "legacyVisibleChars": 148301,
+  "segmentedVisibleChars": 467045,
+  "legacyCoverage": 0.3039826999549051,
+  "segmentedCoverage": 0.9573340712499487,
+  "legacyChunks": 13,
+  "segmentedChunks": 67,
+  "cleanedRaw": {
+    "sources": 13,
+    "accepted": 6,
+    "rejected": 7,
+    "chars": 154798,
+    "estimatedTokens": 38700
+  },
+  "estimated": {
+    "curatedTokens": 4752,
+    "rawTokens": 121965,
+    "legacyVisibleTokens": 37076,
+    "segmentedVisibleTokens": 116762
+  },
+  "sources": [
+    {
+      "sourceKey": "4fff3ca0063017cab5263c0f99b47c7d77a4e53b44dd2825d06707a1abdaafbc",
+      "units": 1,
+      "curatedChars": 129,
+      "rawChars": 34702,
+      "legacyVisibleChars": 14000,
+      "segmentedVisibleChars": 32959,
+      "legacyChunks": 1,
+      "segmentedChunks": 3
+    },
+    {
+      "sourceKey": "0d49beaa268004d026fdca8740fea5fd24275d0b1e1a0a888e5940e8dcaba361",
+      "units": 10,
+      "curatedChars": 1987,
+      "rawChars": 238178,
+      "legacyVisibleChars": 14000,
+      "segmentedVisibleChars": 233906,
+      "legacyChunks": 1,
+      "segmentedChunks": 32
+    },
+    {
+      "sourceKey": "9f4bb75bd9f8a17c994e4ac5da101e9bbc1523216a1f677986be347f57667501",
+      "units": 1,
+      "curatedChars": 1454,
+      "rawChars": 8573,
+      "legacyVisibleChars": 8573,
+      "segmentedVisibleChars": 7890,
+      "legacyChunks": 1,
+      "segmentedChunks": 2
+    },
+    {
+      "sourceKey": "250273b0a2a55d140b883e6887f3cd4ff6fb51920dac6b1d6cd026794070ec6b",
+      "units": 1,
+      "curatedChars": 220,
+      "rawChars": 7572,
+      "legacyVisibleChars": 7572,
+      "segmentedVisibleChars": 6908,
+      "legacyChunks": 1,
+      "segmentedChunks": 2
+    },
+    {
+      "sourceKey": "0eb3335176da669aaea5bc2fba5cb7fbd02b35adeb7bb96e241f5e62ff750bbb",
+      "units": 1,
+      "curatedChars": 7497,
+      "rawChars": 94692,
+      "legacyVisibleChars": 14000,
+      "segmentedVisibleChars": 92937,
+      "legacyChunks": 1,
+      "segmentedChunks": 11
+    },
+    {
+      "sourceKey": "aab0b3fee7714d53c7b5d2efd1c6e0f01d1380b06fd9f1fc90143a1265bec6e5",
+      "units": 2,
+      "curatedChars": 303,
+      "rawChars": 13629,
+      "legacyVisibleChars": 13629,
+      "segmentedVisibleChars": 13486,
+      "legacyChunks": 1,
+      "segmentedChunks": 4
+    },
+    {
+      "sourceKey": "3c86f367e2dca9e4582329121521f50ff9ab6184250928ddf13ca051b0b5423f",
+      "units": 1,
+      "curatedChars": 50,
+      "rawChars": 14947,
+      "legacyVisibleChars": 14000,
+      "segmentedVisibleChars": 11058,
+      "legacyChunks": 1,
+      "segmentedChunks": 1
+    },
+    {
+      "sourceKey": "137f5238e4f375625d36bffcfdf62b91a2112c31a7c00d4334d0e5400c77c26b",
+      "units": 1,
+      "curatedChars": 26,
+      "rawChars": 7447,
+      "legacyVisibleChars": 7447,
+      "segmentedVisibleChars": 5616,
+      "legacyChunks": 1,
+      "segmentedChunks": 1
+    },
+    {
+      "sourceKey": "0cdac88c749e7f9f7e9f07c26d4425874c00b173d1c5598f107957c069d71291",
+      "units": 3,
+      "curatedChars": 1003,
+      "rawChars": 10120,
+      "legacyVisibleChars": 10120,
+      "segmentedVisibleChars": 7592,
+      "legacyChunks": 1,
+      "segmentedChunks": 1
+    },
+    {
+      "sourceKey": "23c9b5b0b040c972fc760658a6e5591c8ffadf1e89209c78b46d8c8d4091e3e7",
+      "units": 7,
+      "curatedChars": 2428,
+      "rawChars": 27040,
+      "legacyVisibleChars": 14000,
+      "segmentedVisibleChars": 25727,
+      "legacyChunks": 1,
+      "segmentedChunks": 5
+    },
+    {
+      "sourceKey": "45469e7ab15f9c0c23050e3a4e02ab975e70c2c843fdbc019ffa7cbbb434d8d1",
+      "units": 4,
+      "curatedChars": 2054,
+      "rawChars": 9379,
+      "legacyVisibleChars": 9379,
+      "segmentedVisibleChars": 8673,
+      "legacyChunks": 1,
+      "segmentedChunks": 1
+    },
+    {
+      "sourceKey": "1ecc6d92fddec8b1a8567b6801f957d128e332e29db0d7b62dc197f4be12c047",
+      "units": 5,
+      "curatedChars": 1154,
+      "rawChars": 10684,
+      "legacyVisibleChars": 10684,
+      "segmentedVisibleChars": 10068,
+      "legacyChunks": 1,
+      "segmentedChunks": 2
+    },
+    {
+      "sourceKey": "92f9eb62a324420f517283d7de9b072099d6e32f93cf00fd4395e2af99fa833b",
+      "units": 3,
+      "curatedChars": 702,
+      "rawChars": 10897,
+      "legacyVisibleChars": 10897,
+      "segmentedVisibleChars": 10225,
+      "legacyChunks": 1,
+      "segmentedChunks": 2
+    }
+  ],
+  "actual": {
+    "curated": {
+      "schema": "sma/token-measurement@1",
+      "sequenceLength": 128,
+      "documentCount": 40,
+      "totalTokens": 3882,
+      "blocksIfConcatenated": 30,
+      "droppedTokens": 42,
+      "documentsMeetingOneBlock": 3,
+      "documents": [
+        {
+          "itemId": "art_d2102db3-90e",
+          "tokens": 22,
+          "chars": 129,
+          "meetsOneBlock": false
+        },
+        {
+          "itemId": "art_5d2df6f5-fb8",
+          "tokens": 70,
+          "chars": 436,
+          "meetsOneBlock": false
+        },
+        {
+          "itemId": "art_da447698-88d",
+          "tokens": 61,
+          "chars": 362,
+          "meetsOneBlock": false
+        },
+        {
+          "itemId": "art_f9089542-93c",
+          "tokens": 31,
+          "chars": 173,
+          "meetsOneBlock": false
+        },
+        {
+          "itemId": "art_01f629bd-de1",
+          "tokens": 22,
+          "chars": 109,
+          "meetsOneBlock": false
+        },
+        {
+          "itemId": "art_a61debed-c05",
+          "tokens": 53,
+          "chars": 259,
+          "meetsOneBlock": false
+        },
+        {
+          "itemId": "art_da4d0e0c-858",
+          "tokens": 33,
+          "chars": 150,
+          "meetsOneBlock": false
+        },
+        {
+          "itemId": "art_e8e167c6-624",
+          "tokens": 22,
+          "chars": 103,
+          "meetsOneBlock": false
+        },
+        {
+          "itemId": "art_5557e95d-e14",
+          "tokens": 10,
+          "chars": 65,
+          "meetsOneBlock": false
+        },
+        {
+          "itemId": "art_e5e2303f-1c6",
+          "tokens": 24,
+          "chars": 147,
+          "meetsOneBlock": false
+        },
+        {
+          "itemId": "art_746b15c1-6d0",
+          "tokens": 30,
+          "chars": 183,
+          "meetsOneBlock": false
+        },
+        {
+          "itemId": "art_a7e3951d-426",
+          "tokens": 309,
+          "chars": 1454,
+          "meetsOneBlock": true
+        },
+        {
+          "itemId": "art_b344860f-dba",
+          "tokens": 46,
+          "chars": 220,
+          "meetsOneBlock": false
+        },
+        {
+          "itemId": "art_e92252db-828",
+          "tokens": 1641,
+          "chars": 7497,
+          "meetsOneBlock": true
+        },
+        {
+          "itemId": "art_1379a44c-550",
+          "tokens": 31,
+          "chars": 175,
+          "meetsOneBlock": false
+        },
+        {
+          "itemId": "art_be372558-d16",
+          "tokens": 20,
+          "chars": 128,
+          "meetsOneBlock": false
+        },
+        {
+          "itemId": "art_79a338d4-3dd",
+          "tokens": 8,
+          "chars": 50,
+          "meetsOneBlock": false
+        },
+        {
+          "itemId": "art_763b9051-c06",
+          "tokens": 8,
+          "chars": 26,
+          "meetsOneBlock": false
+        },
+        {
+          "itemId": "art_9591b298-ec2",
+          "tokens": 80,
+          "chars": 378,
+          "meetsOneBlock": false
+        },
+        {
+          "itemId": "art_d373994e-27d",
+          "tokens": 62,
+          "chars": 353,
+          "meetsOneBlock": false
+        },
+        {
+          "itemId": "art_6278e225-fc7",
+          "tokens": 54,
+          "chars": 272,
+          "meetsOneBlock": false
+        },
+        {
+          "itemId": "art_21addb85-29f",
+          "tokens": 87,
+          "chars": 521,
+          "meetsOneBlock": false
+        },
+        {
+          "itemId": "art_3412f912-415",
+          "tokens": 112,
+          "chars": 545,
+          "meetsOneBlock": false
+        },
+        {
+          "itemId": "art_278145d6-3d5",
+          "tokens": 88,
+          "chars": 458,
+          "meetsOneBlock": false
+        },
+        {
+          "itemId": "art_4c544541-cd4",
+          "tokens": 30,
+          "chars": 158,
+          "meetsOneBlock": false
+        },
+        {
+          "itemId": "art_cc74b86c-bce",
+          "tokens": 39,
+          "chars": 209,
+          "meetsOneBlock": false
+        },
+        {
+          "itemId": "art_14f02dc5-880",
+          "tokens": 54,
+          "chars": 259,
+          "meetsOneBlock": false
+        },
+        {
+          "itemId": "art_0b4b6ad2-090",
+          "tokens": 56,
+          "chars": 278,
+          "meetsOneBlock": false
+        },
+        {
+          "itemId": "art_cba71709-321",
+          "tokens": 162,
+          "chars": 691,
+          "meetsOneBlock": true
+        },
+        {
+          "itemId": "art_406a821f-e12",
+          "tokens": 78,
+          "chars": 401,
+          "meetsOneBlock": false
+        },
+        {
+          "itemId": "art_5aeb3879-48e",
+          "tokens": 103,
+          "chars": 538,
+          "meetsOneBlock": false
+        },
+        {
+          "itemId": "art_8617cf0a-8dc",
+          "tokens": 85,
+          "chars": 424,
+          "meetsOneBlock": false
+        },
+        {
+          "itemId": "art_1aa934fb-af1",
+          "tokens": 59,
+          "chars": 290,
+          "meetsOneBlock": false
+        },
+        {
+          "itemId": "art_39a4801f-d07",
+          "tokens": 47,
+          "chars": 244,
+          "meetsOneBlock": false
+        },
+        {
+          "itemId": "art_e96645b8-ed8",
+          "tokens": 29,
+          "chars": 163,
+          "meetsOneBlock": false
+        },
+        {
+          "itemId": "art_e1261bb7-588",
+          "tokens": 47,
+          "chars": 256,
+          "meetsOneBlock": false
+        },
+        {
+          "itemId": "art_59deb2fb-caf",
+          "tokens": 35,
+          "chars": 201,
+          "meetsOneBlock": false
+        },
+        {
+          "itemId": "art_dbcf57d1-c96",
+          "tokens": 54,
+          "chars": 257,
+          "meetsOneBlock": false
+        },
+        {
+          "itemId": "art_8b88fae5-abf",
+          "tokens": 50,
+          "chars": 269,
+          "meetsOneBlock": false
+        },
+        {
+          "itemId": "art_5de7f292-dd1",
+          "tokens": 30,
+          "chars": 176,
+          "meetsOneBlock": false
+        }
+      ]
+    },
+    "rawRepresentatives": {
+      "schema": "sma/token-measurement@1",
+      "sequenceLength": 128,
+      "documentCount": 13,
+      "totalTokens": 123529,
+      "blocksIfConcatenated": 965,
+      "droppedTokens": 9,
+      "documentsMeetingOneBlock": 13,
+      "documents": [
+        {
+          "itemId": "source-0",
+          "tokens": 7925,
+          "chars": 34702,
+          "meetsOneBlock": true
+        },
+        {
+          "itemId": "source-1",
+          "tokens": 57346,
+          "chars": 238178,
+          "meetsOneBlock": true
+        },
+        {
+          "itemId": "source-2",
+          "tokens": 2859,
+          "chars": 8573,
+          "meetsOneBlock": true
+        },
+        {
+          "itemId": "source-3",
+          "tokens": 1940,
+          "chars": 7572,
+          "meetsOneBlock": true
+        },
+        {
+          "itemId": "source-4",
+          "tokens": 26537,
+          "chars": 94692,
+          "meetsOneBlock": true
+        },
+        {
+          "itemId": "source-5",
+          "tokens": 2777,
+          "chars": 13629,
+          "meetsOneBlock": true
+        },
+        {
+          "itemId": "source-6",
+          "tokens": 3629,
+          "chars": 14947,
+          "meetsOneBlock": true
+        },
+        {
+          "itemId": "source-7",
+          "tokens": 1819,
+          "chars": 7447,
+          "meetsOneBlock": true
+        },
+        {
+          "itemId": "source-8",
+          "tokens": 2496,
+          "chars": 10120,
+          "meetsOneBlock": true
+        },
+        {
+          "itemId": "source-9",
+          "tokens": 6009,
+          "chars": 27040,
+          "meetsOneBlock": true
+        },
+        {
+          "itemId": "source-10",
+          "tokens": 2190,
+          "chars": 9379,
+          "meetsOneBlock": true
+        },
+        {
+          "itemId": "source-11",
+          "tokens": 3868,
+          "chars": 10684,
+          "meetsOneBlock": true
+        },
+        {
+          "itemId": "source-12",
+          "tokens": 4134,
+          "chars": 10897,
+          "meetsOneBlock": true
+        }
+      ]
+    },
+    "cleanedRaw": {
+      "schema": "sma/token-measurement@1",
+      "sequenceLength": 128,
+      "documentCount": 12,
+      "totalTokens": 40947,
+      "blocksIfConcatenated": 319,
+      "droppedTokens": 115,
+      "documentsMeetingOneBlock": 12,
+      "documents": [
+        {
+          "itemId": "cleaned-0",
+          "tokens": 4464,
+          "chars": 19897,
+          "meetsOneBlock": true
+        },
+        {
+          "itemId": "cleaned-2",
+          "tokens": 1706,
+          "chars": 5081,
+          "meetsOneBlock": true
+        },
+        {
+          "itemId": "cleaned-3",
+          "tokens": 1530,
+          "chars": 5864,
+          "meetsOneBlock": true
+        },
+        {
+          "itemId": "cleaned-4",
+          "tokens": 19462,
+          "chars": 73217,
+          "meetsOneBlock": true
+        },
+        {
+          "itemId": "cleaned-5",
+          "tokens": 2361,
+          "chars": 11562,
+          "meetsOneBlock": true
+        },
+        {
+          "itemId": "cleaned-6",
+          "tokens": 349,
+          "chars": 1376,
+          "meetsOneBlock": true
+        },
+        {
+          "itemId": "cleaned-7",
+          "tokens": 230,
+          "chars": 885,
+          "meetsOneBlock": true
+        },
+        {
+          "itemId": "cleaned-8",
+          "tokens": 141,
+          "chars": 609,
+          "meetsOneBlock": true
+        },
+        {
+          "itemId": "cleaned-9",
+          "tokens": 3641,
+          "chars": 16260,
+          "meetsOneBlock": true
+        },
+        {
+          "itemId": "cleaned-10",
+          "tokens": 1276,
+          "chars": 5852,
+          "meetsOneBlock": true
+        },
+        {
+          "itemId": "cleaned-11",
+          "tokens": 2968,
+          "chars": 7503,
+          "meetsOneBlock": true
+        },
+        {
+          "itemId": "cleaned-12",
+          "tokens": 2819,
+          "chars": 6692,
+          "meetsOneBlock": true
+        }
+      ]
+    }
+  }
+}

@@ -30,6 +30,7 @@ export const resolvers = {
     importanceReviewId: (a) => a.importanceReviewId ?? null,
     suggestedImportance: (a) => (a.suggestedImportance ? impToEnum(a.suggestedImportance) : null),
     decidedBy: (a) => (a.decidedBy ? authToEnum(a.decidedBy) : null),
+    licence: (a) => a.licence ?? null,
     reviewCount: (a, _, { store }) => (typeof a.reviewCount === "number" ? a.reviewCount : store.reviewsFor(a.articleId).length),
     trainable: (a) => isTrainable(a),
     quarantined: (a) => a.status === "QUARANTINED",
@@ -95,6 +96,9 @@ export const resolvers = {
         rawText: input.rawText,
         sourceUrl: input.sourceUrl,
         htmlLang: input.htmlLang,
+        licenceId: input.licenceId,
+        licenceUrl: input.licenceUrl,
+        licenceAttribution: input.licenceAttribution,
         uncertainty: input.uncertainty,
         missionRelevance: input.missionRelevance,
       });

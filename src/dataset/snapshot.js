@@ -5,6 +5,7 @@ import readline from "node:readline";
 import path from "node:path";
 import { config } from "../config.js";
 import { contentHash, isTrainable } from "../domain/article.js";
+import { licenceSnapshotFields } from "../domain/licence.js";
 import { preScreen } from "../domain/review-gates.js";
 import { buildCommonLines, corpusRowForArticle, corpusTextForArticle } from "./corpus-text.js";
 import { applyDiversityCaps, computeCorpusDiversity } from "./diversity.js";
@@ -53,6 +54,7 @@ export function rowForArticle(article, { corpusRole = "train" } = {}) {
     ...(article.sourceUrl ? { sourceUrl: article.sourceUrl } : {}),
     ...(article.fetchedContentHash ? { fetchedContentHash: article.fetchedContentHash } : {}),
     ...(article.model ? { teacherModel: article.model } : {}),
+    ...licenceSnapshotFields(article.licence),
   };
 }
 

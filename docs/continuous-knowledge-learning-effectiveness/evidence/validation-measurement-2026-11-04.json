@@ -1,0 +1,187 @@
+{
+  "schema": "sma/validation-availability@1",
+  "at": "2026-11-04T20:47:54.776Z",
+  "available": true,
+  "waiting": false,
+  "error": null,
+  "targetTokens": 4096,
+  "requiredClusters": 1,
+  "requiredTokensForOneBlock": 128,
+  "trainable": 37,
+  "freshRows": 37,
+  "replayRows": 24,
+  "partitionRows": 48,
+  "prospectiveClusters": 5,
+  "prospectiveTokens": 1547,
+  "largestProspectiveClusterTokens": null,
+  "clustersMeetingOneBlock": null,
+  "validationArticleCount": 19,
+  "validationClusterCount": 5,
+  "validationArticleIds": [
+    "art_0b4b6ad2-090",
+    "art_1379a44c-550",
+    "art_14f02dc5-880",
+    "art_1aa934fb-af1",
+    "art_21addb85-29f",
+    "art_278145d6-3d5",
+    "art_3412f912-415",
+    "art_39a4801f-d07",
+    "art_406a821f-e12",
+    "art_4c544541-cd4",
+    "art_59deb2fb-caf",
+    "art_5aeb3879-48e",
+    "art_8617cf0a-8dc",
+    "art_b344860f-dba",
+    "art_be372558-d16",
+    "art_cba71709-321",
+    "art_cc74b86c-bce",
+    "art_e1261bb7-588",
+    "art_e96645b8-ed8"
+  ],
+  "exposure": {
+    "coverage": "snapshots-roles-consumption-contributions",
+    "prospectiveClusters": 5,
+    "historicalClusters": 24,
+    "validationProspectiveArticles": 19,
+    "validationHistoricalArticles": 0,
+    "trainProspectiveArticles": 0,
+    "trainHistoricalArticles": 29,
+    "validationExposureMode": "prospective-only",
+    "uncertainty": "Historical coverage is reconstructed from recorded snapshots, roles and contribution records; absent records are reported, not assumed absent."
+  },
+  "splitHash": "574c17da2037cbe4fc5825b1f9a7c08ced8e792c1b4b2e66faca287b4ad059dd",
+  "tokenizerMeasurement": {
+    "schema": "sma/token-measurement@1",
+    "sequenceLength": 128,
+    "documentCount": 19,
+    "totalTokens": 1208,
+    "blocksIfConcatenated": 9,
+    "droppedTokens": 56,
+    "documentsMeetingOneBlock": 1,
+    "documents": [
+      {
+        "itemId": "art_0b4b6ad2-090",
+        "tokens": 56,
+        "chars": 278,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_1379a44c-550",
+        "tokens": 31,
+        "chars": 175,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_14f02dc5-880",
+        "tokens": 54,
+        "chars": 259,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_1aa934fb-af1",
+        "tokens": 59,
+        "chars": 290,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_21addb85-29f",
+        "tokens": 87,
+        "chars": 521,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_278145d6-3d5",
+        "tokens": 88,
+        "chars": 458,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_3412f912-415",
+        "tokens": 112,
+        "chars": 545,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_39a4801f-d07",
+        "tokens": 47,
+        "chars": 244,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_406a821f-e12",
+        "tokens": 78,
+        "chars": 401,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_4c544541-cd4",
+        "tokens": 30,
+        "chars": 158,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_59deb2fb-caf",
+        "tokens": 35,
+        "chars": 201,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_5aeb3879-48e",
+        "tokens": 103,
+        "chars": 538,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_8617cf0a-8dc",
+        "tokens": 85,
+        "chars": 424,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_b344860f-dba",
+        "tokens": 46,
+        "chars": 220,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_be372558-d16",
+        "tokens": 20,
+        "chars": 128,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_cba71709-321",
+        "tokens": 162,
+        "chars": 691,
+        "meetsOneBlock": true
+      },
+      {
+        "itemId": "art_cc74b86c-bce",
+        "tokens": 39,
+        "chars": 209,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_e1261bb7-588",
+        "tokens": 47,
+        "chars": 256,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_e96645b8-ed8",
+        "tokens": 29,
+        "chars": 163,
+        "meetsOneBlock": false
+      }
+    ]
+  },
+  "authoritative": {
+    "actualTokens": 1208,
+    "actualBlocks": 9,
+    "documentsMeetingOneBlock": 1,
+    "targetTokens": 4096,
+    "targetBlocks": 32,
+    "shortfallBlocks": 23,
+    "available": true
+  }
+}

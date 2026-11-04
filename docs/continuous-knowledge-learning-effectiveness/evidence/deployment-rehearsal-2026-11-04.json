@@ -1,0 +1,68 @@
+{
+  "schema": "sma/deployment-rehearsal@1",
+  "at": "2026-11-04T22:04:45.812Z",
+  "mode": "isolated",
+  "root": "/tmp/sma-rehearsal-wvtNUa",
+  "steps": {
+    "backfillDryRun": {
+      "resolved": 3,
+      "byStatus": {
+        "safe:allow": 2,
+        "uncertain:review": 1
+      },
+      "alreadyResolved": 0
+    },
+    "backfillApply": {
+      "resolved": 3,
+      "byStatus": {
+        "safe:allow": 2,
+        "uncertain:review": 1
+      }
+    },
+    "audit": {
+      "scannedRetired": 3,
+      "counts": {
+        "RECOVERABLE_SAFE": {
+          "count": 1,
+          "estimatedTokens": 426
+        },
+        "BLOCKED_LICENCE_UNCERTAIN": {
+          "count": 1,
+          "estimatedTokens": 427
+        },
+        "RECOVERABLE_SAFE_SHORT": {
+          "count": 1,
+          "estimatedTokens": 17
+        }
+      },
+      "safeShort": 1
+    },
+    "rollback": {
+      "licencesAfterApply": {
+        "art_10791005-e3b": "safe",
+        "art_21008da6-fe6": "uncertain",
+        "art_dffca375-813": "safe"
+      },
+      "licencesAfterRollback": {
+        "art_10791005-e3b": null,
+        "art_21008da6-fe6": null,
+        "art_dffca375-813": null
+      }
+    },
+    "config": {
+      "curatorStrategy": "segmented",
+      "urlQuality": "enforce",
+      "licence": "shadow",
+      "prefilter": "shadow",
+      "knowledgeTokenizerMeasurement": false
+    }
+  },
+  "checks": {
+    "dryRunReadOnly": true,
+    "applyRecordedLicences": true,
+    "rollbackRemovedLicences": true,
+    "auditClassifiedSafeShort": true,
+    "configParsed": true
+  },
+  "note": "Isolated rehearsal only. No production store, service, job, pointer or environment was touched."
+}

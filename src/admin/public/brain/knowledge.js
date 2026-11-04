@@ -80,11 +80,15 @@ export function renderKnowledge(data) {
   const corpus = data.corpus ?? {};
   const training = data.training ?? {};
   const validation = data.validation ?? {};
+  const authoritative = validation.authoritative ?? null;
   const guard = data.groupEvaluation ?? {};
   const drift = data.drift ?? {};
   const lifecycle = data.lifecycle ?? {};
   const decision = data.stableDecision ?? {};
   const counts = data.counts ?? {};
+  const funnel = data.funnel ?? {};
+  const licence = data.licence ?? {};
+  const learning = data.learningEffectiveness ?? {};
   const freshTokens = corpus.fresh?.tokens;
   const replayTokens = corpus.replay?.tokens;
   const validationTokens = corpus.validation?.tokens;
@@ -132,7 +136,7 @@ export function renderKnowledge(data) {
         <span>Source</span><strong>${esc(corpus.runId ?? "—")}</strong>
       </div>
       ${corpus.replayShare !== null && corpus.configuredReplayPercent !== null && corpus.replayShare > corpus.configuredReplayPercent / 100
-        ? `<div class="ka-note warn">Measured replay is above the configured target for this run. The replay-selection correction is on the observability branch and is not yet deployed.</div>`
+        ? `<div class="ka-note warn">Measured replay is above the configured target for this run. The post-partition correction trims replay against the final fresh stream; the next completed run is the authoritative test.</div>`
         : `<div class="ka-note">Measured values are from the trainer preflight; no pre-partition estimate is presented as a final proportion.</div>`}
     </section>
 
@@ -163,10 +167,13 @@ export function renderKnowledge(data) {
         <span>Required clusters</span><strong>${fmt(validation.requiredClusters)}</strong>
         <span>One-block token floor</span><strong>${fmt(validation.requiredTokensForOneBlock)}</strong>
         <span>Largest cluster estimate</span><strong>${fmt(validation.largestProspectiveClusterTokens)}</strong>
+        <span>Actual tokens</span><strong>${authoritative ? fmt(authoritative.actualTokens) : "—"}</strong>
+        <span>Actual blocks</span><strong>${authoritative ? `${fmt(authoritative.actualBlocks)} / ${fmt(authoritative.targetBlocks)}` : "—"}</strong>
+        <span>Actual shortfall</span><strong class="${authoritative && authoritative.shortfallBlocks > 0 ? "bad" : ""}">${authoritative ? fmt(authoritative.shortfallBlocks) : "—"}</strong>
         <span>Training job</span><strong>${tag(lifecycle.trainingJob?.status ?? "—", statusTone(lifecycle.trainingJob?.status))}</strong>
         <span>Phase</span><strong>${esc(lifecycle.trainingJob?.phase ?? "—")}</strong>
       </div>
-      <div class="ka-note ${trainerWaiting || validation.waiting ? "warn" : ""}">${esc(validationState)} Calculated availability can overestimate tokenizer blocks; the trainer block count is authoritative.</div>
+      <div class="ka-note ${trainerWaiting || validation.waiting ? "warn" : ""}">${esc(validationState)} ${authoritative ? "Tokenizer-measured block counts are authoritative; see Actual blocks." : "Calculated availability can overestimate tokenizer blocks; the trainer block count is authoritative."}</div>
     </section>
 
     <section class="ka-panel">
@@ -187,6 +194,50 @@ export function renderKnowledge(data) {
     </section>
   </div>
 
+  <div class="ka-grid ka-grid-3">
+    <section class="ka-panel">
+      <div class="ka-panel-title">Knowledge-to-trainability funnel <span class="ka-tag calculated">calculated</span></div>
+      <div class="ka-kv">
+        <span>Articles</span><strong>${fmt(funnel.totalArticles)}</strong>
+        <span>Reviewed</span><strong>${fmt(funnel.reviewed)}</strong>
+        <span>Unique consumed</span><strong>${fmt(funnel.uniqueConsumed)}</strong>
+        <span>Replay pool</span><strong>${fmt(funnel.replayEligible)}</strong>
+        <span>Fresh trainable</span><strong>${fmt(funnel.trainable)}</strong>
+        <span>Retired</span><strong>${fmt(funnel.retired)}</strong>
+        <span>Approved → retired</span><strong>${fmt(funnel.approvedRetired)}</strong>
+        <span>Consumed approved → retired</span><strong>${fmt(funnel.consumedApprovedRetired)}</strong>
+        <span>…not replayable</span><strong class="${funnel.consumedApprovedRetiredNotReplayable > 0 ? "bad" : ""}">${fmt(funnel.consumedApprovedRetiredNotReplayable)}</strong>
+      </div>
+      <div class="ka-note">Counts are live store totals. “Fresh trainable” is the only material a new run can consume as new knowledge.</div>
+    </section>
+    <section class="ka-panel">
+      <div class="ka-panel-title">Source licence provenance <span class="ka-tag calculated">calculated</span></div>
+      <div class="ka-kv">
+        <span>Safe</span><strong>${fmt(licence.safe)}</strong>
+        <span>Uncertain</span><strong>${fmt(licence.uncertain)}</strong>
+        <span>Restricted</span><strong>${fmt(licence.restricted)}</strong>
+        <span>Unknown</span><strong>${fmt(licence.unknown)}</strong>
+        <span>Unresolved</span><strong>${fmt(licence.unresolved)}</strong>
+      </div>
+      <div class="ka-note">Licence resolution is recorded at ingest. It is advisory unless LICENCE_ENFORCEMENT=enforce; unknown and uncertain material is never assumed safe.</div>
+    </section>
+    <section class="ka-panel">
+      <div class="ka-panel-title">Cumulative learning effect <span class="ka-tag measured">measured</span></div>
+      <div class="ka-kv">
+        <span>Working advances</span><strong>${fmt(learning.summary?.advances)}</strong>
+        <span>Measured</span><strong>${fmt(learning.summary?.measured)}</strong>
+        <span>Net Δ vs stable</span><strong class="${Number(learning.summary?.netDeltaVsStable) > 0 ? "bad" : "good"}">${fmt(learning.summary?.netDeltaVsStable, 4)}</strong>
+        <span>Best Δ</span><strong>${fmt(learning.summary?.bestDeltaVsStable, 4)} · ${esc(learning.summary?.bestVersion ?? "—")}</strong>
+        <span>Worst Δ</span><strong>${fmt(learning.summary?.worstDeltaVsStable, 4)} · ${esc(learning.summary?.worstVersion ?? "—")}</strong>
+        <span>Regressions</span><strong>${fmt(learning.summary?.regressionsVsStable)} / ${fmt(learning.summary?.measured)}</strong>
+        <span>Drift velocity</span><strong>${fmt(learning.summary?.driftVelocity, 4)} nats/advance</strong>
+        <span>Sealed prospective</span><strong>${learning.prospective ? tag("present", "good") : tag("not configured", "warn")}</strong>
+        <span>Retention probe</span><strong>${learning.retention ? tag("present", "good") : tag("not configured", "warn")}</strong>
+      </div>
+      <div class="ka-note">Working advancement is not a learning result. Only a sealed prospective benchmark and retention probe can demonstrate generalisation and retention.</div>
+    </section>
+  </div>
+
   <div class="ka-grid ka-grid-2">
     <section class="ka-panel">
       <div class="ka-panel-title">Working advancement history <span class="ka-tag historical">historical</span></div>
@@ -198,10 +249,30 @@ export function renderKnowledge(data) {
     </section>
   </div>
 
+  <section class="ka-panel">
+    <div class="ka-panel-title">Working learning trajectory <span class="ka-tag measured">measured</span></div>
+    ${learningTrajectoryTable(learning.trajectory)}
+  </section>
+
   <div class="ka-footer">
     <span>${tag(`${counts.runs ?? 0} runs`, "neutral")} ${tag(`${counts.workingAdvances ?? 0} working advances`, "warn")} ${tag(`${counts.stablePromotions ?? 0} stable promotions`, "good")} ${tag(`${counts.stableRejections ?? 0} stable rejections`, "bad")} ${tag(`${counts.stableInconclusive ?? 0} inconclusive`, "warn")}</span>
     <span>${esc(data.optimizer?.source ?? "")}</span>
   </div>`;
+}
+
+function learningTrajectoryTable(rows) {
+  if (!Array.isArray(rows) || !rows.length) return `<div class="ka-empty">No working trajectory recorded.</div>`;
+  return `<div class="ka-table-wrap"><table class="ka-table">
+    <thead><tr><th>Run</th><th>Version</th><th>Candidate loss</th><th>Δ vs stable</th><th>Fresh tokens</th><th>Replay share</th></tr></thead>
+    <tbody>${rows.slice().reverse().map((row) => `<tr>
+      <td>${esc(row.runId ?? "—")}</td>
+      <td>${esc(row.version ?? "—")}${row.parentVersion ? ` ← ${esc(row.parentVersion)}` : ""}</td>
+      <td>${fmt(row.candidateLoss, 6)}</td>
+      <td class="${Number(row.deltaVsStable) > 0 ? "bad" : "good"}">${fmt(row.deltaVsStable, 6)}</td>
+      <td>${fmt(row.freshTokens)}</td>
+      <td>${pct(row.replayShare)}</td>
+    </tr>`).join("")}</tbody>
+  </table></div>`;
 }
 
 function groupChangesTable(changes) {

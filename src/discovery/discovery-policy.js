@@ -19,6 +19,8 @@
  *
  * `CRAWL_DENIED_DOMAINS` is always prohibited, in every mode.
  */
+import { classifyUrlQualityWithMode } from "./source-quality.js";
+
 export const DISCOVERY_MODES = Object.freeze(["seeds-only", "allowlist", "open"]);
 
 export function hostOf(urlString) {
@@ -39,6 +41,7 @@ export function createDiscoveryPolicy({
   allowedDomains = [],
   deniedDomains = [],
   mode = "seeds-only",
+  urlQuality = "enforce",
 } = {}) {
   const m = DISCOVERY_MODES.includes(mode) ? mode : "seeds-only";
   const seedHosts = new Set(seedUrls.map(hostOf).filter(Boolean));
@@ -86,7 +89,11 @@ export function createDiscoveryPolicy({
       if (denied.some((d) => matchesDomain(host, d))) {
         return { allowed: false, reason: "denied-domain", trust: null, host };
       }
-      if (isSeedHost(host)) return { allowed: true, reason: "seed", trust: "seed", host };
+      const quality = classifyUrlQualityWithMode(urlString, urlQuality);
+      if (quality.action === "reject") {
+        return { allowed: false, reason: quality.reason, trust: null, host, quality };
+      }
+      if (isSeedHost(host)) return { allowed: true, reason: "seed", trust: "seed", host, ...(quality.shadowRejected ? { quality } : {}) };
       if (m === "seeds-only") return { allowed: false, reason: "not-seed-host", trust: null, host };
       if (m === "allowlist") {
         if (allowed.some((d) => matchesDomain(host, d))) {

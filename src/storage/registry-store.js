@@ -277,6 +277,12 @@ export class RegistryStore {
     return stored;
   }
   listEvaluations() { return [...this.evaluations]; }
+  /** Durable model outcome events across all models, oldest first. */
+  listModelEvents() {
+    return [...this.modelEvents.values()]
+      .flat()
+      .sort((a, b) => String(a.at ?? "").localeCompare(String(b.at ?? "")));
+  }
   getEvaluation(id) { return this.evaluations.find((e) => e.evalRunId === id) ?? null; }
 
   // ------------------------------------------------------------ lock

@@ -640,6 +640,13 @@ def train(
     )
     layer_groups = layer_parameter_groups(model) if layer_activity_enabled else {}
 
+    # Capture the optimizer hyperparameters this run constructed, including the
+    # per-group decay split. A carried state must NOT collapse that split: the
+    # vector (RMSNorm) group is intentionally constructed with weight_decay=0.0,
+    # and overwriting every group with cfg.weightDecay silently changes the
+    # optimizer semantics between checkpoints.
+    configured_group_decay = [float(group.get("weight_decay", 0.0)) for group in optimizer.param_groups]
+
     # Cumulative working learning: carry AdamW moments from the parent working
     # checkpoint even when the corpus changes. This is distinct from `resume`,
     # which also restores the sample order/RNG and requires an identical dataset.
@@ -651,12 +658,13 @@ def train(
         except Exception as exc:  # noqa: BLE001 - report the concrete mismatch
             raise ValueError(f"carry_optimizer_state does not match this model/optimizer: {exc}") from exc
         # Keep this run's configured optimizer hyperparameters; only the moments
-        # and optimizer step counters are carried.
-        for group in optimizer.param_groups:
+        # and optimizer step counters are carried. Re-apply the ORIGINAL per-group
+        # decays rather than cfg.weightDecay to every group.
+        for group, decay in zip(optimizer.param_groups, configured_group_decay):
             group["lr"] = cfg.learningRate
             group["betas"] = tuple(cfg.betas)
             group["eps"] = cfg.eps
-            group["weight_decay"] = cfg.weightDecay
+            group["weight_decay"] = decay
         log("carried optimizer moments from the working parent")
 
     if resume is not None:
