@@ -1,0 +1,136 @@
+{
+  "schema": "sma/knowledge-accumulation-release-manifest@1",
+  "at": "2026-11-04T01:45:00Z",
+  "pilotBranch": "knowledge-accumulation-pilot-20261102",
+  "pilotImplementationCommit": "13a0962",
+  "pilotDocsCommit": "79a9f2c",
+  "releaseBranch": "knowledge-accumulation-release-readiness-20261103",
+  "baseCommit": "79a9f2c",
+  "releaseCodeCommit": "00f338d",
+  "releaseDocsCommit": "fea0c6c",
+  "releaseEvidenceLogsCommit": "bfabf7e",
+  "productionMutation": false,
+  "changedFiles": {
+    "src/config.js": {
+      "sha256": "9b9a0746b4f956d8840385da100669dabc2df8ead07d7c971dd5a855ee44699a"
+    },
+    "src/training/working-guard.js": {
+      "sha256": "22ed1030f9e1f0b1456be8b5194586606cb24818de59bb5452cc9943d18f7979"
+    },
+    "src/training/lifecycle.js": {
+      "sha256": "909218e4911af254793a5141c246247ed27ff55bd776fe8c9d0a28f7f6b81330"
+    },
+    "src/training/python-trainer.js": {
+      "sha256": "bc1769584e382fc1b86365b43bf61acb3cc33582622f72bc411ec68a9c768ce8"
+    },
+    "python/sma/brain.py": {
+      "sha256": "b530add1a3d5b45d9ba9e104185109e3bd253f157352a14589e7eea4d6fe905c"
+    },
+    "python/sma/store.py": {
+      "sha256": "f9e0db9a86480f85f344523631dedd392e1f6730fc1292268640d6d7a1b5e82e"
+    },
+    "python/tests/test_portability.py": {
+      "sha256": "9b7092c7b78e332bcd183f37c74e45f83082101a3e6252ab44b49d2c3a75b489"
+    },
+    "python/tests/test_retention.py": {
+      "sha256": "18a7b4d696f4999108042822fcbd7193731ae6635194178afb89a3641d337327"
+    },
+    "python/tests/test_working_checkpoint.py": {
+      "sha256": "46d03b6377c9ec4356d74a7eb165d9cc96b6508757d05fa9bc639f0e0918e289"
+    },
+    "scripts/knowledge-pilot/classify-replay.mjs": {
+      "sha256": "b6fe4d68d2e8ce555200fe8802e26269542e5c10798fa4ba620697e94d0bb210"
+    },
+    "scripts/knowledge-pilot/analyze-guard-calibration.mjs": {
+      "sha256": "6bcf93fde158ed746527e02b7552e4dc35dc69c82b408704291fc638178ce1e4"
+    },
+    "test/working-checkpoint-lifecycle.test.js": {
+      "sha256": "0453bfd3602635e978c43d5c74831091e86b767688cdd2984f961803f9df63c3"
+    },
+    "test/working-crash-subprocess.test.js": {
+      "sha256": "c0f22761640894cb0cf803e6f9bca558ed8b5d8aa95e2dca80956257cdf035ea"
+    },
+    "test/working-guard-calibration.test.js": {
+      "sha256": "06ec3fe5acb50fd29ea4b317f6cb5b411ff7c91a59773d953636ea46526fa006"
+    },
+    "test-support/working-crash-child.mjs": {
+      "sha256": "8ebaaea78d9d32df99949405971da581041f805d2a982e0670623d9c024eaae9"
+    },
+    "test-support/working-recovery-child.mjs": {
+      "sha256": "947e33c8fcd6a1f8ec74d1b4e0f0427948b096538a85bf218eaba5cbf9ddfb5f"
+    }
+  },
+  "evidenceFiles": {
+    "docs/knowledge-accumulation-release-readiness/CHECKPOINT-RETENTION.md": {
+      "sha256": "6c9b0a8964f089843c3e595f2e9b4efae6effb6b34526d2dc412669f9d5b6710"
+    },
+    "docs/knowledge-accumulation-release-readiness/CRASH-RECOVERY.md": {
+      "sha256": "1a84f08b90614acb09935bd70e107f2c727d90ab5819df9a0ce5632db106e16b"
+    },
+    "docs/knowledge-accumulation-release-readiness/GUARD-CALIBRATION.md": {
+      "sha256": "cea9fc4976fc90b66865a6291a0b91a5ba609b6d799be8c79357f18111e31613"
+    },
+    "docs/knowledge-accumulation-release-readiness/IMPLEMENTATION-REPORT.md": {
+      "sha256": "0619001dc697b449f05a09bf35d3148770a4d11c92035a7d368be9e66d26b1c6"
+    },
+    "docs/knowledge-accumulation-release-readiness/OPTIMIZER-COMPATIBILITY.md": {
+      "sha256": "1a1ed2b62f348ca348c09cf03b602ae0009bb7f8eb9543d224490010abd30e52"
+    },
+    "docs/knowledge-accumulation-release-readiness/PRODUCTION-ROLLOUT.md": {
+      "sha256": "2c56c947c544817f59574df6c6d125f3bbc5ad88729c472c99f449e8cafbd000"
+    },
+    "docs/knowledge-accumulation-release-readiness/README.md": {
+      "sha256": "07ec991415f8765deee39a38c4c3282e326d21451f75b76444eca4a35b35cc64"
+    },
+    "docs/knowledge-accumulation-release-readiness/RELEASE-EVIDENCE.json": {
+      "sha256": "efd3f72a302ab753302915322f72fc0dec1d8d32cea0515e98153247265d0a4f"
+    },
+    "docs/knowledge-accumulation-release-readiness/REPLAY-RECONCILIATION.md": {
+      "sha256": "08a610f25a8313fadf9444cd936bd2705a1618ac53f4dacc87a880b17138cfd6"
+    },
+    "docs/knowledge-accumulation-release-readiness/ROCM-VALIDATION.md": {
+      "sha256": "9f0c1a1148c3c60b2adf63013d3c4db29cc720b4985280e0f9eb8634ec7dfb58"
+    },
+    "docs/knowledge-accumulation-release-readiness/guard-calibration.json": {
+      "sha256": "1f96e27a14026255e68e868cb8574d5855f1081f72f1b7395ded5eb2217edf51"
+    },
+    "docs/knowledge-accumulation-release-readiness/optimizer-bootstrap.stderr.log": {
+      "sha256": "dca26e1a22dcad3146cd0858f6602e40e68b128b41f96a18b336f67dd2ae5028"
+    },
+    "docs/knowledge-accumulation-release-readiness/optimizer-carry.stderr.log": {
+      "sha256": "f7583f378b30cdcf7fd355776503308f52a364f810fceed87c457be5f24fed3d"
+    },
+    "docs/knowledge-accumulation-release-readiness/pilot-default-1.json": {
+      "sha256": "e3eae7dde0dc0ecd6c50ba8ee0e2892f54a89d7e4ab44911b4b179947d310b2c"
+    },
+    "docs/knowledge-accumulation-release-readiness/pilot-default-corpus-manifest.json": {
+      "sha256": "03ef410627a762e0c3e9ed09b40a8a495ee19627eaede1f70fee5f633aadf118"
+    },
+    "docs/knowledge-accumulation-release-readiness/pytest-rocm-full.log": {
+      "sha256": "f0d1106f0d4cc8ba369ad69165d32fef0a1dc49111bfaf0039d644b3e287dfd2"
+    },
+    "docs/knowledge-accumulation-release-readiness/pytest-rocm-portability.log": {
+      "sha256": "93ac2cf47aa67d50e8476e06552f087a88c7487bd02261fcf868902d3abe54f3"
+    },
+    "docs/knowledge-accumulation-release-readiness/pytest-rocm-working-retention.log": {
+      "sha256": "6dd786dc72d45e02d32f9a2c96fbee7f0ea69261b610e86a41d1a671dd0186ef"
+    },
+    "docs/knowledge-accumulation-release-readiness/replay-migration-dry-run.json": {
+      "sha256": "491761a751e6a186039483984bc543300f7b2fbb07c2bfdf62923dbea1034261"
+    }
+  },
+  "tests": {
+    "node": {
+      "tests": 789,
+      "passed": 782,
+      "failed": 0,
+      "skipped": 7
+    },
+    "pythonRocm": {
+      "passed": 260,
+      "skipped": 19,
+      "failed": 0
+    }
+  },
+  "recommendation": "READY WITH CONDITIONS"
+}
