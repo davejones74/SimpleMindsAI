@@ -1,0 +1,122 @@
+{
+  "schema": "sma/knowledge-accumulation-release-evidence@1",
+  "at": "2026-11-04T01:20:00Z",
+  "branch": "knowledge-accumulation-release-readiness-20261103",
+  "baseCommit": "79a9f2c",
+  "pilotImplementationCommit": "13a0962",
+  "releaseCodeCommit": "00f338d",
+  "productionMutation": false,
+  "guardDefaults": {
+    "maxRegressionNats": 0.05,
+    "maxGroupRegressionNats": 0.15,
+    "maxDriftNats": 0.1,
+    "minGroupTokens": 100,
+    "maxRegressedGroupShare": 0.75,
+    "minGroups": 5,
+    "version": "working-guard-v2"
+  },
+  "pilotWideGuard": {
+    "maxRegressionNats": 0.1,
+    "maxGroupRegressionNats": 0.2,
+    "maxDriftNats": 0.25
+  },
+  "scenarioA": {
+    "report": "pilot-default-1.json",
+    "parent": "v389",
+    "candidate": "v001",
+    "stableDecision": "rejected",
+    "stableDelta": -0.0459,
+    "workingDecision": "accepted",
+    "workingDelta": 0.0472,
+    "activeAfter": "v389",
+    "replayRows": 4
+  },
+  "historicalCalibration": {
+    "runsWithPairedEvidence": 83,
+    "promoted": 13,
+    "rejected": 59,
+    "inconclusive": 11,
+    "rejectedAcceptedByReleaseDefaults": 53,
+    "rejectedOverallRegression": {
+      "median": 0.02118073372130702,
+      "p90": 0.04874745835649197,
+      "max": 0.08518515495543788
+    }
+  },
+  "rocm": {
+    "python": "3.14.4",
+    "torch": "2.12.0+rocm7.14.0",
+    "hip": "7.14.60850",
+    "device": "AMD Radeon 890M Graphics",
+    "portability": "passed after NVIDIA-only ROCm skip",
+    "workingRetentionTests": 48,
+    "optimizerModes": [
+      "reset-no-parent-state",
+      "carried"
+    ],
+    "fullSuite": {
+      "passed": 260,
+      "skipped": 19,
+      "failed": 0
+    }
+  },
+  "crashRecovery": {
+    "method": "actual subprocess SIGKILL",
+    "points": [
+      "during-checkpoint",
+      "after-weights",
+      "after-optimizer",
+      "during-pointer",
+      "after-pointer-before-consume",
+      "during-consumption"
+    ],
+    "allPassed": true
+  },
+  "retention": {
+    "protected": [
+      "active",
+      "working",
+      "working-last-good"
+    ],
+    "weightsBytes": 247367192,
+    "optimizerBytes": 494800839,
+    "planningBoundGB": "3.0-3.5",
+    "autoProtectionTests": "passed"
+  },
+  "replay": {
+    "scanned": 25438,
+    "eligible": 377,
+    "eligibleTokens": 27781,
+    "unresolved": 3875,
+    "unresolvedLicenceUncertain": 1054,
+    "unresolvedLicenceUnknown": 1312,
+    "unresolvedNoDecisiveReview": 1509,
+    "ineligible": 13892,
+    "alreadyEligible": 7103,
+    "notTarget": 191,
+    "productionApply": false
+  },
+  "tests": {
+    "node": {
+      "tests": 789,
+      "passed": 782,
+      "failed": 0,
+      "skipped": 7
+    },
+    "pythonRocmFocused": "portability passed; working+retention 48 passed",
+    "pythonRocmFull": {
+      "passed": 260,
+      "skipped": 19,
+      "failed": 0
+    }
+  },
+  "recommendation": "READY WITH CONDITIONS",
+  "conditions": [
+    "complete/accept full ROCm suite",
+    "approve guard defaults and v2 group rules",
+    "rehearse replay migration on snapshot",
+    "enable working training separately",
+    "keep active/eval/stable gate unchanged"
+  ],
+  "noProductionMutation": true
+}

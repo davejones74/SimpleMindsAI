@@ -1,0 +1,2207 @@
+{
+  "schema": "sma/working-guard-calibration@1",
+  "at": "2026-11-04T00:48:17.315Z",
+  "registry": "/var/lib/simpleminds/data/registry",
+  "runsWithPairedEvidence": 83,
+  "statusCounts": {
+    "inconclusive": 11,
+    "promoted": 13,
+    "rejected": 59
+  },
+  "defaultThresholds": {
+    "maxRegressionNats": 0.05,
+    "maxGroupRegressionNats": 0.15,
+    "maxDriftNats": 0.1,
+    "minGroupTokens": 100,
+    "maxRegressedGroupShare": 0.75,
+    "minGroups": 5
+  },
+  "wideThresholds": {
+    "maxRegressionNats": 0.1,
+    "maxGroupRegressionNats": 0.2,
+    "maxDriftNats": 0.1,
+    "minGroupTokens": 100,
+    "maxRegressedGroupShare": 0.75,
+    "minGroups": 5
+  },
+  "rejectedAcceptedByDefault": 53,
+  "rejectedAcceptedByWide": 59,
+  "promotedAcceptedByDefault": 13,
+  "promotedAcceptedByWide": 13,
+  "rejectedOverallRegression": {
+    "min": 0.001868050149147038,
+    "p25": 0.013261883816820585,
+    "median": 0.02118073372130702,
+    "p75": 0.028226898071613604,
+    "p90": 0.04874745835649197,
+    "max": 0.08518515495543788
+  },
+  "rejectedWorstGroup": {
+    "min": -0.1545899432638418,
+    "p25": -0.0886886585459985,
+    "median": -0.0741912448216997,
+    "p75": -0.04345297400706993,
+    "p90": -0.028410116831461885,
+    "max": -0.006311033526037235
+  },
+  "rows": [
+    {
+      "runId": "run-333",
+      "version": "v408",
+      "status": "inconclusive",
+      "parentLoss": 8.037700767212726,
+      "candidateLoss": 8.030422390775477,
+      "regression": -0.0072783764372488235,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall improved 0.0073 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall improved 0.0073 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": -0.0072783764372488235,
+        "drift": -0.0072783764372488235,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 23,
+        "groupsOverTolerance": 3,
+        "regressedGroupShare": 0.05,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Black_hole",
+          "improvement": -0.08548780483339868,
+          "tokens": 771
+        }
+      }
+    },
+    {
+      "runId": "run-334",
+      "version": "v409",
+      "status": "promoted",
+      "parentLoss": 8.037700767212726,
+      "candidateLoss": 7.997556524073824,
+      "regression": -0.040144243138902524,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall improved 0.0401 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall improved 0.0401 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": -0.040144243138902524,
+        "drift": -0.040144243138902524,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 7,
+        "groupsOverTolerance": 0,
+        "regressedGroupShare": 0,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Solar_System",
+          "improvement": -0.03938597286448786,
+          "tokens": 850
+        }
+      }
+    },
+    {
+      "runId": "run-335",
+      "version": "v410",
+      "status": "rejected",
+      "parentLoss": 7.997556524073824,
+      "candidateLoss": 8.019211005657278,
+      "regression": 0.021654481583453844,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall regressed 0.0217 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall regressed 0.0217 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": 0.021654481583453844,
+        "drift": 0.021654481583453844,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 40,
+        "groupsOverTolerance": 18,
+        "regressedGroupShare": 0.3,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Milky_Way",
+          "improvement": -0.10194475222856703,
+          "tokens": 936
+        }
+      }
+    },
+    {
+      "runId": "run-336",
+      "version": "v411",
+      "status": "promoted",
+      "parentLoss": 7.997556524073824,
+      "candidateLoss": 7.9651747358606215,
+      "regression": -0.032381788213202256,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall improved 0.0324 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall improved 0.0324 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": -0.032381788213202256,
+        "drift": -0.032381788213202256,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 14,
+        "groupsOverTolerance": 1,
+        "regressedGroupShare": 0.016666666666666666,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Milky_Way",
+          "improvement": -0.05697241400042152,
+          "tokens": 936
+        }
+      }
+    },
+    {
+      "runId": "run-337",
+      "version": "v412",
+      "status": "promoted",
+      "parentLoss": 7.9651747358606215,
+      "candidateLoss": 7.944737619542061,
+      "regression": -0.020437116318560378,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall improved 0.0204 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall improved 0.0204 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": -0.020437116318560378,
+        "drift": -0.020437116318560378,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 22,
+        "groupsOverTolerance": 6,
+        "regressedGroupShare": 0.1,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Black_hole",
+          "improvement": -0.06925937761437861,
+          "tokens": 771
+        }
+      }
+    },
+    {
+      "runId": "run-338",
+      "version": "v413",
+      "status": "rejected",
+      "parentLoss": 7.944737619542061,
+      "candidateLoss": 7.974702031054395,
+      "regression": 0.029964411512334088,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall regressed 0.0300 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall regressed 0.0300 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": 0.029964411512334088,
+        "drift": 0.029964411512334088,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 53,
+        "groupsOverTolerance": 13,
+        "regressedGroupShare": 0.21666666666666667,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Mount_Everest",
+          "improvement": -0.08058231637435931,
+          "tokens": 1022
+        }
+      }
+    },
+    {
+      "runId": "run-339",
+      "version": "v414",
+      "status": "rejected",
+      "parentLoss": 7.944737619542061,
+      "candidateLoss": 7.961610634276208,
+      "regression": 0.016873014734146707,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall regressed 0.0169 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall regressed 0.0169 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": 0.016873014734146707,
+        "drift": 0.016873014734146707,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 59,
+        "groupsOverTolerance": 0,
+        "regressedGroupShare": 0,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Orchestra",
+          "improvement": -0.03982142942497546,
+          "tokens": 830
+        }
+      }
+    },
+    {
+      "runId": "run-340",
+      "version": "v415",
+      "status": "promoted",
+      "parentLoss": 7.944737619542061,
+      "candidateLoss": 7.902835112936954,
+      "regression": -0.041902506605107526,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall improved 0.0419 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall improved 0.0419 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": -0.041902506605107526,
+        "drift": -0.041902506605107526,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 2,
+        "groupsOverTolerance": 1,
+        "regressedGroupShare": 0.016666666666666666,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Black_hole",
+          "improvement": -0.102139204547254,
+          "tokens": 771
+        }
+      }
+    },
+    {
+      "runId": "run-341",
+      "version": "v416",
+      "status": "rejected",
+      "parentLoss": 7.902835112936954,
+      "candidateLoss": 7.9305771005914565,
+      "regression": 0.027741987654502864,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall regressed 0.0277 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall regressed 0.0277 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": 0.027741987654502864,
+        "drift": 0.027741987654502864,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 51,
+        "groupsOverTolerance": 11,
+        "regressedGroupShare": 0.18333333333333332,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Internet",
+          "improvement": -0.08151693255225112,
+          "tokens": 751
+        }
+      }
+    },
+    {
+      "runId": "run-342",
+      "version": "v417",
+      "status": "promoted",
+      "parentLoss": 7.902835112936954,
+      "candidateLoss": 7.884059842596662,
+      "regression": -0.01877527034029125,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall improved 0.0188 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall improved 0.0188 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": -0.01877527034029125,
+        "drift": -0.01877527034029125,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 13,
+        "groupsOverTolerance": 0,
+        "regressedGroupShare": 0,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Internet",
+          "improvement": -0.04238155583408343,
+          "tokens": 751
+        }
+      }
+    },
+    {
+      "runId": "run-343",
+      "version": "v418",
+      "status": "rejected",
+      "parentLoss": 7.884059842596662,
+      "candidateLoss": 7.909939692375508,
+      "regression": 0.025879849778845276,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall regressed 0.0259 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall regressed 0.0259 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": 0.025879849778845276,
+        "drift": 0.025879849778845276,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 49,
+        "groupsOverTolerance": 12,
+        "regressedGroupShare": 0.2,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Solar_System",
+          "improvement": -0.09520149904138897,
+          "tokens": 850
+        }
+      }
+    },
+    {
+      "runId": "run-344",
+      "version": "v419",
+      "status": "rejected",
+      "parentLoss": 7.884059842596662,
+      "candidateLoss": 7.907046373854292,
+      "regression": 0.022986531257629395,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall regressed 0.0230 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall regressed 0.0230 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": 0.022986531257629395,
+        "drift": 0.022986531257629395,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 49,
+        "groupsOverTolerance": 11,
+        "regressedGroupShare": 0.18333333333333332,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Solar_System",
+          "improvement": -0.0886886585459985,
+          "tokens": 850
+        }
+      }
+    },
+    {
+      "runId": "run-345",
+      "version": "v420",
+      "status": "inconclusive",
+      "parentLoss": 7.884059842596662,
+      "candidateLoss": 7.883897570853538,
+      "regression": -0.00016227174312444248,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall improved 0.0002 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall improved 0.0002 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": -0.00016227174312444248,
+        "drift": -0.00016227174312444248,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 33,
+        "groupsOverTolerance": 0,
+        "regressedGroupShare": 0,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Solar_System",
+          "improvement": -0.030016436857335016,
+          "tokens": 850
+        }
+      }
+    },
+    {
+      "runId": "run-346",
+      "version": "v421",
+      "status": "rejected",
+      "parentLoss": 7.884059842596662,
+      "candidateLoss": 7.892402867053417,
+      "regression": 0.008343024456754833,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall regressed 0.0083 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall regressed 0.0083 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": 0.008343024456754833,
+        "drift": 0.008343024456754833,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 46,
+        "groupsOverTolerance": 0,
+        "regressedGroupShare": 0,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Black_hole",
+          "improvement": -0.04141123780325984,
+          "tokens": 771
+        }
+      }
+    },
+    {
+      "runId": "run-347",
+      "version": "v422",
+      "status": "rejected",
+      "parentLoss": 7.884059842596662,
+      "candidateLoss": 7.885927892745809,
+      "regression": 0.001868050149147038,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall regressed 0.0019 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall regressed 0.0019 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": 0.001868050149147038,
+        "drift": 0.001868050149147038,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 53,
+        "groupsOverTolerance": 0,
+        "regressedGroupShare": 0,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Milky_Way",
+          "improvement": -0.006311033526037235,
+          "tokens": 936
+        }
+      }
+    },
+    {
+      "runId": "run-348",
+      "version": "v423",
+      "status": "promoted",
+      "parentLoss": 7.884059842596662,
+      "candidateLoss": 7.8795844417937255,
+      "regression": -0.004475400802936846,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall improved 0.0045 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall improved 0.0045 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": -0.004475400802936846,
+        "drift": -0.004475400802936846,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 24,
+        "groupsOverTolerance": 0,
+        "regressedGroupShare": 0,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Solar_System",
+          "improvement": -0.03109758489272174,
+          "tokens": 850
+        }
+      }
+    },
+    {
+      "runId": "run-349",
+      "version": "v424",
+      "status": "promoted",
+      "parentLoss": 7.8795844417937255,
+      "candidateLoss": 7.855696333215592,
+      "regression": -0.023888108578133505,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall improved 0.0239 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall improved 0.0239 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": -0.023888108578133505,
+        "drift": -0.023888108578133505,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 9,
+        "groupsOverTolerance": 0,
+        "regressedGroupShare": 0,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Artificial_intelligence",
+          "improvement": -0.02856419303200397,
+          "tokens": 704
+        }
+      }
+    },
+    {
+      "runId": "run-350",
+      "version": "v425",
+      "status": "promoted",
+      "parentLoss": 7.855696333215592,
+      "candidateLoss": 7.853589585486879,
+      "regression": -0.0021067477287131098,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall improved 0.0021 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall improved 0.0021 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": -0.0021067477287131098,
+        "drift": -0.0021067477287131098,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 11,
+        "groupsOverTolerance": 0,
+        "regressedGroupShare": 0,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Printing_press",
+          "improvement": -0.002019851061762168,
+          "tokens": 735
+        }
+      }
+    },
+    {
+      "runId": "run-351",
+      "version": "v426",
+      "status": "rejected",
+      "parentLoss": 7.853589585486879,
+      "candidateLoss": 7.913277354646237,
+      "regression": 0.059687769159357806,
+      "default": "rejected",
+      "defaultReason": "candidate loss regressed 0.0597 nats versus the working reference (max 0.05)",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall regressed 0.0597 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": 0.059687769159357806,
+        "drift": 0.059687769159357806,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 60,
+        "groupsOverTolerance": 37,
+        "regressedGroupShare": 0.6166666666666667,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Nile",
+          "improvement": -0.1102949541006506,
+          "tokens": 871
+        }
+      }
+    },
+    {
+      "runId": "run-352",
+      "version": "v427",
+      "status": "rejected",
+      "parentLoss": 7.853589585486879,
+      "candidateLoss": 7.8818164835584925,
+      "regression": 0.028226898071613604,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall regressed 0.0282 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall regressed 0.0282 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": 0.028226898071613604,
+        "drift": 0.028226898071613604,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 51,
+        "groupsOverTolerance": 16,
+        "regressedGroupShare": 0.26666666666666666,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Solar_System",
+          "improvement": -0.08359026403988068,
+          "tokens": 850
+        }
+      }
+    },
+    {
+      "runId": "run-353",
+      "version": "v428",
+      "status": "rejected",
+      "parentLoss": 7.853589585486879,
+      "candidateLoss": 7.874770319208186,
+      "regression": 0.02118073372130702,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall regressed 0.0212 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall regressed 0.0212 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": 0.02118073372130702,
+        "drift": 0.02118073372130702,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 44,
+        "groupsOverTolerance": 13,
+        "regressedGroupShare": 0.21666666666666667,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Himalayas",
+          "improvement": -0.08788469144613487,
+          "tokens": 1010
+        }
+      }
+    },
+    {
+      "runId": "run-354",
+      "version": "v429",
+      "status": "rejected",
+      "parentLoss": 7.853589585486879,
+      "candidateLoss": 7.884138300063762,
+      "regression": 0.030548714576883462,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall regressed 0.0305 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall regressed 0.0305 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": 0.030548714576883462,
+        "drift": 0.030548714576883462,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 54,
+        "groupsOverTolerance": 10,
+        "regressedGroupShare": 0.16666666666666666,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Pacific_Ocean",
+          "improvement": -0.07347623372482026,
+          "tokens": 885
+        }
+      }
+    },
+    {
+      "runId": "run-355",
+      "version": "v430",
+      "status": "rejected",
+      "parentLoss": 7.853589585486879,
+      "candidateLoss": 7.8668514693036995,
+      "regression": 0.013261883816820585,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall regressed 0.0133 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall regressed 0.0133 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": 0.013261883816820585,
+        "drift": 0.013261883816820585,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 48,
+        "groupsOverTolerance": 0,
+        "regressedGroupShare": 0,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Sahara",
+          "improvement": -0.03745958012077644,
+          "tokens": 923
+        }
+      }
+    },
+    {
+      "runId": "run-356",
+      "version": "v431",
+      "status": "rejected",
+      "parentLoss": 7.853589585486879,
+      "candidateLoss": 7.88265723624128,
+      "regression": 0.029067650754400987,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall regressed 0.0291 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall regressed 0.0291 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": 0.029067650754400987,
+        "drift": 0.029067650754400987,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 53,
+        "groupsOverTolerance": 7,
+        "regressedGroupShare": 0.11666666666666667,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Agriculture",
+          "improvement": -0.08393766306623629,
+          "tokens": 790
+        }
+      }
+    },
+    {
+      "runId": "run-357",
+      "version": "v432",
+      "status": "rejected",
+      "parentLoss": 7.853589585486879,
+      "candidateLoss": 7.869173148845104,
+      "regression": 0.015583563358225305,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall regressed 0.0156 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall regressed 0.0156 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": 0.015583563358225305,
+        "drift": 0.015583563358225305,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 55,
+        "groupsOverTolerance": 0,
+        "regressedGroupShare": 0,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Roman_Empire",
+          "improvement": -0.04105932145987268,
+          "tokens": 829
+        }
+      }
+    },
+    {
+      "runId": "run-358",
+      "version": "v433",
+      "status": "rejected",
+      "parentLoss": 7.853589585486879,
+      "candidateLoss": 7.866980666809893,
+      "regression": 0.013391081323014475,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall regressed 0.0134 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall regressed 0.0134 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": 0.013391081323014475,
+        "drift": 0.013391081323014475,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 52,
+        "groupsOverTolerance": 0,
+        "regressedGroupShare": 0,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Roman_Empire",
+          "improvement": -0.03234057892361086,
+          "tokens": 829
+        }
+      }
+    },
+    {
+      "runId": "run-359",
+      "version": "v434",
+      "status": "rejected",
+      "parentLoss": 7.853589585486879,
+      "candidateLoss": 7.865829219209387,
+      "regression": 0.012239633722508358,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall regressed 0.0122 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall regressed 0.0122 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": 0.012239633722508358,
+        "drift": 0.012239633722508358,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 55,
+        "groupsOverTolerance": 0,
+        "regressedGroupShare": 0,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Roman_Empire",
+          "improvement": -0.025708246288598247,
+          "tokens": 829
+        }
+      }
+    },
+    {
+      "runId": "run-360",
+      "version": "v435",
+      "status": "rejected",
+      "parentLoss": 7.853589585486879,
+      "candidateLoss": 7.867088330552933,
+      "regression": 0.013498745066054418,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall regressed 0.0135 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall regressed 0.0135 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": 0.013498745066054418,
+        "drift": 0.013498745066054418,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 54,
+        "groupsOverTolerance": 0,
+        "regressedGroupShare": 0,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Cell_(biology)",
+          "improvement": -0.03761457802216839,
+          "tokens": 882
+        }
+      }
+    },
+    {
+      "runId": "run-361",
+      "version": "v436",
+      "status": "inconclusive",
+      "parentLoss": 7.853589585486879,
+      "candidateLoss": 7.854497617863594,
+      "regression": 0.0009080323767154397,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall regressed 0.0009 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall regressed 0.0009 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": 0.0009080323767154397,
+        "drift": 0.0009080323767154397,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 34,
+        "groupsOverTolerance": 0,
+        "regressedGroupShare": 0,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Orchestra",
+          "improvement": -0.01708515351077189,
+          "tokens": 830
+        }
+      }
+    },
+    {
+      "runId": "run-362",
+      "version": "v437",
+      "status": "rejected",
+      "parentLoss": 7.853589585486879,
+      "candidateLoss": 7.869340148377926,
+      "regression": 0.01575056289104726,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall regressed 0.0158 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall regressed 0.0158 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": 0.01575056289104726,
+        "drift": 0.01575056289104726,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 45,
+        "groupsOverTolerance": 5,
+        "regressedGroupShare": 0.08333333333333333,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Pacific_Ocean",
+          "improvement": -0.06441047258969768,
+          "tokens": 885
+        }
+      }
+    },
+    {
+      "runId": "run-363",
+      "version": "v438",
+      "status": "rejected",
+      "parentLoss": 7.853589585486879,
+      "candidateLoss": 7.856364336419613,
+      "regression": 0.002774750932734271,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall regressed 0.0028 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall regressed 0.0028 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": 0.002774750932734271,
+        "drift": 0.002774750932734271,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 36,
+        "groupsOverTolerance": 0,
+        "regressedGroupShare": 0,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Metabolism",
+          "improvement": -0.028410116831461885,
+          "tokens": 768
+        }
+      }
+    },
+    {
+      "runId": "run-364",
+      "version": "v439",
+      "status": "rejected",
+      "parentLoss": 7.853589585486879,
+      "candidateLoss": 7.880315745130498,
+      "regression": 0.02672615964361924,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall regressed 0.0267 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall regressed 0.0267 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": 0.02672615964361924,
+        "drift": 0.02672615964361924,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 57,
+        "groupsOverTolerance": 8,
+        "regressedGroupShare": 0.13333333333333333,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Orchestra",
+          "improvement": -0.08539519941950324,
+          "tokens": 830
+        }
+      }
+    },
+    {
+      "runId": "run-365",
+      "version": "v440",
+      "status": "rejected",
+      "parentLoss": 7.853589585486879,
+      "candidateLoss": 7.8660787115705775,
+      "regression": 0.012489126083698565,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall regressed 0.0125 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall regressed 0.0125 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": 0.012489126083698565,
+        "drift": 0.012489126083698565,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 49,
+        "groupsOverTolerance": 0,
+        "regressedGroupShare": 0,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Roman_Empire",
+          "improvement": -0.03863458322817159,
+          "tokens": 829
+        }
+      }
+    },
+    {
+      "runId": "run-366",
+      "version": "v441",
+      "status": "inconclusive",
+      "parentLoss": 7.853589585486879,
+      "candidateLoss": 7.853099206660656,
+      "regression": -0.0004903788262229369,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall improved 0.0005 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall improved 0.0005 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": -0.0004903788262229369,
+        "drift": -0.0004903788262229369,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 27,
+        "groupsOverTolerance": 0,
+        "regressedGroupShare": 0,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Electromagnetic_radiation",
+          "improvement": -0.014691676040669677,
+          "tokens": 779
+        }
+      }
+    },
+    {
+      "runId": "run-367",
+      "version": "v442",
+      "status": "rejected",
+      "parentLoss": 7.853589585486879,
+      "candidateLoss": 7.871396313322351,
+      "regression": 0.017806727835472103,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall regressed 0.0178 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall regressed 0.0178 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": 0.017806727835472103,
+        "drift": 0.017806727835472103,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 53,
+        "groupsOverTolerance": 1,
+        "regressedGroupShare": 0.016666666666666666,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Cell_(biology)",
+          "improvement": -0.05180334233913264,
+          "tokens": 882
+        }
+      }
+    },
+    {
+      "runId": "run-368",
+      "version": "v443",
+      "status": "promoted",
+      "parentLoss": 7.853589585486879,
+      "candidateLoss": 7.838720694501349,
+      "regression": -0.014868890985529681,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall improved 0.0149 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall improved 0.0149 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": -0.014868890985529681,
+        "drift": -0.014868890985529681,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 24,
+        "groupsOverTolerance": 0,
+        "regressedGroupShare": 0,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Internet",
+          "improvement": -0.04253835843184017,
+          "tokens": 751
+        }
+      }
+    },
+    {
+      "runId": "run-369",
+      "version": "v444",
+      "status": "promoted",
+      "parentLoss": 7.838720694501349,
+      "candidateLoss": 7.829714387021166,
+      "regression": -0.00900630748018294,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall improved 0.0090 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall improved 0.0090 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": -0.00900630748018294,
+        "drift": -0.00900630748018294,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 18,
+        "groupsOverTolerance": 0,
+        "regressedGroupShare": 0,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/DNA",
+          "improvement": -0.034474347826973784,
+          "tokens": 838
+        }
+      }
+    },
+    {
+      "runId": "run-370",
+      "version": "v445",
+      "status": "rejected",
+      "parentLoss": 7.829714387021166,
+      "candidateLoss": 7.857807968525177,
+      "regression": 0.028093581504010423,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall regressed 0.0281 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall regressed 0.0281 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": 0.028093581504010423,
+        "drift": 0.028093581504010423,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 58,
+        "groupsOverTolerance": 6,
+        "regressedGroupShare": 0.1,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Human_digestive_system",
+          "improvement": -0.06723316461400408,
+          "tokens": 809
+        }
+      }
+    },
+    {
+      "runId": "run-371",
+      "version": "v446",
+      "status": "rejected",
+      "parentLoss": 7.829714387021166,
+      "candidateLoss": 7.851489029032119,
+      "regression": 0.021774642010952583,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall regressed 0.0218 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall regressed 0.0218 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": 0.021774642010952583,
+        "drift": 0.021774642010952583,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 49,
+        "groupsOverTolerance": 6,
+        "regressedGroupShare": 0.1,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Immune_system",
+          "improvement": -0.06403486118760249,
+          "tokens": 688
+        }
+      }
+    },
+    {
+      "runId": "run-372",
+      "version": "v447",
+      "status": "rejected",
+      "parentLoss": 7.829714387021166,
+      "candidateLoss": 7.846764021731437,
+      "regression": 0.0170496347102711,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall regressed 0.0170 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall regressed 0.0170 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": 0.0170496347102711,
+        "drift": 0.0170496347102711,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 52,
+        "groupsOverTolerance": 1,
+        "regressedGroupShare": 0.016666666666666666,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Cell_(biology)",
+          "improvement": -0.06641228128722965,
+          "tokens": 882
+        }
+      }
+    },
+    {
+      "runId": "run-373",
+      "version": "v448",
+      "status": "rejected",
+      "parentLoss": 7.829714387021166,
+      "candidateLoss": 7.880873111968345,
+      "regression": 0.05115872494717877,
+      "default": "rejected",
+      "defaultReason": "candidate loss regressed 0.0512 nats versus the working reference (max 0.05)",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall regressed 0.0512 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": 0.05115872494717877,
+        "drift": 0.05115872494717877,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 57,
+        "groupsOverTolerance": 33,
+        "regressedGroupShare": 0.55,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Big_Bang",
+          "improvement": -0.10470701300579588,
+          "tokens": 736
+        }
+      }
+    },
+    {
+      "runId": "run-374",
+      "version": "v449",
+      "status": "rejected",
+      "parentLoss": 7.829714387021166,
+      "candidateLoss": 7.833487969763736,
+      "regression": 0.003773582742569559,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall regressed 0.0038 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall regressed 0.0038 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": 0.003773582742569559,
+        "drift": 0.003773582742569559,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 45,
+        "groupsOverTolerance": 0,
+        "regressedGroupShare": 0,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Photosynthesis",
+          "improvement": -0.015736531051263825,
+          "tokens": 781
+        }
+      }
+    },
+    {
+      "runId": "run-375",
+      "version": "v450",
+      "status": "promoted",
+      "parentLoss": 7.829714387021166,
+      "candidateLoss": 7.8232138283709265,
+      "regression": -0.006500558650239796,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall improved 0.0065 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall improved 0.0065 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": -0.006500558650239796,
+        "drift": -0.006500558650239796,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 10,
+        "groupsOverTolerance": 0,
+        "regressedGroupShare": 0,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Industrial_Revolution",
+          "improvement": -0.020614700040956002,
+          "tokens": 759
+        }
+      }
+    },
+    {
+      "runId": "run-376",
+      "version": "v451",
+      "status": "rejected",
+      "parentLoss": 7.8232138283709265,
+      "candidateLoss": 7.844917764054968,
+      "regression": 0.02170393568404183,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall regressed 0.0217 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall regressed 0.0217 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": 0.02170393568404183,
+        "drift": 0.02170393568404183,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 50,
+        "groupsOverTolerance": 4,
+        "regressedGroupShare": 0.06666666666666667,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Milky_Way",
+          "improvement": -0.06832779778374487,
+          "tokens": 936
+        }
+      }
+    },
+    {
+      "runId": "run-377",
+      "version": "v452",
+      "status": "rejected",
+      "parentLoss": 7.8232138283709265,
+      "candidateLoss": 7.843570034554664,
+      "regression": 0.020356206183737235,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall regressed 0.0204 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall regressed 0.0204 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": 0.020356206183737235,
+        "drift": 0.020356206183737235,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 49,
+        "groupsOverTolerance": 5,
+        "regressedGroupShare": 0.08333333333333333,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Compiler",
+          "improvement": -0.0856955524118872,
+          "tokens": 691
+        }
+      }
+    },
+    {
+      "runId": "run-378",
+      "version": "v453",
+      "status": "inconclusive",
+      "parentLoss": 7.8232138283709265,
+      "candidateLoss": 7.822387360511942,
+      "regression": -0.0008264678589844365,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall improved 0.0008 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall improved 0.0008 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": -0.0008264678589844365,
+        "drift": -0.0008264678589844365,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 28,
+        "groupsOverTolerance": 0,
+        "regressedGroupShare": 0,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Internet",
+          "improvement": -0.01835360381003248,
+          "tokens": 751
+        }
+      }
+    },
+    {
+      "runId": "run-379",
+      "version": "v454",
+      "status": "inconclusive",
+      "parentLoss": 7.8232138283709265,
+      "candidateLoss": 7.823635945928857,
+      "regression": 0.0004221175579308678,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall regressed 0.0004 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall regressed 0.0004 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": 0.0004221175579308678,
+        "drift": 0.0004221175579308678,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 29,
+        "groupsOverTolerance": 0,
+        "regressedGroupShare": 0,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Himalayas",
+          "improvement": -0.02923062862736181,
+          "tokens": 1010
+        }
+      }
+    },
+    {
+      "runId": "run-380",
+      "version": "v455",
+      "status": "rejected",
+      "parentLoss": 7.8232138283709265,
+      "candidateLoss": 7.850522355830416,
+      "regression": 0.027308527459489085,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall regressed 0.0273 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall regressed 0.0273 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": 0.027308527459489085,
+        "drift": 0.027308527459489085,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 54,
+        "groupsOverTolerance": 11,
+        "regressedGroupShare": 0.18333333333333332,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Big_Bang",
+          "improvement": -0.08444769486137016,
+          "tokens": 736
+        }
+      }
+    },
+    {
+      "runId": "run-381",
+      "version": "v456",
+      "status": "rejected",
+      "parentLoss": 7.8232138283709265,
+      "candidateLoss": 7.836523530331064,
+      "regression": 0.013309701960137588,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall regressed 0.0133 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall regressed 0.0133 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": 0.013309701960137588,
+        "drift": 0.013309701960137588,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 52,
+        "groupsOverTolerance": 1,
+        "regressedGroupShare": 0.016666666666666666,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Milky_Way",
+          "improvement": -0.05136312175000768,
+          "tokens": 936
+        }
+      }
+    },
+    {
+      "runId": "run-382",
+      "version": "v457",
+      "status": "rejected",
+      "parentLoss": 7.8232138283709265,
+      "candidateLoss": 7.854585036318353,
+      "regression": 0.03137120794742643,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall regressed 0.0314 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall regressed 0.0314 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": 0.03137120794742643,
+        "drift": 0.03137120794742643,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 55,
+        "groupsOverTolerance": 9,
+        "regressedGroupShare": 0.15,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Big_Bang",
+          "improvement": -0.0860957892044727,
+          "tokens": 736
+        }
+      }
+    },
+    {
+      "runId": "run-383",
+      "version": "v458",
+      "status": "rejected",
+      "parentLoss": 7.8232138283709265,
+      "candidateLoss": 7.840555586713426,
+      "regression": 0.01734175834249907,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall regressed 0.0173 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall regressed 0.0173 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": 0.01734175834249907,
+        "drift": 0.01734175834249907,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 55,
+        "groupsOverTolerance": 1,
+        "regressedGroupShare": 0.016666666666666666,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Internet",
+          "improvement": -0.05207536001497548,
+          "tokens": 751
+        }
+      }
+    },
+    {
+      "runId": "run-384",
+      "version": "v459",
+      "status": "rejected",
+      "parentLoss": 7.8232138283709265,
+      "candidateLoss": 7.8268496051747745,
+      "regression": 0.0036357768038479676,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall regressed 0.0036 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall regressed 0.0036 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": 0.0036357768038479676,
+        "drift": 0.0036357768038479676,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 35,
+        "groupsOverTolerance": 0,
+        "regressedGroupShare": 0,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Milky_Way",
+          "improvement": -0.024491147098379074,
+          "tokens": 936
+        }
+      }
+    },
+    {
+      "runId": "run-385",
+      "version": "v460",
+      "status": "rejected",
+      "parentLoss": 7.8232138283709265,
+      "candidateLoss": 7.859873525639798,
+      "regression": 0.036659697268871305,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall regressed 0.0367 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall regressed 0.0367 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": 0.036659697268871305,
+        "drift": 0.036659697268871305,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 51,
+        "groupsOverTolerance": 21,
+        "regressedGroupShare": 0.35,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Big_Bang",
+          "improvement": -0.08696439991826566,
+          "tokens": 736
+        }
+      }
+    },
+    {
+      "runId": "run-386",
+      "version": "v461",
+      "status": "rejected",
+      "parentLoss": 7.8232138283709265,
+      "candidateLoss": 7.873398357249321,
+      "regression": 0.0501845288783942,
+      "default": "rejected",
+      "defaultReason": "candidate loss regressed 0.0502 nats versus the working reference (max 0.05)",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall regressed 0.0502 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": 0.0501845288783942,
+        "drift": 0.0501845288783942,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 57,
+        "groupsOverTolerance": 31,
+        "regressedGroupShare": 0.5166666666666667,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Milky_Way",
+          "improvement": -0.12093373649140737,
+          "tokens": 936
+        }
+      }
+    },
+    {
+      "runId": "run-387",
+      "version": "v462",
+      "status": "rejected",
+      "parentLoss": 7.8232138283709265,
+      "candidateLoss": 7.827639250045127,
+      "regression": 0.004425421674200791,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall regressed 0.0044 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall regressed 0.0044 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": 0.004425421674200791,
+        "drift": 0.004425421674200791,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 39,
+        "groupsOverTolerance": 0,
+        "regressedGroupShare": 0,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Solar_System",
+          "improvement": -0.03643836638506759,
+          "tokens": 850
+        }
+      }
+    },
+    {
+      "runId": "run-388",
+      "version": "v463",
+      "status": "rejected",
+      "parentLoss": 7.8232138283709265,
+      "candidateLoss": 7.847929449791604,
+      "regression": 0.02471562142067718,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall regressed 0.0247 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall regressed 0.0247 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": 0.02471562142067718,
+        "drift": 0.02471562142067718,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 55,
+        "groupsOverTolerance": 7,
+        "regressedGroupShare": 0.11666666666666667,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/General_relativity",
+          "improvement": -0.07536180416205251,
+          "tokens": 739
+        }
+      }
+    },
+    {
+      "runId": "run-389",
+      "version": "v464",
+      "status": "inconclusive",
+      "parentLoss": 7.8232138283709265,
+      "candidateLoss": 7.825447812993476,
+      "regression": 0.002233984622549201,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall regressed 0.0022 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall regressed 0.0022 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": 0.002233984622549201,
+        "drift": 0.002233984622549201,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 34,
+        "groupsOverTolerance": 0,
+        "regressedGroupShare": 0,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Solar_System",
+          "improvement": -0.0256273606244255,
+          "tokens": 850
+        }
+      }
+    },
+    {
+      "runId": "run-390",
+      "version": "v465",
+      "status": "rejected",
+      "parentLoss": 7.8232138283709265,
+      "candidateLoss": 7.878080920970186,
+      "regression": 0.05486709259925959,
+      "default": "rejected",
+      "defaultReason": "candidate loss regressed 0.0549 nats versus the working reference (max 0.05)",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall regressed 0.0549 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": 0.05486709259925959,
+        "drift": 0.05486709259925959,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 58,
+        "groupsOverTolerance": 41,
+        "regressedGroupShare": 0.6833333333333333,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Constitution",
+          "improvement": -0.1393488145643662,
+          "tokens": 744
+        }
+      }
+    },
+    {
+      "runId": "run-391",
+      "version": "v466",
+      "status": "rejected",
+      "parentLoss": 7.8232138283709265,
+      "candidateLoss": 7.830575491519684,
+      "regression": 0.007361663148757636,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall regressed 0.0074 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall regressed 0.0074 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": 0.007361663148757636,
+        "drift": 0.007361663148757636,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 54,
+        "groupsOverTolerance": 0,
+        "regressedGroupShare": 0,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Cell_(biology)",
+          "improvement": -0.018845398139522018,
+          "tokens": 882
+        }
+      }
+    },
+    {
+      "runId": "run-392",
+      "version": "v467",
+      "status": "rejected",
+      "parentLoss": 7.8232138283709265,
+      "candidateLoss": 7.908398983326364,
+      "regression": 0.08518515495543788,
+      "default": "rejected",
+      "defaultReason": "candidate loss regressed 0.0852 nats versus the working reference (max 0.05)",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall regressed 0.0852 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": 0.08518515495543788,
+        "drift": 0.08518515495543788,
+        "groupsCompared": 60,
+        "regressedGroups": 2,
+        "negativeGroups": 59,
+        "groupsOverTolerance": 47,
+        "regressedGroupShare": 0.7833333333333333,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Big_Bang",
+          "improvement": -0.1545899432638418,
+          "tokens": 736
+        }
+      }
+    },
+    {
+      "runId": "run-393",
+      "version": "v468",
+      "status": "promoted",
+      "parentLoss": 7.8232138283709265,
+      "candidateLoss": 7.8198133250500295,
+      "regression": -0.0034005033208970303,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall improved 0.0034 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall improved 0.0034 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": -0.0034005033208970303,
+        "drift": -0.0034005033208970303,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 24,
+        "groupsOverTolerance": 0,
+        "regressedGroupShare": 0,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Telephone",
+          "improvement": -0.02822508653234923,
+          "tokens": 691
+        }
+      }
+    },
+    {
+      "runId": "run-394",
+      "version": "v469",
+      "status": "rejected",
+      "parentLoss": 7.8198133250500295,
+      "candidateLoss": 7.836747093403593,
+      "regression": 0.01693376835356375,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall regressed 0.0169 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall regressed 0.0169 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": 0.01693376835356375,
+        "drift": 0.01693376835356375,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 42,
+        "groupsOverTolerance": 6,
+        "regressedGroupShare": 0.1,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Electromagnetic_radiation",
+          "improvement": -0.08455260451859203,
+          "tokens": 779
+        }
+      }
+    },
+    {
+      "runId": "run-395",
+      "version": "v470",
+      "status": "rejected",
+      "parentLoss": 7.8198133250500295,
+      "candidateLoss": 7.846897323080834,
+      "regression": 0.027083998030804857,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall regressed 0.0271 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall regressed 0.0271 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": 0.027083998030804857,
+        "drift": 0.027083998030804857,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 54,
+        "groupsOverTolerance": 14,
+        "regressedGroupShare": 0.23333333333333334,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Cell_(biology)",
+          "improvement": -0.08271569189300898,
+          "tokens": 882
+        }
+      }
+    },
+    {
+      "runId": "run-396",
+      "version": "v471",
+      "status": "rejected",
+      "parentLoss": 7.8198133250500295,
+      "candidateLoss": 7.848951466540073,
+      "regression": 0.029138141490043346,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall regressed 0.0291 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall regressed 0.0291 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": 0.029138141490043346,
+        "drift": 0.029138141490043346,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 50,
+        "groupsOverTolerance": 18,
+        "regressedGroupShare": 0.3,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Photosynthesis",
+          "improvement": -0.11001817334476627,
+          "tokens": 781
+        }
+      }
+    },
+    {
+      "runId": "run-397",
+      "version": "v472",
+      "status": "rejected",
+      "parentLoss": 7.8198133250500295,
+      "candidateLoss": 7.858166651522859,
+      "regression": 0.03835332647282996,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall regressed 0.0384 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall regressed 0.0384 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": 0.03835332647282996,
+        "drift": 0.03835332647282996,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 54,
+        "groupsOverTolerance": 24,
+        "regressedGroupShare": 0.4,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Compiler",
+          "improvement": -0.14690570651881085,
+          "tokens": 691
+        }
+      }
+    },
+    {
+      "runId": "run-398",
+      "version": "v473",
+      "status": "rejected",
+      "parentLoss": 7.8198133250500295,
+      "candidateLoss": 7.832862724649146,
+      "regression": 0.013049399599116107,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall regressed 0.0130 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall regressed 0.0130 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": 0.013049399599116107,
+        "drift": 0.013049399599116107,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 40,
+        "groupsOverTolerance": 11,
+        "regressedGroupShare": 0.18333333333333332,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Compiler",
+          "improvement": -0.11757344964961813,
+          "tokens": 691
+        }
+      }
+    },
+    {
+      "runId": "run-399",
+      "version": "v474",
+      "status": "rejected",
+      "parentLoss": 7.8198133250500295,
+      "candidateLoss": 7.835309023552752,
+      "regression": 0.01549569850272281,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall regressed 0.0155 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall regressed 0.0155 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": 0.01549569850272281,
+        "drift": 0.01549569850272281,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 48,
+        "groupsOverTolerance": 3,
+        "regressedGroupShare": 0.05,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Cell_(biology)",
+          "improvement": -0.054150715436524166,
+          "tokens": 882
+        }
+      }
+    },
+    {
+      "runId": "run-400",
+      "version": "v475",
+      "status": "inconclusive",
+      "parentLoss": 7.8198133250500295,
+      "candidateLoss": 7.81905222953634,
+      "regression": -0.0007610955136891917,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall improved 0.0008 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall improved 0.0008 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": -0.0007610955136891917,
+        "drift": -0.0007610955136891917,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 29,
+        "groupsOverTolerance": 0,
+        "regressedGroupShare": 0,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Cell_(biology)",
+          "improvement": -0.03939052287683431,
+          "tokens": 882
+        }
+      }
+    },
+    {
+      "runId": "run-401",
+      "version": "v476",
+      "status": "rejected",
+      "parentLoss": 7.8198133250500295,
+      "candidateLoss": 7.881271646377888,
+      "regression": 0.061458321327858556,
+      "default": "rejected",
+      "defaultReason": "candidate loss regressed 0.0615 nats versus the working reference (max 0.05)",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall regressed 0.0615 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": 0.061458321327858556,
+        "drift": 0.061458321327858556,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 58,
+        "groupsOverTolerance": 41,
+        "regressedGroupShare": 0.6833333333333333,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Compiler",
+          "improvement": -0.13057418635543616,
+          "tokens": 691
+        }
+      }
+    },
+    {
+      "runId": "run-402",
+      "version": "v477",
+      "status": "rejected",
+      "parentLoss": 7.8198133250500295,
+      "candidateLoss": 7.845533736208652,
+      "regression": 0.025720411158622447,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall regressed 0.0257 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall regressed 0.0257 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": 0.025720411158622447,
+        "drift": 0.025720411158622447,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 47,
+        "groupsOverTolerance": 13,
+        "regressedGroupShare": 0.21666666666666667,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Compiler",
+          "improvement": -0.08768679747188113,
+          "tokens": 691
+        }
+      }
+    },
+    {
+      "runId": "run-403",
+      "version": "v478",
+      "status": "rejected",
+      "parentLoss": 7.8198133250500295,
+      "candidateLoss": 7.834273523472725,
+      "regression": 0.014460198422695747,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall regressed 0.0145 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall regressed 0.0145 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": 0.014460198422695747,
+        "drift": 0.014460198422695747,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 44,
+        "groupsOverTolerance": 4,
+        "regressedGroupShare": 0.06666666666666667,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Electromagnetic_radiation",
+          "improvement": -0.08931765048280482,
+          "tokens": 779
+        }
+      }
+    },
+    {
+      "runId": "run-404",
+      "version": "v479",
+      "status": "rejected",
+      "parentLoss": 7.8198133250500295,
+      "candidateLoss": 7.837877955842526,
+      "regression": 0.018064630792496317,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall regressed 0.0181 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall regressed 0.0181 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": 0.018064630792496317,
+        "drift": 0.018064630792496317,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 47,
+        "groupsOverTolerance": 5,
+        "regressedGroupShare": 0.08333333333333333,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Cell_(biology)",
+          "improvement": -0.0741912448216997,
+          "tokens": 882
+        }
+      }
+    },
+    {
+      "runId": "run-405",
+      "version": "v480",
+      "status": "rejected",
+      "parentLoss": 7.8198133250500295,
+      "candidateLoss": 7.845025463307158,
+      "regression": 0.025212138257128203,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall regressed 0.0252 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall regressed 0.0252 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": 0.025212138257128203,
+        "drift": 0.025212138257128203,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 55,
+        "groupsOverTolerance": 7,
+        "regressedGroupShare": 0.11666666666666667,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Computer",
+          "improvement": -0.0738293090076727,
+          "tokens": 749
+        }
+      }
+    },
+    {
+      "runId": "run-406",
+      "version": "v481",
+      "status": "inconclusive",
+      "parentLoss": 7.8198133250500295,
+      "candidateLoss": 7.823128969111341,
+      "regression": 0.0033156440613115734,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall regressed 0.0033 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall regressed 0.0033 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": 0.0033156440613115734,
+        "drift": 0.0033156440613115734,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 34,
+        "groupsOverTolerance": 1,
+        "regressedGroupShare": 0.016666666666666666,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Compiler",
+          "improvement": -0.050102919814555946,
+          "tokens": 691
+        }
+      }
+    },
+    {
+      "runId": "run-407",
+      "version": "v482",
+      "status": "promoted",
+      "parentLoss": 7.8198133250500295,
+      "candidateLoss": 7.812438449961074,
+      "regression": -0.007374875088955513,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall improved 0.0074 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall improved 0.0074 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": -0.007374875088955513,
+        "drift": -0.007374875088955513,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 7,
+        "groupsOverTolerance": 0,
+        "regressedGroupShare": 0,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Cell_(biology)",
+          "improvement": -0.007332166035970644,
+          "tokens": 882
+        }
+      }
+    },
+    {
+      "runId": "run-408",
+      "version": "v483",
+      "status": "inconclusive",
+      "parentLoss": 7.812438449961074,
+      "candidateLoss": 7.809343634767735,
+      "regression": -0.0030948151933385404,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall improved 0.0031 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall improved 0.0031 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": -0.0030948151933385404,
+        "drift": -0.0030948151933385404,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 31,
+        "groupsOverTolerance": 0,
+        "regressedGroupShare": 0,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Speed_of_light",
+          "improvement": -0.01631788107065013,
+          "tokens": 832
+        }
+      }
+    },
+    {
+      "runId": "run-409",
+      "version": "v484",
+      "status": "rejected",
+      "parentLoss": 7.812438449961074,
+      "candidateLoss": 7.824432619074558,
+      "regression": 0.011994169113483721,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall regressed 0.0120 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall regressed 0.0120 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": 0.011994169113483721,
+        "drift": 0.011994169113483721,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 43,
+        "groupsOverTolerance": 4,
+        "regressedGroupShare": 0.06666666666666667,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Electromagnetic_radiation",
+          "improvement": -0.07137435146718651,
+          "tokens": 779
+        }
+      }
+    },
+    {
+      "runId": "run-410",
+      "version": "v485",
+      "status": "rejected",
+      "parentLoss": 7.812438449961074,
+      "candidateLoss": 7.824111910576516,
+      "regression": 0.011673460615441833,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall regressed 0.0117 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall regressed 0.0117 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": 0.011673460615441833,
+        "drift": 0.011673460615441833,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 39,
+        "groupsOverTolerance": 9,
+        "regressedGroupShare": 0.15,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Compiler",
+          "improvement": -0.06779389374507971,
+          "tokens": 691
+        }
+      }
+    },
+    {
+      "runId": "run-411",
+      "version": "v486",
+      "status": "rejected",
+      "parentLoss": 7.812438449961074,
+      "candidateLoss": 7.844727363992245,
+      "regression": 0.03228891403117107,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall regressed 0.0323 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall regressed 0.0323 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": 0.03228891403117107,
+        "drift": 0.03228891403117107,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 50,
+        "groupsOverTolerance": 25,
+        "regressedGroupShare": 0.4166666666666667,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Compiler",
+          "improvement": -0.11240075811118366,
+          "tokens": 691
+        }
+      }
+    },
+    {
+      "runId": "run-412",
+      "version": "v487",
+      "status": "inconclusive",
+      "parentLoss": 7.812438449961074,
+      "candidateLoss": 7.809343634767735,
+      "regression": -0.0030948151933385404,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall improved 0.0031 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall improved 0.0031 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": -0.0030948151933385404,
+        "drift": -0.0030948151933385404,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 31,
+        "groupsOverTolerance": 0,
+        "regressedGroupShare": 0,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Speed_of_light",
+          "improvement": -0.01631788107065013,
+          "tokens": 832
+        }
+      }
+    },
+    {
+      "runId": "run-413",
+      "version": "v488",
+      "status": "rejected",
+      "parentLoss": 7.812438449961074,
+      "candidateLoss": 7.819021856531184,
+      "regression": 0.006583406570110029,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall regressed 0.0066 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall regressed 0.0066 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": 0.006583406570110029,
+        "drift": 0.006583406570110029,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 46,
+        "groupsOverTolerance": 0,
+        "regressedGroupShare": 0,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Internet",
+          "improvement": -0.04345297400706993,
+          "tokens": 751
+        }
+      }
+    },
+    {
+      "runId": "run-414",
+      "version": "v489",
+      "status": "rejected",
+      "parentLoss": 7.812438449961074,
+      "candidateLoss": 7.816398146304678,
+      "regression": 0.003959696343604158,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall regressed 0.0040 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall regressed 0.0040 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": 0.003959696343604158,
+        "drift": 0.003959696343604158,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 42,
+        "groupsOverTolerance": 0,
+        "regressedGroupShare": 0,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Evolution",
+          "improvement": -0.022334469689263337,
+          "tokens": 702
+        }
+      }
+    },
+    {
+      "runId": "run-415",
+      "version": "v490",
+      "status": "rejected",
+      "parentLoss": 7.812438449961074,
+      "candidateLoss": 7.861185908317566,
+      "regression": 0.04874745835649197,
+      "default": "accepted",
+      "defaultReason": "working guard accepted: overall regressed 0.0487 nats; no catastrophic group regression",
+      "wide": "accepted",
+      "wideReason": "working guard accepted: overall regressed 0.0487 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": 0.04874745835649197,
+        "drift": 0.04874745835649197,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 59,
+        "groupsOverTolerance": 33,
+        "regressedGroupShare": 0.55,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Speed_of_light",
+          "improvement": -0.11029661618746278,
+          "tokens": 832
+        }
+      }
+    }
+  ]
+}

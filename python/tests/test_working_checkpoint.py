@@ -152,3 +152,10 @@ def test_incompatible_carried_optimizer_state_fails_closed(tokenizer):
             device="cpu",
             carry_optimizer_state={"state": {}, "param_groups": []},
         )
+
+
+def test_corrupt_optimizer_pickle_fails_to_load(tmp_path):
+    path = tmp_path / "corrupt.train-state.pt"
+    path.write_bytes(b"not a torch pickle")
+    with pytest.raises(Exception):
+        train_mod.load_train_state(path)
