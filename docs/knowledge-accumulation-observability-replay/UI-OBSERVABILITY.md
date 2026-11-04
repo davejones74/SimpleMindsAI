@@ -24,7 +24,7 @@ Files:
 - Fresh/replay/validation token proportions, measured replay share, configured target and pre-partition estimate.
 - Training steps, planned steps, presented tokens, wall time and throughput.
 - Prospective validation availability and the trainer's authoritative block count.
-- Working guard groups, negative/over-tolerance counts, worst group.
+- Working guard groups, negative/over-tolerance counts, worst group and measured per-group regressions/improvements from the latest evaluation evidence.
 - Cumulative drift and rollback status.
 - Current lifecycle/job waiting reason and learning/training phases.
 - Stable decision and explanation.

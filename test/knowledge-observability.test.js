@@ -82,6 +82,12 @@ const fixture = {
       groupsOverTolerance: 4,
       worstGroup: { group: "https://en.wikipedia.org/wiki/Internet", improvement: -0.06859132167343773, tokens: 751 },
     },
+    changes: {
+      runId: "run-425",
+      groupsCompared: 60,
+      worst: [{ group: "https://en.wikipedia.org/wiki/Internet", improvement: -0.06859132167343773, tokens: 751 }],
+      best: [{ group: "https://en.wikipedia.org/wiki/Big_Bang", improvement: 0.03117783173270805, tokens: 736 }],
+    },
   },
   drift: { current: 0.011532278771096749, max: 0.1, rollback: null, status: "within-budget" },
   validation: {
@@ -123,6 +129,8 @@ test("knowledge view renders stable, working, optimizer and measured replay evid
   assert.match(html, /insufficient-validation-material/);
   assert.match(html, /Inconclusive|inconclusive/i);
   assert.match(html, /working guard accepted/);
+  assert.match(html, /Per-group evaluation changes/);
+  assert.match(html, /Internet/);
   assert.doesNotMatch(html, /undefined/);
 });
 

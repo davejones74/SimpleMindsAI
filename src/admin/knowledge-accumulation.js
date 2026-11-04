@@ -1,4 +1,4 @@
-import { existsSync, statSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { readPythonStore } from "./python-store.js";
 import { validationAvailability } from "../training/validation-status.js";
@@ -124,6 +124,43 @@ function jobSummary(job) {
   };
 }
 
+function groupChanges(registry, runId) {
+  if (!runId || typeof registry?.listEvaluations !== "function") return null;
+  const records = registry.listEvaluations().filter((record) => record.runId === runId);
+  const candidate = records.find((record) => record.kind === "candidate");
+  const parent = records.find((record) => record.kind === "working-parent") ?? records.find((record) => record.kind === "baseline");
+  if (!candidate?.evidenceFile || !parent?.evidenceFile) return null;
+  try {
+    const candidateEvidence = JSON.parse(readFileSync(path.join(registry.dir, candidate.evidenceFile), "utf8"));
+    const parentEvidence = JSON.parse(readFileSync(path.join(registry.dir, parent.evidenceFile), "utf8"));
+    const parentByGroup = new Map((parentEvidence.groups ?? []).map((group) => [group.group, group]));
+    const groups = (candidateEvidence.groups ?? [])
+      .map((group) => {
+        const before = parentByGroup.get(group.group);
+        if (!before) return null;
+        return {
+          group: group.group,
+          tokens: group.tokens ?? before.tokens ?? null,
+          parentLoss: before.loss ?? null,
+          candidateLoss: group.loss ?? null,
+          improvement: Number.isFinite(before.loss) && Number.isFinite(group.loss) ? before.loss - group.loss : null,
+        };
+      })
+      .filter(Boolean);
+    const ordered = groups.filter((group) => Number.isFinite(group.improvement)).sort((a, b) => a.improvement - b.improvement);
+    return {
+      runId,
+      groupsCompared: groups.length,
+      worst: ordered.slice(0, 8),
+      best: ordered.slice(-8).reverse(),
+      evidenceFile: candidate.evidenceFile,
+      parentEvidenceFile: parent.evidenceFile,
+    };
+  } catch {
+    return null;
+  }
+}
+
 function latestRunSummary(run, contribution, optimizer) {
   if (!run && !contribution) return null;
   const last = lastEvent(run);
@@ -231,6 +268,7 @@ export async function buildKnowledgeAccumulation({ store, registry, pythonStoreP
       decision: latestContribution.workingGuard.decision ?? null,
       reason: latestContribution.workingGuard.reason ?? null,
       metrics: latestContribution.workingGuard.metrics ?? null,
+      changes: groupChanges(registry, latestContribution.runId),
     } : null,
     drift: {
       current: Number.isFinite(py.working?.drift) ? py.working.drift : null,

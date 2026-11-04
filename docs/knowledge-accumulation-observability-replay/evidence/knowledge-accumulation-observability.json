@@ -1,6 +1,6 @@
 {
   "schema": "sma/knowledge-accumulation-observability@1",
-  "at": "2026-11-04T19:02:24.068Z",
+  "at": "2026-11-04T19:09:40.653Z",
   "pointers": {
     "active": {
       "version": "v493",
@@ -562,6 +562,128 @@
         "improvement": -0.06859132167343773,
         "tokens": 751
       }
+    },
+    "changes": {
+      "runId": "run-425",
+      "groupsCompared": 60,
+      "worst": [
+        {
+          "group": "https://en.wikipedia.org/wiki/Internet",
+          "tokens": 751,
+          "parentLoss": 6.728345573186557,
+          "candidateLoss": 6.796936894859995,
+          "improvement": -0.06859132167343773
+        },
+        {
+          "group": "https://en.wikipedia.org/wiki/Money",
+          "tokens": 844,
+          "parentLoss": 7.66364573076438,
+          "candidateLoss": 7.718315246545873,
+          "improvement": -0.054669515781492706
+        },
+        {
+          "group": "https://en.wikipedia.org/wiki/Artificial_intelligence",
+          "tokens": 704,
+          "parentLoss": 7.359255400570956,
+          "candidateLoss": 7.411459619348699,
+          "improvement": -0.05220421877774317
+        },
+        {
+          "group": "https://en.wikipedia.org/wiki/Telephone",
+          "tokens": 691,
+          "parentLoss": 7.4389553311592245,
+          "candidateLoss": 7.489728589478864,
+          "improvement": -0.05077325831963986
+        },
+        {
+          "group": "https://en.wikipedia.org/wiki/Compiler",
+          "tokens": 691,
+          "parentLoss": 7.4272264116234785,
+          "candidateLoss": 7.475397341848282,
+          "improvement": -0.048170930224803676
+        },
+        {
+          "group": "https://en.wikipedia.org/wiki/Computer",
+          "tokens": 749,
+          "parentLoss": 7.1833024457872945,
+          "candidateLoss": 7.229347328318455,
+          "improvement": -0.04604488253116035
+        },
+        {
+          "group": "https://en.wikipedia.org/wiki/Democracy",
+          "tokens": 692,
+          "parentLoss": 7.573450711421195,
+          "candidateLoss": 7.61752900636265,
+          "improvement": -0.0440782949414551
+        },
+        {
+          "group": "https://en.wikipedia.org/wiki/Semiconductor",
+          "tokens": 787,
+          "parentLoss": 7.732978001634533,
+          "candidateLoss": 7.7699413905452746,
+          "improvement": -0.03696338891074191
+        }
+      ],
+      "best": [
+        {
+          "group": "https://en.wikipedia.org/wiki/Big_Bang",
+          "tokens": 736,
+          "parentLoss": 7.56510881755663,
+          "candidateLoss": 7.533930985823922,
+          "improvement": 0.03117783173270805
+        },
+        {
+          "group": "https://en.wikipedia.org/wiki/Milky_Way",
+          "tokens": 936,
+          "parentLoss": 7.90469053056505,
+          "candidateLoss": 7.875529354454105,
+          "improvement": 0.02916117611094471
+        },
+        {
+          "group": "https://en.wikipedia.org/wiki/Black_hole",
+          "tokens": 771,
+          "parentLoss": 7.649805239047831,
+          "candidateLoss": 7.623606093044256,
+          "improvement": 0.026199146003574647
+        },
+        {
+          "group": "https://en.wikipedia.org/wiki/Nile",
+          "tokens": 871,
+          "parentLoss": 8.182814050624073,
+          "candidateLoss": 8.161220318414314,
+          "improvement": 0.021593732209758798
+        },
+        {
+          "group": "https://en.wikipedia.org/wiki/Age_of_Enlightenment",
+          "tokens": 753,
+          "parentLoss": 7.578959587877332,
+          "candidateLoss": 7.558179242360798,
+          "improvement": 0.02078034551653385
+        },
+        {
+          "group": "https://en.wikipedia.org/wiki/Neuron",
+          "tokens": 789,
+          "parentLoss": 8.088151465199594,
+          "candidateLoss": 8.069129964395772,
+          "improvement": 0.019021500803821922
+        },
+        {
+          "group": "https://en.wikipedia.org/wiki/Telescope",
+          "tokens": 800,
+          "parentLoss": 7.826317844390869,
+          "candidateLoss": 7.807718334197998,
+          "improvement": 0.018599510192871094
+        },
+        {
+          "group": "https://en.wikipedia.org/wiki/Industrial_Revolution",
+          "tokens": 759,
+          "parentLoss": 7.548231909554623,
+          "candidateLoss": 7.529971672455155,
+          "improvement": 0.01826023709946778
+        }
+      ],
+      "evidenceFile": "evaluations/run-425_candidate.evidence.json",
+      "parentEvidenceFile": "evaluations/run-425_working-parent.evidence.json"
     }
   },
   "drift": {
@@ -572,7 +694,7 @@
   },
   "validation": {
     "schema": "sma/validation-availability@1",
-    "at": "2026-11-04T19:02:24.011Z",
+    "at": "2026-11-04T19:09:40.578Z",
     "available": true,
     "waiting": false,
     "error": null,
@@ -638,7 +760,7 @@
         "baselineLoss": 7.810239921224878,
         "candidateLoss": 7.821772199995975
       },
-      "updatedAt": "2026-11-04T19:02:17.178Z"
+      "updatedAt": "2026-11-04T19:09:02.817Z"
     },
     "learningJob": {
       "jobId": "job-59",
@@ -649,7 +771,7 @@
       "note": "job started",
       "meta": null,
       "progress": {
-        "cycle": 40,
+        "cycle": 41,
         "noProgressStreak": 0,
         "mode": "real",
         "capability": "configured-fetch",
@@ -663,7 +785,7 @@
         "reviewWaiting": true,
         "trainable": 21,
         "corpusCeiling": null,
-        "failures": 1,
+        "failures": 2,
         "sourceExhausted": false,
         "noUsefulDocuments": true,
         "admissionCapExhausted": false,
@@ -678,28 +800,28 @@
         "acquisition": {
           "state": "work",
           "reason": "claimable frontier work or new candidates",
-          "claimable": 433799,
-          "retryable": 4483,
+          "claimable": 434244,
+          "retryable": 4485,
           "rediscoveryDue": 17650,
           "viable": true,
           "providerErrored": false
         },
         "frontier": {
-          "queued": 416149,
+          "queued": 416594,
           "inProgress": 0,
-          "visited": 48108,
-          "deferred": 4483,
+          "visited": 48156,
+          "deferred": 4485,
           "failed": 0,
           "rejected": 0,
           "quarantined": 0,
-          "total": 468740,
+          "total": 469235,
           "retryDist": {
-            "0": 464260,
-            "1": 4480,
+            "0": 464753,
+            "1": 4482,
             "2": 0,
             "3": 0
           },
-          "deferredDue": 4483,
+          "deferredDue": 4485,
           "rediscoveryDue": 17650,
           "nextDueAt": "2026-10-20T02:03:47.947Z"
         },
@@ -721,13 +843,13 @@
                 "status": "ok",
                 "reason": null,
                 "found": 500,
-                "enqueued": 500,
-                "duplicate": 0,
+                "enqueued": 495,
+                "duplicate": 5,
                 "rejected": 0,
                 "diagnostics": {
                   "rootsTried": 25,
-                  "sitemapsFetched": 8,
-                  "errors": 1,
+                  "sitemapsFetched": 10,
+                  "errors": 0,
                   "budgetExhausted": false
                 }
               },
@@ -743,7 +865,7 @@
                 "diagnostics": {
                   "rootsTried": 25,
                   "feedsFetched": 0,
-                  "errors": 3,
+                  "errors": 5,
                   "budgetExhausted": false
                 }
               }
@@ -756,16 +878,16 @@
             "rootRotation": {
               "pool": 3428,
               "window": 25,
-              "nextCursor": 1000
+              "nextCursor": 1025
             }
           },
           "discoveryOperations": {
             "dir": "/var/lib/simpleminds/data/frontier/discovery",
             "windowStart": "2026-11-04T00:00:00.000Z",
             "windowMs": 86400000,
-            "used": 7169,
+            "used": 7229,
             "limit": 50000,
-            "remaining": 42831,
+            "remaining": 42771,
             "maxPerDomainPerWindow": 1000,
             "domains": {
               "101blockchains.com": 2,
@@ -897,6 +1019,7 @@
               "blog.cryptographyengineering.com": 2,
               "blog.osservatori.net": 2,
               "blog.oup.com": 2,
+              "blog.ria.ee": 2,
               "blog.ru-egypt.com": 3,
               "blog.sciencemuseum.org.uk": 2,
               "blog.wikimedia.bg": 2,
@@ -1044,6 +1167,8 @@
               "dib.uth.gr": 2,
               "digital.ni.com": 2,
               "digitalcash.hu": 2,
+              "digitark.ee": 2,
+              "digitark.telia.ee": 10,
               "dione.lib.unipi.gr": 2,
               "diq.wikipedia.org": 6,
               "dir.hr": 2,
@@ -1142,6 +1267,7 @@
               "faculty.wcas.northwestern.edu": 2,
               "ff.wikipedia.org": 6,
               "fi.wikipedia.org": 6,
+              "fi.wikiversity.org": 2,
               "fi.wiktionary.org": 3,
               "finna.fi": 2,
               "firstbiz.firstpost.com": 1,
@@ -1313,6 +1439,7 @@
               "koi.wikipedia.org": 2,
               "konan.3dn.ru": 2,
               "kopkatalogs.lv": 3,
+              "kotimaatti.fi": 2,
               "krc.wikipedia.org": 2,
               "kriptopenz.com": 2,
               "kryptoraha.ee": 6,
@@ -1434,6 +1561,7 @@
               "new.wikipedia.org": 6,
               "newint.org": 2,
               "news.coinsquare.com": 2,
+              "news.microsoft.com": 2,
               "news.mit.edu": 2,
               "newsroom.cisco.com": 2,
               "nexusintegra.io": 2,
@@ -1470,6 +1598,7 @@
               "openlearn.open.ac.uk": 2,
               "openlibrary.org": 3,
               "openrobotics.org": 2,
+              "opinion.infobae.com": 2,
               "or.stackexchange.com": 2,
               "or.wikipedia.org": 6,
               "orka.sejm.gov.pl": 3,
@@ -1537,6 +1666,7 @@
               "qualitybaba.com": 2,
               "quantum.fis.ucm.es": 2,
               "quantumzeitgeist.com": 2,
+              "quva.fi": 2,
               "qz.com": 2,
               "raconteur.net": 2,
               "radar.oreilly.com": 2,
@@ -1643,6 +1773,7 @@
               "stats.stackexchange.com": 3,
               "stats.wikimedia.org": 2,
               "status.arxiv.org": 3,
+              "store.elsevier.com": 2,
               "student.britannica.com": 3,
               "studieinfo.au.dk": 2,
               "su.wikipedia.org": 3,
@@ -1756,6 +1887,7 @@
               "www.1914-1918.net": 2,
               "www.a1.digital": 2,
               "www.aaai.org": 2,
+              "www.abiresearch.com": 2,
               "www.academia.edu": 5,
               "www.aclweb.org": 2,
               "www.advania.is": 2,
@@ -1764,6 +1896,7 @@
               "www.aftenposten.no": 2,
               "www.agentura.ru": 2,
               "www.ai.mit.edu": 2,
+              "www.ajakiri.ut.ee": 2,
               "www.alarabiya.net": 2,
               "www.alexandra.dk": 2,
               "www.alicebot.org": 2,
@@ -1779,6 +1912,7 @@
               "www.ariel.ac.il": 2,
               "www.arxiv.org": 2,
               "www.asce.org": 2,
+              "www.asjadeinternet.ee": 2,
               "www.asms.ru": 2,
               "www.aura-astronomy.org": 3,
               "www.authentichistory.com": 2,
@@ -1830,6 +1964,7 @@
               "www.cambridgeincolour.com": 3,
               "www.capital.gr": 2,
               "www.catalyzex.com": 3,
+              "www.cba.mit.edu": 2,
               "www.cbinsights.com": 2,
               "www.ccma.cat": 2,
               "www.cdt.org": 2,
@@ -1847,6 +1982,7 @@
               "www.civilization.ca": 2,
               "www.civilwar.org": 2,
               "www.civilwarhome.com": 3,
+              "www.cloudflare.com": 2,
               "www.cnbc.com": 2,
               "www.codata.org": 2,
               "www.cognizant.com": 2,
@@ -1908,6 +2044,7 @@
               "www.delaval-us.com": 2,
               "www.deloitte.com": 3,
               "www.demandsage.com": 2,
+              "www.digi.com": 2,
               "www.digitalegypt.ucl.ac.uk": 3,
               "www.digitalhistory.uh.edu": 2,
               "www.digitalimageprocessing.com": 2,
@@ -1922,6 +2059,7 @@
               "www.ece.ntua.gr": 2,
               "www.economist.com": 2,
               "www.economistinsights.com": 2,
+              "www.ecraft.com": 2,
               "www.edgeiq.io": 2,
               "www.editorialmanager.com": 4,
               "www.educba.com": 9,
@@ -1933,6 +2071,7 @@
               "www.ejournals.eu": 2,
               "www.ekonomilehti.fi": 2,
               "www.electricaltechnology.org": 3,
+              "www.eliko.ee": 2,
               "www.elsevier.com": 2,
               "www.embl.org": 2,
               "www.embnet.it": 9,
@@ -1992,6 +2131,7 @@
               "www.google.lv": 2,
               "www.govinfo.gov": 2,
               "www.growthjockey.com": 2,
+              "www.guardian.co.uk": 2,
               "www.gumer.info": 2,
               "www.gyansetu.in": 11,
               "www.hayadan.org.il": 2,
@@ -2062,6 +2202,7 @@
               "www.jstage.jst.go.jp": 2,
               "www.jw.org": 2,
               "www.khanacademy.org": 2,
+              "www.kiip.ee": 2,
               "www.knowprivacy.org": 2,
               "www.kobic.re.kr": 2,
               "www.kommersant.ru": 2,
@@ -2098,6 +2239,7 @@
               "www.mabit.org.hu": 2,
               "www.macfergus.com": 2,
               "www.manipal.edu": 3,
+              "www.marketvisio.fi": 2,
               "www.mastersindatascience.com": 2,
               "www.mastersindatascience.org": 3,
               "www.mbl.is": 2,
@@ -2159,6 +2301,7 @@
               "www.oed.com": 2,
               "www.oficinadanet.com.br": 2,
               "www.ohiocivilwar.com": 2,
+              "www.ohtuleht.ee": 2,
               "www.oocities.org": 2,
               "www.open-bio.org": 2,
               "www.opennet.ru": 2,
@@ -2266,6 +2409,7 @@
               "www.stsci.edu": 3,
               "www.superoffice.com": 2,
               "www.suse.com": 2,
+              "www.systemgroup.net": 2,
               "www.tableau.com": 11,
               "www.tandfonline.com": 2,
               "www.tankonyvtar.hu": 2,
@@ -2296,6 +2440,7 @@
               "www.time.com": 2,
               "www.toptal.com": 2,
               "www.totic.org": 3,
+              "www.trea.ee": 2,
               "www.treccani.it": 2,
               "www.trminternational.com": 2,
               "www.tsu.edu.ge": 2,
@@ -2303,6 +2448,7 @@
               "www.turing.ac.uk": 2,
               "www.twitter.com": 4,
               "www.tyndale.cam.ac.uk": 3,
+              "www.tyniot.com": 2,
               "www.ubio.org": 2,
               "www.ubu.com": 2,
               "www.ueu.eus": 6,
@@ -2348,6 +2494,7 @@
               "www.worldscientific.com": 1,
               "www.worldscinet.com": 2,
               "www.wsj.com": 2,
+              "www.yoabby.com": 2,
               "www.youtube.com": 4,
               "www.yuri-kuzovkov.ru": 2,
               "www.zdnet.com": 2,
@@ -2364,6 +2511,7 @@
               "yandex.ru": 2,
               "yann.lecun.com": 2,
               "yi.wikipedia.org": 3,
+              "yle.fi": 2,
               "youtube.com": 2,
               "yury.name": 2,
               "za.wikipedia.org": 3,
@@ -2381,7 +2529,7 @@
           }
         }
       },
-      "updatedAt": "2026-11-04T18:50:07.042Z"
+      "updatedAt": "2026-11-04T19:07:16.612Z"
     },
     "waitingReason": "insufficient-validation-material",
     "waitingNote": "validation documents could not form a block; refusing to fall back to tail splitting",

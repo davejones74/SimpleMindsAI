@@ -182,6 +182,8 @@ export function renderKnowledge(data) {
         <span>Stable delta</span><strong>${fmt(decision.delta, 4)} ${decision.noiseBand === null || decision.noiseBand === undefined ? "" : `±${fmt(decision.noiseBand, 4)}`}</strong>
       </div>
       <div class="ka-note">${esc(guard.reason ?? decision.explanation ?? "No guard explanation recorded.")}</div>
+      <div class="ka-subhead">Per-group evaluation changes <span class="ka-tag historical">measured</span></div>
+      ${groupChangesTable(guard.changes)}
     </section>
   </div>
 
@@ -199,6 +201,21 @@ export function renderKnowledge(data) {
   <div class="ka-footer">
     <span>${tag(`${counts.runs ?? 0} runs`, "neutral")} ${tag(`${counts.workingAdvances ?? 0} working advances`, "warn")} ${tag(`${counts.stablePromotions ?? 0} stable promotions`, "good")} ${tag(`${counts.stableRejections ?? 0} stable rejections`, "bad")} ${tag(`${counts.stableInconclusive ?? 0} inconclusive`, "warn")}</span>
     <span>${esc(data.optimizer?.source ?? "")}</span>
+  </div>`;
+}
+
+function groupChangesTable(changes) {
+  if (!changes) return `<div class="ka-empty">Per-group evidence unavailable for this run.</div>`;
+  const rows = (changes.worst ?? []).slice(0, 6);
+  const best = (changes.best ?? []).slice(0, 3);
+  const line = (row) => `<div class="ka-group-row">
+    <span class="ka-group-name" title="${esc(row.group)}">${esc(String(row.group ?? "").replace(/^https?:\/\//, ""))}</span>
+    <span class="${row.improvement < 0 ? "bad" : "good"}">${row.improvement > 0 ? "+" : ""}${fmt(row.improvement, 4)}</span>
+    <span class="ka-group-tokens">${fmt(row.tokens)} tok</span>
+  </div>`;
+  return `<div class="ka-group-grid">
+    <div><div class="ka-group-label">Largest regressions</div>${rows.map(line).join("")}</div>
+    <div><div class="ka-group-label">Largest improvements</div>${best.map(line).join("")}</div>
   </div>`;
 }
 

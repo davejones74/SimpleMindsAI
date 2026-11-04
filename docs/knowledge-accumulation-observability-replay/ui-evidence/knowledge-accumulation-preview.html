@@ -706,12 +706,21 @@ main.brain-stage {
   .ka-title { font-size: 20px; }
   .ka-footer { display: block; }
 }
+.ka-subhead { margin: 14px 0 7px; color: var(--brain-muted); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; }
+.ka-group-grid { display: grid; grid-template-columns: 1.3fr 1fr; gap: 12px; }
+.ka-group-label { color: var(--brain-muted); font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px; }
+.ka-group-row { display: grid; grid-template-columns: minmax(0, 1fr) 62px 64px; gap: 6px; align-items: baseline; padding: 3px 0; border-top: 1px solid rgba(120, 153, 190, 0.1); font-size: 10px; }
+.ka-group-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--brain-muted); }
+.ka-group-row .good { color: var(--brain-good); text-align: right; font-variant-numeric: tabular-nums; }
+.ka-group-row .bad { color: var(--brain-bad); text-align: right; font-variant-numeric: tabular-nums; }
+.ka-group-tokens { color: rgba(139, 160, 184, 0.7); text-align: right; font-variant-numeric: tabular-nums; }
+@media (max-width: 720px) { .ka-group-grid { grid-template-columns: 1fr; } }
 
 body{overflow:auto!important;padding:0}.brain-knowledge{position:static!important;inset:auto!important;max-width:none!important;min-height:100vh;border-radius:0!important}</style></head><body class="brain-body"><aside class="brain-knowledge"><div class="ka-headline">
     <div>
       <div class="ka-kicker">Production telemetry</div>
       <div class="ka-title">Knowledge accumulation</div>
-      <div class="ka-sub">Snapshot 11/4/2026, 7:02:24 PM. Historical rows are labelled; calculated availability is derived from current store and validator state.</div>
+      <div class="ka-sub">Snapshot 11/4/2026, 7:09:40 PM. Historical rows are labelled; calculated availability is derived from current store and validator state.</div>
     </div>
     <div class="ka-headline-chips">
       <span class="ka-tag good">active v493</span>
@@ -813,6 +822,47 @@ body{overflow:auto!important;padding:0}.brain-knowledge{position:static!importan
         <span>Stable delta</span><strong>— </strong>
       </div>
       <div class="ka-note">working guard accepted: overall regressed 0.0092 nats; no catastrophic group regression</div>
+      <div class="ka-subhead">Per-group evaluation changes <span class="ka-tag historical">measured</span></div>
+      <div class="ka-group-grid">
+    <div><div class="ka-group-label">Largest regressions</div><div class="ka-group-row">
+    <span class="ka-group-name" title="https://en.wikipedia.org/wiki/Internet">en.wikipedia.org/wiki/Internet</span>
+    <span class="bad">-0.0686</span>
+    <span class="ka-group-tokens">751 tok</span>
+  </div><div class="ka-group-row">
+    <span class="ka-group-name" title="https://en.wikipedia.org/wiki/Money">en.wikipedia.org/wiki/Money</span>
+    <span class="bad">-0.0547</span>
+    <span class="ka-group-tokens">844 tok</span>
+  </div><div class="ka-group-row">
+    <span class="ka-group-name" title="https://en.wikipedia.org/wiki/Artificial_intelligence">en.wikipedia.org/wiki/Artificial_intelligence</span>
+    <span class="bad">-0.0522</span>
+    <span class="ka-group-tokens">704 tok</span>
+  </div><div class="ka-group-row">
+    <span class="ka-group-name" title="https://en.wikipedia.org/wiki/Telephone">en.wikipedia.org/wiki/Telephone</span>
+    <span class="bad">-0.0508</span>
+    <span class="ka-group-tokens">691 tok</span>
+  </div><div class="ka-group-row">
+    <span class="ka-group-name" title="https://en.wikipedia.org/wiki/Compiler">en.wikipedia.org/wiki/Compiler</span>
+    <span class="bad">-0.0482</span>
+    <span class="ka-group-tokens">691 tok</span>
+  </div><div class="ka-group-row">
+    <span class="ka-group-name" title="https://en.wikipedia.org/wiki/Computer">en.wikipedia.org/wiki/Computer</span>
+    <span class="bad">-0.0460</span>
+    <span class="ka-group-tokens">749 tok</span>
+  </div></div>
+    <div><div class="ka-group-label">Largest improvements</div><div class="ka-group-row">
+    <span class="ka-group-name" title="https://en.wikipedia.org/wiki/Big_Bang">en.wikipedia.org/wiki/Big_Bang</span>
+    <span class="good">+0.0312</span>
+    <span class="ka-group-tokens">736 tok</span>
+  </div><div class="ka-group-row">
+    <span class="ka-group-name" title="https://en.wikipedia.org/wiki/Milky_Way">en.wikipedia.org/wiki/Milky_Way</span>
+    <span class="good">+0.0292</span>
+    <span class="ka-group-tokens">936 tok</span>
+  </div><div class="ka-group-row">
+    <span class="ka-group-name" title="https://en.wikipedia.org/wiki/Black_hole">en.wikipedia.org/wiki/Black_hole</span>
+    <span class="good">+0.0262</span>
+    <span class="ka-group-tokens">771 tok</span>
+  </div></div>
+  </div>
     </section>
   </div>
 

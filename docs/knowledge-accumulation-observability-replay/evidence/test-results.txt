@@ -1,5 +1,5 @@
 Full Node suite (node --test):
-  duration_ms: 1.866185
+  duration_ms: 1.5509
   type: 'test'
   ...
 1..795
@@ -10,7 +10,7 @@ Full Node suite (node --test):
 # cancelled 0
 # skipped 7
 # todo 0
-# duration_ms 33355.22359
+# duration_ms 34168.208251
 
 Focused replay/observability tests:
   ...
@@ -22,4 +22,4 @@ Focused replay/observability tests:
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 136.957683
+# duration_ms 147.353326

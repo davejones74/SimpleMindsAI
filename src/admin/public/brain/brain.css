@@ -706,3 +706,12 @@ main.brain-stage {
   .ka-title { font-size: 20px; }
   .ka-footer { display: block; }
 }
+.ka-subhead { margin: 14px 0 7px; color: var(--brain-muted); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; }
+.ka-group-grid { display: grid; grid-template-columns: 1.3fr 1fr; gap: 12px; }
+.ka-group-label { color: var(--brain-muted); font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px; }
+.ka-group-row { display: grid; grid-template-columns: minmax(0, 1fr) 62px 64px; gap: 6px; align-items: baseline; padding: 3px 0; border-top: 1px solid rgba(120, 153, 190, 0.1); font-size: 10px; }
+.ka-group-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--brain-muted); }
+.ka-group-row .good { color: var(--brain-good); text-align: right; font-variant-numeric: tabular-nums; }
+.ka-group-row .bad { color: var(--brain-bad); text-align: right; font-variant-numeric: tabular-nums; }
+.ka-group-tokens { color: rgba(139, 160, 184, 0.7); text-align: right; font-variant-numeric: tabular-nums; }
+@media (max-width: 720px) { .ka-group-grid { grid-template-columns: 1fr; } }
