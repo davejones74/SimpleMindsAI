@@ -3,7 +3,7 @@
   "at": "2026-11-04T19:10:00Z",
   "branch": "knowledge-accumulation-observability-replay-20261104",
   "base": "8831006",
-  "commit": "b773dbb",
+  "commit": "4f58ad2",
   "productionMutation": false,
   "recommendation": "DEPLOY AFTER REVIEW",
   "tests": {
@@ -32,7 +32,7 @@
       "sha256": "7ae860cfe32f6b3b31ecc9e157f06ec54e849cdb5828876e9744da6d193f4cd7"
     },
     "src/admin/public/brain/brain.css": {
-      "sha256": "14da00287d9ea26cbbba151c50b9d55d35643e282b3e9620ab6b658062acbdfa"
+      "sha256": "05ccd2b4e5dcab70d75178a7c0d99931a2d13491ea0d4bef65a7c94acec8a1b4"
     },
     "src/admin/public/brain/index.html": {
       "sha256": "16215db5e3a4338984d8ed00ddf3c0ffa4517e72af9eaa22ea7bc22e25db395d"
@@ -44,10 +44,10 @@
       "sha256": "774b72eec55ae1b3dc82ae183b1b49ac75b6eabd069948158d1a936aff8c7c2b"
     },
     "src/admin/knowledge-accumulation.js": {
-      "sha256": "622d4acd9dbd4a3a7f8dbc3c95432550d43ae5891343b9fbe5d96e54014ca5ea"
+      "sha256": "b663d9676f68366e9c384c10070e6d17a3effad6eb53435faadef52c639709ef"
     },
     "src/admin/public/brain/knowledge.js": {
-      "sha256": "4cdd900ce5e99cd4f7d3998a4f4fd307613887a35bb4912d5b5a27e956bae0f9"
+      "sha256": "63c7716659d6618709ca0ba26a4964e493a4a8a8b4bea2fea901d2409e5b6aaf"
     },
     "src/training/exposure.js": {
       "sha256": "fed2cb507134259e212a00ca730021a2656aadea36db7b96866730cf6308aaeb"
@@ -65,7 +65,7 @@
       "sha256": "cd3b93f96557e1715aa8afcd385850ef1910280ec839b66c9f2b7cebb52e59f8"
     },
     "test/knowledge-observability.test.js": {
-      "sha256": "2812a6b08e0451b0e869ab1490a212fb8a11c1cd939995bf71fdc362a6205b02"
+      "sha256": "bca353a587ed1a3814c86b1170aa661ac1559606910f743947af4e21305da3c2"
     },
     "scripts/knowledge-pilot/analyze-validation-availability.mjs": {
       "sha256": "e7df46b32748010f633b9d35c1b24f11c84de28a8d914cc3a6d01cd97fee1a11"
@@ -91,10 +91,10 @@
       "sha256": "d479cfecba72ed4ab1fda9d5f32f2275da6912bac093d0d540cfbe2d5d2f4edf"
     },
     "docs/knowledge-accumulation-observability-replay/UI-OBSERVABILITY.md": {
-      "sha256": "b6cc9138396c74b9dc81186c11f471376358983a4835fd22a9f9e342e15affe1"
+      "sha256": "e6447623bfbefa0d659991b380d14389141fa7652c3b44ab093d0b29f9c8ea2a"
     },
     "docs/knowledge-accumulation-observability-replay/evidence/knowledge-accumulation-observability.json": {
-      "sha256": "3d2eb1e69305e38dae885c211265fca23b1e3dfd830dbc48787024b177c83ca5"
+      "sha256": "57f2d8ff0948ec98c80eaed7a6fd487ec9b06859055d426723f29d91ccdbe22d"
     },
     "docs/knowledge-accumulation-observability-replay/evidence/optimizer-continuity.json": {
       "sha256": "e74dc8a9213c5fa329a09a6f71090128e835c1230bb42fdbaa934ce2bd9d2aa3"
@@ -103,7 +103,7 @@
       "sha256": "6e54c37c659b537ac9cf1f54514871ff67be337757925a45f5dcc7f6de6831b5"
     },
     "docs/knowledge-accumulation-observability-replay/evidence/test-results.txt": {
-      "sha256": "b27e1d41ae544eb1c2c51e94385c32727e7a3ce4c8466d4be06a1ee1042216ea"
+      "sha256": "38094324e8fc62cb0e93954141e721768fefce4ff15e2ece784730becab77103"
     },
     "docs/knowledge-accumulation-observability-replay/evidence/validation-availability.json": {
       "sha256": "c0c304a64b3a36fdace091b5ae163701af3c501f35f31f6910be447bb7e4cb18"
@@ -112,10 +112,10 @@
       "sha256": "926e9e72ef9cf02d5ebe8b30604f0704688183f49a718d09a3267020ad024063"
     },
     "docs/knowledge-accumulation-observability-replay/ui-evidence/knowledge-accumulation-preview.html": {
-      "sha256": "0d3ae4bded451689e70374f0e0f12dde4a586b72ec2af453c57fc24e922ed931"
+      "sha256": "c4211adfaadb0adfa7ae529d0569f3cc72e4d720ac5eb38325b3553fb2de4033"
     },
     "docs/knowledge-accumulation-observability-replay/ui-evidence/knowledge-accumulation-view.png": {
-      "sha256": "fe79096c00b242a5b344657c5c19e1a63c62f6dfc4604ee466a92f9790f18eda"
+      "sha256": "fd46e1ae34272aa54dfab620cce8efd50772e1ebafcedca8f60390c93ad47a78"
     }
   }
 }
