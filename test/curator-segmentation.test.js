@@ -51,6 +51,24 @@ test("adjacent short units merge only within one domain", () => {
   assert.match(across[0].text, /short two/);
 });
 
+test("learning cycle falls back to cleaned source when teacher output is fragmented", async () => {
+  const store = await ArticleStore.open(tmp());
+  const longText = Array.from({ length: 12 }, (_, i) => paragraph("fallback", i)).join("\n\n");
+  const ollama = { model: "teacher-x", clean: async () => [{ text: "tiny fragment", domain: "science" }] };
+  const scorer = { scoreOffline: async () => ({ verdict: "approve", score: 9, rationale: "useful" }) };
+  const collectDocuments = async () => ({
+    mode: "fixture",
+    capability: "fixture-harvest",
+    documents: [{ text: longText, domain: "science", source: "fixture", url: "https://science.nasa.gov/example" }],
+    failures: [],
+  });
+  const out = await runLearningCycle({ store, ollama, scorer, collectDocuments, maxRawDocs: 0 });
+  assert.equal(out.ingested, 1);
+  const article = store.articlesPage({ limit: 10 }).items[0];
+  assert.ok(article.text.length >= 800, `fallback unit too short: ${article.text.length}`);
+  await store.close();
+});
+
 test("learning cycle curates every chunk of a long source", async () => {
   const store = await ArticleStore.open(tmp());
   const longText = Array.from({ length: 12 }, (_, i) => paragraph("source", i)).join("\n\n");

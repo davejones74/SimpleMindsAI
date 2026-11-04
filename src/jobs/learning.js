@@ -5,6 +5,7 @@ import { reviewPendingArticles } from "./review-pass.js";
 import { ACQUISITION_STATE, classifyAcquisition } from "../discovery/acquisition-state.js";
 import { mergeAdjacentUnits, planCuration, segmentationStats } from "../services/curator-segmentation.js";
 import { prefilterReview } from "../domain/review-prefilter.js";
+import { cleanRawText } from "../dataset/corpus-text.js";
 
 /**
  * One acquisition cycle: harvest configured sources → curate (teacher) →
@@ -98,6 +99,28 @@ export async function runLearningCycle(ctx) {
         // a pile of sub-block fragments.
         mergeAcrossDomains: config.curatorMergeAcrossDomains !== false,
       });
+    }
+    // If the teacher still returned only sub-block fragments for a long source,
+    // fall back to the cleaned source text for this source. This preserves the
+    // full-source work instead of throwing it away; the normal language,
+    // quality and review gates still run on the resulting unit. It is NOT
+    // raw-text corpus mode: it only applies at curation when teacher output is
+    // unusably fragmented.
+    const teacherChars = units.reduce((sum, unit) => sum + String(unit?.text ?? "").length, 0);
+    if (config.curatorFallbackToSource !== false && teacherChars < config.curatorFallbackMinChars && doc.text.length >= config.curatorFallbackMinChars) {
+      const cleaned = cleanRawText(doc.text, {
+        minChars: config.trainCorpusMinChars,
+        minSentenceRatio: config.trainCorpusMinSentenceRatio,
+      });
+      const fallbackText = cleaned.accepted ? cleaned.text : doc.text;
+      if (fallbackText.length >= config.curatorFallbackMinChars) {
+        units = [{
+          text: fallbackText,
+          domain: units[0]?.domain ?? doc.domain ?? "general",
+          fallbackSource: true,
+        }];
+        log("out", `curation fallback to source ${doc.url ?? doc.contentHash}: teacher units were only ${teacherChars} chars`);
+      }
     }
     if (segmentationStats(plan, doc.text).chunks > 1) {
       log("out", `curated full source ${doc.url ?? ""} chunks=${plan.length} coverage=${(stats.coverage * 100).toFixed(1)}%`);

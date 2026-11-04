@@ -601,6 +601,10 @@ export const config = {
   // them with different domains. This is still one source document and avoids
   // leaving the source as a pile of sub-128-token fragments.
   curatorMergeAcrossDomains: bool("CURATOR_MERGE_ACROSS_DOMAINS", true),
+  // If the teacher still returns only sub-block fragments for a long source,
+  // fall back to the cleaned source text for that source at curation time.
+  curatorFallbackToSource: bool("CURATOR_FALLBACK_TO_SOURCE", true),
+  curatorFallbackMinChars: num("CURATOR_FALLBACK_MIN_CHARS", 800),
 
   // ---- Phase 3: bounded crawling discovery ----
   // Domain allow-list: comma-separated; empty defaults to CRAWL_URLS hosts only.
