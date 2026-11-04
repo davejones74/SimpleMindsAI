@@ -6,8 +6,9 @@
  * records using review history, text integrity, deterministic quality gates and
  * a conservative source-licence policy, and writes a machine-readable report.
  *
- * `--apply` is intentionally refused against production paths. It may only be
- * used against an isolated pilot store after review of the dry-run report.
+ * `--apply` is refused against production paths unless the separate
+ * `--allow-production` authorisation flag is supplied. Production apply still
+ * requires an explicit `--confirm` and a reviewed dry-run report.
  *
  * This script never deletes text, reviews, consumption records or events.
  */
@@ -32,6 +33,7 @@ function parseArgs(argv) {
     store: process.env.ARTICLE_DIR ?? path.resolve("data/articles"),
     apply: false,
     confirm: false,
+    allowProduction: false,
     out: null,
     limit: 0,
   };
@@ -44,8 +46,9 @@ function parseArgs(argv) {
     else if (arg === "--limit") opts.limit = Number(argv[++i]) || 0;
     else if (arg === "--apply") opts.apply = true;
     else if (arg === "--confirm") opts.confirm = true;
+    else if (arg === "--allow-production") opts.allowProduction = true;
     else if (arg === "--help" || arg === "-h") {
-      console.log("Usage: node scripts/knowledge-pilot/classify-replay.mjs --store <article-dir> [--out report.json] [--limit n] [--apply --confirm]");
+      console.log("Usage: node scripts/knowledge-pilot/classify-replay.mjs --store <article-dir> [--out report.json] [--limit n] [--apply --confirm [--allow-production]]");
       process.exit(0);
     } else {
       throw new Error(`unknown argument: ${arg}`);
@@ -160,8 +163,12 @@ async function main() {
   const opts = parseArgs(process.argv.slice(2));
   if (opts.apply) {
     if (!opts.confirm) throw new Error("--apply requires --confirm");
-    if (PRODUCTION_PREFIXES.some((prefix) => path.resolve(opts.store).startsWith(prefix))) {
-      throw new Error(`refusing --apply against a production path: ${opts.store}`);
+    const resolvedStore = path.resolve(opts.store);
+    const production = PRODUCTION_PREFIXES.some(
+      (prefix) => resolvedStore === prefix || resolvedStore.startsWith(`${prefix}${path.sep}`),
+    );
+    if (production && !opts.allowProduction) {
+      throw new Error(`refusing --apply against a production path: ${opts.store} (pass --allow-production after separate authorisation)`);
     }
   }
   const policy = JSON.parse(await readFile(POLICY_PATH, "utf8"));
