@@ -18,7 +18,7 @@ try {
       markConsumed: (ids, runId, meta = {}) => store.markConsumed(ids, { runId, ...meta }),
       evalSeed: defaultEvalSeed,
     },
-    options: { requireProspectiveValidation: false },
+    options: { requireProspectiveValidation: false, allowHistoricalValidationBootstrap: true },
   });
   const report = {
     schema: "sma/activation-bootstrap-run@1",

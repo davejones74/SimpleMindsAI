@@ -159,7 +159,7 @@ export async function executeFullRun({
       err.code = "INVALID_VALIDATION_POLICY";
       throw err;
     }
-    if (requireProspectiveValidation !== true) {
+    if (requireProspectiveValidation !== true && options.allowHistoricalValidationBootstrap !== true) {
       const err = new Error(
         "production Python training requires TRAIN_VALIDATION_REQUIRE_PROSPECTIVE=true; " +
           "historical exposure must not be relabelled as prospective",
