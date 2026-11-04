@@ -1,0 +1,28 @@
+{
+  "schema": "sma/activation-effective-config@1",
+  "at": "2026-11-04T09:23:54Z",
+  "envPath": "/etc/simpleminds/simpleminds.env",
+  "envSha256": "05ad70eee375a09a434219f8bb21bc2591a60f56e165ecb180b6994908b4a81d",
+  "config": {
+    "trainUseWorkingCheckpoint": true,
+    "trainCarryOptimizer": true,
+    "workingGuard": {
+      "maxRegressionNats": 0.05,
+      "maxGroupRegressionNats": 0.15,
+      "maxDriftNats": 0.1,
+      "minGroupTokens": 100,
+      "maxRegressedGroupShare": 0.75,
+      "minGroups": 5
+    },
+    "trainReplayPercent": 20,
+    "snapshotLimit": 256,
+    "snapshotIncludeConsumed": false,
+    "trainMaxSteps": 400,
+    "trainTargetEpochs": 2,
+    "trainValBlocks": 32,
+    "trainMinEligible": 1,
+    "promoteUncertaintyMode": "enforce",
+    "promoteMinGroups": 20,
+    "promoteEvalSet": "/var/lib/simpleminds/data/evaluation/eval-002.jsonl"
+  }
+}

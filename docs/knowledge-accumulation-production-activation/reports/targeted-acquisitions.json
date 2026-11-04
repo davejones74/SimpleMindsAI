@@ -1,0 +1,175 @@
+{
+  "schema": "sma/activation-targeted-acquisitions@1",
+  "reports": [
+    {
+      "schema": "sma/activation-acquisition@1",
+      "at": "2026-11-04T09:12:44.493Z",
+      "url": "https://en.wikipedia.org/wiki/Automation",
+      "fetched": [
+        {
+          "url": "https://en.wikipedia.org/wiki/Automation",
+          "title": "Automation - Wikipedia",
+          "chars": 100931,
+          "contentHash": "7a6dda9c5194a23d677caac6b94d8a7e5280376276b4037b8d63434ca562ce4e",
+          "htmlLang": "en"
+        }
+      ],
+      "ingested": 8,
+      "deduped": 0,
+      "reviewed": 8
+    },
+    {
+      "schema": "sma/activation-acquisition@1",
+      "at": "2026-11-04T09:08:52.596Z",
+      "url": "https://science.nasa.gov/james-webb-space-telescope",
+      "fetched": [
+        {
+          "url": "https://science.nasa.gov/mission/webb/",
+          "title": "James Webb Space Telescope - NASA Science",
+          "chars": 30054,
+          "contentHash": "6b3923e8d9a6829a0d5dbd59ce2b7a0c53bf8801b535f72b773898c279284c99",
+          "htmlLang": "en-US"
+        }
+      ],
+      "ingested": 26,
+      "deduped": 33,
+      "reviewed": 27
+    },
+    {
+      "schema": "sma/activation-acquisition@1",
+      "at": "2026-11-04T09:20:50.775Z",
+      "url": "https://en.wikipedia.org/wiki/Cell_(biology)",
+      "fetched": [
+        {
+          "url": "https://en.wikipedia.org/wiki/Cell_(biology)",
+          "title": "Cell (biology) - Wikipedia",
+          "chars": 94692,
+          "contentHash": "0eb3335176da669aaea5bc2fba5cb7fbd02b35adeb7bb96e241f5e62ff750bbb",
+          "htmlLang": "en"
+        }
+      ],
+      "ingested": 1,
+      "deduped": 0,
+      "reviewed": 1
+    },
+    {
+      "schema": "sma/activation-acquisition@1",
+      "at": "2026-11-04T09:19:19.611Z",
+      "url": "https://en.wikipedia.org/wiki/Ancient_Egypt",
+      "fetched": [
+        {
+          "url": "https://en.wikipedia.org/wiki/Ancient_Egypt",
+          "title": "Ancient Egypt - Wikipedia",
+          "chars": 162569,
+          "contentHash": "704de404e2549d8dbad9d414f565250f708dce2b256d876137b87758043707c9",
+          "htmlLang": "en"
+        }
+      ],
+      "ingested": 1,
+      "deduped": 0,
+      "reviewed": 1
+    },
+    {
+      "schema": "sma/activation-acquisition@1",
+      "at": "2026-11-04T09:18:50.784Z",
+      "url": "https://en.wikipedia.org/wiki/Data_science",
+      "fetched": [
+        {
+          "url": "https://en.wikipedia.org/wiki/Data_science",
+          "title": "Data science - Wikipedia",
+          "chars": 25256,
+          "contentHash": "51ce4830b4a4d5ffc58ca33350ca01575eee585a531d0430cc9f608d6de4b70c",
+          "htmlLang": "en"
+        }
+      ],
+      "ingested": 1,
+      "deduped": 6,
+      "reviewed": 1
+    },
+    {
+      "schema": "sma/activation-acquisition@1",
+      "at": "2026-11-04T09:18:12.241Z",
+      "url": "https://en.wikipedia.org/wiki/Quantum_computing",
+      "fetched": [
+        {
+          "url": "https://en.wikipedia.org/wiki/Quantum_computing",
+          "title": "Quantum computing - Wikipedia",
+          "chars": 120584,
+          "contentHash": "3d574e8a33c5d8b0fbea49de5a54d71ae543e4ee991df4ea612e3a0e950d2daa",
+          "htmlLang": "en"
+        }
+      ],
+      "ingested": 14,
+      "deduped": 0,
+      "reviewed": 14
+    },
+    {
+      "schema": "sma/activation-acquisition@1",
+      "at": "2026-11-04T09:17:01.752Z",
+      "url": "https://en.wikipedia.org/wiki/Globalization",
+      "fetched": [
+        {
+          "url": "https://en.wikipedia.org/wiki/Globalization",
+          "title": "Globalization - Wikipedia",
+          "chars": 166054,
+          "contentHash": "c3aa5eeac0047284be53231c6fb989e74d05696e2d56246cfb6ef429f658c0ab",
+          "htmlLang": "en"
+        }
+      ],
+      "ingested": 6,
+      "deduped": 1,
+      "reviewed": 6
+    },
+    {
+      "schema": "sma/activation-acquisition@1",
+      "at": "2026-11-04T09:16:17.103Z",
+      "url": "https://en.wikipedia.org/wiki/Bioinformatics",
+      "fetched": [
+        {
+          "url": "https://en.wikipedia.org/wiki/Bioinformatics",
+          "title": "Bioinformatics - Wikipedia",
+          "chars": 84260,
+          "contentHash": "00e8ffd402fd04823cb551af24a31c2a8b4ca939c879e47b53995965b45d5bec",
+          "htmlLang": "en"
+        }
+      ],
+      "ingested": 22,
+      "deduped": 26,
+      "reviewed": 22
+    },
+    {
+      "schema": "sma/activation-acquisition@1",
+      "at": "2026-11-04T09:14:09.125Z",
+      "url": "https://en.wikipedia.org/wiki/Cryptography",
+      "fetched": [
+        {
+          "url": "https://en.wikipedia.org/wiki/Cryptography",
+          "title": "Cryptography - Wikipedia",
+          "chars": 100339,
+          "contentHash": "73727cb90ccbcdc4ed7a8f4b1e33c51563f84310f2316585fe04c3c14323d2f0",
+          "htmlLang": "en"
+        }
+      ],
+      "ingested": 5,
+      "deduped": 0,
+      "reviewed": 5
+    },
+    {
+      "schema": "sma/activation-acquisition@1",
+      "at": "2026-11-04T09:13:39.084Z",
+      "url": "https://en.wikipedia.org/wiki/Computer_network",
+      "fetched": [
+        {
+          "url": "https://en.wikipedia.org/wiki/Computer_network",
+          "title": "Computer network - Wikipedia",
+          "chars": 98581,
+          "contentHash": "ce4ae699efb16a78d9fde0363f6da945f7abe855384d3648174659dc0fb503b4",
+          "htmlLang": "en"
+        }
+      ],
+      "ingested": 0,
+      "deduped": 3,
+      "reviewed": 0
+    }
+  ]
+}

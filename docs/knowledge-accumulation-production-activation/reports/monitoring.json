@@ -1,0 +1,140 @@
+{
+  "schema": "sma/production-activation-monitoring@1",
+  "at": "2026-11-04T09:23:58Z",
+  "artifacts": {
+    "totalArticles": 25696,
+    "trainable": 88,
+    "pendingReview": 9,
+    "reviewed": 7440,
+    "rejected": 7994,
+    "ingested": 1,
+    "retired": 10252,
+    "quarantined": 0,
+    "unresolved": 0,
+    "replayEligible": 7702,
+    "replayExcluded": 43,
+    "consumedAndRetired": 7383,
+    "deferredFresh": 27,
+    "retainedForReplay": 5319,
+    "uniqueConsumed": 9753,
+    "totalAppearances": 9984,
+    "recoverable": 10
+  },
+  "jobs": {
+    "job-59": {
+      "jobId": "job-59",
+      "kind": "learning",
+      "mode": "continuous",
+      "status": "running",
+      "phase": "harvest",
+      "params": {
+        "targetArticles": 100,
+        "maxRawDocs": 0,
+        "maxCycles": 0
+      },
+      "note": "job started",
+      "meta": null
+    },
+    "job-60": {
+      "jobId": "job-60",
+      "kind": "training",
+      "mode": "continuous",
+      "status": "waiting",
+      "phase": "waiting-for-validation",
+      "params": {
+        "parentVersion": null,
+        "minEligible": 1
+      },
+      "note": "no prospective validation clusters are available; historical exposure cannot be reversed",
+      "meta": {
+        "waitingReason": "insufficient-validation-material",
+        "tokens": null,
+        "minUniqueTokens": null,
+        "blockCount": null
+      }
+    }
+  },
+  "firstRun": {
+    "runId": "run-420",
+    "status": "rejected",
+    "workingDecision": "accepted",
+    "workingAdvanced": true,
+    "parentSelection": "working",
+    "workingParentVersion": "v493",
+    "workingVersion": "v495",
+    "optimizerState": "carried",
+    "carryOptimizerFrom": "v493",
+    "stableBaselineVersion": "v493",
+    "stableDecision": "rejected",
+    "baselineLoss": 7.810239921224878,
+    "candidateLoss": 7.819038700550161,
+    "evaluationDelta": -0.008798779325283057,
+    "noiseBand": 0.03791182102395945
+  },
+  "corpus": {
+    "freshDocumentCount": 42,
+    "replayDocumentCount": 31,
+    "trainTokensSeen": 2096,
+    "replayTokensSeen": 1329,
+    "validationTokensSeen": 2054,
+    "trainBlockCount": 16,
+    "validationBlockCount": 16,
+    "replayShare": 0.6340648854961832,
+    "corpusSplitMode": "role-appended",
+    "validationShortfall": 16,
+    "corpusMode": "fragment",
+    "corpusStats": {
+      "collected": 161,
+      "fresh": 130,
+      "retained": 31,
+      "replay": 31,
+      "validation": 0,
+      "estimatedReplayShare": 0.1999496981891348
+    },
+    "documentBoundary": "separator",
+    "eosTokenId": null,
+    "tokensPresented": 4096,
+    "uniqueTokens": 2096
+  },
+  "guard": {
+    "version": "working-guard-v2",
+    "thresholds": {
+      "maxRegressionNats": 0.05,
+      "maxGroupRegressionNats": 0.15,
+      "maxDriftNats": 0.1,
+      "minGroupTokens": 100,
+      "maxRegressedGroupShare": 0.75,
+      "minGroups": 5
+    },
+    "parentLoss": 7.810239921224878,
+    "candidateLoss": 7.819038700550161,
+    "stableLoss": 7.810239921224878,
+    "parentVersion": "v493",
+    "candidateVersion": "v495",
+    "stableVersion": "v493",
+    "decision": "accepted",
+    "reason": "working guard accepted: overall regressed 0.0088 nats; no catastrophic group regression",
+    "metrics": {
+      "regression": 0.008798779325283057,
+      "drift": 0.008798779325283057,
+      "groupsCompared": 60,
+      "regressedGroups": 0,
+      "negativeGroups": 49,
+      "groupsOverTolerance": 1,
+      "regressedGroupShare": 0.016666666666666666,
+      "worstGroup": {
+        "group": "https://en.wikipedia.org/wiki/Compiler",
+        "improvement": -0.051510750126045224,
+        "tokens": 691
+      }
+    }
+  },
+  "throughput": {
+    "wallSecondsTraining": 5.386,
+    "tokensPresented": 4096,
+    "tokensPerSecond": 760.49,
+    "peakRssKb": 3291188,
+    "cudaMaxAllocatedBytes": 1635120640,
+    "cudaMaxReservedBytes": 2044723200
+  }
+}

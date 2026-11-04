@@ -1,0 +1,273 @@
+{
+  "schema": "sma/activation-bootstrap-run@1",
+  "at": "2026-11-04T09:21:36.653Z",
+  "note": "One-off first activation run; historical validation allowed for this run only. Production config remains fail-closed prospective.",
+  "run": {
+    "runId": "run-420",
+    "status": "rejected",
+    "startedAt": "2026-11-04T09:21:01.723Z",
+    "completedAt": "2026-11-04T09:21:36.652Z",
+    "baseModel": "model-413",
+    "baseModelVersion": "v493",
+    "stableBaselineVersion": "v493",
+    "parentSelection": "working",
+    "workingRollback": null,
+    "datasetId": "dataset-20261104-253",
+    "datasetVersion": "8886fe2efd13",
+    "datasetFile": "/var/lib/simpleminds/data/snapshots/dataset-20261104-253-8886fe2efd13.jsonl",
+    "recordCount": 148,
+    "criticModel": "llama3.2:latest",
+    "criticVersion": "critic-v1",
+    "rubricVersion": "rubric-v1",
+    "curriculumVersion": "curriculum-v1",
+    "curriculum": [
+      {
+        "category": "general",
+        "targetExamples": 51,
+        "minimumImportance": "Normal"
+      },
+      {
+        "category": "science",
+        "targetExamples": 51,
+        "minimumImportance": "Normal"
+      },
+      {
+        "category": "history",
+        "targetExamples": 51,
+        "minimumImportance": "Normal"
+      },
+      {
+        "category": "howto",
+        "targetExamples": 51,
+        "minimumImportance": "Normal"
+      },
+      {
+        "category": "fiction",
+        "targetExamples": 51,
+        "minimumImportance": "Normal"
+      }
+    ],
+    "planFile": "/var/lib/simpleminds/data/plans/plan-1793784058229-9frl.json",
+    "trainerVersion": "python-v1",
+    "trainerKind": "python",
+    "examplesAvailable": 161,
+    "evaluationSetSize": 60,
+    "evaluationWarnings": [],
+    "trainingBudget": {
+      "trainBlockCount": 16,
+      "targetEpochs": 2,
+      "maxSteps": 400,
+      "effectiveBatchSize": 4,
+      "requestedSteps": 8,
+      "steps": 8,
+      "effectiveEpochs": 2,
+      "capped": false,
+      "capReason": null,
+      "minSteps": 0,
+      "meetsMinimum": true,
+      "minimumShortfall": 0,
+      "sequenceLength": 128,
+      "tokensPlanned": 4096,
+      "minimumReason": null,
+      "effectiveEvalEvery": 2,
+      "completedSteps": 8,
+      "actualEffectiveEpochs": 2,
+      "tokensPresented": 4096,
+      "uniqueTokens": 2096,
+      "optimizerState": "carried",
+      "carryOptimizerFrom": "v493"
+    },
+    "corpusMode": "fragment",
+    "corpusPolicy": "fresh-delta",
+    "corpusStats": {
+      "collected": 161,
+      "fresh": 130,
+      "retained": 31,
+      "replay": 31,
+      "validation": 0,
+      "estimatedReplayShare": 0.1999496981891348
+    },
+    "candidateIdentity": null,
+    "validationPolicy": "document-source-disjoint",
+    "partition": {
+      "policyVersion": "document-source-disjoint-v1",
+      "clusterPolicyVersion": "lexical-minhash-lsh-v1",
+      "splitSeed": 0,
+      "splitHash": "3627c3bff4f9f7515163f849771455d5e03788f850c73a1996f86de61c84d943",
+      "exposure": {
+        "coverage": "snapshots-roles-consumption-contributions",
+        "prospectiveClusters": 14,
+        "historicalClusters": 37,
+        "validationProspectiveArticles": 75,
+        "validationHistoricalArticles": 0,
+        "trainProspectiveArticles": 0,
+        "trainHistoricalArticles": 73,
+        "validationExposureMode": "prospective-only",
+        "uncertainty": "Historical coverage is reconstructed from recorded snapshots, roles and contribution records; absent records are reported, not assumed absent."
+      },
+      "stats": {
+        "totalDocuments": 148,
+        "totalClusters": 51,
+        "totalEstimatedTokens": 5179,
+        "trainDocuments": 73,
+        "validationDocuments": 75,
+        "trainEstimatedTokens": 2475,
+        "validationEstimatedTokens": 2704,
+        "splitHash": "3627c3bff4f9f7515163f849771455d5e03788f850c73a1996f86de61c84d943"
+      }
+    },
+    "corpusPreflight": {
+      "trainBlockCount": 16,
+      "blockCount": 32,
+      "trainTokensSeen": 2096,
+      "tokensSeen": 4150,
+      "validationBlockCount": 16,
+      "validationTokensSeen": 2054,
+      "freshTokensSeen": 767,
+      "replayTokensSeen": 1329,
+      "freshDocumentCount": 42,
+      "replayDocumentCount": 31,
+      "validationShortfall": 16,
+      "corpusSplitMode": "role-appended"
+    },
+    "minimumTrainingData": {
+      "ok": true,
+      "enforced": true,
+      "floor": 1700,
+      "tokens": 2096,
+      "reason": null
+    },
+    "promotionStatus": "rejected",
+    "resultModelId": "model-415",
+    "workingParentVersion": "v493",
+    "workingDecision": "accepted",
+    "workingVersion": "v495",
+    "workingAdvanced": true,
+    "workingGuard": {
+      "version": "working-guard-v2",
+      "thresholds": {
+        "maxRegressionNats": 0.05,
+        "maxGroupRegressionNats": 0.15,
+        "maxDriftNats": 0.1,
+        "minGroupTokens": 100,
+        "maxRegressedGroupShare": 0.75,
+        "minGroups": 5
+      },
+      "parentLoss": 7.810239921224878,
+      "candidateLoss": 7.819038700550161,
+      "stableLoss": 7.810239921224878,
+      "parentVersion": "v493",
+      "candidateVersion": "v495",
+      "stableVersion": "v493",
+      "decision": "accepted",
+      "reason": "working guard accepted: overall regressed 0.0088 nats; no catastrophic group regression",
+      "metrics": {
+        "regression": 0.008798779325283057,
+        "drift": 0.008798779325283057,
+        "groupsCompared": 60,
+        "regressedGroups": 0,
+        "negativeGroups": 49,
+        "groupsOverTolerance": 1,
+        "regressedGroupShare": 0.016666666666666666,
+        "worstGroup": {
+          "group": "https://en.wikipedia.org/wiki/Compiler",
+          "improvement": -0.051510750126045224,
+          "tokens": 691
+        }
+      }
+    },
+    "examplesProcessed": 148,
+    "examplesSkipped": 13,
+    "baselineEvaluation": {
+      "loss": 7.810239921224878,
+      "datasetHash": "b68d8910c1cec2537011b7c4a98beb75cfd277f3b18e8ab2b4c3f83879af8176",
+      "version": "v493",
+      "lossStdErr": 0.013677400884271655
+    },
+    "trainedEvaluation": {
+      "loss": 7.819038700550161,
+      "datasetHash": "b68d8910c1cec2537011b7c4a98beb75cfd277f3b18e8ab2b4c3f83879af8176",
+      "version": "v495",
+      "lossStdErr": 0.013677400884271655
+    },
+    "evaluationDelta": -0.008798779325283057,
+    "promotionNoiseBand": 0.03791182102395945,
+    "corpusAccounting": {
+      "freshDocumentCount": 42,
+      "replayDocumentCount": 31,
+      "trainTokensSeen": 2096,
+      "replayTokensSeen": 1329,
+      "validationTokensSeen": 2054,
+      "trainBlockCount": 16,
+      "validationBlockCount": 16,
+      "replayShare": 0.6340648854961832,
+      "corpusSplitMode": "role-appended",
+      "validationShortfall": 16,
+      "corpusMode": "fragment",
+      "corpusStats": {
+        "collected": 161,
+        "fresh": 130,
+        "retained": 31,
+        "replay": 31,
+        "validation": 0,
+        "estimatedReplayShare": 0.1999496981891348
+      },
+      "documentBoundary": "separator",
+      "eosTokenId": null,
+      "tokensPresented": 4096,
+      "uniqueTokens": 2096
+    },
+    "checkpointSelection": {
+      "selectBest": true,
+      "selectedStep": 5,
+      "selectedValidationLoss": 7.522470474243164,
+      "finalStep": 8
+    },
+    "generationQuality": null,
+    "activatedVersion": null,
+    "runLinkage": {
+      "nodeRunId": "run-420",
+      "pythonTrainingRunId": "a071000a7e4e",
+      "pythonVersion": "v495",
+      "parentVersion": "v493",
+      "datasetId": "dataset-20261104-253",
+      "datasetFile": "/var/lib/simpleminds/data/snapshots/dataset-20261104-253-8886fe2efd13.jsonl",
+      "datasetHash": "fa605378ec8ce227d7488594f8bd670dcf9c5b9a340fa83ffcce559a9a63ae8b",
+      "evaluationDatasetHash": "b68d8910c1cec2537011b7c4a98beb75cfd277f3b18e8ab2b4c3f83879af8176",
+      "checkpointPath": "/var/lib/simpleminds/store/v495.tmp"
+    },
+    "trainerNotes": {
+      "note": "python causal-LM training",
+      "checkpointPath": "/var/lib/simpleminds/store/v495.tmp",
+      "alreadyConsumedSkipped": 0,
+      "leakExcluded": 13
+    },
+    "events": [
+      {
+        "runId": "run-420",
+        "status": "created",
+        "at": "2026-11-04T09:21:01.723Z",
+        "note": null
+      },
+      {
+        "runId": "run-420",
+        "status": "running",
+        "at": "2026-11-04T09:21:01.723Z",
+        "note": "snapshot+plan locked in"
+      },
+      {
+        "runId": "run-420",
+        "status": "evaluating",
+        "at": "2026-11-04T09:21:13.548Z",
+        "note": "candidate evaluation running"
+      },
+      {
+        "runId": "run-420",
+        "status": "rejected",
+        "at": "2026-11-04T09:21:36.652Z",
+        "note": "regression established: paired improvement -0.0098 (95% CI -0.0135..-0.0060) is below zero"
+      }
+    ]
+  },
+  "render": "TRAINING RUN run-420\n  status        rejected  (rejected)\n  dataset        dataset-20261104-253 v-8886fe2efd13  148 records\n  baseModel      model-413\n  resultModel    model-415\n  critic         llama3.2:latest  critic-v1/rubric-v1\n  curriculum     curriculum-v1  general:51 science:51 history:51 howto:51 fiction:51\n  trainer        python vpython-v1\n  baseline       loss 7.81 \u00b10.0137 (v493)\n  trained        loss 7.82 \u00b10.0137 (v495)\n  delta          -0.01\n  noise \u00b195%     0.0379  (delta within noise)\n  decision      REJECTED\n  guards         articles-consumed (ids, runId, meta = {}) => store.markConsumed(ids, { runId, ...meta }), leak-excluded 13\n  checkpoint     /var/lib/simpleminds/store/v495.tmp\n  eval detail\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500"
+}
