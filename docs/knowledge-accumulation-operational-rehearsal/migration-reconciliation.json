@@ -1,0 +1,3154 @@
+{
+  "schema": "sma/replay-migration-rehearsal@1",
+  "at": "2026-11-04T05:04:49.306133+00:00",
+  "snapshotRoot": "/home/dave/sma-experiments/knowledge-accumulation-operational-rehearsal-20261103/snapshot",
+  "appliedStore": "/home/dave/sma-experiments/knowledge-accumulation-operational-rehearsal-20261103/migration-store/articles",
+  "sourceChanged": false,
+  "snapshotArticleFilesChanged": [],
+  "before": {
+    "scanned": 25570,
+    "counts": {
+      "UNRESOLVED": 3875,
+      "ALREADY_ELIGIBLE": 7283,
+      "INELIGIBLE": 13950,
+      "NOT_TARGET": 85,
+      "ELIGIBLE": 377
+    },
+    "eligibleCount": 377,
+    "eligibleEstimatedTokens": 27781,
+    "unresolvedCount": 3875,
+    "ineligibleCount": 13950,
+    "alreadyEligible": 7283,
+    "unresolvedByReasonCode": {
+      "licence-uncertain": {
+        "count": 1054,
+        "estimatedTokens": 120688
+      },
+      "no-decisive-review": {
+        "count": 1509,
+        "estimatedTokens": 83490
+      },
+      "licence-unknown": {
+        "count": 1312,
+        "estimatedTokens": 149869
+      }
+    },
+    "unresolvedBySourceDomain": {
+      "en.wikipedia.org": {
+        "count": 670,
+        "estimatedTokens": 75340
+      },
+      "af.wikipedia.org": {
+        "count": 16,
+        "estimatedTokens": 1000
+      },
+      "als.wikipedia.org": {
+        "count": 9,
+        "estimatedTokens": 512
+      },
+      "an.wikipedia.org": {
+        "count": 19,
+        "estimatedTokens": 1363
+      },
+      "ar.wikipedia.org": {
+        "count": 57,
+        "estimatedTokens": 3173
+      },
+      "arz.wikipedia.org": {
+        "count": 51,
+        "estimatedTokens": 2459
+      },
+      "as.wikipedia.org": {
+        "count": 49,
+        "estimatedTokens": 1095
+      },
+      "az.wikipedia.org": {
+        "count": 24,
+        "estimatedTokens": 2153
+      },
+      "ba.wikipedia.org": {
+        "count": 29,
+        "estimatedTokens": 1517
+      },
+      "be-tarask.wikipedia.org": {
+        "count": 39,
+        "estimatedTokens": 2476
+      },
+      "be.wikipedia.org": {
+        "count": 23,
+        "estimatedTokens": 2049
+      },
+      "bn.wikipedia.org": {
+        "count": 31,
+        "estimatedTokens": 2087
+      },
+      "br.wikipedia.org": {
+        "count": 35,
+        "estimatedTokens": 1116
+      },
+      "fiu-vro.wikipedia.org": {
+        "count": 1,
+        "estimatedTokens": 129
+      },
+      "fy.wikipedia.org": {
+        "count": 4,
+        "estimatedTokens": 377
+      },
+      "ga.wikipedia.org": {
+        "count": 6,
+        "estimatedTokens": 787
+      },
+      "gcr.wikipedia.org": {
+        "count": 1,
+        "estimatedTokens": 160
+      },
+      "gd.wikipedia.org": {
+        "count": 1,
+        "estimatedTokens": 182
+      },
+      "eo.wikipedia.org": {
+        "count": 4,
+        "estimatedTokens": 336
+      },
+      "eu.wikipedia.org": {
+        "count": 2,
+        "estimatedTokens": 126
+      },
+      "fa.wikipedia.org": {
+        "count": 8,
+        "estimatedTokens": 332
+      },
+      "fr.wikipedia.org": {
+        "count": 3,
+        "estimatedTokens": 249
+      },
+      "io.wikipedia.org": {
+        "count": 1,
+        "estimatedTokens": 145
+      },
+      "is.wikipedia.org": {
+        "count": 4,
+        "estimatedTokens": 268
+      },
+      "ja.wikipedia.org": {
+        "count": 4,
+        "estimatedTokens": 184
+      },
+      "kk.wikipedia.org": {
+        "count": 10,
+        "estimatedTokens": 343
+      },
+      "ko.wikipedia.org": {
+        "count": 2,
+        "estimatedTokens": 240
+      },
+      "lmo.wikipedia.org": {
+        "count": 2,
+        "estimatedTokens": 257
+      },
+      "lt.wikipedia.org": {
+        "count": 1,
+        "estimatedTokens": 191
+      },
+      "lv.wikipedia.org": {
+        "count": 4,
+        "estimatedTokens": 286
+      },
+      "ml.wikipedia.org": {
+        "count": 7,
+        "estimatedTokens": 897
+      },
+      "nds-nl.wikipedia.org": {
+        "count": 1,
+        "estimatedTokens": 116
+      },
+      "ru.wikipedia.org": {
+        "count": 5,
+        "estimatedTokens": 208
+      },
+      "rue.wikipedia.org": {
+        "count": 4,
+        "estimatedTokens": 510
+      },
+      "sa.wikipedia.org": {
+        "count": 1,
+        "estimatedTokens": 13
+      },
+      "simple.wikipedia.org": {
+        "count": 149,
+        "estimatedTokens": 16328
+      },
+      "sl.wikipedia.org": {
+        "count": 2,
+        "estimatedTokens": 117
+      },
+      "sr.wikipedia.org": {
+        "count": 3,
+        "estimatedTokens": 67
+      },
+      "ceb.wikipedia.org": {
+        "count": 10,
+        "estimatedTokens": 537
+      },
+      "cv.wikipedia.org": {
+        "count": 26,
+        "estimatedTokens": 224
+      },
+      "hi.wikipedia.org": {
+        "count": 3,
+        "estimatedTokens": 184
+      },
+      "hr.wikipedia.org": {
+        "count": 3,
+        "estimatedTokens": 141
+      },
+      "id.wikipedia.org": {
+        "count": 16,
+        "estimatedTokens": 495
+      },
+      "km.wikipedia.org": {
+        "count": 2,
+        "estimatedTokens": 107
+      },
+      "kv.wikipedia.org": {
+        "count": 1,
+        "estimatedTokens": 34
+      },
+      "ms.wikipedia.org": {
+        "count": 3,
+        "estimatedTokens": 141
+      },
+      "my.wikipedia.org": {
+        "count": 4,
+        "estimatedTokens": 59
+      },
+      "ne.wikipedia.org": {
+        "count": 4,
+        "estimatedTokens": 335
+      },
+      "pl.wikipedia.org": {
+        "count": 3,
+        "estimatedTokens": 103
+      },
+      "pt.wikipedia.org": {
+        "count": 1,
+        "estimatedTokens": 43
+      },
+      "sd.wikipedia.org": {
+        "count": 2,
+        "estimatedTokens": 240
+      },
+      "si.wikipedia.org": {
+        "count": 1,
+        "estimatedTokens": 40
+      },
+      "su.wikipedia.org": {
+        "count": 6,
+        "estimatedTokens": 149
+      },
+      "th.wikipedia.org": {
+        "count": 2,
+        "estimatedTokens": 118
+      },
+      "tl.wikipedia.org": {
+        "count": 2,
+        "estimatedTokens": 262
+      },
+      "ts.wikipedia.org": {
+        "count": 1,
+        "estimatedTokens": 44
+      },
+      "tt.wikipedia.org": {
+        "count": 3,
+        "estimatedTokens": 83
+      },
+      "uk.wikipedia.org": {
+        "count": 1,
+        "estimatedTokens": 40
+      },
+      "uz.wikipedia.org": {
+        "count": 10,
+        "estimatedTokens": 194
+      },
+      "yi.wikipedia.org": {
+        "count": 9,
+        "estimatedTokens": 428
+      },
+      "zh.wikipedia.org": {
+        "count": 2,
+        "estimatedTokens": 35
+      },
+      "av.wikipedia.org": {
+        "count": 9,
+        "estimatedTokens": 206
+      },
+      "awa.wikipedia.org": {
+        "count": 1,
+        "estimatedTokens": 7
+      },
+      "bcl.wikipedia.org": {
+        "count": 32,
+        "estimatedTokens": 818
+      },
+      "bh.wikipedia.org": {
+        "count": 5,
+        "estimatedTokens": 644
+      },
+      "bjn.wikipedia.org": {
+        "count": 39,
+        "estimatedTokens": 739
+      },
+      "cs.wikipedia.org": {
+        "count": 51,
+        "estimatedTokens": 3381
+      },
+      "diq.wikipedia.org": {
+        "count": 3,
+        "estimatedTokens": 70
+      },
+      "dty.wikipedia.org": {
+        "count": 2,
+        "estimatedTokens": 75
+      },
+      "ee.wikipedia.org": {
+        "count": 2,
+        "estimatedTokens": 63
+      },
+      "el.wikipedia.org": {
+        "count": 65,
+        "estimatedTokens": 3287
+      },
+      "es.wikipedia.org": {
+        "count": 2,
+        "estimatedTokens": 111
+      },
+      "ext.wikipedia.org": {
+        "count": 1,
+        "estimatedTokens": 38
+      },
+      "fo.wikipedia.org": {
+        "count": 4,
+        "estimatedTokens": 405
+      },
+      "gan.wikipedia.org": {
+        "count": 3,
+        "estimatedTokens": 107
+      },
+      "glk.wikipedia.org": {
+        "count": 1,
+        "estimatedTokens": 8
+      },
+      "gu.wikipedia.org": {
+        "count": 1,
+        "estimatedTokens": 44
+      },
+      "gv.wikipedia.org": {
+        "count": 1,
+        "estimatedTokens": 7
+      },
+      "hak.wikipedia.org": {
+        "count": 1,
+        "estimatedTokens": 18
+      },
+      "alt.wikipedia.org": {
+        "count": 1,
+        "estimatedTokens": 10
+      },
+      "anp.wikipedia.org": {
+        "count": 26,
+        "estimatedTokens": 807
+      },
+      "ary.wikipedia.org": {
+        "count": 5,
+        "estimatedTokens": 167
+      },
+      "bg.wikipedia.org": {
+        "count": 58,
+        "estimatedTokens": 2599
+      },
+      "blk.wikipedia.org": {
+        "count": 17,
+        "estimatedTokens": 246
+      },
+      "bo.wikipedia.org": {
+        "count": 3,
+        "estimatedTokens": 275
+      },
+      "ca.wikipedia.org": {
+        "count": 81,
+        "estimatedTokens": 5219
+      },
+      "ce.wikipedia.org": {
+        "count": 22,
+        "estimatedTokens": 772
+      },
+      "ckb.wikipedia.org": {
+        "count": 96,
+        "estimatedTokens": 1609
+      },
+      "cu.wikipedia.org": {
+        "count": 1,
+        "estimatedTokens": 14
+      },
+      "cy.wikipedia.org": {
+        "count": 43,
+        "estimatedTokens": 2825
+      },
+      "da.wikipedia.org": {
+        "count": 25,
+        "estimatedTokens": 1552
+      },
+      "dv.wikipedia.org": {
+        "count": 8,
+        "estimatedTokens": 403
+      },
+      "fi.wikipedia.org": {
+        "count": 2,
+        "estimatedTokens": 92
+      },
+      "frr.wikipedia.org": {
+        "count": 1,
+        "estimatedTokens": 74
+      },
+      "gl.wikipedia.org": {
+        "count": 3,
+        "estimatedTokens": 268
+      },
+      "gn.wikipedia.org": {
+        "count": 1,
+        "estimatedTokens": 67
+      },
+      "gor.wikipedia.org": {
+        "count": 3,
+        "estimatedTokens": 158
+      },
+      "got.wikipedia.org": {
+        "count": 1,
+        "estimatedTokens": 71
+      },
+      "hu.wikipedia.org": {
+        "count": 7,
+        "estimatedTokens": 321
+      },
+      "nds.wikipedia.org": {
+        "count": 3,
+        "estimatedTokens": 241
+      },
+      "nl.wikipedia.org": {
+        "count": 2,
+        "estimatedTokens": 92
+      },
+      "oc.wikipedia.org": {
+        "count": 2,
+        "estimatedTokens": 121
+      },
+      "or.wikipedia.org": {
+        "count": 6,
+        "estimatedTokens": 426
+      },
+      "ace.wikipedia.org": {
+        "count": 1,
+        "estimatedTokens": 8
+      },
+      "am.wikipedia.org": {
+        "count": 3,
+        "estimatedTokens": 62
+      },
+      "ang.wikipedia.org": {
+        "count": 9,
+        "estimatedTokens": 524
+      },
+      "ast.wikipedia.org": {
+        "count": 51,
+        "estimatedTokens": 2628
+      },
+      "bar.wikipedia.org": {
+        "count": 4,
+        "estimatedTokens": 157
+      },
+      "bat-smg.wikipedia.org": {
+        "count": 1,
+        "estimatedTokens": 27
+      },
+      "cdo.wikipedia.org": {
+        "count": 1,
+        "estimatedTokens": 6
+      },
+      "chy.wikipedia.org": {
+        "count": 1,
+        "estimatedTokens": 85
+      },
+      "crh.wikipedia.org": {
+        "count": 1,
+        "estimatedTokens": 3
+      },
+      "de.wikipedia.org": {
+        "count": 37,
+        "estimatedTokens": 3776
+      },
+      "dsb.wikipedia.org": {
+        "count": 1,
+        "estimatedTokens": 13
+      },
+      "dz.wikipedia.org": {
+        "count": 1,
+        "estimatedTokens": 27
+      },
+      "bs.wikipedia.org": {
+        "count": 25,
+        "estimatedTokens": 1357
+      },
+      "bxr.wikipedia.org": {
+        "count": 1,
+        "estimatedTokens": 59
+      },
+      "et.wikipedia.org": {
+        "count": 2,
+        "estimatedTokens": 134
+      },
+      "frp.wikipedia.org": {
+        "count": 4,
+        "estimatedTokens": 129
+      },
+      "hy.wikipedia.org": {
+        "count": 1,
+        "estimatedTokens": 13
+      },
+      "ia.wikipedia.org": {
+        "count": 3,
+        "estimatedTokens": 239
+      },
+      "it.wikipedia.org": {
+        "count": 3,
+        "estimatedTokens": 599
+      },
+      "ka.wikipedia.org": {
+        "count": 1,
+        "estimatedTokens": 50
+      },
+      "ami.wikipedia.org": {
+        "count": 1,
+        "estimatedTokens": 85
+      },
+      "ann.wikipedia.org": {
+        "count": 4,
+        "estimatedTokens": 195
+      },
+      "azb.wikipedia.org": {
+        "count": 69,
+        "estimatedTokens": 4162
+      },
+      "ban.wikipedia.org": {
+        "count": 2,
+        "estimatedTokens": 94
+      },
+      "bew.wikipedia.org": {
+        "count": 3,
+        "estimatedTokens": 482
+      },
+      "bug.wikipedia.org": {
+        "count": 1,
+        "estimatedTokens": 22
+      },
+      "cbk-zam.wikipedia.org": {
+        "count": 3,
+        "estimatedTokens": 511
+      },
+      "cho.wikipedia.org": {
+        "count": 1,
+        "estimatedTokens": 61
+      },
+      "csb.wikipedia.org": {
+        "count": 1,
+        "estimatedTokens": 9
+      },
+      "kaa.wikipedia.org": {
+        "count": 2,
+        "estimatedTokens": 265
+      },
+      "lld.wikipedia.org": {
+        "count": 1,
+        "estimatedTokens": 13
+      },
+      "mr.wikipedia.org": {
+        "count": 5,
+        "estimatedTokens": 79
+      },
+      "mzn.wikipedia.org": {
+        "count": 1,
+        "estimatedTokens": 24
+      },
+      "pa.wikipedia.org": {
+        "count": 5,
+        "estimatedTokens": 530
+      },
+      "ps.wikipedia.org": {
+        "count": 1,
+        "estimatedTokens": 31
+      },
+      "sn.wikipedia.org": {
+        "count": 1,
+        "estimatedTokens": 94
+      },
+      "hif.wikipedia.org": {
+        "count": 1,
+        "estimatedTokens": 54
+      },
+      "isv.wikipedia.org": {
+        "count": 1,
+        "estimatedTokens": 43
+      },
+      "jam.wikipedia.org": {
+        "count": 1,
+        "estimatedTokens": 27
+      },
+      "jv.wikipedia.org": {
+        "count": 1,
+        "estimatedTokens": 65
+      },
+      "kbp.wikipedia.org": {
+        "count": 1,
+        "estimatedTokens": 87
+      },
+      "kn.wikipedia.org": {
+        "count": 1,
+        "estimatedTokens": 110
+      },
+      "la.wikipedia.org": {
+        "count": 2,
+        "estimatedTokens": 315
+      },
+      "mn.wikipedia.org": {
+        "count": 3,
+        "estimatedTokens": 32
+      },
+      "new.wikipedia.org": {
+        "count": 1,
+        "estimatedTokens": 35
+      },
+      "nn.wikipedia.org": {
+        "count": 1,
+        "estimatedTokens": 49
+      },
+      "no.wikipedia.org": {
+        "count": 1,
+        "estimatedTokens": 46
+      },
+      "pms.wikipedia.org": {
+        "count": 1,
+        "estimatedTokens": 77
+      },
+      "pnb.wikipedia.org": {
+        "count": 1,
+        "estimatedTokens": 34
+      },
+      "qu.wikipedia.org": {
+        "count": 1,
+        "estimatedTokens": 33
+      },
+      "sh.wikipedia.org": {
+        "count": 1,
+        "estimatedTokens": 15
+      },
+      "sk.wikipedia.org": {
+        "count": 1,
+        "estimatedTokens": 78
+      },
+      "sq.wikipedia.org": {
+        "count": 7,
+        "estimatedTokens": 311
+      },
+      "sw.wikipedia.org": {
+        "count": 2,
+        "estimatedTokens": 2181
+      },
+      "ta.wikipedia.org": {
+        "count": 1,
+        "estimatedTokens": 37
+      },
+      "ur.wikipedia.org": {
+        "count": 1,
+        "estimatedTokens": 95
+      },
+      "vi.wikipedia.org": {
+        "count": 1,
+        "estimatedTokens": 69
+      },
+      "wuu.wikipedia.org": {
+        "count": 1,
+        "estimatedTokens": 26
+      },
+      "zh-min-nan.wikipedia.org": {
+        "count": 1,
+        "estimatedTokens": 54
+      },
+      "zu.wikipedia.org": {
+        "count": 1,
+        "estimatedTokens": 111
+      },
+      "www.wikidata.org": {
+        "count": 20,
+        "estimatedTokens": 1463
+      },
+      "catalogue.bnf.fr": {
+        "count": 1,
+        "estimatedTokens": 56
+      },
+      "portal.dnb.de": {
+        "count": 1,
+        "estimatedTokens": 64
+      },
+      "developer.wikimedia.org": {
+        "count": 6,
+        "estimatedTokens": 399
+      },
+      "www.wikimedia.org": {
+        "count": 5,
+        "estimatedTokens": 179
+      },
+      "www.mediawiki.org": {
+        "count": 2,
+        "estimatedTokens": 116
+      },
+      "creativecommons.org": {
+        "count": 7,
+        "estimatedTokens": 332
+      },
+      "snl.no": {
+        "count": 1,
+        "estimatedTokens": 43
+      },
+      "ru.wikisource.org": {
+        "count": 3,
+        "estimatedTokens": 221
+      },
+      "en.wikisource.org": {
+        "count": 6,
+        "estimatedTokens": 295
+      },
+      "blog.wikimedia.bg": {
+        "count": 5,
+        "estimatedTokens": 224
+      },
+      "github.com": {
+        "count": 14,
+        "estimatedTokens": 1083
+      },
+      "animatedengines.com": {
+        "count": 20,
+        "estimatedTokens": 1081
+      },
+      "foundation.wikimedia.org": {
+        "count": 9,
+        "estimatedTokens": 631
+      },
+      "wikimediafoundation.org": {
+        "count": 13,
+        "estimatedTokens": 441
+      },
+      "archive.org": {
+        "count": 18,
+        "estimatedTokens": 4880
+      },
+      "penelope.uchicago.edu": {
+        "count": 4,
+        "estimatedTokens": 339
+      },
+      "www.egr.msu.edu": {
+        "count": 6,
+        "estimatedTokens": 481
+      },
+      "hls-dhs-dss.ch": {
+        "count": 1,
+        "estimatedTokens": 49
+      },
+      "news.bbc.co.uk": {
+        "count": 1,
+        "estimatedTokens": 88
+      },
+      "dk.wikimedia.org": {
+        "count": 1,
+        "estimatedTokens": 83
+      },
+      "arxiv.org": {
+        "count": 75,
+        "estimatedTokens": 14183
+      },
+      "science.nasa.gov": {
+        "count": 4,
+        "estimatedTokens": 144
+      },
+      "gom.wikipedia.org": {
+        "count": 3,
+        "estimatedTokens": 317
+      },
+      "commons.wikimedia.org": {
+        "count": 4,
+        "estimatedTokens": 287
+      },
+      "en.wiktionary.org": {
+        "count": 3,
+        "estimatedTokens": 248
+      },
+      "info.arxiv.org": {
+        "count": 4,
+        "estimatedTokens": 213
+      },
+      "www.litmaps.com": {
+        "count": 4,
+        "estimatedTokens": 311
+      },
+      "dagshub.com": {
+        "count": 2,
+        "estimatedTokens": 52
+      },
+      "huggingface.co": {
+        "count": 16,
+        "estimatedTokens": 1487
+      },
+      "www.txyz.ai": {
+        "count": 2,
+        "estimatedTokens": 808
+      },
+      "influencemap.cmlab.dev": {
+        "count": 2,
+        "estimatedTokens": 72
+      },
+      "core.ac.uk": {
+        "count": 2,
+        "estimatedTokens": 160
+      },
+      "www.sfi.org.bm": {
+        "count": 1,
+        "estimatedTokens": 82
+      },
+      "www.nasa.gov": {
+        "count": 1,
+        "estimatedTokens": 73
+      },
+      "journals.plos.org": {
+        "count": 1,
+        "estimatedTokens": 26
+      },
+      "www.eso.org": {
+        "count": 8,
+        "estimatedTokens": 390
+      },
+      "esahubble.org": {
+        "count": 65,
+        "estimatedTokens": 9491
+      },
+      "ned.ipac.caltech.edu": {
+        "count": 4,
+        "estimatedTokens": 917
+      },
+      "cseligman.com": {
+        "count": 4,
+        "estimatedTokens": 1675
+      },
+      "www.stsci.edu": {
+        "count": 2,
+        "estimatedTokens": 115
+      },
+      "chandra.cfa.harvard.edu": {
+        "count": 10,
+        "estimatedTokens": 748
+      },
+      "www.spitzer.caltech.edu": {
+        "count": 4,
+        "estimatedTokens": 241
+      },
+      "chandra.harvard.edu": {
+        "count": 17,
+        "estimatedTokens": 3095
+      },
+      "public.nrao.edu": {
+        "count": 3,
+        "estimatedTokens": 375
+      },
+      "relics.stsci.edu": {
+        "count": 4,
+        "estimatedTokens": 195
+      },
+      "www.zooniverse.org": {
+        "count": 5,
+        "estimatedTokens": 415
+      },
+      "archive.stsci.edu": {
+        "count": 5,
+        "estimatedTokens": 1455
+      },
+      "www.cosmos.esa.int": {
+        "count": 3,
+        "estimatedTokens": 300
+      },
+      "www.gemini.edu": {
+        "count": 8,
+        "estimatedTokens": 526
+      },
+      "phangs.stsci.edu": {
+        "count": 9,
+        "estimatedTokens": 599
+      },
+      "www.vla.nrao.edu": {
+        "count": 1,
+        "estimatedTokens": 113
+      },
+      "legus.stsci.edu": {
+        "count": 3,
+        "estimatedTokens": 231
+      },
+      "pleaserobme.com": {
+        "count": 1,
+        "estimatedTokens": 536
+      },
+      "sites.google.com": {
+        "count": 3,
+        "estimatedTokens": 420
+      },
+      "abstract.wikipedia.org": {
+        "count": 1,
+        "estimatedTokens": 99
+      },
+      "outreach.wikimedia.org": {
+        "count": 1,
+        "estimatedTokens": 125
+      },
+      "species.wikimedia.org": {
+        "count": 1,
+        "estimatedTokens": 104
+      },
+      "en.wikibooks.org": {
+        "count": 1,
+        "estimatedTokens": 47
+      },
+      "www.wikifunctions.org": {
+        "count": 1,
+        "estimatedTokens": 56
+      },
+      "wikimania.wikimedia.org": {
+        "count": 1,
+        "estimatedTokens": 717
+      },
+      "www.cs.cmu.edu": {
+        "count": 2,
+        "estimatedTokens": 121
+      },
+      "id.worldcat.org": {
+        "count": 1,
+        "estimatedTokens": 76
+      },
+      "www.ibm.com": {
+        "count": 23,
+        "estimatedTokens": 1327
+      },
+      "web.archive.org": {
+        "count": 423,
+        "estimatedTokens": 42179
+      },
+      "www.cs.uic.edu": {
+        "count": 4,
+        "estimatedTokens": 562
+      },
+      "learning-from-data.com": {
+        "count": 2,
+        "estimatedTokens": 708
+      },
+      "support-vector.ws": {
+        "count": 2,
+        "estimatedTokens": 132
+      },
+      "courses.cs.washington.edu": {
+        "count": 1,
+        "estimatedTokens": 30
+      },
+      "hbr.org": {
+        "count": 10,
+        "estimatedTokens": 1662
+      },
+      "link.springer.com": {
+        "count": 38,
+        "estimatedTokens": 5109
+      },
+      "openalex.org": {
+        "count": 6,
+        "estimatedTokens": 321
+      },
+      "ai.stanford.edu": {
+        "count": 3,
+        "estimatedTokens": 171
+      },
+      "towardsdatascience.com": {
+        "count": 8,
+        "estimatedTokens": 2369
+      },
+      "developers.google.com": {
+        "count": 10,
+        "estimatedTokens": 483
+      },
+      "ai.stackexchange.com": {
+        "count": 1,
+        "estimatedTokens": 38
+      },
+      "or.stackexchange.com": {
+        "count": 2,
+        "estimatedTokens": 75
+      },
+      "stats.stackexchange.com": {
+        "count": 1,
+        "estimatedTokens": 23
+      },
+      "news.mit.edu": {
+        "count": 20,
+        "estimatedTokens": 1223
+      },
+      "www.deeplearningbook.org": {
+        "count": 1,
+        "estimatedTokens": 691
+      },
+      "distill.pub": {
+        "count": 17,
+        "estimatedTokens": 994
+      },
+      "www.microsoft.com": {
+        "count": 2,
+        "estimatedTokens": 112
+      },
+      "www.nature.com": {
+        "count": 46,
+        "estimatedTokens": 5442
+      },
+      "poggio-lab.mit.edu": {
+        "count": 1,
+        "estimatedTokens": 290
+      },
+      "arstechnica.com": {
+        "count": 15,
+        "estimatedTokens": 4121
+      },
+      "papers.nips.cc": {
+        "count": 2,
+        "estimatedTokens": 286
+      },
+      "blogs.nvidia.com": {
+        "count": 3,
+        "estimatedTokens": 255
+      },
+      "en.chessbase.com": {
+        "count": 10,
+        "estimatedTokens": 456
+      },
+      "databasecamp.de": {
+        "count": 13,
+        "estimatedTokens": 855
+      },
+      "www.scholarpedia.org": {
+        "count": 10,
+        "estimatedTokens": 886
+      },
+      "deeplearningwithpython.io": {
+        "count": 5,
+        "estimatedTokens": 287
+      },
+      "hai.stanford.edu": {
+        "count": 1,
+        "estimatedTokens": 112
+      },
+      "www.cambridge.org": {
+        "count": 2,
+        "estimatedTokens": 475
+      },
+      "yann.lecun.com": {
+        "count": 1,
+        "estimatedTokens": 1573
+      },
+      "spectrum.ieee.org": {
+        "count": 5,
+        "estimatedTokens": 2798
+      },
+      "jair.org": {
+        "count": 1,
+        "estimatedTokens": 189
+      },
+      "textcortex.com": {
+        "count": 2,
+        "estimatedTokens": 138
+      },
+      "www.birmingham.ac.uk": {
+        "count": 1,
+        "estimatedTokens": 70
+      },
+      "csli.stanford.edu": {
+        "count": 1,
+        "estimatedTokens": 213
+      },
+      "builtin.com": {
+        "count": 1,
+        "estimatedTokens": 117
+      },
+      "cs.stanford.edu": {
+        "count": 1,
+        "estimatedTokens": 973
+      },
+      "web.stanford.edu": {
+        "count": 8,
+        "estimatedTokens": 361
+      },
+      "www.routledge.com": {
+        "count": 7,
+        "estimatedTokens": 449
+      },
+      "www.deeplearning.ai": {
+        "count": 14,
+        "estimatedTokens": 1218
+      },
+      "www.gyansetu.in": {
+        "count": 1,
+        "estimatedTokens": 14
+      },
+      "acl2016tutorial.arg.tech": {
+        "count": 1,
+        "estimatedTokens": 764
+      },
+      "www.comp.nus.edu.sg": {
+        "count": 6,
+        "estimatedTokens": 395
+      },
+      "www.theverge.com": {
+        "count": 5,
+        "estimatedTokens": 1163
+      },
+      "clevertap.com": {
+        "count": 3,
+        "estimatedTokens": 176
+      },
+      "www.brandwatch.com": {
+        "count": 1,
+        "estimatedTokens": 51
+      },
+      "machinelearningmastery.com": {
+        "count": 2,
+        "estimatedTokens": 92
+      },
+      "cds.cern.ch": {
+        "count": 1,
+        "estimatedTokens": 306
+      },
+      "qz.com": {
+        "count": 5,
+        "estimatedTokens": 552
+      },
+      "extreme-parkour.github.io": {
+        "count": 3,
+        "estimatedTokens": 156
+      },
+      "dspace.mit.edu": {
+        "count": 3,
+        "estimatedTokens": 506
+      },
+      "sites.usc.edu": {
+        "count": 2,
+        "estimatedTokens": 204
+      },
+      "waymo.com": {
+        "count": 2,
+        "estimatedTokens": 103
+      },
+      "scikit-image.org": {
+        "count": 2,
+        "estimatedTokens": 109
+      },
+      "www.cambridgeincolour.com": {
+        "count": 3,
+        "estimatedTokens": 1108
+      },
+      "homepages.inf.ed.ac.uk": {
+        "count": 1,
+        "estimatedTokens": 80
+      },
+      "opencv.org": {
+        "count": 2,
+        "estimatedTokens": 72
+      },
+      "pointclouds.org": {
+        "count": 2,
+        "estimatedTokens": 145
+      },
+      "neurosys.com": {
+        "count": 1,
+        "estimatedTokens": 6
+      },
+      "www.bbc.com": {
+        "count": 1,
+        "estimatedTokens": 988
+      },
+      "safetymojo.com": {
+        "count": 3,
+        "estimatedTokens": 190
+      },
+      "portal.issn.org": {
+        "count": 1,
+        "estimatedTokens": 50
+      },
+      "datascience.codata.org": {
+        "count": 10,
+        "estimatedTokens": 4410
+      },
+      "www.stat.purdue.edu": {
+        "count": 11,
+        "estimatedTokens": 854
+      },
+      "www.forbes.com": {
+        "count": 1,
+        "estimatedTokens": 16
+      },
+      "www.statisticsviews.com": {
+        "count": 5,
+        "estimatedTokens": 384
+      },
+      "priceonomics.com": {
+        "count": 2,
+        "estimatedTokens": 1863
+      },
+      "www.mastersindatascience.org": {
+        "count": 7,
+        "estimatedTokens": 391
+      },
+      "drewconway.com": {
+        "count": 5,
+        "estimatedTokens": 858
+      },
+      "pig.apache.org": {
+        "count": 2,
+        "estimatedTokens": 132
+      },
+      "www.euads.org": {
+        "count": 1,
+        "estimatedTokens": 72
+      },
+      "www.kdnuggets.com": {
+        "count": 6,
+        "estimatedTokens": 409
+      },
+      "dsaa.co": {
+        "count": 2,
+        "estimatedTokens": 260
+      },
+      "lutpub.lut.fi": {
+        "count": 1,
+        "estimatedTokens": 358
+      },
+      "qualified.one": {
+        "count": 11,
+        "estimatedTokens": 673
+      },
+      "medriscoll.com": {
+        "count": 1,
+        "estimatedTokens": 387
+      },
+      "www.benfry.com": {
+        "count": 4,
+        "estimatedTokens": 294
+      },
+      "villanovau.com": {
+        "count": 3,
+        "estimatedTokens": 413
+      },
+      "www.techtarget.com": {
+        "count": 12,
+        "estimatedTokens": 640
+      },
+      "cran.r-project.org": {
+        "count": 1,
+        "estimatedTokens": 636
+      },
+      "archive.nyu.edu": {
+        "count": 1,
+        "estimatedTokens": 302
+      },
+      "seas.harvard.edu": {
+        "count": 9,
+        "estimatedTokens": 504
+      },
+      "www.bostonglobe.com": {
+        "count": 4,
+        "estimatedTokens": 206
+      },
+      "dspace.uni.lodz.pl": {
+        "count": 1,
+        "estimatedTokens": 124
+      },
+      "www.nationalacademies.org": {
+        "count": 2,
+        "estimatedTokens": 682
+      },
+      "www.quera.com": {
+        "count": 5,
+        "estimatedTokens": 436
+      },
+      "journals.aps.org": {
+        "count": 5,
+        "estimatedTokens": 1181
+      },
+      "www.scientificamerican.com": {
+        "count": 21,
+        "estimatedTokens": 1345
+      },
+      "userpages.cs.umbc.edu": {
+        "count": 3,
+        "estimatedTokens": 198
+      },
+      "pennylane.ai": {
+        "count": 1,
+        "estimatedTokens": 217
+      },
+      "mni.wikipedia.org": {
+        "count": 1,
+        "estimatedTokens": 118
+      },
+      "iopscience.iop.org": {
+        "count": 1,
+        "estimatedTokens": 115
+      },
+      "quantum-journal.org": {
+        "count": 1,
+        "estimatedTokens": 313
+      },
+      "en.wikiversity.org": {
+        "count": 2,
+        "estimatedTokens": 133
+      },
+      "guides.library.cornell.edu": {
+        "count": 2,
+        "estimatedTokens": 98
+      },
+      "www.meetri.in": {
+        "count": 7,
+        "estimatedTokens": 377
+      },
+      "kurtwuckertjr.com": {
+        "count": 1,
+        "estimatedTokens": 375
+      },
+      "stackoverflow.com": {
+        "count": 1,
+        "estimatedTokens": 18
+      },
+      "fortune.com": {
+        "count": 13,
+        "estimatedTokens": 1020
+      },
+      "www.computerworld.com": {
+        "count": 1,
+        "estimatedTokens": 13
+      },
+      "www.vice.com": {
+        "count": 3,
+        "estimatedTokens": 117
+      },
+      "corpgov.law.harvard.edu": {
+        "count": 6,
+        "estimatedTokens": 659
+      },
+      "davehudson.io": {
+        "count": 3,
+        "estimatedTokens": 886
+      },
+      "bitref.com": {
+        "count": 1,
+        "estimatedTokens": 854
+      },
+      "www.newyorker.com": {
+        "count": 23,
+        "estimatedTokens": 1624
+      },
+      "bitcoin.sipa.be": {
+        "count": 1,
+        "estimatedTokens": 122
+      },
+      "azure.microsoft.com": {
+        "count": 1,
+        "estimatedTokens": 47
+      },
+      "www.raconteur.net": {
+        "count": 7,
+        "estimatedTokens": 605
+      },
+      "www.psychologytoday.com": {
+        "count": 3,
+        "estimatedTokens": 320
+      },
+      "civil.co": {
+        "count": 1,
+        "estimatedTokens": 620
+      },
+      "www.renewableenergyworld.com": {
+        "count": 2,
+        "estimatedTokens": 86
+      },
+      "www.cnbc.com": {
+        "count": 2,
+        "estimatedTokens": 1433
+      },
+      "www.deloitte.com": {
+        "count": 3,
+        "estimatedTokens": 250
+      },
+      "phys.org": {
+        "count": 1,
+        "estimatedTokens": 908
+      },
+      "www.cbinsights.com": {
+        "count": 3,
+        "estimatedTokens": 212
+      },
+      "www.exobloc.com": {
+        "count": 3,
+        "estimatedTokens": 154
+      },
+      "coinmixed.eu": {
+        "count": 3,
+        "estimatedTokens": 202
+      },
+      "languages.oup.com": {
+        "count": 7,
+        "estimatedTokens": 512
+      },
+      "cointelegraph.com": {
+        "count": 3,
+        "estimatedTokens": 198
+      },
+      "bitcoin.org": {
+        "count": 4,
+        "estimatedTokens": 291
+      },
+      "www.oreilly.com": {
+        "count": 1,
+        "estimatedTokens": 38
+      },
+      "au.pcmag.com": {
+        "count": 2,
+        "estimatedTokens": 93
+      },
+      "www.purrweb.com": {
+        "count": 7,
+        "estimatedTokens": 740
+      },
+      "www.toptal.com": {
+        "count": 4,
+        "estimatedTokens": 360
+      },
+      "www.linux.com": {
+        "count": 4,
+        "estimatedTokens": 316
+      },
+      "www.itu.int": {
+        "count": 2,
+        "estimatedTokens": 142
+      },
+      "aws.amazon.com": {
+        "count": 7,
+        "estimatedTokens": 468
+      },
+      "www.zdnet.com": {
+        "count": 1,
+        "estimatedTokens": 350
+      },
+      "www.wired.com": {
+        "count": 7,
+        "estimatedTokens": 578
+      },
+      "labs.sogeti.com": {
+        "count": 6,
+        "estimatedTokens": 303
+      },
+      "www.theguardian.com": {
+        "count": 4,
+        "estimatedTokens": 114
+      },
+      "www2.stardust-testing.com": {
+        "count": 1,
+        "estimatedTokens": 43
+      },
+      "iot-analytics.com": {
+        "count": 1,
+        "estimatedTokens": 28
+      },
+      "www.informationweek.com": {
+        "count": 3,
+        "estimatedTokens": 91
+      },
+      "thecustomizewindows.com": {
+        "count": 1,
+        "estimatedTokens": 46
+      },
+      "www.w3schools.in": {
+        "count": 1,
+        "estimatedTokens": 197
+      },
+      "it.tmcnet.com": {
+        "count": 1,
+        "estimatedTokens": 65
+      },
+      "www.rfc-editor.org": {
+        "count": 1,
+        "estimatedTokens": 2800
+      },
+      "www.cve.org": {
+        "count": 1,
+        "estimatedTokens": 5
+      },
+      "homepages.cs.ncl.ac.uk": {
+        "count": 1,
+        "estimatedTokens": 140
+      },
+      "economictimes.indiatimes.com": {
+        "count": 2,
+        "estimatedTokens": 104
+      },
+      "www.bbc.co.uk": {
+        "count": 2,
+        "estimatedTokens": 92
+      },
+      "www.oracle.com": {
+        "count": 1,
+        "estimatedTokens": 57
+      },
+      "www.softwaretestinghelp.com": {
+        "count": 9,
+        "estimatedTokens": 740
+      },
+      "pypl.github.io": {
+        "count": 1,
+        "estimatedTokens": 55
+      },
+      "www.internetlivestats.com": {
+        "count": 1,
+        "estimatedTokens": 29
+      },
+      "www.wikipedia.org": {
+        "count": 1,
+        "estimatedTokens": 16
+      },
+      "www.w3.org": {
+        "count": 1,
+        "estimatedTokens": 38
+      },
+      "www.techdirt.com": {
+        "count": 1,
+        "estimatedTokens": 26
+      },
+      "www.cryptography-textbook.com": {
+        "count": 2,
+        "estimatedTokens": 106
+      },
+      "curlie.org": {
+        "count": 1,
+        "estimatedTokens": 90
+      },
+      "www.expasy.org": {
+        "count": 1,
+        "estimatedTokens": 9
+      },
+      "www.degruyterbrill.com": {
+        "count": 1,
+        "estimatedTokens": 502
+      },
+      "molbiotools.com": {
+        "count": 1,
+        "estimatedTokens": 31
+      },
+      "cerebromente.org.br": {
+        "count": 3,
+        "estimatedTokens": 117
+      },
+      "scholia.toolforge.org": {
+        "count": 1,
+        "estimatedTokens": 135
+      },
+      "www.luminsmart.com": {
+        "count": 2,
+        "estimatedTokens": 89
+      },
+      "dreamdata.io": {
+        "count": 1,
+        "estimatedTokens": 43
+      },
+      "industrialrevolution.sea.ca": {
+        "count": 2,
+        "estimatedTokens": 114
+      },
+      "historic.ru": {
+        "count": 1,
+        "estimatedTokens": 189
+      },
+      "civilwarcauses.org": {
+        "count": 1,
+        "estimatedTokens": 33
+      },
+      "www.nps.gov": {
+        "count": 1,
+        "estimatedTokens": 156
+      },
+      "www.battlefields.org": {
+        "count": 1,
+        "estimatedTokens": 20
+      }
+    }
+  },
+  "apply": {
+    "mode": "apply",
+    "restoredInApply": 377,
+    "eligibleCount": 377,
+    "applied": [
+      {
+        "articleId": "art_c3c3121f-cfa",
+        "updated": true
+      },
+      {
+        "articleId": "art_384cea80-495",
+        "updated": true
+      },
+      {
+        "articleId": "art_c0207382-74f",
+        "updated": true
+      },
+      {
+        "articleId": "art_dfbdab62-664",
+        "updated": true
+      },
+      {
+        "articleId": "art_6522aa61-70c",
+        "updated": true
+      },
+      {
+        "articleId": "art_1fdba468-1f8",
+        "updated": true
+      },
+      {
+        "articleId": "art_ead54da9-6ed",
+        "updated": true
+      },
+      {
+        "articleId": "art_d8ff19cd-b78",
+        "updated": true
+      },
+      {
+        "articleId": "art_897de217-40d",
+        "updated": true
+      },
+      {
+        "articleId": "art_aa807b83-191",
+        "updated": true
+      },
+      {
+        "articleId": "art_e1533718-70d",
+        "updated": true
+      },
+      {
+        "articleId": "art_138911bd-9cc",
+        "updated": true
+      },
+      {
+        "articleId": "art_c3d0782a-8b7",
+        "updated": true
+      },
+      {
+        "articleId": "art_7416e8a2-104",
+        "updated": true
+      },
+      {
+        "articleId": "art_968604e3-327",
+        "updated": true
+      },
+      {
+        "articleId": "art_a4d89ee3-3bb",
+        "updated": true
+      },
+      {
+        "articleId": "art_a7b892b7-d6a",
+        "updated": true
+      },
+      {
+        "articleId": "art_fc371408-e3f",
+        "updated": true
+      },
+      {
+        "articleId": "art_4e7afe0a-967",
+        "updated": true
+      },
+      {
+        "articleId": "art_df5395e1-9ec",
+        "updated": true
+      },
+      {
+        "articleId": "art_74f319f6-79b",
+        "updated": true
+      },
+      {
+        "articleId": "art_b521f86f-015",
+        "updated": true
+      },
+      {
+        "articleId": "art_f7a6f280-705",
+        "updated": true
+      },
+      {
+        "articleId": "art_44b311b9-d5c",
+        "updated": true
+      },
+      {
+        "articleId": "art_36a0bb04-76a",
+        "updated": true
+      },
+      {
+        "articleId": "art_4af2e6c6-709",
+        "updated": true
+      },
+      {
+        "articleId": "art_03e785f7-017",
+        "updated": true
+      },
+      {
+        "articleId": "art_2d7edbcf-e65",
+        "updated": true
+      },
+      {
+        "articleId": "art_cfbda932-5e2",
+        "updated": true
+      },
+      {
+        "articleId": "art_01ebf8c6-ace",
+        "updated": true
+      },
+      {
+        "articleId": "art_f3ec7254-948",
+        "updated": true
+      },
+      {
+        "articleId": "art_f59c4988-a16",
+        "updated": true
+      },
+      {
+        "articleId": "art_57dc113e-fe5",
+        "updated": true
+      },
+      {
+        "articleId": "art_08468589-a26",
+        "updated": true
+      },
+      {
+        "articleId": "art_bfd37e06-037",
+        "updated": true
+      },
+      {
+        "articleId": "art_f7e4410a-7a8",
+        "updated": true
+      },
+      {
+        "articleId": "art_9c771402-a5c",
+        "updated": true
+      },
+      {
+        "articleId": "art_c1c5af27-89d",
+        "updated": true
+      },
+      {
+        "articleId": "art_c3e007dd-ad0",
+        "updated": true
+      },
+      {
+        "articleId": "art_50e59682-bdd",
+        "updated": true
+      },
+      {
+        "articleId": "art_3391c3d6-e13",
+        "updated": true
+      },
+      {
+        "articleId": "art_edc1db28-240",
+        "updated": true
+      },
+      {
+        "articleId": "art_23c10789-14b",
+        "updated": true
+      },
+      {
+        "articleId": "art_09628c08-9db",
+        "updated": true
+      },
+      {
+        "articleId": "art_998d9ab5-301",
+        "updated": true
+      },
+      {
+        "articleId": "art_b51f1e9c-a33",
+        "updated": true
+      },
+      {
+        "articleId": "art_7790099c-63d",
+        "updated": true
+      },
+      {
+        "articleId": "art_a26d2c47-eda",
+        "updated": true
+      },
+      {
+        "articleId": "art_2469b4be-6e6",
+        "updated": true
+      },
+      {
+        "articleId": "art_974d9957-c1e",
+        "updated": true
+      },
+      {
+        "articleId": "art_c9a70a6c-f27",
+        "updated": true
+      },
+      {
+        "articleId": "art_b801d0da-e5f",
+        "updated": true
+      },
+      {
+        "articleId": "art_ac7631ab-26b",
+        "updated": true
+      },
+      {
+        "articleId": "art_0ccd52e1-5df",
+        "updated": true
+      },
+      {
+        "articleId": "art_958a13c3-b1e",
+        "updated": true
+      },
+      {
+        "articleId": "art_86ba963e-05c",
+        "updated": true
+      },
+      {
+        "articleId": "art_7c34654e-7e5",
+        "updated": true
+      },
+      {
+        "articleId": "art_094e164c-2f4",
+        "updated": true
+      },
+      {
+        "articleId": "art_2fdffe41-c46",
+        "updated": true
+      },
+      {
+        "articleId": "art_d4b23bf6-f89",
+        "updated": true
+      },
+      {
+        "articleId": "art_47f45341-6a9",
+        "updated": true
+      },
+      {
+        "articleId": "art_ceb8f757-8aa",
+        "updated": true
+      },
+      {
+        "articleId": "art_5cdd08d5-b63",
+        "updated": true
+      },
+      {
+        "articleId": "art_fa63b664-650",
+        "updated": true
+      },
+      {
+        "articleId": "art_bde0f34c-a39",
+        "updated": true
+      },
+      {
+        "articleId": "art_c2a407ba-3b0",
+        "updated": true
+      },
+      {
+        "articleId": "art_e9c31ad8-6d8",
+        "updated": true
+      },
+      {
+        "articleId": "art_69231e2d-12e",
+        "updated": true
+      },
+      {
+        "articleId": "art_a42d0154-06b",
+        "updated": true
+      },
+      {
+        "articleId": "art_25523de2-b0b",
+        "updated": true
+      },
+      {
+        "articleId": "art_310e029e-cc3",
+        "updated": true
+      },
+      {
+        "articleId": "art_dcebc86a-e34",
+        "updated": true
+      },
+      {
+        "articleId": "art_698ecd0f-30d",
+        "updated": true
+      },
+      {
+        "articleId": "art_35a5d5b4-695",
+        "updated": true
+      },
+      {
+        "articleId": "art_b9453290-751",
+        "updated": true
+      },
+      {
+        "articleId": "art_dfaedc1b-657",
+        "updated": true
+      },
+      {
+        "articleId": "art_99a2c0ad-187",
+        "updated": true
+      },
+      {
+        "articleId": "art_365462de-691",
+        "updated": true
+      },
+      {
+        "articleId": "art_b0f11a3c-e10",
+        "updated": true
+      },
+      {
+        "articleId": "art_3bba1897-4c0",
+        "updated": true
+      },
+      {
+        "articleId": "art_9a3d6587-993",
+        "updated": true
+      },
+      {
+        "articleId": "art_8ce36b01-582",
+        "updated": true
+      },
+      {
+        "articleId": "art_38787a20-0c5",
+        "updated": true
+      },
+      {
+        "articleId": "art_c7b7cf03-296",
+        "updated": true
+      },
+      {
+        "articleId": "art_93983cdc-591",
+        "updated": true
+      },
+      {
+        "articleId": "art_ce340c08-74e",
+        "updated": true
+      },
+      {
+        "articleId": "art_20de8f35-0a0",
+        "updated": true
+      },
+      {
+        "articleId": "art_91a77606-7ba",
+        "updated": true
+      },
+      {
+        "articleId": "art_8ec3b4f0-8c0",
+        "updated": true
+      },
+      {
+        "articleId": "art_782a49e7-1a0",
+        "updated": true
+      },
+      {
+        "articleId": "art_3d67a50e-1ad",
+        "updated": true
+      },
+      {
+        "articleId": "art_8b67c676-b29",
+        "updated": true
+      },
+      {
+        "articleId": "art_6392aa08-e8e",
+        "updated": true
+      },
+      {
+        "articleId": "art_c34ffb51-c35",
+        "updated": true
+      },
+      {
+        "articleId": "art_7de440d0-0e1",
+        "updated": true
+      },
+      {
+        "articleId": "art_d402a05a-be7",
+        "updated": true
+      },
+      {
+        "articleId": "art_8f4433ac-49a",
+        "updated": true
+      },
+      {
+        "articleId": "art_1d0f6e5d-fc8",
+        "updated": true
+      },
+      {
+        "articleId": "art_1b887605-715",
+        "updated": true
+      },
+      {
+        "articleId": "art_f28f9537-a79",
+        "updated": true
+      },
+      {
+        "articleId": "art_cfd2af39-9cc",
+        "updated": true
+      },
+      {
+        "articleId": "art_4a1a2de7-dcf",
+        "updated": true
+      },
+      {
+        "articleId": "art_c5ae0f90-9ef",
+        "updated": true
+      },
+      {
+        "articleId": "art_eec272e4-37a",
+        "updated": true
+      },
+      {
+        "articleId": "art_7d19d371-3d8",
+        "updated": true
+      },
+      {
+        "articleId": "art_6900d36e-b21",
+        "updated": true
+      },
+      {
+        "articleId": "art_e018cfdf-ad8",
+        "updated": true
+      },
+      {
+        "articleId": "art_d9f30f2f-d46",
+        "updated": true
+      },
+      {
+        "articleId": "art_f8493f27-0e4",
+        "updated": true
+      },
+      {
+        "articleId": "art_2b4c8e9d-9ca",
+        "updated": true
+      },
+      {
+        "articleId": "art_697bfc0e-310",
+        "updated": true
+      },
+      {
+        "articleId": "art_773de44e-486",
+        "updated": true
+      },
+      {
+        "articleId": "art_bbb3295a-e12",
+        "updated": true
+      },
+      {
+        "articleId": "art_b24a9e5f-93a",
+        "updated": true
+      },
+      {
+        "articleId": "art_555783c2-bef",
+        "updated": true
+      },
+      {
+        "articleId": "art_b59843cb-668",
+        "updated": true
+      },
+      {
+        "articleId": "art_40a460a2-d1e",
+        "updated": true
+      },
+      {
+        "articleId": "art_95098038-7e2",
+        "updated": true
+      },
+      {
+        "articleId": "art_8e3c2fdd-331",
+        "updated": true
+      },
+      {
+        "articleId": "art_fee13778-a21",
+        "updated": true
+      },
+      {
+        "articleId": "art_5d6746f5-63d",
+        "updated": true
+      },
+      {
+        "articleId": "art_ce5f37b7-3d2",
+        "updated": true
+      },
+      {
+        "articleId": "art_66adc3a4-064",
+        "updated": true
+      },
+      {
+        "articleId": "art_ed07f279-2dc",
+        "updated": true
+      },
+      {
+        "articleId": "art_1ca5100f-bcf",
+        "updated": true
+      },
+      {
+        "articleId": "art_df39b71d-0e2",
+        "updated": true
+      },
+      {
+        "articleId": "art_de184454-ee1",
+        "updated": true
+      },
+      {
+        "articleId": "art_8b2aa05b-e62",
+        "updated": true
+      },
+      {
+        "articleId": "art_6ee564ac-ca0",
+        "updated": true
+      },
+      {
+        "articleId": "art_eca5b950-911",
+        "updated": true
+      },
+      {
+        "articleId": "art_30467bcc-575",
+        "updated": true
+      },
+      {
+        "articleId": "art_5e79d403-66d",
+        "updated": true
+      },
+      {
+        "articleId": "art_4527de08-3be",
+        "updated": true
+      },
+      {
+        "articleId": "art_8a5e775f-99f",
+        "updated": true
+      },
+      {
+        "articleId": "art_539d6f35-27b",
+        "updated": true
+      },
+      {
+        "articleId": "art_4103740b-e49",
+        "updated": true
+      },
+      {
+        "articleId": "art_f48ff7a0-eb0",
+        "updated": true
+      },
+      {
+        "articleId": "art_15e0c098-024",
+        "updated": true
+      },
+      {
+        "articleId": "art_ee5119f2-665",
+        "updated": true
+      },
+      {
+        "articleId": "art_cdf066ac-ddc",
+        "updated": true
+      },
+      {
+        "articleId": "art_c084e5cb-4ed",
+        "updated": true
+      },
+      {
+        "articleId": "art_b805fe86-ee4",
+        "updated": true
+      },
+      {
+        "articleId": "art_5a9c9cf6-71f",
+        "updated": true
+      },
+      {
+        "articleId": "art_158e3132-648",
+        "updated": true
+      },
+      {
+        "articleId": "art_aa593a1b-63b",
+        "updated": true
+      },
+      {
+        "articleId": "art_a7fdcd1a-e90",
+        "updated": true
+      },
+      {
+        "articleId": "art_9bfce8d9-f18",
+        "updated": true
+      },
+      {
+        "articleId": "art_46961200-fe5",
+        "updated": true
+      },
+      {
+        "articleId": "art_10213c5c-252",
+        "updated": true
+      },
+      {
+        "articleId": "art_94925a03-e68",
+        "updated": true
+      },
+      {
+        "articleId": "art_af15bd23-9ce",
+        "updated": true
+      },
+      {
+        "articleId": "art_190d2796-96a",
+        "updated": true
+      },
+      {
+        "articleId": "art_446e2c43-cab",
+        "updated": true
+      },
+      {
+        "articleId": "art_f15d9349-546",
+        "updated": true
+      },
+      {
+        "articleId": "art_c61a3f0b-796",
+        "updated": true
+      },
+      {
+        "articleId": "art_a0a34279-831",
+        "updated": true
+      },
+      {
+        "articleId": "art_2ae4ec28-58b",
+        "updated": true
+      },
+      {
+        "articleId": "art_a7488490-b4d",
+        "updated": true
+      },
+      {
+        "articleId": "art_e194cf92-ffa",
+        "updated": true
+      },
+      {
+        "articleId": "art_a50d96c0-ecf",
+        "updated": true
+      },
+      {
+        "articleId": "art_5291201b-9c7",
+        "updated": true
+      },
+      {
+        "articleId": "art_c1922d01-6ac",
+        "updated": true
+      },
+      {
+        "articleId": "art_a6406553-47c",
+        "updated": true
+      },
+      {
+        "articleId": "art_e3b07360-947",
+        "updated": true
+      },
+      {
+        "articleId": "art_0430b6c1-c35",
+        "updated": true
+      },
+      {
+        "articleId": "art_57b128a8-636",
+        "updated": true
+      },
+      {
+        "articleId": "art_153c0cef-726",
+        "updated": true
+      },
+      {
+        "articleId": "art_896de8fd-4a1",
+        "updated": true
+      },
+      {
+        "articleId": "art_71605c5a-acd",
+        "updated": true
+      },
+      {
+        "articleId": "art_3a5927eb-419",
+        "updated": true
+      },
+      {
+        "articleId": "art_235160f8-510",
+        "updated": true
+      },
+      {
+        "articleId": "art_5e20c0aa-303",
+        "updated": true
+      },
+      {
+        "articleId": "art_2fc42a92-6e0",
+        "updated": true
+      },
+      {
+        "articleId": "art_ca96f825-c29",
+        "updated": true
+      },
+      {
+        "articleId": "art_bc5b19db-421",
+        "updated": true
+      },
+      {
+        "articleId": "art_da01c6aa-928",
+        "updated": true
+      },
+      {
+        "articleId": "art_e0c9b002-481",
+        "updated": true
+      },
+      {
+        "articleId": "art_5d8aefe8-b35",
+        "updated": true
+      },
+      {
+        "articleId": "art_c43f2095-4da",
+        "updated": true
+      },
+      {
+        "articleId": "art_ca892585-119",
+        "updated": true
+      },
+      {
+        "articleId": "art_fa16ad17-87f",
+        "updated": true
+      },
+      {
+        "articleId": "art_5d85dfe0-50c",
+        "updated": true
+      },
+      {
+        "articleId": "art_2c2a5485-42d",
+        "updated": true
+      },
+      {
+        "articleId": "art_39049db6-ce9",
+        "updated": true
+      },
+      {
+        "articleId": "art_0a7aa754-693",
+        "updated": true
+      },
+      {
+        "articleId": "art_bfba344d-64b",
+        "updated": true
+      },
+      {
+        "articleId": "art_b2434f2a-e52",
+        "updated": true
+      },
+      {
+        "articleId": "art_45e76411-5eb",
+        "updated": true
+      },
+      {
+        "articleId": "art_b9f840fc-633",
+        "updated": true
+      },
+      {
+        "articleId": "art_fb7615d0-dce",
+        "updated": true
+      },
+      {
+        "articleId": "art_7ba88d9b-b1f",
+        "updated": true
+      },
+      {
+        "articleId": "art_da913ffe-44c",
+        "updated": true
+      },
+      {
+        "articleId": "art_cae5cc5e-def",
+        "updated": true
+      },
+      {
+        "articleId": "art_6b6d6870-450",
+        "updated": true
+      },
+      {
+        "articleId": "art_89645534-41c",
+        "updated": true
+      },
+      {
+        "articleId": "art_395325c9-eb1",
+        "updated": true
+      },
+      {
+        "articleId": "art_efabfaef-f22",
+        "updated": true
+      },
+      {
+        "articleId": "art_0557e046-8e5",
+        "updated": true
+      },
+      {
+        "articleId": "art_de350a05-6c3",
+        "updated": true
+      },
+      {
+        "articleId": "art_ba04cf89-526",
+        "updated": true
+      },
+      {
+        "articleId": "art_268224ca-781",
+        "updated": true
+      },
+      {
+        "articleId": "art_3f337284-e2b",
+        "updated": true
+      },
+      {
+        "articleId": "art_a2d5affa-aed",
+        "updated": true
+      },
+      {
+        "articleId": "art_cd733a98-578",
+        "updated": true
+      },
+      {
+        "articleId": "art_16ff686a-3ea",
+        "updated": true
+      },
+      {
+        "articleId": "art_1a3ed1b9-305",
+        "updated": true
+      },
+      {
+        "articleId": "art_aee65fbc-5a4",
+        "updated": true
+      },
+      {
+        "articleId": "art_7dda178e-7f1",
+        "updated": true
+      },
+      {
+        "articleId": "art_d6614362-baa",
+        "updated": true
+      },
+      {
+        "articleId": "art_64b2a350-f31",
+        "updated": true
+      },
+      {
+        "articleId": "art_f27da85b-2c6",
+        "updated": true
+      },
+      {
+        "articleId": "art_375c888d-cff",
+        "updated": true
+      },
+      {
+        "articleId": "art_daa25163-8fc",
+        "updated": true
+      },
+      {
+        "articleId": "art_2de6588f-4ab",
+        "updated": true
+      },
+      {
+        "articleId": "art_e768c8d6-c54",
+        "updated": true
+      },
+      {
+        "articleId": "art_23451595-75d",
+        "updated": true
+      },
+      {
+        "articleId": "art_39b50958-bdb",
+        "updated": true
+      },
+      {
+        "articleId": "art_2cf5d3ab-d65",
+        "updated": true
+      },
+      {
+        "articleId": "art_d29c4b4f-6b4",
+        "updated": true
+      },
+      {
+        "articleId": "art_701e9f7b-846",
+        "updated": true
+      },
+      {
+        "articleId": "art_0eb779b8-945",
+        "updated": true
+      },
+      {
+        "articleId": "art_e7fafb91-062",
+        "updated": true
+      },
+      {
+        "articleId": "art_191c8c40-aae",
+        "updated": true
+      },
+      {
+        "articleId": "art_57701e6b-c75",
+        "updated": true
+      },
+      {
+        "articleId": "art_8646f60d-8fd",
+        "updated": true
+      },
+      {
+        "articleId": "art_c3fb2c0e-113",
+        "updated": true
+      },
+      {
+        "articleId": "art_62aeaad0-f88",
+        "updated": true
+      },
+      {
+        "articleId": "art_dd79a86f-b2b",
+        "updated": true
+      },
+      {
+        "articleId": "art_bbcbb6f7-fb6",
+        "updated": true
+      },
+      {
+        "articleId": "art_ff690cfa-ef5",
+        "updated": true
+      },
+      {
+        "articleId": "art_82d60d7b-5bb",
+        "updated": true
+      },
+      {
+        "articleId": "art_5adbb61b-ea4",
+        "updated": true
+      },
+      {
+        "articleId": "art_2f6fb84f-ae4",
+        "updated": true
+      },
+      {
+        "articleId": "art_bcfb9370-aae",
+        "updated": true
+      },
+      {
+        "articleId": "art_5bf9dbfe-00f",
+        "updated": true
+      },
+      {
+        "articleId": "art_f5146bef-109",
+        "updated": true
+      },
+      {
+        "articleId": "art_3f5a802e-9fc",
+        "updated": true
+      },
+      {
+        "articleId": "art_93f9e740-06e",
+        "updated": true
+      },
+      {
+        "articleId": "art_0d7576ee-051",
+        "updated": true
+      },
+      {
+        "articleId": "art_c05de0b6-329",
+        "updated": true
+      },
+      {
+        "articleId": "art_bac0ccf1-5f2",
+        "updated": true
+      },
+      {
+        "articleId": "art_7143b6b0-a8c",
+        "updated": true
+      },
+      {
+        "articleId": "art_f36b1cc6-68d",
+        "updated": true
+      },
+      {
+        "articleId": "art_42831c61-337",
+        "updated": true
+      },
+      {
+        "articleId": "art_37abdbe5-355",
+        "updated": true
+      },
+      {
+        "articleId": "art_4822ce05-912",
+        "updated": true
+      },
+      {
+        "articleId": "art_8fe1964a-4b5",
+        "updated": true
+      },
+      {
+        "articleId": "art_6d991d0d-c90",
+        "updated": true
+      },
+      {
+        "articleId": "art_c324dc32-1a3",
+        "updated": true
+      },
+      {
+        "articleId": "art_fe3d19bb-638",
+        "updated": true
+      },
+      {
+        "articleId": "art_85da9493-8f8",
+        "updated": true
+      },
+      {
+        "articleId": "art_0cb1dd2e-af4",
+        "updated": true
+      },
+      {
+        "articleId": "art_a2666872-e22",
+        "updated": true
+      },
+      {
+        "articleId": "art_106d41c4-940",
+        "updated": true
+      },
+      {
+        "articleId": "art_66f043ed-492",
+        "updated": true
+      },
+      {
+        "articleId": "art_db9d98f8-420",
+        "updated": true
+      },
+      {
+        "articleId": "art_3f8a9a28-849",
+        "updated": true
+      },
+      {
+        "articleId": "art_da739ab9-642",
+        "updated": true
+      },
+      {
+        "articleId": "art_03dd25e5-f9e",
+        "updated": true
+      },
+      {
+        "articleId": "art_a9dfa5df-d4e",
+        "updated": true
+      },
+      {
+        "articleId": "art_84cd414f-dcf",
+        "updated": true
+      },
+      {
+        "articleId": "art_74049ef4-8a2",
+        "updated": true
+      },
+      {
+        "articleId": "art_e3a2443d-ced",
+        "updated": true
+      },
+      {
+        "articleId": "art_2673b9fb-fbf",
+        "updated": true
+      },
+      {
+        "articleId": "art_d0716f7d-2cd",
+        "updated": true
+      },
+      {
+        "articleId": "art_ac4213bc-0a7",
+        "updated": true
+      },
+      {
+        "articleId": "art_9cbb6893-817",
+        "updated": true
+      },
+      {
+        "articleId": "art_d86e71ab-af1",
+        "updated": true
+      },
+      {
+        "articleId": "art_773b5e5c-f12",
+        "updated": true
+      },
+      {
+        "articleId": "art_52d4c250-e77",
+        "updated": true
+      },
+      {
+        "articleId": "art_9cbdcdf5-97b",
+        "updated": true
+      },
+      {
+        "articleId": "art_453d34f9-86a",
+        "updated": true
+      },
+      {
+        "articleId": "art_3479c1d7-862",
+        "updated": true
+      },
+      {
+        "articleId": "art_90358c56-d80",
+        "updated": true
+      },
+      {
+        "articleId": "art_3d752d8c-9e2",
+        "updated": true
+      },
+      {
+        "articleId": "art_a07529cd-f73",
+        "updated": true
+      },
+      {
+        "articleId": "art_1e7e29fc-c1d",
+        "updated": true
+      },
+      {
+        "articleId": "art_67d81569-fe0",
+        "updated": true
+      },
+      {
+        "articleId": "art_439e6a3c-85c",
+        "updated": true
+      },
+      {
+        "articleId": "art_0d42cb69-bb9",
+        "updated": true
+      },
+      {
+        "articleId": "art_a814a65c-88e",
+        "updated": true
+      },
+      {
+        "articleId": "art_d31824e9-391",
+        "updated": true
+      },
+      {
+        "articleId": "art_553c5bcc-2c6",
+        "updated": true
+      },
+      {
+        "articleId": "art_4b9e25aa-155",
+        "updated": true
+      },
+      {
+        "articleId": "art_803ddf93-548",
+        "updated": true
+      },
+      {
+        "articleId": "art_f62c12a5-44e",
+        "updated": true
+      },
+      {
+        "articleId": "art_979e446a-428",
+        "updated": true
+      },
+      {
+        "articleId": "art_53dbf829-8da",
+        "updated": true
+      },
+      {
+        "articleId": "art_2c0279c1-db0",
+        "updated": true
+      },
+      {
+        "articleId": "art_2896bbe6-6f3",
+        "updated": true
+      },
+      {
+        "articleId": "art_c90bd1e9-b66",
+        "updated": true
+      },
+      {
+        "articleId": "art_0e376923-1c7",
+        "updated": true
+      },
+      {
+        "articleId": "art_58a12f0a-6e9",
+        "updated": true
+      },
+      {
+        "articleId": "art_224fa4b7-811",
+        "updated": true
+      },
+      {
+        "articleId": "art_d92c6b77-b0a",
+        "updated": true
+      },
+      {
+        "articleId": "art_daa40c26-d3c",
+        "updated": true
+      },
+      {
+        "articleId": "art_e10b6fac-c9b",
+        "updated": true
+      },
+      {
+        "articleId": "art_76580805-061",
+        "updated": true
+      },
+      {
+        "articleId": "art_80b3d475-be1",
+        "updated": true
+      },
+      {
+        "articleId": "art_649fc399-51c",
+        "updated": true
+      },
+      {
+        "articleId": "art_a92ffac2-157",
+        "updated": true
+      },
+      {
+        "articleId": "art_e34cbc44-517",
+        "updated": true
+      },
+      {
+        "articleId": "art_c89c2349-2ac",
+        "updated": true
+      },
+      {
+        "articleId": "art_ac8bd5a8-802",
+        "updated": true
+      },
+      {
+        "articleId": "art_a3d6be1d-da9",
+        "updated": true
+      },
+      {
+        "articleId": "art_c4d375bc-15c",
+        "updated": true
+      },
+      {
+        "articleId": "art_73fb8ed3-1a4",
+        "updated": true
+      },
+      {
+        "articleId": "art_f9779481-bbd",
+        "updated": true
+      },
+      {
+        "articleId": "art_94975b09-139",
+        "updated": true
+      },
+      {
+        "articleId": "art_c2177e03-578",
+        "updated": true
+      },
+      {
+        "articleId": "art_f93afc30-32f",
+        "updated": true
+      },
+      {
+        "articleId": "art_0144c4be-943",
+        "updated": true
+      },
+      {
+        "articleId": "art_8e196e9d-b1d",
+        "updated": true
+      },
+      {
+        "articleId": "art_d6a365ba-bc7",
+        "updated": true
+      },
+      {
+        "articleId": "art_3ee9a1b7-ef2",
+        "updated": true
+      },
+      {
+        "articleId": "art_06f19813-f4d",
+        "updated": true
+      },
+      {
+        "articleId": "art_aef6468d-35d",
+        "updated": true
+      },
+      {
+        "articleId": "art_b2a42ab9-f5a",
+        "updated": true
+      },
+      {
+        "articleId": "art_cf90ca98-58e",
+        "updated": true
+      },
+      {
+        "articleId": "art_c956360f-0c0",
+        "updated": true
+      },
+      {
+        "articleId": "art_6d26b6d8-5ad",
+        "updated": true
+      },
+      {
+        "articleId": "art_2414135f-b38",
+        "updated": true
+      },
+      {
+        "articleId": "art_097c713e-cb9",
+        "updated": true
+      },
+      {
+        "articleId": "art_0893fca6-9b6",
+        "updated": true
+      },
+      {
+        "articleId": "art_717ac6ea-2c9",
+        "updated": true
+      },
+      {
+        "articleId": "art_2142a4c7-44b",
+        "updated": true
+      },
+      {
+        "articleId": "art_8b9c398b-6f2",
+        "updated": true
+      },
+      {
+        "articleId": "art_a5333efd-a39",
+        "updated": true
+      },
+      {
+        "articleId": "art_bf45fea7-174",
+        "updated": true
+      },
+      {
+        "articleId": "art_013fdafa-476",
+        "updated": true
+      },
+      {
+        "articleId": "art_c98d7450-f41",
+        "updated": true
+      },
+      {
+        "articleId": "art_2f895c1f-78b",
+        "updated": true
+      },
+      {
+        "articleId": "art_975b9e08-e09",
+        "updated": true
+      },
+      {
+        "articleId": "art_e457e24b-d41",
+        "updated": true
+      },
+      {
+        "articleId": "art_228ec88d-423",
+        "updated": true
+      },
+      {
+        "articleId": "art_c1255efe-6f8",
+        "updated": true
+      },
+      {
+        "articleId": "art_55977478-9c4",
+        "updated": true
+      },
+      {
+        "articleId": "art_2d02f3ae-6d0",
+        "updated": true
+      },
+      {
+        "articleId": "art_76ec6f9f-df4",
+        "updated": true
+      },
+      {
+        "articleId": "art_b2e195db-c81",
+        "updated": true
+      },
+      {
+        "articleId": "art_a09b5ba9-91f",
+        "updated": true
+      },
+      {
+        "articleId": "art_51d0f6f3-ea8",
+        "updated": true
+      },
+      {
+        "articleId": "art_e44a61e0-ffe",
+        "updated": true
+      },
+      {
+        "articleId": "art_7b397d85-ef4",
+        "updated": true
+      },
+      {
+        "articleId": "art_dc359dfb-6ef",
+        "updated": true
+      },
+      {
+        "articleId": "art_f8952f1a-d33",
+        "updated": true
+      },
+      {
+        "articleId": "art_420e8ac6-091",
+        "updated": true
+      },
+      {
+        "articleId": "art_831f2eab-f6f",
+        "updated": true
+      },
+      {
+        "articleId": "art_d7b0cf30-643",
+        "updated": true
+      },
+      {
+        "articleId": "art_5b49e15b-007",
+        "updated": true
+      },
+      {
+        "articleId": "art_41ea4e7a-36d",
+        "updated": true
+      },
+      {
+        "articleId": "art_eb0d24f2-73d",
+        "updated": true
+      },
+      {
+        "articleId": "art_449defcd-a8d",
+        "updated": true
+      },
+      {
+        "articleId": "art_15fd05b5-f99",
+        "updated": true
+      },
+      {
+        "articleId": "art_e0820b5e-831",
+        "updated": true
+      },
+      {
+        "articleId": "art_8d5129b2-e8d",
+        "updated": true
+      },
+      {
+        "articleId": "art_75de471f-439",
+        "updated": true
+      },
+      {
+        "articleId": "art_b749116d-5bd",
+        "updated": true
+      },
+      {
+        "articleId": "art_97bc5e59-1d0",
+        "updated": true
+      },
+      {
+        "articleId": "art_e220c552-269",
+        "updated": true
+      },
+      {
+        "articleId": "art_fc3b5393-3db",
+        "updated": true
+      },
+      {
+        "articleId": "art_919f5d20-112",
+        "updated": true
+      },
+      {
+        "articleId": "art_63fad981-023",
+        "updated": true
+      },
+      {
+        "articleId": "art_d4353e8d-795",
+        "updated": true
+      },
+      {
+        "articleId": "art_aa6bfc73-618",
+        "updated": true
+      },
+      {
+        "articleId": "art_e382e1aa-9f2",
+        "updated": true
+      },
+      {
+        "articleId": "art_c0a1ecd8-7d4",
+        "updated": true
+      },
+      {
+        "articleId": "art_4b143779-04f",
+        "updated": true
+      },
+      {
+        "articleId": "art_c863728f-4b2",
+        "updated": true
+      },
+      {
+        "articleId": "art_8ac68927-905",
+        "updated": true
+      },
+      {
+        "articleId": "art_15d86daf-9e6",
+        "updated": true
+      },
+      {
+        "articleId": "art_94fc1f3f-357",
+        "updated": true
+      },
+      {
+        "articleId": "art_39f001b6-536",
+        "updated": true
+      },
+      {
+        "articleId": "art_3995d190-5cc",
+        "updated": true
+      },
+      {
+        "articleId": "art_67ea9fc4-967",
+        "updated": true
+      },
+      {
+        "articleId": "art_89c05564-b27",
+        "updated": true
+      },
+      {
+        "articleId": "art_fd0073e7-6e2",
+        "updated": true
+      }
+    ]
+  },
+  "after": {
+    "scanned": 25570,
+    "counts": {
+      "UNRESOLVED": 3875,
+      "ALREADY_ELIGIBLE": 7660,
+      "INELIGIBLE": 13950,
+      "NOT_TARGET": 85
+    },
+    "eligibleCount": 0,
+    "unresolvedCount": 3875,
+    "ineligibleCount": 13950,
+    "alreadyEligible": 7660,
+    "unresolvedByReasonCode": {
+      "licence-uncertain": {
+        "count": 1054,
+        "estimatedTokens": 120688
+      },
+      "no-decisive-review": {
+        "count": 1509,
+        "estimatedTokens": 83490
+      },
+      "licence-unknown": {
+        "count": 1312,
+        "estimatedTokens": 149869
+      }
+    }
+  },
+  "reconciliation": {
+    "eligibleBefore": 377,
+    "restored": 377,
+    "eligibleAfter": 0,
+    "alreadyEligibleBefore": 7283,
+    "alreadyEligibleAfter": 7660,
+    "unresolvedBefore": 3875,
+    "unresolvedAfter": 3875,
+    "ineligibleBefore": 13950,
+    "ineligibleAfter": 13950,
+    "notTargetBefore": 85,
+    "notTargetAfter": 85
+  }
+}

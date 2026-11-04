@@ -1,0 +1,100 @@
+{
+  "schema": "sma/operational-rehearsal-run@1",
+  "at": "2026-11-04T05:08:35.179Z",
+  "crashPoint": null,
+  "config": {
+    "store": "/home/dave/sma-experiments/knowledge-accumulation-operational-rehearsal-20261103/proc-mid-store",
+    "device": "cuda",
+    "snapshotLimit": 30,
+    "replayPercent": 50,
+    "seqLen": 64,
+    "steps": 120,
+    "lr": 0.00005,
+    "epochs": 8,
+    "workingGuard": {
+      "maxRegressionNats": 0.05,
+      "maxGroupRegressionNats": 0.15,
+      "maxDriftNats": 0.1,
+      "minGroupTokens": 100,
+      "maxRegressedGroupShare": 0.75,
+      "minGroups": 5
+    },
+    "useWorking": true,
+    "carryOptimizer": true
+  },
+  "result": null,
+  "error": {
+    "message": "python exited null: d\":\"run-1\",\"version\":\"v002\",\"parentVersion\":\"v001\",\"seq\":5,\"at\":1793768914861,\"type\":\"evaluation\",\"step\":10,\"loss\":7.341513156890869,\"learningRate\":5e-05,\"tokensSeen\":2560}\n[sma] step   10/120  loss 6.4879  lr 5.00e-05  gnorm 5.359  (clipped)\n__SMA_TELEMETRY__ {\"schema\":\"sma/training-telemetry@1\",\"sessionId\":\"run-1\",\"version\":\"v002\",\"parentVersion\":\"v001\",\"seq\":6,\"at\":1793768914997,\"type\":\"snapshot\",\"step\":11,\"totalSteps\":120,\"loss\":6.4879467487335205,\"learningRate\":5e-05,\"gradNorm\":5.359436511993408,\"clipped\":true,\"tokensSeen\":2816,\"stepSeconds\":0.1358,\"stepsPerSecond\":2.0819,\"elapsedMs\":5283.5}\n/usr/lib/python3.14/multiprocessing/resource_tracker.py:396: UserWarning: resource_tracker: There appear to be 1 leaked semaphore objects to clean up at shutdown: {'/mp-s16n2_44'}\n  warnings.warn(",
+    "code": null
+  },
+  "stats": {
+    "totalArticles": 32,
+    "byStatus": {
+      "INGESTED": 0,
+      "PENDING_REVIEW": 0,
+      "REVIEWED": 28,
+      "REJECTED": 0,
+      "RETIRED": 4,
+      "UNRESOLVED": 0,
+      "QUARANTINED": 0
+    },
+    "byImportance": {
+      "Normal": 32,
+      "Important": 0,
+      "Critical": 0
+    },
+    "byImportanceSource": {
+      "default": 32,
+      "teacher": 0,
+      "automation": 0,
+      "operator": 0
+    },
+    "byDomain": [
+      {
+        "domain": "general",
+        "count": 22
+      },
+      {
+        "domain": "history",
+        "count": 4
+      },
+      {
+        "domain": "science",
+        "count": 4
+      },
+      {
+        "domain": "tech",
+        "count": 1
+      },
+      {
+        "domain": "cryptography",
+        "count": 1
+      }
+    ],
+    "pendingReview": 0,
+    "reviewed": 28,
+    "rejected": 0,
+    "ingested": 0,
+    "retired": 4,
+    "quarantined": 0,
+    "unresolved": 0,
+    "trainable": 26,
+    "replayEligible": 6,
+    "replayExcluded": 0,
+    "consumedAndRetired": 4,
+    "retiredReplayEligible": 4,
+    "deferredFresh": 0,
+    "retainedForReplay": 0,
+    "noEligibleUnconsumed": false,
+    "recoverable": 0,
+    "quarantineReleased": 0,
+    "reviewCount": 32,
+    "avgReviewScore": 0,
+    "uniqueConsumed": 6,
+    "totalAppearances": 6,
+    "languageSkipped": 0,
+    "duplicationIndex": 0,
+    "distinctSourceUrls": 20
+  },
+  "contributions": []
+}

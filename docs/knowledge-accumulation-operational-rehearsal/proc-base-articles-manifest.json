@@ -1,0 +1,336 @@
+{
+  "schema": "sma/knowledge-pilot-corpus@1",
+  "at": "2026-11-04T05:06:45.768Z",
+  "sourceStore": "/home/dave/sma-experiments/knowledge-accumulation-operational-rehearsal-20261103/snapshot/data/articles",
+  "pilotStore": "/home/dave/sma-experiments/knowledge-accumulation-operational-rehearsal-20261103/proc-base-articles",
+  "articleCount": 32,
+  "roleCounts": {
+    "replay": 2,
+    "retired-replay": 4,
+    "fresh": 26
+  },
+  "estimatedTokens": 7692,
+  "articles": [
+    {
+      "sourceArticleId": "art_9a546a06-e8e",
+      "pilotArticleId": "art_5ec3cd63-9e8",
+      "role": "replay",
+      "sourceUrl": "https://science.nasa.gov/earth/earth-observatory/isaias-dims-the-gulf-coast/",
+      "sourceDomain": "science.nasa.gov",
+      "textHash": "8d743c3ec29377e47b5460840a92d31c61af24bd399e9a252a2ce7c62e8e2777",
+      "chars": 1544,
+      "estimatedTokens": 386
+    },
+    {
+      "sourceArticleId": "art_0a321ec1-861",
+      "pilotArticleId": "art_fb452218-868",
+      "role": "replay",
+      "sourceUrl": "https://science.nasa.gov/category/missions/space-shuttle/",
+      "sourceDomain": "science.nasa.gov",
+      "textHash": "9697de2bd05c644db79037c9ddc5fda92c05f49cc105949ea8686c823ff40e9a",
+      "chars": 334,
+      "estimatedTokens": 84
+    },
+    {
+      "sourceArticleId": "art_979e446a-428",
+      "pilotArticleId": "art_7db04514-726",
+      "role": "retired-replay",
+      "sourceUrl": "https://explore.plos.org/editor-resources",
+      "sourceDomain": "explore.plos.org",
+      "textHash": "3a6e119f9c622b258689a2d581b15de627b959943556d0a1268a4e1465910bda",
+      "chars": 416,
+      "estimatedTokens": 104
+    },
+    {
+      "sourceArticleId": "art_94fc1f3f-357",
+      "pilotArticleId": "art_c48ae4ea-f03",
+      "role": "retired-replay",
+      "sourceUrl": "https://www.frontiersin.org/journals/plant-science/articles/10.3389/fpls.2020.624273/full",
+      "sourceDomain": "frontiersin.org",
+      "textHash": "49204ac685ff8172fcc8e6555ba034f7acc607998375a6b61b926f56a70dd734",
+      "chars": 2204,
+      "estimatedTokens": 551
+    },
+    {
+      "sourceArticleId": "art_da739ab9-642",
+      "pilotArticleId": "art_04161838-627",
+      "role": "retired-replay",
+      "sourceUrl": "https://journals.plos.org/plosone/s/what-we-publish",
+      "sourceDomain": "journals.plos.org",
+      "textHash": "a100c9511c4638ec2e951425cbafc53d300b62dade05e6a75ae3d869b3b38478",
+      "chars": 309,
+      "estimatedTokens": 78
+    },
+    {
+      "sourceArticleId": "art_f48ff7a0-eb0",
+      "pilotArticleId": "art_baf290a0-3b4",
+      "role": "retired-replay",
+      "sourceUrl": "https://www.nasa.gov/manufacturing-and-materials/",
+      "sourceDomain": "nasa.gov",
+      "textHash": "a0bebdb54a2693be454d1b5c6f63b74952606deb87abfc72e6954f5f69ee5645",
+      "chars": 329,
+      "estimatedTokens": 83
+    },
+    {
+      "sourceArticleId": "art_32974828-1c4",
+      "pilotArticleId": "art_a850cf57-241",
+      "role": "fresh",
+      "sourceUrl": "https://csrc.nist.gov/projects/cloud-computing",
+      "sourceDomain": "csrc.nist.gov",
+      "textHash": "310e0cdcf163c8334ba82365db9391c9777c0f0d3ccc1584d2ec584ae9866bdd",
+      "chars": 891,
+      "estimatedTokens": 223
+    },
+    {
+      "sourceArticleId": "art_e8916633-f36",
+      "pilotArticleId": "art_186d352b-3fe",
+      "role": "fresh",
+      "sourceUrl": "https://www.gov.uk/government/statistics/cyber-security-breaches-survey-2023/cyber-security-breaches-survey-2023",
+      "sourceDomain": "gov.uk",
+      "textHash": "237d2f7bb91074d5a2221eeae310d318787b42040987b149ecdc37cf6e122808",
+      "chars": 364,
+      "estimatedTokens": 91
+    },
+    {
+      "sourceArticleId": "art_f5a68721-015",
+      "pilotArticleId": "art_dcee42ca-bf5",
+      "role": "fresh",
+      "sourceUrl": "https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1002021",
+      "sourceDomain": "journals.plos.org",
+      "textHash": "1f7b65f0bd752367d0d296a10838e40c7cae84dfa52fdd38ed6d3766b10acde0",
+      "chars": 408,
+      "estimatedTokens": 102
+    },
+    {
+      "sourceArticleId": "art_d183a215-a3d",
+      "pilotArticleId": "art_6c70a620-59d",
+      "role": "fresh",
+      "sourceUrl": "https://www.ncsc.gov.uk/collection/denial-service-dos-guidance-collection",
+      "sourceDomain": "ncsc.gov.uk",
+      "textHash": "9b1e1b0a5de504cd81e6a4b285ac1f5cc23f0396c943b53ad2924a1a3b5e63ba",
+      "chars": 329,
+      "estimatedTokens": 83
+    },
+    {
+      "sourceArticleId": "art_2f1fb6d1-6c8",
+      "pilotArticleId": "art_42c43089-a37",
+      "role": "fresh",
+      "sourceUrl": "https://www.nps.gov/liho/learn/historyculture/slavery-cause-civil-war.htm",
+      "sourceDomain": "nps.gov",
+      "textHash": "af0fbb6185da3837b6e998ce47ac95a1db5b865e1ffc82da6966cef4ca9bd299",
+      "chars": 1221,
+      "estimatedTokens": 306
+    },
+    {
+      "sourceArticleId": "art_ba7dedac-ef6",
+      "pilotArticleId": "art_e75def8a-35e",
+      "role": "fresh",
+      "sourceUrl": "https://pubmed.ncbi.nlm.nih.gov/17775169/",
+      "sourceDomain": "pubmed.ncbi.nlm.nih.gov",
+      "textHash": "fab4171cc1505c712690ee58564dde59188411927a0c3ddbd3417615c89adbe9",
+      "chars": 309,
+      "estimatedTokens": 78
+    },
+    {
+      "sourceArticleId": "art_0bd6aac0-ae9",
+      "pilotArticleId": "art_b18c53c9-a4b",
+      "role": "fresh",
+      "sourceUrl": "https://www.worldbank.org/en/publication/wdr2019",
+      "sourceDomain": "worldbank.org",
+      "textHash": "a248dd55cc19555ec5da4e1a7217a297d83b44a6a239b5604c1187f77a6eff1a",
+      "chars": 1783,
+      "estimatedTokens": 446
+    },
+    {
+      "sourceArticleId": "art_9852b07b-af4",
+      "pilotArticleId": "art_f392985e-176",
+      "role": "fresh",
+      "sourceUrl": "https://www-robotics.jpl.nasa.gov/",
+      "sourceDomain": "www-robotics.jpl.nasa.gov",
+      "textHash": "2436e0dc96b185cef010cdc22cef7d00b4bc154f5e280f2ab7871b2c59e9d415",
+      "chars": 572,
+      "estimatedTokens": 143
+    },
+    {
+      "sourceArticleId": "art_408f7b1f-a0f",
+      "pilotArticleId": "art_4b1c3788-687",
+      "role": "fresh",
+      "sourceUrl": "https://csrc.nist.gov/pubs/sp/800/145/final",
+      "sourceDomain": "csrc.nist.gov",
+      "textHash": "77fe1b37a9dc9737461890dbc640e1aa02b1d7d987dee224ef19e9fd9abac616",
+      "chars": 427,
+      "estimatedTokens": 107
+    },
+    {
+      "sourceArticleId": "art_4ecce951-904",
+      "pilotArticleId": "art_14abf9d6-47c",
+      "role": "fresh",
+      "sourceUrl": "https://www.gov.uk/government/statistics/cyber-security-breaches-survey-2023/cyber-security-breaches-survey-2023",
+      "sourceDomain": "gov.uk",
+      "textHash": "6249c4b94bd8932a6c47cd0513cca09c5225612505a5fc012502dc9142dcd738",
+      "chars": 311,
+      "estimatedTokens": 78
+    },
+    {
+      "sourceArticleId": "art_83a851df-e55",
+      "pilotArticleId": "art_2934498f-e40",
+      "role": "fresh",
+      "sourceUrl": "https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1002021",
+      "sourceDomain": "journals.plos.org",
+      "textHash": "bc160272112f598e04129a105e1a54b53b14fc02ace4d5e872c8938c2012075a",
+      "chars": 459,
+      "estimatedTokens": 115
+    },
+    {
+      "sourceArticleId": "art_e11b998b-714",
+      "pilotArticleId": "art_388fa792-203",
+      "role": "fresh",
+      "sourceUrl": "https://www.ncsc.gov.uk/collection/denial-service-dos-guidance-collection",
+      "sourceDomain": "ncsc.gov.uk",
+      "textHash": "2c3434858724099b8ab0a0e8b911fb001673d3b4841685b1f74e7f9d9618a61f",
+      "chars": 340,
+      "estimatedTokens": 85
+    },
+    {
+      "sourceArticleId": "art_b4ed370d-5a4",
+      "pilotArticleId": "art_d1020671-476",
+      "role": "fresh",
+      "sourceUrl": "https://www.nps.gov/gett/learn/historyculture/civil-war-timeline.htm",
+      "sourceDomain": "nps.gov",
+      "textHash": "86940682e67895c55e7b56d36d0c93521a9982e5c80444b19a489548bb17c7e8",
+      "chars": 4640,
+      "estimatedTokens": 1160
+    },
+    {
+      "sourceArticleId": "art_f5398b6f-d91",
+      "pilotArticleId": "art_c280b06a-bac",
+      "role": "fresh",
+      "sourceUrl": "https://pubmed.ncbi.nlm.nih.gov/18842678/",
+      "sourceDomain": "pubmed.ncbi.nlm.nih.gov",
+      "textHash": "9952b89bc8c7553759a67ac7eff86cb038b5835333c4a025c72a026e0d7f6a43",
+      "chars": 1526,
+      "estimatedTokens": 382
+    },
+    {
+      "sourceArticleId": "art_927ecdfa-cc0",
+      "pilotArticleId": "art_4c1ef564-cb1",
+      "role": "fresh",
+      "sourceUrl": "https://www.worldbank.org/en/publication/wdr2019",
+      "sourceDomain": "worldbank.org",
+      "textHash": "48729dda13fa92ece74024fe3f4ec73aac33e12b307c05d1a76293b732def59d",
+      "chars": 1789,
+      "estimatedTokens": 448
+    },
+    {
+      "sourceArticleId": "art_90aac531-506",
+      "pilotArticleId": "art_09cef6e2-b1c",
+      "role": "fresh",
+      "sourceUrl": "https://csrc.nist.gov/glossary/term/cryptology",
+      "sourceDomain": "csrc.nist.gov",
+      "textHash": "8a6f2a1ff3b009ae523a4743f634c765db8fa2d364167e07e9659dd26ee35b23",
+      "chars": 434,
+      "estimatedTokens": 109
+    },
+    {
+      "sourceArticleId": "art_87326430-390",
+      "pilotArticleId": "art_f0d67c65-f54",
+      "role": "fresh",
+      "sourceUrl": "https://www.gov.uk/government/statistics/cyber-security-breaches-survey-2023/cyber-security-breaches-survey-2023",
+      "sourceDomain": "gov.uk",
+      "textHash": "54960ea6d670b5015df99029defa9699bb7d896bda7d974118c30f21ceea605f",
+      "chars": 361,
+      "estimatedTokens": 91
+    },
+    {
+      "sourceArticleId": "art_a23bc7fc-657",
+      "pilotArticleId": "art_fe467058-2be",
+      "role": "fresh",
+      "sourceUrl": "https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1002021",
+      "sourceDomain": "journals.plos.org",
+      "textHash": "50a1cd5581458eaac834886cb5d4681c1c9353a9722c67a94985acb48f413436",
+      "chars": 415,
+      "estimatedTokens": 104
+    },
+    {
+      "sourceArticleId": "art_334ed018-c0d",
+      "pilotArticleId": "art_28c402d8-f18",
+      "role": "fresh",
+      "sourceUrl": "https://www.ncsc.gov.uk/collection/denial-service-dos-guidance-collection",
+      "sourceDomain": "ncsc.gov.uk",
+      "textHash": "21b51639f48ab6066d79dec36d9de2e518cd284c27aad7d4fcccd54c4d14dc00",
+      "chars": 330,
+      "estimatedTokens": 83
+    },
+    {
+      "sourceArticleId": "art_b025695e-436",
+      "pilotArticleId": "art_e2c40f4a-6f6",
+      "role": "fresh",
+      "sourceUrl": "https://www.nps.gov/gett/learn/historyculture/civil-war-timeline.htm",
+      "sourceDomain": "nps.gov",
+      "textHash": "917effc7b814b04b09eac20631c5b79f129dd5ea3ce83e70e284e8d837b6177e",
+      "chars": 6318,
+      "estimatedTokens": 1580
+    },
+    {
+      "sourceArticleId": "art_74d43d08-69b",
+      "pilotArticleId": "art_63aa06c6-156",
+      "role": "fresh",
+      "sourceUrl": "https://csrc.nist.gov/glossary/term/cryptography",
+      "sourceDomain": "csrc.nist.gov",
+      "textHash": "f395804cad3336132d325f2793253182f07533830cc710c55e825dc87d1b30ee",
+      "chars": 326,
+      "estimatedTokens": 82
+    },
+    {
+      "sourceArticleId": "art_9bf35989-a33",
+      "pilotArticleId": "art_40d8393e-cb6",
+      "role": "fresh",
+      "sourceUrl": "https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1002021",
+      "sourceDomain": "journals.plos.org",
+      "textHash": "e3822242a7c906dd5ea3005480c8f9172f6c34ba9771433f6fb937308960e599",
+      "chars": 342,
+      "estimatedTokens": 86
+    },
+    {
+      "sourceArticleId": "art_34e3c558-b5e",
+      "pilotArticleId": "art_070c3807-e08",
+      "role": "fresh",
+      "sourceUrl": "https://www.ncsc.gov.uk/collection/denial-service-dos-guidance-collection",
+      "sourceDomain": "ncsc.gov.uk",
+      "textHash": "7dff2dec94dcee1b0f9ed15e52d4b5f563f12a369efad6634e32a02f1941e64f",
+      "chars": 329,
+      "estimatedTokens": 83
+    },
+    {
+      "sourceArticleId": "art_4b6e0b6c-421",
+      "pilotArticleId": "art_cfb9f561-c8b",
+      "role": "fresh",
+      "sourceUrl": "https://www.ncsc.gov.uk/collection/assess-supply-chain-cyber-security/stage-2-develop-an-approach/stage-2b-create-key-components-for-your-approach",
+      "sourceDomain": "ncsc.gov.uk",
+      "textHash": "3a14bcb538bbc41f7dceb0de41e043dab093cd2a0f34a4354d7afa5d13fde116",
+      "chars": 419,
+      "estimatedTokens": 105
+    },
+    {
+      "sourceArticleId": "art_add8e566-629",
+      "pilotArticleId": "art_c530b778-b8c",
+      "role": "fresh",
+      "sourceUrl": "https://www.ncsc.gov.uk/collection/assess-supply-chain-cyber-security/stage-2-develop-an-approach/stage-2b-create-key-components-for-your-approach",
+      "sourceDomain": "ncsc.gov.uk",
+      "textHash": "c556288e65fe9f5a8ed477d9263a17b0b73e6ed7c5f237f849f39fb1be91e226",
+      "chars": 507,
+      "estimatedTokens": 127
+    },
+    {
+      "sourceArticleId": "art_d99ba68b-bc6",
+      "pilotArticleId": "art_c7f56646-7b3",
+      "role": "fresh",
+      "sourceUrl": "https://www.ncsc.gov.uk/collection/assess-supply-chain-cyber-security/stage-2-develop-an-approach/stage-2b-create-key-components-for-your-approach",
+      "sourceDomain": "ncsc.gov.uk",
+      "textHash": "cd92b4bd8405b23b60b6630a868ee5bf1549f745137792851498cdfa6dcb27c5",
+      "chars": 433,
+      "estimatedTokens": 109
+    }
+  ],
+  "note": "Isolated pilot subset. No production article was consumed or modified. Text is not included in this manifest."
+}

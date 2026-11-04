@@ -1,0 +1,11 @@
+1.4M	/home/dave/sma-experiments/knowledge-accumulation-operational-rehearsal-20261103/proc-after-articles
+1.4M	/home/dave/sma-experiments/knowledge-accumulation-operational-rehearsal-20261103/proc-base-articles
+1.4M	/home/dave/sma-experiments/knowledge-accumulation-operational-rehearsal-20261103/proc-disabled-articles
+1.4M	/home/dave/sma-experiments/knowledge-accumulation-operational-rehearsal-20261103/proc-mid-articles
+977M	/home/dave/sma-experiments/knowledge-accumulation-operational-rehearsal-20261103/proc-mid-store
+1.3G	/home/dave/sma-experiments/knowledge-accumulation-operational-rehearsal-20261103/restore/ledgers
+1.3G	/home/dave/sma-experiments/knowledge-accumulation-operational-rehearsal-20261103/snapshot
+1.7G	/home/dave/sma-experiments/knowledge-accumulation-operational-rehearsal-20261103/proc-after-store
+1.7G	/home/dave/sma-experiments/knowledge-accumulation-operational-rehearsal-20261103/proc-rollback-store
+1.7G	/home/dave/sma-experiments/knowledge-accumulation-operational-rehearsal-20261103/restore/model-store
+2.4G	/home/dave/sma-experiments/knowledge-accumulation-operational-rehearsal-20261103/proc-disabled-store

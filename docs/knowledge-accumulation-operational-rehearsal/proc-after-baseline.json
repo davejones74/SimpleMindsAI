@@ -1,0 +1,165 @@
+{
+  "schema": "sma/knowledge-pilot-baseline@1",
+  "at": "2026-11-04T05:11:14.810Z",
+  "gitHead": "7f49a8f74ad36a0a7b76eb4f274622f6931cc8d9",
+  "gitBranch": "knowledge-accumulation-operational-rehearsal-20261103",
+  "paths": {
+    "articles": "/home/dave/sma-experiments/knowledge-accumulation-operational-rehearsal-20261103/proc-after-articles",
+    "registry": "/home/dave/sma-experiments/knowledge-accumulation-operational-rehearsal-20261103/proc-after-registry",
+    "frontier": "/tmp/none",
+    "store": "/home/dave/sma-experiments/knowledge-accumulation-operational-rehearsal-20261103/proc-after-store"
+  },
+  "active": {
+    "activatedAt": "2026-11-04T00:42:23Z",
+    "artifactName": "simpleminds-62m-20261018-5e522ece26ee",
+    "schema": "sma/active@1",
+    "version": "v389",
+    "weightFingerprint": "5e522ece26ee"
+  },
+  "working": {
+    "artifactName": "simpleminds-62m-20261018-fe5bdbf2a696",
+    "datasetHash": "b68d8910c1cec2537011b7c4a98beb75cfd277f3b18e8ab2b4c3f83879af8176",
+    "drift": 0.08394746323849311,
+    "evalLoss": 8.12164823045122,
+    "groupsCompared": 60,
+    "guardDecision": "accepted",
+    "guardReason": "working guard accepted: overall regressed 0.0367 nats; no catastrophic group regression",
+    "parentVersion": "v001",
+    "regressedGroups": 0,
+    "regression": 0.03674118315920083,
+    "runId": "run-1",
+    "schema": "sma/working@1",
+    "stableBaselineVersion": "v389",
+    "tokensSeen": 30720,
+    "updatedAt": "2026-11-04T05:11:05Z",
+    "version": "v002",
+    "weightFingerprint": "fe5bdbf2a696"
+  },
+  "articles": {
+    "totalArticles": 32,
+    "byStatus": {
+      "INGESTED": 0,
+      "PENDING_REVIEW": 0,
+      "REVIEWED": 28,
+      "REJECTED": 0,
+      "RETIRED": 4,
+      "UNRESOLVED": 0,
+      "QUARANTINED": 0
+    },
+    "byImportance": {
+      "Normal": 32,
+      "Important": 0,
+      "Critical": 0
+    },
+    "byImportanceSource": {
+      "default": 32,
+      "teacher": 0,
+      "automation": 0,
+      "operator": 0
+    },
+    "byDomain": [
+      {
+        "domain": "general",
+        "count": 22
+      },
+      {
+        "domain": "history",
+        "count": 4
+      },
+      {
+        "domain": "science",
+        "count": 4
+      },
+      {
+        "domain": "tech",
+        "count": 1
+      },
+      {
+        "domain": "cryptography",
+        "count": 1
+      }
+    ],
+    "pendingReview": 0,
+    "reviewed": 28,
+    "rejected": 0,
+    "ingested": 0,
+    "retired": 4,
+    "quarantined": 0,
+    "unresolved": 0,
+    "trainable": 4,
+    "replayEligible": 28,
+    "replayExcluded": 0,
+    "consumedAndRetired": 4,
+    "retiredReplayEligible": 4,
+    "deferredFresh": 0,
+    "retainedForReplay": 0,
+    "noEligibleUnconsumed": false,
+    "recoverable": 0,
+    "quarantineReleased": 0,
+    "reviewCount": 32,
+    "avgReviewScore": 0,
+    "uniqueConsumed": 28,
+    "totalAppearances": 28,
+    "languageSkipped": 0,
+    "duplicationIndex": 0,
+    "distinctSourceUrls": 20
+  },
+  "articleLedger": {
+    "articleLines": 32,
+    "reviewLines": 32,
+    "eventLines": 76,
+    "consumptionLines": 28,
+    "contributionLines": 0,
+    "rawSourceLines": 0
+  },
+  "registry": {
+    "runRecords": 1,
+    "snapshotRecords": 1,
+    "evaluationRecords": 3,
+    "modelRecords": 3,
+    "runEventLines": 3,
+    "modelEventLines": 0
+  },
+  "frontier": {
+    "total": 0,
+    "byState": {},
+    "topErrors": {}
+  },
+  "store": {
+    "allocatedVersions": 2,
+    "workingPointer": {
+      "artifactName": "simpleminds-62m-20261018-fe5bdbf2a696",
+      "datasetHash": "b68d8910c1cec2537011b7c4a98beb75cfd277f3b18e8ab2b4c3f83879af8176",
+      "drift": 0.08394746323849311,
+      "evalLoss": 8.12164823045122,
+      "groupsCompared": 60,
+      "guardDecision": "accepted",
+      "guardReason": "working guard accepted: overall regressed 0.0367 nats; no catastrophic group regression",
+      "parentVersion": "v001",
+      "regressedGroups": 0,
+      "regression": 0.03674118315920083,
+      "runId": "run-1",
+      "schema": "sma/working@1",
+      "stableBaselineVersion": "v389",
+      "tokensSeen": 30720,
+      "updatedAt": "2026-11-04T05:11:05Z",
+      "version": "v002",
+      "weightFingerprint": "fe5bdbf2a696"
+    },
+    "activePointer": {
+      "activatedAt": "2026-11-04T00:42:23Z",
+      "artifactName": "simpleminds-62m-20261018-5e522ece26ee",
+      "schema": "sma/active@1",
+      "version": "v389",
+      "weightFingerprint": "5e522ece26ee"
+    },
+    "staleTmpDirs": null
+  },
+  "contributionSummary": {
+    "totalRuns": 0,
+    "promotedRuns": 0,
+    "rejectedRuns": 0,
+    "uniqueBatchArticles": 0,
+    "uniquePromotedArticles": 0
+  }
+}

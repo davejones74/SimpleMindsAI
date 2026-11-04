@@ -236,12 +236,13 @@ async function main() {
       bySourceDomain,
       unresolvedByReasonCode,
       unresolvedBySourceDomain,
+      eligibleArticleIds: eligible.map((row) => row.articleId),
+      applied,
       samples: {
         eligible: eligible.slice(0, 50),
         unresolved: unresolved.slice(0, 50),
         ineligible: ineligible.slice(0, 50),
       },
-      applied: applied.slice(0, 100),
       note: "Token counts are character/4 estimates for planning. No article text is included in this report.",
     };
     const bytes = JSON.stringify(report, null, 2) + "\n";

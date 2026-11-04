@@ -1,0 +1,140 @@
+{
+  "before": {
+    "active.json": {
+      "sha256": "bc8a306fc4ae2530b203514ea0db0b872276e5b2c1384b5e06b20113ca7edbdd",
+      "json": {
+        "activatedAt": "2026-11-04T00:42:23Z",
+        "artifactName": "simpleminds-62m-20261018-5e522ece26ee",
+        "schema": "sma/active@1",
+        "version": "v389",
+        "weightFingerprint": "5e522ece26ee"
+      }
+    },
+    "working.json": {
+      "sha256": "f7e601870a4280d72d4bf9e5d34016c0bad2686d76bdea68fd143c7b65696368",
+      "json": {
+        "artifactName": "simpleminds-62m-20261018-365bd74be9db",
+        "datasetHash": "b68d8910c1cec2537011b7c4a98beb75cfd277f3b18e8ab2b4c3f83879af8176",
+        "drift": 0.047206280079292284,
+        "evalLoss": 8.084907047292019,
+        "groupsCompared": 60,
+        "guardDecision": "accepted",
+        "guardReason": "working guard accepted: overall regressed 0.0472 nats; no catastrophic group regression",
+        "parentVersion": "v389",
+        "regressedGroups": 0,
+        "regression": 0.047206280079292284,
+        "runId": "run-1",
+        "schema": "sma/working@1",
+        "stableBaselineVersion": "v389",
+        "tokensSeen": 30720,
+        "updatedAt": "2026-11-04T00:44:42Z",
+        "version": "v001",
+        "weightFingerprint": "365bd74be9db"
+      }
+    },
+    "working-last-good.json": {
+      "sha256": "901116de1fe0ccc579de0a67b01b07cc943b297637581e3b2c3646af2f88680f",
+      "json": {
+        "artifactName": "simpleminds-62m-20261018-5e522ece26ee",
+        "datasetHash": "b68d8910c1cec2537011b7c4a98beb75cfd277f3b18e8ab2b4c3f83879af8176",
+        "drift": 0.047206280079292284,
+        "evalLoss": 8.084907047292019,
+        "groupsCompared": 60,
+        "guardDecision": "accepted",
+        "guardReason": "working guard accepted: overall regressed 0.0472 nats; no catastrophic group regression",
+        "parentVersion": "v389",
+        "reason": "rollback anchor before working advancement",
+        "regressedGroups": 0,
+        "regression": 0.047206280079292284,
+        "runId": "run-1",
+        "schema": "sma/working@1",
+        "stableBaselineVersion": "v389",
+        "tokensSeen": 30720,
+        "updatedAt": "2026-11-04T00:44:41Z",
+        "version": "v389",
+        "weightFingerprint": "5e522ece26ee"
+      }
+    },
+    "consumptionLines": 6,
+    "models": {
+      "v001": 264744587,
+      "v389": 264728373
+    },
+    "runs": {
+      "v001.train-state.pt": 0
+    }
+  },
+  "after": {
+    "active.json": {
+      "sha256": "bc8a306fc4ae2530b203514ea0db0b872276e5b2c1384b5e06b20113ca7edbdd",
+      "json": {
+        "activatedAt": "2026-11-04T00:42:23Z",
+        "artifactName": "simpleminds-62m-20261018-5e522ece26ee",
+        "schema": "sma/active@1",
+        "version": "v389",
+        "weightFingerprint": "5e522ece26ee"
+      }
+    },
+    "working.json": {
+      "sha256": "f7e601870a4280d72d4bf9e5d34016c0bad2686d76bdea68fd143c7b65696368",
+      "json": {
+        "artifactName": "simpleminds-62m-20261018-365bd74be9db",
+        "datasetHash": "b68d8910c1cec2537011b7c4a98beb75cfd277f3b18e8ab2b4c3f83879af8176",
+        "drift": 0.047206280079292284,
+        "evalLoss": 8.084907047292019,
+        "groupsCompared": 60,
+        "guardDecision": "accepted",
+        "guardReason": "working guard accepted: overall regressed 0.0472 nats; no catastrophic group regression",
+        "parentVersion": "v389",
+        "regressedGroups": 0,
+        "regression": 0.047206280079292284,
+        "runId": "run-1",
+        "schema": "sma/working@1",
+        "stableBaselineVersion": "v389",
+        "tokensSeen": 30720,
+        "updatedAt": "2026-11-04T00:44:42Z",
+        "version": "v001",
+        "weightFingerprint": "365bd74be9db"
+      }
+    },
+    "working-last-good.json": {
+      "sha256": "901116de1fe0ccc579de0a67b01b07cc943b297637581e3b2c3646af2f88680f",
+      "json": {
+        "artifactName": "simpleminds-62m-20261018-5e522ece26ee",
+        "datasetHash": "b68d8910c1cec2537011b7c4a98beb75cfd277f3b18e8ab2b4c3f83879af8176",
+        "drift": 0.047206280079292284,
+        "evalLoss": 8.084907047292019,
+        "groupsCompared": 60,
+        "guardDecision": "accepted",
+        "guardReason": "working guard accepted: overall regressed 0.0472 nats; no catastrophic group regression",
+        "parentVersion": "v389",
+        "reason": "rollback anchor before working advancement",
+        "regressedGroups": 0,
+        "regression": 0.047206280079292284,
+        "runId": "run-1",
+        "schema": "sma/working@1",
+        "stableBaselineVersion": "v389",
+        "tokensSeen": 30720,
+        "updatedAt": "2026-11-04T00:44:41Z",
+        "version": "v389",
+        "weightFingerprint": "5e522ece26ee"
+      }
+    },
+    "consumptionLines": 6,
+    "models": {
+      "v001": 264744587,
+      "v389": 264728373
+    },
+    "runs": {
+      "v001.train-state.pt": 0,
+      "v002.lock": 0
+    }
+  },
+  "activeSame": true,
+  "workingSame": true,
+  "lastGoodSame": true,
+  "consumptionSame": true,
+  "modelsSame": true,
+  "runsSame": false,
+  "stagedTmp": []
+}

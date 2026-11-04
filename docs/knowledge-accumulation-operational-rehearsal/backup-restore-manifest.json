@@ -1,0 +1,86 @@
+{
+  "schema": "sma/backup-restore-rehearsal@1",
+  "at": "2026-11-04T05:05:20.236338+00:00",
+  "modelStoreSource": "/home/dave/sma-experiments/knowledge-accumulation-pilot-20261102/pilot-store",
+  "ledgerSnapshotSource": "/home/dave/sma-experiments/knowledge-accumulation-operational-rehearsal-20261103/snapshot",
+  "archives": {
+    "modelStore": {
+      "path": "/home/dave/sma-experiments/knowledge-accumulation-operational-rehearsal-20261103/backups/model-store.tar",
+      "sha256": "0309853149a39ba14f78d3a9cdb9cd8e0e34659abe6b8674ed45187be82a38b2"
+    },
+    "productionLedgers": {
+      "path": "/home/dave/sma-experiments/knowledge-accumulation-operational-rehearsal-20261103/backups/production-ledgers.tar",
+      "sha256": "540150ddfca8df69abfec0aa85fdf4de81a116edd37e155a4aff4b320d9c09ca"
+    }
+  },
+  "restore": {
+    "modelStore": {
+      "sourceFiles": 36,
+      "restoredFiles": 36,
+      "missing": [],
+      "extra": [],
+      "hashMismatches": []
+    },
+    "ledgers": {
+      "sourceFiles": 19022,
+      "restoredFiles": 19022,
+      "missing": [],
+      "extra": [],
+      "hashMismatches": []
+    }
+  },
+  "pointers": {
+    "active": {
+      "activatedAt": "2026-11-03T22:48:04Z",
+      "artifactName": "simpleminds-62m-20261018-d93e2c643988",
+      "schema": "sma/active@1",
+      "version": "v001",
+      "weightFingerprint": "d93e2c643988"
+    },
+    "working": {
+      "artifactName": "simpleminds-62m-20261018-6ae5111af363",
+      "datasetHash": "b68d8910c1cec2537011b7c4a98beb75cfd277f3b18e8ab2b4c3f83879af8176",
+      "drift": 0.061294492254866384,
+      "evalLoss": 8.089075580556342,
+      "groupsCompared": 60,
+      "guardDecision": "accepted",
+      "guardReason": "working guard accepted: overall regressed 0.0613 nats; no catastrophic group regression",
+      "parentVersion": "v001",
+      "regressedGroups": 0,
+      "regression": 0.061294492254866384,
+      "runId": "run-2",
+      "schema": "sma/working@1",
+      "stableBaselineVersion": "v001",
+      "tokensSeen": 33280,
+      "updatedAt": "2026-11-03T22:51:40Z",
+      "version": "v002",
+      "weightFingerprint": "6ae5111af363"
+    },
+    "lastGood": {
+      "artifactName": "simpleminds-62m-20261018-d93e2c643988",
+      "datasetHash": "b68d8910c1cec2537011b7c4a98beb75cfd277f3b18e8ab2b4c3f83879af8176",
+      "drift": 0.061294492254866384,
+      "evalLoss": 8.089075580556342,
+      "groupsCompared": 60,
+      "guardDecision": "accepted",
+      "guardReason": "working guard accepted: overall regressed 0.0613 nats; no catastrophic group regression",
+      "parentVersion": "v001",
+      "reason": "rollback anchor before working advancement",
+      "regressedGroups": 0,
+      "regression": 0.061294492254866384,
+      "runId": "run-2",
+      "schema": "sma/working@1",
+      "stableBaselineVersion": "v001",
+      "tokensSeen": 33280,
+      "updatedAt": "2026-11-03T22:51:40Z",
+      "version": "v001",
+      "weightFingerprint": "d93e2c643988"
+    }
+  },
+  "singleFileRestore": {
+    "workingVersion": "v002",
+    "activeVersion": "v001",
+    "lastGoodVersion": "v001"
+  },
+  "ok": true
+}

@@ -1,0 +1,3533 @@
+{
+  "schema": "sma/knowledge-pilot-baseline@1",
+  "at": "2026-11-04T05:04:14.564Z",
+  "gitHead": "7f49a8f74ad36a0a7b76eb4f274622f6931cc8d9",
+  "gitBranch": "knowledge-accumulation-operational-rehearsal-20261103",
+  "paths": {
+    "articles": "/home/dave/sma-experiments/knowledge-accumulation-operational-rehearsal-20261103/snapshot/data/articles",
+    "registry": "/home/dave/sma-experiments/knowledge-accumulation-operational-rehearsal-20261103/snapshot/data/registry",
+    "frontier": "/home/dave/sma-experiments/knowledge-accumulation-operational-rehearsal-20261103/snapshot/data/frontier.ndjson",
+    "store": "/home/dave/sma-experiments/knowledge-accumulation-operational-rehearsal-20261103/snapshot/store"
+  },
+  "active": {
+    "activatedAt": "2026-11-04T04:53:21Z",
+    "artifactName": "simpleminds-62m-20261018-edf63f7283b3",
+    "schema": "sma/active@1",
+    "version": "v493",
+    "weightFingerprint": "edf63f7283b3"
+  },
+  "working": null,
+  "articles": {
+    "totalArticles": 25570,
+    "byStatus": {
+      "INGESTED": 1,
+      "PENDING_REVIEW": 14,
+      "REVIEWED": 7353,
+      "REJECTED": 7953,
+      "RETIRED": 10249,
+      "UNRESOLVED": 0,
+      "QUARANTINED": 0
+    },
+    "byImportance": {
+      "Normal": 24138,
+      "Important": 879,
+      "Critical": 553
+    },
+    "byImportanceSource": {
+      "default": 15719,
+      "teacher": 9851,
+      "automation": 0,
+      "operator": 0
+    },
+    "byDomain": [
+      {
+        "domain": "general",
+        "count": 12442
+      },
+      {
+        "domain": "tech",
+        "count": 6221
+      },
+      {
+        "domain": "science",
+        "count": 1835
+      },
+      {
+        "domain": "history",
+        "count": 1425
+      },
+      {
+        "domain": "computer science",
+        "count": 155
+      },
+      {
+        "domain": "books",
+        "count": 136
+      },
+      {
+        "domain": "security",
+        "count": 109
+      },
+      {
+        "domain": "technology",
+        "count": 92
+      },
+      {
+        "domain": "leadership",
+        "count": 87
+      },
+      {
+        "domain": "physics",
+        "count": 70
+      },
+      {
+        "domain": "howto",
+        "count": 64
+      },
+      {
+        "domain": "computers, technology and science",
+        "count": 60
+      },
+      {
+        "domain": "blockchain",
+        "count": 57
+      },
+      {
+        "domain": "bioinformatics",
+        "count": 53
+      },
+      {
+        "domain": "wikipedia",
+        "count": 51
+      },
+      {
+        "domain": "business",
+        "count": 50
+      },
+      {
+        "domain": "philosophy",
+        "count": 46
+      },
+      {
+        "domain": "stackoverflow.com",
+        "count": 39
+      },
+      {
+        "domain": "techdirt",
+        "count": 39
+      },
+      {
+        "domain": "commerce",
+        "count": 35
+      },
+      {
+        "domain": "wikimedia commons",
+        "count": 33
+      },
+      {
+        "domain": "art",
+        "count": 30
+      },
+      {
+        "domain": "aeronautics",
+        "count": 30
+      },
+      {
+        "domain": "forbes.com",
+        "count": 30
+      },
+      {
+        "domain": "software engineering",
+        "count": 30
+      },
+      {
+        "domain": "en.wikipedia.org",
+        "count": 29
+      },
+      {
+        "domain": "education",
+        "count": 28
+      },
+      {
+        "domain": "engineering",
+        "count": 28
+      },
+      {
+        "domain": "firstpost",
+        "count": 28
+      },
+      {
+        "domain": "",
+        "count": 27
+      },
+      {
+        "domain": "finance",
+        "count": 27
+      },
+      {
+        "domain": "screenshots by operating system",
+        "count": 27
+      },
+      {
+        "domain": "sports",
+        "count": 26
+      },
+      {
+        "domain": "time",
+        "count": 25
+      },
+      {
+        "domain": "ethics",
+        "count": 24
+      },
+      {
+        "domain": "statistics",
+        "count": 24
+      },
+      {
+        "domain": "cryptoWali.com",
+        "count": 24
+      },
+      {
+        "domain": "internet",
+        "count": 24
+      },
+      {
+        "domain": "machine learning",
+        "count": 21
+      },
+      {
+        "domain": "techieLife.com",
+        "count": 20
+      },
+      {
+        "domain": "machine-learning",
+        "count": 19
+      },
+      {
+        "domain": "applied arts and sciences",
+        "count": 19
+      },
+      {
+        "domain": "wikimedia",
+        "count": 18
+      },
+      {
+        "domain": "business analytics",
+        "count": 18
+      },
+      {
+        "domain": "fiction",
+        "count": 17
+      },
+      {
+        "domain": "arts",
+        "count": 17
+      },
+      {
+        "domain": "music",
+        "count": 17
+      },
+      {
+        "domain": "ai-ml",
+        "count": 17
+      },
+      {
+        "domain": "geography",
+        "count": 16
+      },
+      {
+        "domain": "comet",
+        "count": 15
+      },
+      {
+        "domain": "wikifunctions",
+        "count": 15
+      },
+      {
+        "domain": "operating-system",
+        "count": 15
+      },
+      {
+        "domain": "politics",
+        "count": 14
+      },
+      {
+        "domain": "Business and economics",
+        "count": 14
+      },
+      {
+        "domain": "Music",
+        "count": 14
+      },
+      {
+        "domain": "computers",
+        "count": 14
+      },
+      {
+        "domain": "database",
+        "count": 14
+      },
+      {
+        "domain": "computer_network",
+        "count": 14
+      },
+      {
+        "domain": "neural-networks",
+        "count": 13
+      },
+      {
+        "domain": "natural-language-processing",
+        "count": 13
+      },
+      {
+        "domain": "ai",
+        "count": 13
+      },
+      {
+        "domain": "w3c",
+        "count": 13
+      },
+      {
+        "domain": "crypto",
+        "count": 13
+      },
+      {
+        "domain": "mathematics",
+        "count": 12
+      },
+      {
+        "domain": "commons",
+        "count": 12
+      },
+      {
+        "domain": "software",
+        "count": 12
+      },
+      {
+        "domain": "deep-learning",
+        "count": 12
+      },
+      {
+        "domain": "artificial intelligence",
+        "count": 12
+      },
+      {
+        "domain": "government",
+        "count": 12
+      },
+      {
+        "domain": "marketing",
+        "count": 12
+      },
+      {
+        "domain": "regional",
+        "count": 12
+      },
+      {
+        "domain": "linux",
+        "count": 12
+      },
+      {
+        "domain": "math",
+        "count": 11
+      },
+      {
+        "domain": "news",
+        "count": 11
+      },
+      {
+        "domain": "translation",
+        "count": 11
+      },
+      {
+        "domain": "project",
+        "count": 11
+      },
+      {
+        "domain": "software development",
+        "count": 11
+      },
+      {
+        "domain": "Applied arts and sciences",
+        "count": 11
+      },
+      {
+        "domain": "Arts and entertainment",
+        "count": 11
+      },
+      {
+        "domain": "microsoft",
+        "count": 11
+      },
+      {
+        "domain": "smart home",
+        "count": 11
+      },
+      {
+        "domain": "space",
+        "count": 11
+      },
+      {
+        "domain": "arts and entertainment",
+        "count": 11
+      },
+      {
+        "domain": "psychology",
+        "count": 10
+      },
+      {
+        "domain": "apple",
+        "count": 10
+      },
+      {
+        "domain": "unix",
+        "count": 10
+      },
+      {
+        "domain": "web_science",
+        "count": 10
+      },
+      {
+        "domain": "law",
+        "count": 10
+      },
+      {
+        "domain": "geology",
+        "count": 9
+      },
+      {
+        "domain": "enwiki",
+        "count": 9
+      },
+      {
+        "domain": "banking",
+        "count": 9
+      },
+      {
+        "domain": "dmoz",
+        "count": 9
+      },
+      {
+        "domain": "communication",
+        "count": 9
+      },
+      {
+        "domain": "mythology",
+        "count": 9
+      },
+      {
+        "domain": "encyclopedia",
+        "count": 8
+      },
+      {
+        "domain": "culture",
+        "count": 8
+      },
+      {
+        "domain": "other services",
+        "count": 8
+      },
+      {
+        "domain": "Social sciences",
+        "count": 8
+      },
+      {
+        "domain": "article",
+        "count": 8
+      },
+      {
+        "domain": "investors",
+        "count": 8
+      },
+      {
+        "domain": "networkworld.com",
+        "count": 8
+      },
+      {
+        "domain": "mobiledevices",
+        "count": 8
+      },
+      {
+        "domain": "onlinesecurity",
+        "count": 8
+      },
+      {
+        "domain": "social",
+        "count": 8
+      },
+      {
+        "domain": "wikipedia.org",
+        "count": 7
+      },
+      {
+        "domain": "architecture",
+        "count": 7
+      },
+      {
+        "domain": "medicine",
+        "count": 7
+      },
+      {
+        "domain": "scholarly_journals",
+        "count": 7
+      },
+      {
+        "domain": "scholarly-journals",
+        "count": 7
+      },
+      {
+        "domain": "economics and law",
+        "count": 7
+      },
+      {
+        "domain": "Natural sciences",
+        "count": 7
+      },
+      {
+        "domain": "energy",
+        "count": 7
+      },
+      {
+        "domain": "smart-home",
+        "count": 7
+      },
+      {
+        "domain": "businessinsider.in",
+        "count": 7
+      },
+      {
+        "domain": "machine-learning-ai",
+        "count": 7
+      },
+      {
+        "domain": "artificial-intelligence",
+        "count": 7
+      },
+      {
+        "domain": "crypt",
+        "count": 7
+      },
+      {
+        "domain": "training",
+        "count": 7
+      },
+      {
+        "domain": "historie",
+        "count": 6
+      },
+      {
+        "domain": "community",
+        "count": 6
+      },
+      {
+        "domain": "biography",
+        "count": 6
+      },
+      {
+        "domain": "física",
+        "count": 6
+      },
+      {
+        "domain": "nasa.gov",
+        "count": 6
+      },
+      {
+        "domain": "military",
+        "count": 6
+      },
+      {
+        "domain": "nature",
+        "count": 6
+      },
+      {
+        "domain": "supply",
+        "count": 6
+      },
+      {
+        "domain": "other",
+        "count": 6
+      },
+      {
+        "domain": "book",
+        "count": 6
+      },
+      {
+        "domain": "cloud",
+        "count": 6
+      },
+      {
+        "domain": "pootergeek.com",
+        "count": 6
+      },
+      {
+        "domain": "blog",
+        "count": 6
+      },
+      {
+        "domain": "religion",
+        "count": 5
+      },
+      {
+        "domain": "film",
+        "count": 5
+      },
+      {
+        "domain": "futbol",
+        "count": 5
+      },
+      {
+        "domain": "wasserhaltung",
+        "count": 5
+      },
+      {
+        "domain": "biology",
+        "count": 5
+      },
+      {
+        "domain": "sociology",
+        "count": 5
+      },
+      {
+        "domain": "data science",
+        "count": 5
+      },
+      {
+        "domain": "quant-ph",
+        "count": 5
+      },
+      {
+        "domain": "Mathematics",
+        "count": 5
+      },
+      {
+        "domain": "bitcoin",
+        "count": 5
+      },
+      {
+        "domain": "email hosting service",
+        "count": 5
+      },
+      {
+        "domain": "block-cipher",
+        "count": 5
+      },
+      {
+        "domain": "cryptography",
+        "count": 5
+      },
+      {
+        "domain": "health",
+        "count": 4
+      },
+      {
+        "domain": "política",
+        "count": 4
+      },
+      {
+        "domain": "geode",
+        "count": 4
+      },
+      {
+        "domain": "legal",
+        "count": 4
+      },
+      {
+        "domain": "Reims",
+        "count": 4
+      },
+      {
+        "domain": "literature",
+        "count": 4
+      },
+      {
+        "domain": "música",
+        "count": 4
+      },
+      {
+        "domain": "applications",
+        "count": 4
+      },
+      {
+        "domain": "en",
+        "count": 4
+      },
+      {
+        "domain": "properties",
+        "count": 4
+      },
+      {
+        "domain": "climate",
+        "count": 4
+      },
+      {
+        "domain": "nlp",
+        "count": 4
+      },
+      {
+        "domain": "production",
+        "count": 4
+      },
+      {
+        "domain": "enterprise",
+        "count": 4
+      },
+      {
+        "domain": "economics",
+        "count": 4
+      },
+      {
+        "domain": "medicine and health",
+        "count": 4
+      },
+      {
+        "domain": "Philosophy",
+        "count": 4
+      },
+      {
+        "domain": "Sports",
+        "count": 4
+      },
+      {
+        "domain": "Other",
+        "count": 4
+      },
+      {
+        "domain": "collaboration software",
+        "count": 4
+      },
+      {
+        "domain": "bbva.com",
+        "count": 4
+      },
+      {
+        "domain": "businessinsider",
+        "count": 4
+      },
+      {
+        "domain": "development tools",
+        "count": 4
+      },
+      {
+        "domain": "telegram.org",
+        "count": 4
+      },
+      {
+        "domain": "webarchive",
+        "count": 4
+      },
+      {
+        "domain": "DareYourMind.com",
+        "count": 4
+      },
+      {
+        "domain": "medical",
+        "count": 4
+      },
+      {
+        "domain": "telecommunications",
+        "count": 4
+      },
+      {
+        "domain": "network-programming",
+        "count": 4
+      },
+      {
+        "domain": "worldwidewebfoundation",
+        "count": 4
+      },
+      {
+        "domain": "generative-ai",
+        "count": 4
+      },
+      {
+        "domain": "cryptanalysis",
+        "count": 4
+      },
+      {
+        "domain": "research infrastructure",
+        "count": 4
+      },
+      {
+        "domain": "উইকিপিডিয়া",
+        "count": 3
+      },
+      {
+        "domain": "wiki",
+        "count": 3
+      },
+      {
+        "domain": "aktualaĵoj",
+        "count": 3
+      },
+      {
+        "domain": "hu.wikipedia.org",
+        "count": 3
+      },
+      {
+        "domain": "ast.wikipedia.org",
+        "count": 3
+      },
+      {
+        "domain": "ba.wikipedia.org",
+        "count": 3
+      },
+      {
+        "domain": "cinema",
+        "count": 3
+      },
+      {
+        "domain": "فەرھەنگ",
+        "count": 3
+      },
+      {
+        "domain": "ckb.wikipedia.org",
+        "count": 3
+      },
+      {
+        "domain": "entertainment",
+        "count": 3
+      },
+      {
+        "domain": "plos.org",
+        "count": 3
+      },
+      {
+        "domain": "hubble.esa.int",
+        "count": 3
+      },
+      {
+        "domain": "agency",
+        "count": 3
+      },
+      {
+        "domain": "gaming",
+        "count": 3
+      },
+      {
+        "domain": "computer_science",
+        "count": 3
+      },
+      {
+        "domain": "partnership",
+        "count": 3
+      },
+      {
+        "domain": "fots ar",
+        "count": 3
+      },
+      {
+        "domain": "data-engineering",
+        "count": 3
+      },
+      {
+        "domain": "large-language-models",
+        "count": 3
+      },
+      {
+        "domain": "nature.com",
+        "count": 3
+      },
+      {
+        "domain": "Biography",
+        "count": 3
+      },
+      {
+        "domain": "android",
+        "count": 3
+      },
+      {
+        "domain": "windows",
+        "count": 3
+      },
+      {
+        "domain": "trade",
+        "count": 3
+      },
+      {
+        "domain": "Telecommunications",
+        "count": 3
+      },
+      {
+        "domain": "iot",
+        "count": 3
+      },
+      {
+        "domain": "definition",
+        "count": 3
+      },
+      {
+        "domain": "person",
+        "count": 3
+      },
+      {
+        "domain": "logical interpretation",
+        "count": 3
+      },
+      {
+        "domain": "robotics",
+        "count": 3
+      },
+      {
+        "domain": "lattice-crypto",
+        "count": 3
+      },
+      {
+        "domain": "data analysis",
+        "count": 3
+      },
+      {
+        "domain": "coordination",
+        "count": 3
+      },
+      {
+        "domain": "industrial automation and control",
+        "count": 3
+      },
+      {
+        "domain": "external_identifier",
+        "count": 3
+      },
+      {
+        "domain": "विकिपीडिया",
+        "count": 2
+      },
+      {
+        "domain": "വിക്കിപീഡിയ",
+        "count": 2
+      },
+      {
+        "domain": "policy",
+        "count": 2
+      },
+      {
+        "domain": "terminology",
+        "count": 2
+      },
+      {
+        "domain": "bairisch",
+        "count": 2
+      },
+      {
+        "domain": "Wikipedia",
+        "count": 2
+      },
+      {
+        "domain": "organization",
+        "count": 2
+      },
+      {
+        "domain": "historia",
+        "count": 2
+      },
+      {
+        "domain": "foundation",
+        "count": 2
+      },
+      {
+        "domain": "беларусь",
+        "count": 2
+      },
+      {
+        "domain": "беларуская",
+        "count": 2
+      },
+      {
+        "domain": "geografie",
+        "count": 2
+      },
+      {
+        "domain": "geographie",
+        "count": 2
+      },
+      {
+        "domain": "sport",
+        "count": 2
+      },
+      {
+        "domain": "transport",
+        "count": 2
+      },
+      {
+        "domain": "kurdish.wikipedia.org",
+        "count": 2
+      },
+      {
+        "domain": "Wikipedia:Hauptseite",
+        "count": 2
+      },
+      {
+        "domain": "anthropology",
+        "count": 2
+      },
+      {
+        "domain": "zoology",
+        "count": 2
+      },
+      {
+        "domain": "space safety",
+        "count": 2
+      },
+      {
+        "domain": "wikimania.wikimedia.org",
+        "count": 2
+      },
+      {
+        "domain": "es",
+        "count": 2
+      },
+      {
+        "domain": "de",
+        "count": 2
+      },
+      {
+        "domain": "industry",
+        "count": 2
+      },
+      {
+        "domain": "python",
+        "count": 2
+      },
+      {
+        "domain": "healthcare",
+        "count": 2
+      },
+      {
+        "domain": "aviation",
+        "count": 2
+      },
+      {
+        "domain": "categories",
+        "count": 2
+      },
+      {
+        "domain": "members",
+        "count": 2
+      },
+      {
+        "domain": "product design",
+        "count": 2
+      },
+      {
+        "domain": "entrepreneurship",
+        "count": 2
+      },
+      {
+        "domain": "agentic-ai",
+        "count": 2
+      },
+      {
+        "domain": "other uses",
+        "count": 2
+      },
+      {
+        "domain": "ontology",
+        "count": 2
+      },
+      {
+        "domain": "sustainability",
+        "count": 2
+      },
+      {
+        "domain": "transportation",
+        "count": 2
+      },
+      {
+        "domain": "agriculture",
+        "count": 2
+      },
+      {
+        "domain": "browser security",
+        "count": 2
+      },
+      {
+        "domain": "cloud computing",
+        "count": 2
+      },
+      {
+        "domain": "real estate",
+        "count": 2
+      },
+      {
+        "domain": "AI",
+        "count": 2
+      },
+      {
+        "domain": "industrial",
+        "count": 2
+      },
+      {
+        "domain": "infrastructure",
+        "count": 2
+      },
+      {
+        "domain": "it-infrastructure",
+        "count": 2
+      },
+      {
+        "domain": "tr",
+        "count": 2
+      },
+      {
+        "domain": "programming languages",
+        "count": 2
+      },
+      {
+        "domain": "application security",
+        "count": 2
+      },
+      {
+        "domain": "analytics",
+        "count": 2
+      },
+      {
+        "domain": "computing",
+        "count": 2
+      },
+      {
+        "domain": "risk management",
+        "count": 2
+      },
+      {
+        "domain": "advantages",
+        "count": 2
+      },
+      {
+        "domain": "ieee",
+        "count": 2
+      },
+      {
+        "domain": "griddb",
+        "count": 2
+      },
+      {
+        "domain": "guidewire",
+        "count": 2
+      },
+      {
+        "domain": "cerias",
+        "count": 2
+      },
+      {
+        "domain": "cert",
+        "count": 2
+      },
+      {
+        "domain": "patchmanagement",
+        "count": 2
+      },
+      {
+        "domain": "MEA",
+        "count": 2
+      },
+      {
+        "domain": "namecheap",
+        "count": 2
+      },
+      {
+        "domain": "conceptualization",
+        "count": 2
+      },
+      {
+        "domain": "constraints",
+        "count": 2
+      },
+      {
+        "domain": "publisher",
+        "count": 2
+      },
+      {
+        "domain": "boxid",
+        "count": 2
+      },
+      {
+        "domain": "identifier",
+        "count": 2
+      },
+      {
+        "domain": "ocr",
+        "count": 2
+      },
+      {
+        "domain": "ocr_module_version",
+        "count": 2
+      },
+      {
+        "domain": "pages",
+        "count": 2
+      },
+      {
+        "domain": "pdf_module_version",
+        "count": 2
+      },
+      {
+        "domain": "scanner",
+        "count": 2
+      },
+      {
+        "domain": "crm",
+        "count": 2
+      },
+      {
+        "domain": "wired",
+        "count": 2
+      },
+      {
+        "domain": "cybercrime",
+        "count": 2
+      },
+      {
+        "domain": "productivity-software",
+        "count": 2
+      },
+      {
+        "domain": "universal-composability",
+        "count": 2
+      },
+      {
+        "domain": "rsa",
+        "count": 2
+      },
+      {
+        "domain": "love",
+        "count": 2
+      },
+      {
+        "domain": "emergingtech",
+        "count": 2
+      },
+      {
+        "domain": "poland",
+        "count": 2
+      },
+      {
+        "domain": "description",
+        "count": 2
+      },
+      {
+        "domain": "self-help",
+        "count": 2
+      },
+      {
+        "domain": "fashion",
+        "count": 2
+      },
+      {
+        "domain": "civil war",
+        "count": 2
+      },
+      {
+        "domain": "people",
+        "count": 1
+      },
+      {
+        "domain": "behavior",
+        "count": 1
+      },
+      {
+        "domain": "សិល្បៈខ្មែរ",
+        "count": 1
+      },
+      {
+        "domain": "ប្រវត្តិសាស្ត្រខ្មែរ",
+        "count": 1
+      },
+      {
+        "domain": "မာတိကာ",
+        "count": 1
+      },
+      {
+        "domain": "ပရောဂျက်",
+        "count": 1
+      },
+      {
+        "domain": "ရုပ်ပိုင်း",
+        "count": 1
+      },
+      {
+        "domain": "วิกิพีเดีย",
+        "count": 1
+      },
+      {
+        "domain": "tatarstan",
+        "count": 1
+      },
+      {
+        "domain": "नेपाली भाषा",
+        "count": 1
+      },
+      {
+        "domain": "guerra",
+        "count": 1
+      },
+      {
+        "domain": "fútbol",
+        "count": 1
+      },
+      {
+        "domain": "politik",
+        "count": 1
+      },
+      {
+        "domain": "অসমীয়া ৱিকিপিডিয়া",
+        "count": 1
+      },
+      {
+        "domain": "wikiquote",
+        "count": 1
+      },
+      {
+        "domain": "wiktionary",
+        "count": 1
+      },
+      {
+        "domain": "ရောမ်ဖြုဲင်ꩻ",
+        "count": 1
+      },
+      {
+        "domain": "typing",
+        "count": 1
+      },
+      {
+        "domain": "fonts and styles",
+        "count": 1
+      },
+      {
+        "domain": "spelling",
+        "count": 1
+      },
+      {
+        "domain": "Qıdır",
+        "count": 1
+      },
+      {
+        "domain": "Wikipedia:Griaßde",
+        "count": 1
+      },
+      {
+        "domain": "မူဝါဒတောမ်ႏ ယီးထွဉ်ႏအွဉ်ႏနယ်ချက် မိတ်ဆက်",
+        "count": 1
+      },
+      {
+        "domain": "ဝီခီပီးဒီးယား မိတ်ဆက် မွဉ်းဖျင်ခြပ်ချော်ꩻ",
+        "count": 1
+      },
+      {
+        "domain": "Վիքիպեդիա",
+        "count": 1
+      },
+      {
+        "domain": "ვიკიპედია",
+        "count": 1
+      },
+      {
+        "domain": "विकिप्रोजेक्ट लीलावती की बेटियाँ",
+        "count": 1
+      },
+      {
+        "domain": "विकिप्रोजेक्ट भारत",
+        "count": 1
+      },
+      {
+        "domain": "विकिप्रोजेक्ट क्रिकेट",
+        "count": 1
+      },
+      {
+        "domain": "Advanced Train the Trainer 2025",
+        "count": 1
+      },
+      {
+        "domain": "Parsoid",
+        "count": 1
+      },
+      {
+        "domain": "South Asian Community and the Annual Planning Discussions with WMF",
+        "count": 1
+      },
+      {
+        "domain": "basabali",
+        "count": 1
+      },
+      {
+        "domain": "беларуская Вікіпэдыя",
+        "count": 1
+      },
+      {
+        "domain": "esperanto",
+        "count": 1
+      },
+      {
+        "domain": "promoti",
+        "count": 1
+      },
+      {
+        "domain": "qaraqalpaqsha",
+        "count": 1
+      },
+      {
+        "domain": "afrikaans",
+        "count": 1
+      },
+      {
+        "domain": "хумих",
+        "count": 1
+      },
+      {
+        "domain": "Эхлэл",
+        "count": 1
+      },
+      {
+        "domain": "Цахим холбоос",
+        "count": 1
+      },
+      {
+        "domain": "ရေနွေးငွေ့ အင်ဂျင်",
+        "count": 1
+      },
+      {
+        "domain": "alemannisch",
+        "count": 1
+      },
+      {
+        "domain": "fisica",
+        "count": 1
+      },
+      {
+        "domain": "inventos d'o Reino Uniu",
+        "count": 1
+      },
+      {
+        "domain": "مصر الفرعونيه",
+        "count": 1
+      },
+      {
+        "domain": "مصر البطلميه",
+        "count": 1
+      },
+      {
+        "domain": "مصر الاسلاميه",
+        "count": 1
+      },
+      {
+        "domain": "مصر القبطيه",
+        "count": 1
+      },
+      {
+        "domain": "مصر المملوكيه",
+        "count": 1
+      },
+      {
+        "domain": "مصرى",
+        "count": 1
+      },
+      {
+        "domain": "مصريين حسب المهنة",
+        "count": 1
+      },
+      {
+        "domain": "সহায়",
+        "count": 1
+      },
+      {
+        "domain": "বিষয়",
+        "count": 1
+      },
+      {
+        "domain": "সাহিত্যিক কলা",
+        "count": 1
+      },
+      {
+        "domain": "বাংলা",
+        "count": 1
+      },
+      {
+        "domain": "উদ্ধৃতিৰ প্ৰয়োজন",
+        "count": 1
+      },
+      {
+        "domain": "অসমীয়া পোখালি",
+        "count": 1
+      },
+      {
+        "domain": "কুন্দ",
+        "count": 1
+      },
+      {
+        "domain": "সাহিত্য",
+        "count": 1
+      },
+      {
+        "domain": "সাধাৰণ দায়লুপ্তি",
+        "count": 1
+      },
+      {
+        "domain": "energia",
+        "count": 1
+      },
+      {
+        "domain": "فوتбол",
+        "count": 1
+      },
+      {
+        "domain": "photography",
+        "count": 1
+      },
+      {
+        "domain": "вікіпэдыя",
+        "count": 1
+      },
+      {
+        "domain": "клімат",
+        "count": 1
+      },
+      {
+        "domain": "валагодзкая вобласьць",
+        "count": 1
+      },
+      {
+        "domain": "Вікіпэдыя:Істотныя артыкулы",
+        "count": 1
+      },
+      {
+        "domain": "wikimedia.org",
+        "count": 1
+      },
+      {
+        "domain": "belarus",
+        "count": 1
+      },
+      {
+        "domain": "teknologi",
+        "count": 1
+      },
+      {
+        "domain": "technologie",
+        "count": 1
+      },
+      {
+        "domain": "biblioteka",
+        "count": 1
+      },
+      {
+        "domain": "sound",
+        "count": 1
+      },
+      {
+        "domain": "donation",
+        "count": 1
+      },
+      {
+        "domain": "museums",
+        "count": 1
+      },
+      {
+        "domain": "references",
+        "count": 1
+      },
+      {
+        "domain": "наука",
+        "count": 1
+      },
+      {
+        "domain": "বাংলা উইকিপিডিয়া",
+        "count": 1
+      },
+      {
+        "domain": "উইকিপিডিয়া সংক্রান্ত নীতিমালা",
+        "count": 1
+      },
+      {
+        "domain": "সাহায্য",
+        "count": 1
+      },
+      {
+        "domain": "অনুসন্ধান",
+        "count": 1
+      },
+      {
+        "domain": "তথ্য",
+        "count": 1
+      },
+      {
+        "domain": "উদ্ভিদবিজ্ঞান",
+        "count": 1
+      },
+      {
+        "domain": "বিজ্ঞান",
+        "count": 1
+      },
+      {
+        "domain": "geograph.org.uk",
+        "count": 1
+      },
+      {
+        "domain": "যন্ত্রকৌশল",
+        "count": 1
+      },
+      {
+        "domain": "স্থায়ীভাবে অকার্যকর বহিঃসংযোগসহ নিবন্ধ",
+        "count": 1
+      },
+      {
+        "domain": "শিক্ষা, তথ্য, সম্প্রদায়",
+        "count": 1
+      },
+      {
+        "domain": "knjižvnost",
+        "count": 1
+      },
+      {
+        "domain": "arhitektura",
+        "count": 1
+      },
+      {
+        "domain": "geografija",
+        "count": 1
+      },
+      {
+        "domain": "politika",
+        "count": 1
+      },
+      {
+        "domain": "tehnik",
+        "count": 1
+      },
+      {
+        "domain": "world war II",
+        "count": 1
+      },
+      {
+        "domain": "mitologia egípcia",
+        "count": 1
+      },
+      {
+        "domain": "països catalans",
+        "count": 1
+      },
+      {
+        "domain": "literatura",
+        "count": 1
+      },
+      {
+        "domain": "tecnologia",
+        "count": 1
+      },
+      {
+        "domain": "espaci",
+        "count": 1
+      },
+      {
+        "domain": "trial",
+        "count": 1
+      },
+      {
+        "domain": "tennis",
+        "count": 1
+      },
+      {
+        "domain": "natació",
+        "count": 1
+      },
+      {
+        "domain": "astronomia",
+        "count": 1
+      },
+      {
+        "domain": "periodisme",
+        "count": 1
+      },
+      {
+        "domain": "kurdish",
+        "count": 1
+      },
+      {
+        "domain": "فیزیک",
+        "count": 1
+      },
+      {
+        "domain": "فەرھەنگی زاراوەی ئەدەبی و ڕەخنەیی - نەوزاد ئەحمەد ئەسوەد.",
+        "count": 1
+      },
+      {
+        "domain": "astronomie",
+        "count": 1
+      },
+      {
+        "domain": "biologie a biochemie",
+        "count": 1
+      },
+      {
+        "domain": "doprava a technika",
+        "count": 1
+      },
+      {
+        "domain": "geografie a geologie",
+        "count": 1
+      },
+      {
+        "domain": "právo a politika",
+        "count": 1
+      },
+      {
+        "domain": "lingvistika",
+        "count": 1
+      },
+      {
+        "domain": "matematika a fyzika",
+        "count": 1
+      },
+      {
+        "domain": "náboženství",
+        "count": 1
+      },
+      {
+        "domain": "sport a hry",
+        "count": 1
+      },
+      {
+        "domain": "umění",
+        "count": 1
+      },
+      {
+        "domain": "válečnictví",
+        "count": 1
+      },
+      {
+        "domain": "životopisy",
+        "count": 1
+      },
+      {
+        "domain": "seznamy",
+        "count": 1
+      },
+      {
+        "domain": "technika",
+        "count": 1
+      },
+      {
+        "domain": "peiriant_ager",
+        "count": 1
+      },
+      {
+        "domain": "image",
+        "count": 1
+      },
+      {
+        "domain": "ffiseg",
+        "count": 1
+      },
+      {
+        "domain": "diwydiant",
+        "count": 1
+      },
+      {
+        "domain": "mytologi",
+        "count": 1
+      },
+      {
+        "domain": "musik",
+        "count": 1
+      },
+      {
+        "domain": "naturvidenskab",
+        "count": 1
+      },
+      {
+        "domain": "arkiver",
+        "count": 1
+      },
+      {
+        "domain": "genvurdering",
+        "count": 1
+      },
+      {
+        "domain": "cooking",
+        "count": 1
+      },
+      {
+        "domain": "textiles",
+        "count": 1
+      },
+      {
+        "domain": "dance",
+        "count": 1
+      },
+      {
+        "domain": "fysik",
+        "count": 1
+      },
+      {
+        "domain": "klima",
+        "count": 1
+      },
+      {
+        "domain": "automotive",
+        "count": 1
+      },
+      {
+        "domain": "career",
+        "count": 1
+      },
+      {
+        "domain": "naυτιλία",
+        "count": 1
+      },
+      {
+        "domain": "cond-mat.stat-mech",
+        "count": 1
+      },
+      {
+        "domain": "aging and health",
+        "count": 1
+      },
+      {
+        "domain": "research ethics",
+        "count": 1
+      },
+      {
+        "domain": "sports science",
+        "count": 1
+      },
+      {
+        "domain": "public policy",
+        "count": 1
+      },
+      {
+        "domain": "wastewater and environmental surveillance",
+        "count": 1
+      },
+      {
+        "domain": "environmental change",
+        "count": 1
+      },
+      {
+        "domain": "telemedicine research",
+        "count": 1
+      },
+      {
+        "domain": "animal behaviour",
+        "count": 1
+      },
+      {
+        "domain": "health research",
+        "count": 1
+      },
+      {
+        "domain": "ageing and health",
+        "count": 1
+      },
+      {
+        "domain": "biodiversity",
+        "count": 1
+      },
+      {
+        "domain": "high energy astrophysical phenomena",
+        "count": 1
+      },
+      {
+        "domain": "mesoscale and nanoscale physics",
+        "count": 1
+      },
+      {
+        "domain": "atmosphere",
+        "count": 1
+      },
+      {
+        "domain": "biosphere",
+        "count": 1
+      },
+      {
+        "domain": "cryosphere",
+        "count": 1
+      },
+      {
+        "domain": "geosphere",
+        "count": 1
+      },
+      {
+        "domain": "hydrosphere",
+        "count": 1
+      },
+      {
+        "domain": "universe",
+        "count": 1
+      },
+      {
+        "domain": "exoplanets",
+        "count": 1
+      },
+      {
+        "domain": "astro-ph.EP",
+        "count": 1
+      },
+      {
+        "domain": "astro-ph.GA",
+        "count": 1
+      },
+      {
+        "domain": "foundation.wikimedia.org",
+        "count": 1
+      },
+      {
+        "domain": "wikimediafoundation.org",
+        "count": 1
+      },
+      {
+        "domain": "wikimediafoundation",
+        "count": 1
+      },
+      {
+        "domain": "incubator.wikimedia.org",
+        "count": 1
+      },
+      {
+        "domain": "enterprise.wikimedia.org",
+        "count": 1
+      },
+      {
+        "domain": "mediawiki.org",
+        "count": 1
+      },
+      {
+        "domain": "wikitech.wikimedia.org",
+        "count": 1
+      },
+      {
+        "domain": "phabricator.wikimedia.org",
+        "count": 1
+      },
+      {
+        "domain": "test.wikipedia.org",
+        "count": 1
+      },
+      {
+        "domain": "www.wikidata.org",
+        "count": 1
+      },
+      {
+        "domain": "wikivoyage.org",
+        "count": 1
+      },
+      {
+        "domain": "wikiquote.org",
+        "count": 1
+      },
+      {
+        "domain": "wikisource.org",
+        "count": 1
+      },
+      {
+        "domain": "wikibooks.org",
+        "count": 1
+      },
+      {
+        "domain": "wikiversity.org",
+        "count": 1
+      },
+      {
+        "domain": "wiktionary.org",
+        "count": 1
+      },
+      {
+        "domain": "en.wikinews.org",
+        "count": 1
+      },
+      {
+        "domain": "species.wikimedia.org",
+        "count": 1
+      },
+      {
+        "domain": "www.wikifunctions.org",
+        "count": 1
+      },
+      {
+        "domain": "outreach.wikimedia.org",
+        "count": 1
+      },
+      {
+        "domain": "mails.wikimedia.org",
+        "count": 1
+      },
+      {
+        "domain": "stats.wikimedia.org",
+        "count": 1
+      },
+      {
+        "domain": "meta.wikimedia.org/wiki/Babel",
+        "count": 1
+      },
+      {
+        "domain": "meta.wikimedia.org/wiki/Mailing_lists",
+        "count": 1
+      },
+      {
+        "domain": "meta.wikimedia.org/wiki/IRC",
+        "count": 1
+      },
+      {
+        "domain": "meta.wikimedia.org/wiki/Meetups",
+        "count": 1
+      },
+      {
+        "domain": "meta.wikimedia.org/wiki/Events_calendar",
+        "count": 1
+      },
+      {
+        "domain": "meta.wikimedia.org/wiki/Wikimedia_Embassy",
+        "count": 1
+      },
+      {
+        "domain": "meta.wikimedia.org/wiki/Research",
+        "count": 1
+      },
+      {
+        "domain": "meta.wikimedia.org/wiki/Requests",
+        "count": 1
+      },
+      {
+        "domain": "meta.wikimedia.org/wiki/Cross-wiki_issues",
+        "count": 1
+      },
+      {
+        "domain": "meta.wikimedia.org/wiki/Bot_status",
+        "count": 1
+      },
+      {
+        "domain": "meta.wikimedia.org/wiki/CheckUser",
+        "count": 1
+      },
+      {
+        "domain": "meta.wikimedia.org/wiki/Global_blocks/locks",
+        "count": 1
+      },
+      {
+        "domain": "meta.wikimedia.org/wiki/Local_blocks/deletions",
+        "count": 1
+      },
+      {
+        "domain": "meta.wikimedia.org/wiki/Username_changes",
+        "count": 1
+      },
+      {
+        "domain": "meta.wikimedia.org/wiki/Permissions",
+        "count": 1
+      },
+      {
+        "domain": "meta.wikimedia.org/wiki/Spam_blacklist",
+        "count": 1
+      },
+      {
+        "domain": "meta.wikimedia.org/wiki/Title_blacklist",
+        "count": 1
+      },
+      {
+        "domain": "meta.wikimedia.org/wiki/Miscellaneous_requests",
+        "count": 1
+      },
+      {
+        "domain": "meta.wikimedia.org/wiki/U4C_cases",
+        "count": 1
+      },
+      {
+        "domain": "meta.wikimedia.org/wiki/Babylon",
+        "count": 1
+      },
+      {
+        "domain": "meta.wikimedia.org/wiki/Community_Wishlist",
+        "count": 1
+      },
+      {
+        "domain": "meta.wikimedia.org/wiki/Growing_Wikimedia",
+        "count": 1
+      },
+      {
+        "domain": "meta.wikimedia.org/wiki/Dispute_resolution",
+        "count": 1
+      },
+      {
+        "domain": "meta.wikimedia.org/wiki/Requests_for_comment",
+        "count": 1
+      },
+      {
+        "domain": "meta.wikimedia.org/wiki/Community_principles",
+        "count": 1
+      },
+      {
+        "domain": "wikimediafoundation.org/wiki/Wikimedia_Grants",
+        "count": 1
+      },
+      {
+        "domain": "wikimediafoundation.org/wiki/New_sister_projects",
+        "count": 1
+      },
+      {
+        "domain": "wikimediafoundation.org/wiki/New_languages",
+        "count": 1
+      },
+      {
+        "domain": "wikimediafoundation.org/wiki/Project_closures",
+        "count": 1
+      },
+      {
+        "domain": "wikimediafoundation.org/wiki/Account_creation",
+        "count": 1
+      },
+      {
+        "domain": "wikimediafoundation.org/wiki/Log_in",
+        "count": 1
+      },
+      {
+        "domain": "wikimediafoundation.org/wiki/Personal_tools",
+        "count": 1
+      },
+      {
+        "domain": "academia",
+        "count": 1
+      },
+      {
+        "domain": "extinction",
+        "count": 1
+      },
+      {
+        "domain": "wikipedia-ui",
+        "count": 1
+      },
+      {
+        "domain": "wikipedia-lua",
+        "count": 1
+      },
+      {
+        "domain": "wikipedia-spam",
+        "count": 1
+      },
+      {
+        "domain": "git-sync",
+        "count": 1
+      },
+      {
+        "domain": "wikipedia-tbl",
+        "count": 1
+      },
+      {
+        "domain": "profession",
+        "count": 1
+      },
+      {
+        "domain": "pt",
+        "count": 1
+      },
+      {
+        "domain": "ca",
+        "count": 1
+      },
+      {
+        "domain": "ast",
+        "count": 1
+      },
+      {
+        "domain": "cs",
+        "count": 1
+      },
+      {
+        "domain": "ar",
+        "count": 1
+      },
+      {
+        "domain": "eo",
+        "count": 1
+      },
+      {
+        "domain": "pl",
+        "count": 1
+      },
+      {
+        "domain": "lt",
+        "count": 1
+      },
+      {
+        "domain": "bio",
+        "count": 1
+      },
+      {
+        "domain": "earth",
+        "count": 1
+      },
+      {
+        "domain": "gov",
+        "count": 1
+      },
+      {
+        "domain": "projects",
+        "count": 1
+      },
+      {
+        "domain": "IEEE",
+        "count": 1
+      },
+      {
+        "domain": "ieee.org",
+        "count": 1
+      },
+      {
+        "domain": "typescript",
+        "count": 1
+      },
+      {
+        "domain": "rust",
+        "count": 1
+      },
+      {
+        "domain": "r",
+        "count": 1
+      },
+      {
+        "domain": "facebook",
+        "count": 1
+      },
+      {
+        "domain": "spring-boot",
+        "count": 1
+      },
+      {
+        "domain": "python-3.x",
+        "count": 1
+      },
+      {
+        "domain": "computational linguistics -- Statistical methods",
+        "count": 1
+      },
+      {
+        "domain": "travel",
+        "count": 1
+      },
+      {
+        "domain": "insurance",
+        "count": 1
+      },
+      {
+        "domain": "informatics",
+        "count": 1
+      },
+      {
+        "domain": "computergraphics.com",
+        "count": 1
+      },
+      {
+        "domain": "industrial AI",
+        "count": 1
+      },
+      {
+        "domain": "data",
+        "count": 1
+      },
+      {
+        "domain": "digital innovation",
+        "count": 1
+      },
+      {
+        "domain": "central math",
+        "count": 1
+      },
+      {
+        "domain": "theoretical computer science",
+        "count": 1
+      },
+      {
+        "domain": "computer science at work",
+        "count": 1
+      },
+      {
+        "domain": "what computer science does",
+        "count": 1
+      },
+      {
+        "domain": "it",
+        "count": 1
+      },
+      {
+        "domain": "sr",
+        "count": 1
+      },
+      {
+        "domain": "vi",
+        "count": 1
+      },
+      {
+        "domain": "friction",
+        "count": 1
+      },
+      {
+        "domain": "idfiction",
+        "count": 1
+      },
+      {
+        "domain": "arfiction",
+        "count": 1
+      },
+      {
+        "domain": "eswiki",
+        "count": 1
+      },
+      {
+        "domain": "data-and-ai",
+        "count": 1
+      },
+      {
+        "domain": "bloodcancer.org",
+        "count": 1
+      },
+      {
+        "domain": "computer-vision",
+        "count": 1
+      },
+      {
+        "domain": "neuroscience",
+        "count": 1
+      },
+      {
+        "domain": "e-commerce",
+        "count": 1
+      },
+      {
+        "domain": "R",
+        "count": 1
+      },
+      {
+        "domain": "signal processing",
+        "count": 1
+      },
+      {
+        "domain": "chaos theory",
+        "count": 1
+      },
+      {
+        "domain": "linguistics",
+        "count": 1
+      },
+      {
+        "domain": "philosophy of science",
+        "count": 1
+      },
+      {
+        "domain": "epistemology",
+        "count": 1
+      },
+      {
+        "domain": "metaphysics",
+        "count": 1
+      },
+      {
+        "domain": "semiotics",
+        "count": 1
+      },
+      {
+        "domain": "cognitive science",
+        "count": 1
+      },
+      {
+        "domain": "complexity science",
+        "count": 1
+      },
+      {
+        "domain": "ecology",
+        "count": 1
+      },
+      {
+        "domain": "environmental science",
+        "count": 1
+      },
+      {
+        "domain": "urban planning",
+        "count": 1
+      },
+      {
+        "domain": "biotechnology",
+        "count": 1
+      },
+      {
+        "domain": "chemical engineering",
+        "count": 1
+      },
+      {
+        "domain": "civil engineering",
+        "count": 1
+      },
+      {
+        "domain": "electrical engineering",
+        "count": 1
+      },
+      {
+        "domain": "mechanical engineering",
+        "count": 1
+      },
+      {
+        "domain": "materials science",
+        "count": 1
+      },
+      {
+        "domain": "nuclear engineering",
+        "count": 1
+      },
+      {
+        "domain": "petroleum engineering",
+        "count": 1
+      },
+      {
+        "domain": "textile engineering",
+        "count": 1
+      },
+      {
+        "domain": "wood science",
+        "count": 1
+      },
+      {
+        "domain": "cooperation",
+        "count": 1
+      },
+      {
+        "domain": "phonology",
+        "count": 1
+      },
+      {
+        "domain": "vocabulary",
+        "count": 1
+      },
+      {
+        "domain": "grammar",
+        "count": 1
+      },
+      {
+        "domain": "sub-varieties",
+        "count": 1
+      },
+      {
+        "domain": "nationwide usage",
+        "count": 1
+      },
+      {
+        "domain": "see also",
+        "count": 1
+      },
+      {
+        "domain": "notes",
+        "count": 1
+      },
+      {
+        "domain": "bibliography",
+        "count": 1
+      },
+      {
+        "domain": "further reading",
+        "count": 1
+      },
+      {
+        "domain": "external links",
+        "count": 1
+      },
+      {
+        "domain": "florida",
+        "count": 1
+      },
+      {
+        "domain": "georgia",
+        "count": 1
+      },
+      {
+        "domain": "indiana",
+        "count": 1
+      },
+      {
+        "domain": "massachusetts",
+        "count": 1
+      },
+      {
+        "domain": "minnesota",
+        "count": 1
+      },
+      {
+        "domain": "missouri",
+        "count": 1
+      },
+      {
+        "domain": "new jersey",
+        "count": 1
+      },
+      {
+        "domain": "computerworld",
+        "count": 1
+      },
+      {
+        "domain": "media and entertainment industry",
+        "count": 1
+      },
+      {
+        "domain": "energy industry",
+        "count": 1
+      },
+      {
+        "domain": "data center",
+        "count": 1
+      },
+      {
+        "domain": "data privacy",
+        "count": 1
+      },
+      {
+        "domain": "nvidia",
+        "count": 1
+      },
+      {
+        "domain": "comedy",
+        "count": 1
+      },
+      {
+        "domain": "animals",
+        "count": 1
+      },
+      {
+        "domain": "europa.eu",
+        "count": 1
+      },
+      {
+        "domain": "dailyfintech.com",
+        "count": 1
+      },
+      {
+        "domain": "ria.ee",
+        "count": 1
+      },
+      {
+        "domain": "diversity and inclusion",
+        "count": 1
+      },
+      {
+        "domain": "waliBook.com",
+        "count": 1
+      },
+      {
+        "domain": "wali666.com",
+        "count": 1
+      },
+      {
+        "domain": "waliPalm.com",
+        "count": 1
+      },
+      {
+        "domain": "supply chain",
+        "count": 1
+      },
+      {
+        "domain": "identity",
+        "count": 1
+      },
+      {
+        "domain": "digitalcash.hu",
+        "count": 1
+      },
+      {
+        "domain": "musicoin.org",
+        "count": 1
+      },
+      {
+        "domain": "DIY",
+        "count": 1
+      },
+      {
+        "domain": "manufacturing",
+        "count": 1
+      },
+      {
+        "domain": "retail",
+        "count": 1
+      },
+      {
+        "domain": "it-leadership",
+        "count": 1
+      },
+      {
+        "domain": "political",
+        "count": 1
+      },
+      {
+        "domain": "characteristics",
+        "count": 1
+      },
+      {
+        "domain": "shopping",
+        "count": 1
+      },
+      {
+        "domain": "SAMANAH RAYANAMAH HOSTING",
+        "count": 1
+      },
+      {
+        "domain": "cloud architecture",
+        "count": 1
+      },
+      {
+        "domain": "open source",
+        "count": 1
+      },
+      {
+        "domain": "data management",
+        "count": 1
+      },
+      {
+        "domain": "development approaches",
+        "count": 1
+      },
+      {
+        "domain": "business continuity",
+        "count": 1
+      },
+      {
+        "domain": "software providers",
+        "count": 1
+      },
+      {
+        "domain": "it leadership",
+        "count": 1
+      },
+      {
+        "domain": "careers",
+        "count": 1
+      },
+      {
+        "domain": "software deployment",
+        "count": 1
+      },
+      {
+        "domain": "events",
+        "count": 1
+      },
+      {
+        "domain": "cio",
+        "count": 1
+      },
+      {
+        "domain": "sustainability & ESG",
+        "count": 1
+      },
+      {
+        "domain": "cio strategy",
+        "count": 1
+      },
+      {
+        "domain": "it operations",
+        "count": 1
+      },
+      {
+        "domain": "enterprise ai strategy",
+        "count": 1
+      },
+      {
+        "domain": "infrastructure security",
+        "count": 1
+      },
+      {
+        "domain": "data security & privacy",
+        "count": 1
+      },
+      {
+        "domain": "threats & vulnerabilities",
+        "count": 1
+      },
+      {
+        "domain": "value-proposition",
+        "count": 1
+      },
+      {
+        "domain": "adoption-and-suitability",
+        "count": 1
+      },
+      {
+        "domain": "small business",
+        "count": 1
+      },
+      {
+        "domain": "frontline workers",
+        "count": 1
+      },
+      {
+        "domain": "nonprofits",
+        "count": 1
+      },
+      {
+        "domain": "energy & power supply",
+        "count": 1
+      },
+      {
+        "domain": "data center construction",
+        "count": 1
+      },
+      {
+        "domain": "cooling",
+        "count": 1
+      },
+      {
+        "domain": "aws-cloudformation",
+        "count": 1
+      },
+      {
+        "domain": "prisma",
+        "count": 1
+      },
+      {
+        "domain": "google-cloud-platform",
+        "count": 1
+      },
+      {
+        "domain": "azure-functions",
+        "count": 1
+      },
+      {
+        "domain": "salesforce",
+        "count": 1
+      },
+      {
+        "domain": "businessinsider.com",
+        "count": 1
+      },
+      {
+        "domain": "auscert",
+        "count": 1
+      },
+      {
+        "domain": "bugtraq",
+        "count": 1
+      },
+      {
+        "domain": "issxforce",
+        "count": 1
+      },
+      {
+        "domain": "linuxsecurity",
+        "count": 1
+      },
+      {
+        "domain": "nzcert",
+        "count": 1
+      },
+      {
+        "domain": "osvdb",
+        "count": 1
+      },
+      {
+        "domain": "oracle",
+        "count": 1
+      },
+      {
+        "domain": "patchadvisor",
+        "count": 1
+      },
+      {
+        "domain": "sans",
+        "count": 1
+      },
+      {
+        "domain": "secunia",
+        "count": 1
+      },
+      {
+        "domain": "symantec",
+        "count": 1
+      },
+      {
+        "domain": "vupen",
+        "count": 1
+      },
+      {
+        "domain": "MindYourZen.com",
+        "count": 1
+      },
+      {
+        "domain": "RefiYourMind.com",
+        "count": 1
+      },
+      {
+        "domain": "BlowYourMind.net",
+        "count": 1
+      },
+      {
+        "domain": "cisa.gov",
+        "count": 1
+      },
+      {
+        "domain": "techhistory.com",
+        "count": 1
+      },
+      {
+        "domain": "small-business",
+        "count": 1
+      },
+      {
+        "domain": "cyber-attacks",
+        "count": 1
+      },
+      {
+        "domain": "dana-larson",
+        "count": 1
+      },
+      {
+        "domain": "january-07-2025",
+        "count": 1
+      },
+      {
+        "domain": "metlife-us-chamber-of-commerce-small-business-index",
+        "count": 1
+      },
+      {
+        "domain": "60-percent-of-small-businesses-say-cyber-threats-are-a-top-business-concern",
+        "count": 1
+      },
+      {
+        "domain": "cyber-criminals-have-learned-to-exploit-the-false-sense-of-security-and-confidence-of-small-businesses",
+        "count": 1
+      },
+      {
+        "domain": "many-small-businesses-may-still-fall-into-the-trap-of-thinking-that-their-organization-isnt-large-enough-or-high-profile-enough-to-be-the-target-for-attackers",
+        "count": 1
+      },
+      {
+        "domain": "smbs-need-to-realize-that-cyber-attacks-usually-arent-personal-to-the-hacker",
+        "count": 1
+      },
+      {
+        "domain": "they-often-dont-differentiate-between-stealing-from-small-and-large-companies",
+        "count": 1
+      },
+      {
+        "domain": "at-the-end-of-the-day-they-are-looking-for-data-like-payment-details-personal-data-health-information-or-anything-at-all-that-could-be-sold-on-the-dark-web-or-used-to-advance-a-more-sophisticated-attack",
+        "count": 1
+      },
+      {
+        "domain": "www.bbc.com",
+        "count": 1
+      },
+      {
+        "domain": "www.cnn.com",
+        "count": 1
+      },
+      {
+        "domain": "aerospace engineering",
+        "count": 1
+      },
+      {
+        "domain": "studentprojectguide",
+        "count": 1
+      },
+      {
+        "domain": "computers--data communications and data transmission systems",
+        "count": 1
+      },
+      {
+        "domain": "scholarly journals",
+        "count": 1
+      },
+      {
+        "domain": "contributor",
+        "count": 1
+      },
+      {
+        "domain": "volume",
+        "count": 1
+      },
+      {
+        "domain": "access-restricted-item",
+        "count": 1
+      },
+      {
+        "domain": "adaptive_ocr",
+        "count": 1
+      },
+      {
+        "domain": "auditor",
+        "count": 1
+      },
+      {
+        "domain": "betterpdf",
+        "count": 1
+      },
+      {
+        "domain": "canister",
+        "count": 1
+      },
+      {
+        "domain": "contrast_max",
+        "count": 1
+      },
+      {
+        "domain": "contrast_min",
+        "count": 1
+      },
+      {
+        "domain": "copies",
+        "count": 1
+      },
+      {
+        "domain": "derive_version",
+        "count": 1
+      },
+      {
+        "domain": "foldoutcount",
+        "count": 1
+      },
+      {
+        "domain": "identifier-ark",
+        "count": 1
+      },
+      {
+        "domain": "issn",
+        "count": 1
+      },
+      {
+        "domain": "issue",
+        "count": 1
+      },
+      {
+        "domain": "metadata_operator",
+        "count": 1
+      },
+      {
+        "domain": "next_item",
+        "count": 1
+      },
+      {
+        "domain": "noindex",
+        "count": 1
+      },
+      {
+        "domain": "ocr_detected_lang",
+        "count": 1
+      },
+      {
+        "domain": "ocr_detected_lang_conf",
+        "count": 1
+      },
+      {
+        "domain": "ocr_detected_script",
+        "count": 1
+      },
+      {
+        "domain": "ocr_detected_script_conf",
+        "count": 1
+      },
+      {
+        "domain": "ocr_parameters",
+        "count": 1
+      },
+      {
+        "domain": "page_number_confidence",
+        "count": 1
+      },
+      {
+        "domain": "page_number_module_version",
+        "count": 1
+      },
+      {
+        "domain": "ppi",
+        "count": 1
+      },
+      {
+        "domain": "previous_item",
+        "count": 1
+      },
+      {
+        "domain": "pub_type",
+        "count": 1
+      },
+      {
+        "domain": "scanningcenter",
+        "count": 1
+      },
+      {
+        "domain": "sim_pubid",
+        "count": 1
+      },
+      {
+        "domain": "software_version",
+        "count": 1
+      },
+      {
+        "domain": "source",
+        "count": 1
+      },
+      {
+        "domain": "big-data",
+        "count": 1
+      },
+      {
+        "domain": "mysql.com",
+        "count": 1
+      },
+      {
+        "domain": "interslavic-wikipedia",
+        "count": 1
+      },
+      {
+        "domain": "performance",
+        "count": 1
+      },
+      {
+        "domain": "mmo",
+        "count": 1
+      },
+      {
+        "domain": "dns",
+        "count": 1
+      },
+      {
+        "domain": "oop",
+        "count": 1
+      },
+      {
+        "domain": "world-wide-web",
+        "count": 1
+      },
+      {
+        "domain": "Web Design and Development",
+        "count": 1
+      },
+      {
+        "domain": "Computers Internet",
+        "count": 1
+      },
+      {
+        "domain": "Designers",
+        "count": 1
+      },
+      {
+        "domain": "Hosting",
+        "count": 1
+      },
+      {
+        "domain": "Promotion",
+        "count": 1
+      },
+      {
+        "domain": "Accessibil&shy;ity",
+        "count": 1
+      },
+      {
+        "domain": "Authoring",
+        "count": 1
+      },
+      {
+        "domain": "Linkrot",
+        "count": 1
+      },
+      {
+        "domain": "Site Management Software",
+        "count": 1
+      },
+      {
+        "domain": "Web Servers",
+        "count": 1
+      },
+      {
+        "domain": "Web Usability",
+        "count": 1
+      },
+      {
+        "domain": "Chats and Forums",
+        "count": 1
+      },
+      {
+        "domain": "Conference&shy;s",
+        "count": 1
+      },
+      {
+        "domain": "FAQs, Help, and Tutorials",
+        "count": 1
+      },
+      {
+        "domain": "Hosted Components and Services",
+        "count": 1
+      },
+      {
+        "domain": "News and Media",
+        "count": 1
+      },
+      {
+        "domain": "Organizati&shy;ons",
+        "count": 1
+      },
+      {
+        "domain": "Weblogs",
+        "count": 1
+      },
+      {
+        "domain": "Business Business Services Design",
+        "count": 1
+      },
+      {
+        "domain": "Computers Multimedia&shy; Services",
+        "count": 1
+      },
+      {
+        "domain": "Kids and Teens Computers Website Design",
+        "count": 1
+      },
+      {
+        "domain": "Other languages",
+        "count": 1
+      },
+      {
+        "domain": "Azərbaycanca",
+        "count": 1
+      },
+      {
+        "domain": "Bahasa Indonesia",
+        "count": 1
+      },
+      {
+        "domain": "Català",
+        "count": 1
+      },
+      {
+        "domain": "Česky",
+        "count": 1
+      },
+      {
+        "domain": "Dansk",
+        "count": 1
+      },
+      {
+        "domain": "Deutsch",
+        "count": 1
+      },
+      {
+        "domain": "Français",
+        "count": 1
+      },
+      {
+        "domain": "Hrvatski",
+        "count": 1
+      },
+      {
+        "domain": "Italiano",
+        "count": 1
+      },
+      {
+        "domain": "Kurdî",
+        "count": 1
+      },
+      {
+        "domain": "Lietuvių",
+        "count": 1
+      },
+      {
+        "domain": "Nederlands",
+        "count": 1
+      },
+      {
+        "domain": "Norsk",
+        "count": 1
+      },
+      {
+        "domain": "Polski",
+        "count": 1
+      },
+      {
+        "domain": "Português",
+        "count": 1
+      },
+      {
+        "domain": "Română",
+        "count": 1
+      },
+      {
+        "domain": "Shqip",
+        "count": 1
+      },
+      {
+        "domain": "Slovensky",
+        "count": 1
+      },
+      {
+        "domain": "Srpski",
+        "count": 1
+      },
+      {
+        "domain": "Suomi",
+        "count": 1
+      },
+      {
+        "domain": "Svenska",
+        "count": 1
+      },
+      {
+        "domain": "Türkçe",
+        "count": 1
+      },
+      {
+        "domain": "web-dev",
+        "count": 1
+      },
+      {
+        "domain": "data-science",
+        "count": 1
+      },
+      {
+        "domain": "infosecurity-magazine.com",
+        "count": 1
+      },
+      {
+        "domain": "quartz",
+        "count": 1
+      },
+      {
+        "domain": "theguardian",
+        "count": 1
+      },
+      {
+        "domain": "op-ed-newyorktimes",
+        "count": 1
+      },
+      {
+        "domain": "inrupt",
+        "count": 1
+      },
+      {
+        "domain": "telefonica",
+        "count": 1
+      },
+      {
+        "domain": "scientificamerican",
+        "count": 1
+      },
+      {
+        "domain": "ted",
+        "count": 1
+      },
+      {
+        "domain": "longbeach",
+        "count": 1
+      },
+      {
+        "domain": "uscongress",
+        "count": 1
+      },
+      {
+        "domain": "3gsm",
+        "count": 1
+      },
+      {
+        "domain": "speechtek",
+        "count": 1
+      },
+      {
+        "domain": "bbc",
+        "count": 1
+      },
+      {
+        "domain": "forbes",
+        "count": 1
+      },
+      {
+        "domain": "vanityfair",
+        "count": 1
+      },
+      {
+        "domain": "newyorktimes",
+        "count": 1
+      },
+      {
+        "domain": "techcrunch",
+        "count": 1
+      },
+      {
+        "domain": "data-privacy",
+        "count": 1
+      },
+      {
+        "domain": "risk-management",
+        "count": 1
+      },
+      {
+        "domain": "browsers",
+        "count": 1
+      },
+      {
+        "domain": "hp",
+        "count": 1
+      },
+      {
+        "domain": "media",
+        "count": 1
+      },
+      {
+        "domain": "google",
+        "count": 1
+      },
+      {
+        "domain": "data-center",
+        "count": 1
+      },
+      {
+        "domain": "webarchive.org",
+        "count": 1
+      },
+      {
+        "domain": "academic degree",
+        "count": 1
+      },
+      {
+        "domain": "website",
+        "count": 1
+      },
+      {
+        "domain": "cryptography.ru",
+        "count": 1
+      },
+      {
+        "domain": "pgp",
+        "count": 1
+      },
+      {
+        "domain": "resources",
+        "count": 1
+      },
+      {
+        "domain": "life sciences",
+        "count": 1
+      },
+      {
+        "domain": "tv",
+        "count": 1
+      },
+      {
+        "domain": "homelessness",
+        "count": 1
+      },
+      {
+        "domain": "justice system",
+        "count": 1
+      },
+      {
+        "domain": "bullying",
+        "count": 1
+      },
+      {
+        "domain": "humanity",
+        "count": 1
+      },
+      {
+        "domain": "climate-change",
+        "count": 1
+      },
+      {
+        "domain": "gender",
+        "count": 1
+      },
+      {
+        "domain": "industrial-robot",
+        "count": 1
+      },
+      {
+        "domain": "autonomous-robot",
+        "count": 1
+      },
+      {
+        "domain": "cartesian-coordinate-robot",
+        "count": 1
+      },
+      {
+        "domain": "cylindrical-coordinate-robot",
+        "count": 1
+      },
+      {
+        "domain": "spherical-coordinate-robot",
+        "count": 1
+      },
+      {
+        "domain": "scara-robot",
+        "count": 1
+      },
+      {
+        "domain": "delta-robot",
+        "count": 1
+      },
+      {
+        "domain": "parallel-architecture",
+        "count": 1
+      },
+      {
+        "domain": "parallel-manipulator",
+        "count": 1
+      },
+      {
+        "domain": "cryptocurrency",
+        "count": 1
+      },
+      {
+        "domain": "accessories",
+        "count": 1
+      },
+      {
+        "domain": " ar",
+        "count": 1
+      },
+      {
+        "domain": "technology & computers",
+        "count": 1
+      },
+      {
+        "domain": "electronics",
+        "count": 1
+      },
+      {
+        "domain": "whitehouse.gov",
+        "count": 1
+      },
+      {
+        "domain": "author",
+        "count": 1
+      },
+      {
+        "domain": "publication_date",
+        "count": 1
+      },
+      {
+        "domain": "topics",
+        "count": 1
+      },
+      {
+        "domain": "added_date",
+        "count": 1
+      },
+      {
+        "domain": "associated_names",
+        "count": 1
+      },
+      {
+        "domain": "identifier_ark",
+        "count": 1
+      },
+      {
+        "domain": "isbn",
+        "count": 1
+      },
+      {
+        "domain": "lccn",
+        "count": 1
+      },
+      {
+        "domain": "old_pallet",
+        "count": 1
+      },
+      {
+        "domain": "openlibrary_edition",
+        "count": 1
+      },
+      {
+        "domain": "openlibrary_work",
+        "count": 1
+      },
+      {
+        "domain": "republisher_date",
+        "count": 1
+      },
+      {
+        "domain": "republisher_operator",
+        "count": 1
+      },
+      {
+        "domain": "republisher_time",
+        "count": 1
+      },
+      {
+        "domain": "scandate",
+        "count": 1
+      },
+      {
+        "domain": "scribe3_search_id",
+        "count": 1
+      },
+      {
+        "domain": "tts_version",
+        "count": 1
+      },
+      {
+        "domain": "de.wikipedia.org",
+        "count": 1
+      },
+      {
+        "domain": "theater",
+        "count": 1
+      },
+      {
+        "domain": "election",
+        "count": 1
+      },
+      {
+        "domain": "wwi.lib.byu.edu",
+        "count": 1
+      }
+    ],
+    "pendingReview": 14,
+    "reviewed": 7353,
+    "rejected": 7953,
+    "ingested": 1,
+    "retired": 10249,
+    "quarantined": 0,
+    "unresolved": 0,
+    "trainable": 28,
+    "replayEligible": 7283,
+    "replayExcluded": 43,
+    "consumedAndRetired": 7383,
+    "retiredReplayEligible": 0,
+    "deferredFresh": 42,
+    "retainedForReplay": 5319,
+    "noEligibleUnconsumed": false,
+    "recoverable": 15,
+    "quarantineReleased": 0,
+    "reviewCount": 91182,
+    "avgReviewScore": 2.116349283433048,
+    "uniqueConsumed": 9711,
+    "totalAppearances": 9942,
+    "languageSkipped": 0,
+    "duplicationIndex": 0,
+    "distinctSourceUrls": 3821
+  },
+  "articleLedger": {
+    "articleLines": 25570,
+    "reviewLines": 91182,
+    "eventLines": 195779,
+    "consumptionLines": 9942,
+    "contributionLines": 172,
+    "rawSourceLines": 5173
+  },
+  "registry": {
+    "runRecords": 418,
+    "snapshotRecords": 6167,
+    "evaluationRecords": 978,
+    "modelRecords": 413,
+    "runEventLines": 2395,
+    "modelEventLines": 485
+  },
+  "frontier": {
+    "total": 0,
+    "byState": {},
+    "topErrors": {}
+  },
+  "store": {
+    "allocatedVersions": 0,
+    "workingPointer": null,
+    "activePointer": {
+      "activatedAt": "2026-11-04T04:53:21Z",
+      "artifactName": "simpleminds-62m-20261018-edf63f7283b3",
+      "schema": "sma/active@1",
+      "version": "v493",
+      "weightFingerprint": "edf63f7283b3"
+    },
+    "staleTmpDirs": null
+  },
+  "contributionSummary": {
+    "totalRuns": 172,
+    "promotedRuns": 19,
+    "rejectedRuns": 153,
+    "uniqueBatchArticles": 6738,
+    "uniquePromotedArticles": 1688
+  }
+}

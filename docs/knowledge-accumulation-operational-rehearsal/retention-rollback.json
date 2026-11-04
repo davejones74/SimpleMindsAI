@@ -1,0 +1,52 @@
+{
+  "normal": {
+    "active": "v389",
+    "working": "v002",
+    "lastGood": "v001",
+    "protected": [
+      "v389",
+      "v002",
+      "v001"
+    ],
+    "prune": [],
+    "runPrune": []
+  },
+  "interrupted": {
+    "active": "v389",
+    "working": "v001",
+    "lastGood": "v389",
+    "protected": [
+      "v389",
+      "v001"
+    ],
+    "prune": [],
+    "runPrune": []
+  },
+  "rollback-before": {
+    "active": "v389",
+    "working": "v002",
+    "lastGood": "v001",
+    "protected": [
+      "v389",
+      "v002",
+      "v001"
+    ],
+    "prune": [],
+    "runPrune": []
+  },
+  "rollback-after": {
+    "active": "v389",
+    "working": "v001",
+    "lastGood": "v001",
+    "protected": [
+      "v389",
+      "v001"
+    ],
+    "prune": [
+      "v002"
+    ],
+    "runPrune": [
+      "v002"
+    ]
+  }
+}

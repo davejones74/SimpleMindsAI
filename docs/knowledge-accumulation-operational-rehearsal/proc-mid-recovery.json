@@ -1,0 +1,75 @@
+{
+  "schema": "sma/operational-rehearsal-recovery@1",
+  "at": "2026-11-04T05:08:49.868Z",
+  "recovered": [],
+  "stats": {
+    "totalArticles": 32,
+    "byStatus": {
+      "INGESTED": 0,
+      "PENDING_REVIEW": 0,
+      "REVIEWED": 28,
+      "REJECTED": 0,
+      "RETIRED": 4,
+      "UNRESOLVED": 0,
+      "QUARANTINED": 0
+    },
+    "byImportance": {
+      "Normal": 32,
+      "Important": 0,
+      "Critical": 0
+    },
+    "byImportanceSource": {
+      "default": 32,
+      "teacher": 0,
+      "automation": 0,
+      "operator": 0
+    },
+    "byDomain": [
+      {
+        "domain": "general",
+        "count": 22
+      },
+      {
+        "domain": "history",
+        "count": 4
+      },
+      {
+        "domain": "science",
+        "count": 4
+      },
+      {
+        "domain": "tech",
+        "count": 1
+      },
+      {
+        "domain": "cryptography",
+        "count": 1
+      }
+    ],
+    "pendingReview": 0,
+    "reviewed": 28,
+    "rejected": 0,
+    "ingested": 0,
+    "retired": 4,
+    "quarantined": 0,
+    "unresolved": 0,
+    "trainable": 26,
+    "replayEligible": 6,
+    "replayExcluded": 0,
+    "consumedAndRetired": 4,
+    "retiredReplayEligible": 4,
+    "deferredFresh": 0,
+    "retainedForReplay": 0,
+    "noEligibleUnconsumed": false,
+    "recoverable": 0,
+    "quarantineReleased": 0,
+    "reviewCount": 32,
+    "avgReviewScore": 0,
+    "uniqueConsumed": 6,
+    "totalAppearances": 6,
+    "languageSkipped": 0,
+    "duplicationIndex": 0,
+    "distinctSourceUrls": 20
+  },
+  "contributions": []
+}

@@ -1,0 +1,337 @@
+{
+  "schema": "sma/operational-rehearsal-evidence@1",
+  "at": "2026-11-04T05:20:00Z",
+  "branch": "knowledge-accumulation-operational-rehearsal-20261103",
+  "baseCommit": "7f49a8f",
+  "snapshot": {
+    "root": "/home/dave/sma-experiments/knowledge-accumulation-operational-rehearsal-20261103/snapshot",
+    "fileCount": 19022,
+    "bytes": 1308195307,
+    "manifestSha256": "924ab27e1799b9927323c163185ad372f6ac71b6937a2584e6f418eada7fe86a",
+    "active": {
+      "activatedAt": "2026-11-04T04:53:21Z",
+      "artifactName": "simpleminds-62m-20261018-edf63f7283b3",
+      "schema": "sma/active@1",
+      "version": "v493",
+      "weightFingerprint": "edf63f7283b3"
+    }
+  },
+  "migration": {
+    "reconciliation": {
+      "eligibleBefore": 377,
+      "restored": 377,
+      "eligibleAfter": 0,
+      "alreadyEligibleBefore": 7283,
+      "alreadyEligibleAfter": 7660,
+      "unresolvedBefore": 3875,
+      "unresolvedAfter": 3875,
+      "ineligibleBefore": 13950,
+      "ineligibleAfter": 13950,
+      "notTargetBefore": 85,
+      "notTargetAfter": 85
+    },
+    "sourceFilesChanged": []
+  },
+  "backupRestore": {
+    "ok": true,
+    "modelFiles": 36,
+    "ledgerFiles": 19022,
+    "active": "v001",
+    "working": "v002",
+    "lastGood": "v001"
+  },
+  "processCrash": {
+    "schema": "sma/operational-process-crash-summary@1",
+    "at": "2026-11-04T05:13:47.688537+00:00",
+    "midTraining": {
+      "method": "actual python child SIGKILL during training",
+      "runReport": {
+        "schema": "sma/operational-rehearsal-run@1",
+        "at": "2026-11-04T05:08:35.179Z",
+        "crashPoint": null,
+        "config": {
+          "store": "/home/dave/sma-experiments/knowledge-accumulation-operational-rehearsal-20261103/proc-mid-store",
+          "device": "cuda",
+          "snapshotLimit": 30,
+          "replayPercent": 50,
+          "seqLen": 64,
+          "steps": 120,
+          "lr": 5e-05,
+          "epochs": 8,
+          "workingGuard": {
+            "maxRegressionNats": 0.05,
+            "maxGroupRegressionNats": 0.15,
+            "maxDriftNats": 0.1,
+            "minGroupTokens": 100,
+            "maxRegressedGroupShare": 0.75,
+            "minGroups": 5
+          },
+          "useWorking": true,
+          "carryOptimizer": true
+        },
+        "result": null,
+        "error": {
+          "message": "python exited null: d\":\"run-1\",\"version\":\"v002\",\"parentVersion\":\"v001\",\"seq\":5,\"at\":1793768914861,\"type\":\"evaluation\",\"step\":10,\"loss\":7.341513156890869,\"learningRate\":5e-05,\"tokensSeen\":2560}\n[sma] step   10/120  loss 6.4879  lr 5.00e-05  gnorm 5.359  (clipped)\n__SMA_TELEMETRY__ {\"schema\":\"sma/training-telemetry@1\",\"sessionId\":\"run-1\",\"version\":\"v002\",\"parentVersion\":\"v001\",\"seq\":6,\"at\":1793768914997,\"type\":\"snapshot\",\"step\":11,\"totalSteps\":120,\"loss\":6.4879467487335205,\"learningRate\":5e-05,\"gradNorm\":5.359436511993408,\"clipped\":true,\"tokensSeen\":2816,\"stepSeconds\":0.1358,\"stepsPerSecond\":2.0819,\"elapsedMs\":5283.5}\n/usr/lib/python3.14/multiprocessing/resource_tracker.py:396: UserWarning: resource_tracker: There appear to be 1 leaked semaphore objects to clean up at shutdown: {'/mp-s16n2_44'}\n  warnings.warn(",
+          "code": null
+        },
+        "stats": {
+          "totalArticles": 32,
+          "byStatus": {
+            "INGESTED": 0,
+            "PENDING_REVIEW": 0,
+            "REVIEWED": 28,
+            "REJECTED": 0,
+            "RETIRED": 4,
+            "UNRESOLVED": 0,
+            "QUARANTINED": 0
+          },
+          "byImportance": {
+            "Normal": 32,
+            "Important": 0,
+            "Critical": 0
+          },
+          "byImportanceSource": {
+            "default": 32,
+            "teacher": 0,
+            "automation": 0,
+            "operator": 0
+          },
+          "byDomain": [
+            {
+              "domain": "general",
+              "count": 22
+            },
+            {
+              "domain": "history",
+              "count": 4
+            },
+            {
+              "domain": "science",
+              "count": 4
+            },
+            {
+              "domain": "tech",
+              "count": 1
+            },
+            {
+              "domain": "cryptography",
+              "count": 1
+            }
+          ],
+          "pendingReview": 0,
+          "reviewed": 28,
+          "rejected": 0,
+          "ingested": 0,
+          "retired": 4,
+          "quarantined": 0,
+          "unresolved": 0,
+          "trainable": 26,
+          "replayEligible": 6,
+          "replayExcluded": 0,
+          "consumedAndRetired": 4,
+          "retiredReplayEligible": 4,
+          "deferredFresh": 0,
+          "retainedForReplay": 0,
+          "noEligibleUnconsumed": false,
+          "recoverable": 0,
+          "quarantineReleased": 0,
+          "reviewCount": 32,
+          "avgReviewScore": 0,
+          "uniqueConsumed": 6,
+          "totalAppearances": 6,
+          "languageSkipped": 0,
+          "duplicationIndex": 0,
+          "distinctSourceUrls": 20
+        },
+        "contributions": []
+      },
+      "activeUnchanged": true,
+      "workingUnchanged": true,
+      "lastGoodUnchanged": true,
+      "consumptionUnchanged": true,
+      "noStagedTmp": true,
+      "recovery": []
+    },
+    "afterWorkingPointer": {
+      "method": "real 62M training completed, process SIGKILL after working pointer write before consumption",
+      "manifest": {
+        "runId": "run-1",
+        "status": "rejected",
+        "decision": "rejected",
+        "resultVersion": "v002",
+        "resultParentVersion": "v001",
+        "stableBaselineVersion": "v389",
+        "parentSelection": "working",
+        "workingDecision": "accepted",
+        "workingVersion": "v002",
+        "workingAdvanced": true,
+        "published": true,
+        "consumed": true,
+        "activated": false
+      },
+      "workingVersion": "v002",
+      "activeVersion": "v389",
+      "lastGoodVersion": "v001",
+      "recovery1": [
+        {
+          "runId": "run-1",
+          "decision": "rejected",
+          "workingAdvanced": true
+        }
+      ],
+      "recovery2": [],
+      "consumptionLinesAfter": 28,
+      "uniqueConsumptionPairs": 28,
+      "replayEligibleAfter": 28,
+      "weightsPresent": true,
+      "optimizerPresent": true,
+      "committedPresent": true
+    },
+    "disabledWorking": {
+      "manifest": {
+        "runId": "run-1",
+        "status": "trained",
+        "parentSelection": "stable",
+        "resultParentVersion": "v389",
+        "stableBaselineVersion": "v389",
+        "workingDecision": null,
+        "workingVersion": null,
+        "workingAdvanced": false,
+        "decision": null,
+        "published": false,
+        "consumed": false,
+        "activated": false
+      },
+      "activeVersion": "v389",
+      "workingVersion": "v002",
+      "lastGoodVersion": "v001",
+      "consumptionLines": 6,
+      "stagedTmp": [
+        "v003.tmp"
+      ],
+      "workingHistoryPreserved": true
+    },
+    "replayBefore": {
+      "replay": 2,
+      "retired-replay": 4,
+      "fresh": 26
+    },
+    "retention": {
+      "normal": {
+        "active": "v389",
+        "working": "v002",
+        "lastGood": "v001",
+        "protected": [
+          "v389",
+          "v002",
+          "v001"
+        ],
+        "prune": [],
+        "runPrune": []
+      },
+      "interrupted": {
+        "active": "v389",
+        "working": "v001",
+        "lastGood": "v389",
+        "protected": [
+          "v389",
+          "v001"
+        ],
+        "prune": [],
+        "runPrune": []
+      },
+      "rollback-before": {
+        "active": "v389",
+        "working": "v002",
+        "lastGood": "v001",
+        "protected": [
+          "v389",
+          "v002",
+          "v001"
+        ],
+        "prune": [],
+        "runPrune": []
+      },
+      "rollback-after": {
+        "active": "v389",
+        "working": "v001",
+        "lastGood": "v001",
+        "protected": [
+          "v389",
+          "v001"
+        ],
+        "prune": [
+          "v002"
+        ],
+        "runPrune": [
+          "v002"
+        ]
+      }
+    },
+    "disk": "/dev/nvme0n1p2  1.9T  276G  1.5T  16% /"
+  },
+  "retention": {
+    "normal": {
+      "active": "v389",
+      "working": "v002",
+      "lastGood": "v001",
+      "protected": [
+        "v389",
+        "v002",
+        "v001"
+      ],
+      "prune": [],
+      "runPrune": []
+    },
+    "interrupted": {
+      "active": "v389",
+      "working": "v001",
+      "lastGood": "v389",
+      "protected": [
+        "v389",
+        "v001"
+      ],
+      "prune": [],
+      "runPrune": []
+    },
+    "rollback-before": {
+      "active": "v389",
+      "working": "v002",
+      "lastGood": "v001",
+      "protected": [
+        "v389",
+        "v002",
+        "v001"
+      ],
+      "prune": [],
+      "runPrune": []
+    },
+    "rollback-after": {
+      "active": "v389",
+      "working": "v001",
+      "lastGood": "v001",
+      "protected": [
+        "v389",
+        "v001"
+      ],
+      "prune": [
+        "v002"
+      ],
+      "runPrune": [
+        "v002"
+      ]
+    }
+  },
+  "rocm": {
+    "fullSuite": {
+      "passed": 260,
+      "skipped": 19,
+      "failed": 0
+    },
+    "focusedCount": 48,
+    "reconciliation": "release report stale 47 -> actual 48 (5 working + 43 retention)"
+  },
+  "disk": "/dev/nvme0n1p2  1.9T  276G  1.5T  16% /",
+  "recommendation": "READY FOR SEPARATELY AUTHORISED BOUNDED PILOT",
+  "productionMutation": false
+}
