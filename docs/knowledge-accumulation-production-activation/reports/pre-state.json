@@ -1,0 +1,53 @@
+{
+  "schema": "sma/production-activation-pre-state@1",
+  "at": "2026-11-04T07:23:00Z",
+  "productionRepo": {
+    "path": "/home/dave/Repositories/SimpleMindsAI",
+    "head": "79a9f2c8edbc31f8b62c0ed0234ff847fadaf193",
+    "branch": "knowledge-accumulation-pilot-20261102",
+    "status": "?? docs/knowledge-accumulation-pilot.zip"
+  },
+  "release": {
+    "branch": "knowledge-accumulation-release-readiness-20261103",
+    "commit": "7f49a8f",
+    "productionHeadIsAncestor": "true"
+  },
+  "deploymentSource": {
+    "branch": "knowledge-accumulation-production-activation-20261104",
+    "commit": "2f8a46398d0d8706d1c7a360b062d483598ee778"
+  },
+  "active": {
+    "activatedAt": "2026-11-04T04:53:21Z",
+    "artifactName": "simpleminds-62m-20261018-edf63f7283b3",
+    "schema": "sma/active@1",
+    "version": "v493",
+    "weightFingerprint": "edf63f7283b3"
+  },
+  "working": null,
+  "workingLastGood": null,
+  "activeCheckpoint": {
+    "version": "v493",
+    "committed": "{\n  \"committedAt\": \"2026-11-04T04:53:21Z\",\n  \"parentVersion\": \"v482\",\n  \"stepsCompleted\": 7,\n  \"version\": \"v493\"\n}",
+    "modelSha256": "20ca3a77eb8889e2614a893e288b0b3dbe0e745a6fd309e633d720c9c41096a9",
+    "initManifestSha256": "b65704f110b8a01323e3b4431ee7c21e1b44849fb626279240140b749f310d03",
+    "optimizerStateSha256": "4e5390f24a97b9e49201f425249936d1180f2d034adfb176ca9935899145e13f",
+    "optimizerStateBytes": 494800519,
+    "weightFingerprint": "edf63f7283b3"
+  },
+  "service": {
+    "name": "simpleminds.service",
+    "state": "active",
+    "perpetualTimer": "inactive"
+  },
+  "store": {
+    "root": "/var/lib/simpleminds/store",
+    "bytes": 22140754403
+  },
+  "data": {
+    "articlesBytes": 722136180,
+    "registryBytes": 72859453,
+    "snapshotsBytes": 509090668
+  },
+  "disk": "2013991550976 295927783424 1615683063808  16%",
+  "envSha256": "d666fbe492b8e2a678fbd56bff4c003f5c773d049db581fcfd4e8012ae33aca1"
+}

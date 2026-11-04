@@ -1,0 +1,24 @@
+{
+  "schema": "sma/production-activation-backup@1",
+  "at": "2026-11-04T07:27:31Z",
+  "stamp": "20261104T072518Z",
+  "archive": {
+    "path": "/var/lib/simpleminds/backups/knowledge-accumulation-activation-20261104T072518Z/store-and-data.tar",
+    "sha256": "b653c5944fb695a82f69997e098aa880bef9dee90d306c617266aa40964655e8",
+    "bytes": 23808942080
+  },
+  "envBackup": {
+    "path": "/var/lib/simpleminds/backups/knowledge-accumulation-activation-20261104T072518Z/simpleminds.env",
+    "sha256": "d666fbe492b8e2a678fbd56bff4c003f5c773d049db581fcfd4e8012ae33aca1"
+  },
+  "migrationSnapshot": {
+    "path": "/var/lib/simpleminds/migration/knowledge-accumulation-20261104T072518Z/articles-before",
+    "files": 6,
+    "sha256Manifest": "/var/lib/simpleminds/migration/knowledge-accumulation-20261104T072518Z/articles-before.sha256",
+    "sha256ManifestSha256": "1daacba8017939b2b5dedeae629d44412a3885d6f77ec1d04a9bd5cffc2b17fb"
+  },
+  "rehearsalBackupIntegrity": {
+    "modelStoreSha256": "0309853149a39ba14f78d3a9cdb9cd8e0e34659abe6b8674ed45187be82a38b2",
+    "ledgerSha256": "540150ddfca8df69abfec0aa85fdf4de81a116edd37e155a4aff4b320d9c09ca"
+  }
+}

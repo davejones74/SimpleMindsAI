@@ -1,0 +1,32 @@
+{
+  "schema": "sma/production-replay-migration@1",
+  "at": "2026-11-04T07:27:53Z",
+  "store": "/var/lib/simpleminds/data/articles",
+  "snapshot": "/var/lib/simpleminds/migration/knowledge-accumulation-20261104T072518Z/articles-before",
+  "before": {
+    "counts": {
+      "UNRESOLVED": 3878,
+      "ALREADY_ELIGIBLE": 7283,
+      "INELIGIBLE": 13977,
+      "NOT_TARGET": 97,
+      "ELIGIBLE": 377
+    },
+    "eligibleCount": 377
+  },
+  "apply": {
+    "restoredInApply": 377,
+    "mode": "apply"
+  },
+  "after": {
+    "counts": {
+      "UNRESOLVED": 3878,
+      "ALREADY_ELIGIBLE": 7660,
+      "INELIGIBLE": 13977,
+      "NOT_TARGET": 97
+    },
+    "eligibleCount": 0,
+    "alreadyEligible": 7660
+  },
+  "sourceRecordsPreserved": true,
+  "note": "Original article/review/consumption ledgers preserved in pre-apply snapshot and full backup; apply appended replay-eligibility events only."
+}
