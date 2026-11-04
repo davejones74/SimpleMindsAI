@@ -96,7 +96,7 @@ New focused suites:
 ### Python
 
 - CPU-only focused: working checkpoint/retention/optimizer tests pass; the ROCm-only portability test is expected to fail/skip on CPU.
-- ROCm focused: portability passes; working checkpoint + retention 47 passed.
+- ROCm focused: portability passes; working checkpoint + retention 48 passed (5 working-checkpoint + 43 retention).
 - Full ROCm: **260 passed, 19 skipped, 0 failed** (`pytest-rocm-full.log`).
 
 ## 7. Crash, optimizer, retention and replay evidence
