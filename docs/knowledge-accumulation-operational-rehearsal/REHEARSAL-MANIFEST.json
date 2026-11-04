@@ -1,0 +1,125 @@
+{
+  "schema": "sma/operational-rehearsal-manifest@1",
+  "at": "2026-11-04T05:30:00Z",
+  "branches": {
+    "pilot": "knowledge-accumulation-pilot-20261102@79a9f2c",
+    "release": "knowledge-accumulation-release-readiness-20261103@7f49a8f",
+    "rehearsal": "knowledge-accumulation-operational-rehearsal-20261103"
+  },
+  "baseCommit": "7f49a8f",
+  "rehearsalCommit": "b0fbf83",
+  "productionMutation": false,
+  "recommendation": "READY FOR SEPARATELY AUTHORISED BOUNDED PILOT",
+  "scripts": {
+    "scripts/knowledge-pilot/classify-replay.mjs": {
+      "sha256": "3e2a28ed6254fa26c165e56b12eb3a1ef276724d0fcaefcafa3236e1e615d5f9"
+    },
+    "scripts/knowledge-pilot/snapshot-manifest.mjs": {
+      "sha256": "4a2dd477ee5b0002a06ca6863fef27d38630093f4cc4fff6ca2982a102f41849"
+    },
+    "scripts/knowledge-pilot/rehearsal-run.mjs": {
+      "sha256": "f46ed51994e6ecf08e764c1945d733b0ac4d4df1a4e24359941f90534b4a4ae5"
+    },
+    "scripts/knowledge-pilot/rehearsal-recover.mjs": {
+      "sha256": "9b4f12bec1d4b737c2275daf7277232e750fab17c09c964db343849584d4d915"
+    }
+  },
+  "documents": {
+    "docs/knowledge-accumulation-operational-rehearsal/BACKUP-RESTORE.md": {
+      "sha256": "fbe3f0e913484491a527cb2a7b17aa64f5cbfc6f706ac5a7ec5a3df0ad48fc39"
+    },
+    "docs/knowledge-accumulation-operational-rehearsal/CONFIGURATION.md": {
+      "sha256": "283010b25e4fefab433f46ad93832f3405a5179ec48f8e174968869fed916849"
+    },
+    "docs/knowledge-accumulation-operational-rehearsal/FINAL-ASSESSMENT.md": {
+      "sha256": "15b346eb4c89b52abb93a6b445cedab1b61f960411fd5494dfb798746f229288"
+    },
+    "docs/knowledge-accumulation-operational-rehearsal/MIGRATION-RECONCILIATION.md": {
+      "sha256": "40181d4347d364c9b9fde2f2bf461ae0dedd444b098999bc3989ddf75cf665a1"
+    },
+    "docs/knowledge-accumulation-operational-rehearsal/PROCESS-CRASH.md": {
+      "sha256": "130315333e63af4b36dd8e1fe3f5f6e19259eb458d70288221841caaec9e1b0c"
+    },
+    "docs/knowledge-accumulation-operational-rehearsal/README.md": {
+      "sha256": "b286917755d78473a28ec0a391c2bf04c8b3e42fb618f5abbcac6ea5513c5ea1"
+    },
+    "docs/knowledge-accumulation-operational-rehearsal/REHEARSAL-EVIDENCE.json": {
+      "sha256": "6074d90e9c8645e3f6374e3b7d9e90a25dd10d2d3eb0ac649bac535cc0774fe9"
+    },
+    "docs/knowledge-accumulation-operational-rehearsal/SNAPSHOT.md": {
+      "sha256": "06212bb9c7d5b581ca61b3923ee0baab2dd51d7ac15911de17ce5698b04307b3"
+    },
+    "docs/knowledge-accumulation-operational-rehearsal/STORAGE-RETENTION.md": {
+      "sha256": "1f25ddbacb9f250b1f23bb866ee0a9f86ef5f617941c3c25db3b9a8a7130e311"
+    },
+    "docs/knowledge-accumulation-operational-rehearsal/backup-restore-manifest.json": {
+      "sha256": "94060230044b5b6bd0f6d93a4d3774e3e5558037c49ab3b2b446a5662d1d37ec"
+    },
+    "docs/knowledge-accumulation-operational-rehearsal/disk-headroom.txt": {
+      "sha256": "ff331beae3ffd10e21458828fd7f3d0f8098013e9c356bad7ff2a6d588c35aa2"
+    },
+    "docs/knowledge-accumulation-operational-rehearsal/migration-after.json": {
+      "sha256": "c3b5705d0331ac459c8291e1f8dc030a145f5b25d431db82b4cfef7dba564e3d"
+    },
+    "docs/knowledge-accumulation-operational-rehearsal/migration-apply.json": {
+      "sha256": "3abd9354c808f356fcb25b0d3e04eb5c091ebaedaaa5366f5a69e1a3fa45cd3e"
+    },
+    "docs/knowledge-accumulation-operational-rehearsal/migration-before.json": {
+      "sha256": "caea6c0fdd2a28ba8cb210f2e49efc325138d93f8d368a68b24cf81e5784eab5"
+    },
+    "docs/knowledge-accumulation-operational-rehearsal/migration-reconciliation.json": {
+      "sha256": "e86181fbfc82a6f1b9c28368cb568285f6f4eaf7f4effee83a68177af89d522a"
+    },
+    "docs/knowledge-accumulation-operational-rehearsal/proc-after-baseline.json": {
+      "sha256": "a99902b57261a3e590bb9f3196d229032ef053119730e2cd4190348f1f457f67"
+    },
+    "docs/knowledge-accumulation-operational-rehearsal/proc-after-recovery-1.json": {
+      "sha256": "36dac3113079c41f611b712172406194dfa8d318411b4d0570a7b792bbec3549"
+    },
+    "docs/knowledge-accumulation-operational-rehearsal/proc-after-recovery-2.json": {
+      "sha256": "e4043df56e2ad54db199148c4bb264f491c83555cb9a4fd9fe1c76f29433276d"
+    },
+    "docs/knowledge-accumulation-operational-rehearsal/proc-after-run-manifest.json": {
+      "sha256": "c3e9d2c00a4b22708099815ffdb461e0838de07a8906f2748f8836f29048eddc"
+    },
+    "docs/knowledge-accumulation-operational-rehearsal/proc-base-articles-manifest.json": {
+      "sha256": "7a8920de12e48806201d704fad930ac6b23687071187869b744920855cfab245"
+    },
+    "docs/knowledge-accumulation-operational-rehearsal/proc-disabled-run-manifest.json": {
+      "sha256": "4c7cda879821418f1b1ec21c4563e795482cc7dd415ae629895071a6d6018f2e"
+    },
+    "docs/knowledge-accumulation-operational-rehearsal/proc-mid-after.json": {
+      "sha256": "2bdd19584cc33ad140b592b2424ea6c59acab59c07d6ce55a8df0c89db3682d9"
+    },
+    "docs/knowledge-accumulation-operational-rehearsal/proc-mid-before.json": {
+      "sha256": "6484333505ef8bb229807d1658ee079924a1ffcde3c8623ffcf6f1b6b143531e"
+    },
+    "docs/knowledge-accumulation-operational-rehearsal/proc-mid-recovery.json": {
+      "sha256": "eeafa2ab880ac4282e059313d43e338d30f5292aee4fc0baa2bfc43c7eb6ebf1"
+    },
+    "docs/knowledge-accumulation-operational-rehearsal/proc-mid-run.json": {
+      "sha256": "b7a996fa1c5424f8ed78b74809453401ba5aeb27d2248f0dcc4b2cac4ec05826"
+    },
+    "docs/knowledge-accumulation-operational-rehearsal/process-crash-summary.json": {
+      "sha256": "ec2fe30e3d20d358f7bb0aeb97923ef661422ac8443b06af21ae4964b164b50d"
+    },
+    "docs/knowledge-accumulation-operational-rehearsal/pytest-rocm-full.log": {
+      "sha256": "f0d1106f0d4cc8ba369ad69165d32fef0a1dc49111bfaf0039d644b3e287dfd2"
+    },
+    "docs/knowledge-accumulation-operational-rehearsal/pytest-rocm-working-retention.log": {
+      "sha256": "6dd786dc72d45e02d32f9a2c96fbee7f0ea69261b610e86a41d1a671dd0186ef"
+    },
+    "docs/knowledge-accumulation-operational-rehearsal/retention-rollback.json": {
+      "sha256": "ff0b30c1fb96355a3cb09f754427e321de1ed662263276f81d665365060a4be5"
+    },
+    "docs/knowledge-accumulation-operational-rehearsal/snapshot-baseline.json": {
+      "sha256": "3b33ecbf1411639f72157050b72a82e833fc3cb9f4e8eb6df0f61a0253554aef"
+    },
+    "docs/knowledge-accumulation-operational-rehearsal/snapshot-manifest.json": {
+      "sha256": "924ab27e1799b9927323c163185ad372f6ac71b6937a2584e6f418eada7fe86a"
+    },
+    "docs/knowledge-accumulation-operational-rehearsal/storage-sizes.txt": {
+      "sha256": "0c7c3ac0823087c1af4be54a7942f25929fda591b78383e598a8cc2c30eeb2cf"
+    }
+  }
+}
