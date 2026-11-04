@@ -70,6 +70,7 @@ export class Curator {
       cleaned = mergeAdjacentUnits(cleaned, {
         minChars: config.curatorMergeMinChars,
         maxChars: config.curatorMergeMaxChars,
+        mergeAcrossDomains: config.curatorMergeAcrossDomains !== false,
       });
     }
     const results = [];

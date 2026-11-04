@@ -1,0 +1,3612 @@
+{
+  "schema": "sma/short-prose-candidate@1",
+  "at": "2026-11-04T22:43:23.163Z",
+  "sourceAudit": "/tmp/retired-replay-audit-postdeploy.json",
+  "sourceAuditSha256": "79a8d4fd168cfa05d0c7c71fd8b9da21feaef7b7eda051258bfb0f5d4a8480b0",
+  "store": "/var/lib/simpleminds/data/articles",
+  "candidateCount": 596,
+  "includedCount": 596,
+  "excludedCount": 0,
+  "includedEstimatedTokens": 17573,
+  "excluded": [],
+  "bySourceDomain": {
+    "science.nasa.gov": 418,
+    "journals.plos.org": 61,
+    "www.nasa.gov": 94,
+    "plus.nasa.gov": 4,
+    "plos.org": 5,
+    "explore.plos.org": 12,
+    "www.frontiersin.org": 1,
+    "tac.nist.gov": 1
+  },
+  "byLicenceStatus": {
+    "safe": 596
+  },
+  "tokenizerMeasurement": {
+    "schema": "sma/token-measurement@1",
+    "sequenceLength": 128,
+    "documentCount": 596,
+    "totalTokens": 14103,
+    "blocksIfConcatenated": 110,
+    "droppedTokens": 23,
+    "documentsMeetingOneBlock": 0,
+    "documents": [
+      {
+        "itemId": "art_ac4b1bf5-c46",
+        "tokens": 15,
+        "chars": 86,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_8a7f6443-789",
+        "tokens": 16,
+        "chars": 66,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_f3e598cf-2c7",
+        "tokens": 15,
+        "chars": 58,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_8c933f37-65c",
+        "tokens": 18,
+        "chars": 61,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_fd5f4c13-d59",
+        "tokens": 24,
+        "chars": 80,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_3acd5e0a-77c",
+        "tokens": 36,
+        "chars": 152,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_3601115d-071",
+        "tokens": 22,
+        "chars": 114,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_4b6c2bf4-b0d",
+        "tokens": 16,
+        "chars": 86,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_a45aef07-e71",
+        "tokens": 24,
+        "chars": 130,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_ce7bc806-0c9",
+        "tokens": 26,
+        "chars": 145,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_12559ca0-072",
+        "tokens": 21,
+        "chars": 120,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_1adad7b0-6bf",
+        "tokens": 16,
+        "chars": 111,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_65a93c46-80f",
+        "tokens": 14,
+        "chars": 77,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_5966949e-cbc",
+        "tokens": 24,
+        "chars": 125,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_02c9bdf4-925",
+        "tokens": 24,
+        "chars": 112,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_b7fe48d5-3e2",
+        "tokens": 9,
+        "chars": 26,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_61ce26dc-554",
+        "tokens": 28,
+        "chars": 134,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_718bc00a-ff3",
+        "tokens": 29,
+        "chars": 155,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_31bf9d15-12f",
+        "tokens": 19,
+        "chars": 104,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_c993123e-f82",
+        "tokens": 14,
+        "chars": 84,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_9005e932-e57",
+        "tokens": 19,
+        "chars": 104,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_1968b10d-813",
+        "tokens": 31,
+        "chars": 173,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_c771a03a-ed5",
+        "tokens": 14,
+        "chars": 67,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_6833ba49-b64",
+        "tokens": 24,
+        "chars": 124,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_acdb340a-9d8",
+        "tokens": 21,
+        "chars": 117,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_eea85e19-642",
+        "tokens": 28,
+        "chars": 131,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_911154ab-0e7",
+        "tokens": 18,
+        "chars": 88,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_b24de9ba-e4c",
+        "tokens": 29,
+        "chars": 141,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_f83e6437-784",
+        "tokens": 26,
+        "chars": 106,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_db264769-d8e",
+        "tokens": 25,
+        "chars": 120,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_621cac15-584",
+        "tokens": 20,
+        "chars": 117,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_c5e287e8-1fd",
+        "tokens": 18,
+        "chars": 78,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_637138e2-26d",
+        "tokens": 14,
+        "chars": 93,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_718530c7-d35",
+        "tokens": 16,
+        "chars": 90,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_1968347e-105",
+        "tokens": 17,
+        "chars": 91,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_f5f3f81e-8ba",
+        "tokens": 19,
+        "chars": 75,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_ecb678c3-3a9",
+        "tokens": 21,
+        "chars": 102,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_8e4527b5-15f",
+        "tokens": 24,
+        "chars": 79,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_a6bc804d-7f0",
+        "tokens": 30,
+        "chars": 146,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_81046a8e-9b0",
+        "tokens": 26,
+        "chars": 136,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_3fb9a7c8-eb1",
+        "tokens": 22,
+        "chars": 120,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_9f4a7048-d66",
+        "tokens": 24,
+        "chars": 118,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_f7f50981-871",
+        "tokens": 28,
+        "chars": 124,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_e04ef53c-3e0",
+        "tokens": 30,
+        "chars": 144,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_5224fd44-260",
+        "tokens": 38,
+        "chars": 144,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_a5a2da26-187",
+        "tokens": 30,
+        "chars": 146,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_dda058c4-ea4",
+        "tokens": 19,
+        "chars": 91,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_08966b17-642",
+        "tokens": 29,
+        "chars": 134,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_7be8bb44-620",
+        "tokens": 25,
+        "chars": 113,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_503d86ce-d5a",
+        "tokens": 32,
+        "chars": 153,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_bca503df-02f",
+        "tokens": 17,
+        "chars": 68,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_c2d9417a-fe1",
+        "tokens": 28,
+        "chars": 118,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_e276da86-d18",
+        "tokens": 39,
+        "chars": 204,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_5bbb0658-6ca",
+        "tokens": 25,
+        "chars": 119,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_50a648e2-65b",
+        "tokens": 20,
+        "chars": 109,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_a0971d08-9d6",
+        "tokens": 25,
+        "chars": 117,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_1c6b3b60-bd9",
+        "tokens": 23,
+        "chars": 93,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_5dd988aa-d8a",
+        "tokens": 18,
+        "chars": 93,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_2210ceb4-973",
+        "tokens": 13,
+        "chars": 31,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_81a9188d-640",
+        "tokens": 25,
+        "chars": 126,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_62244713-426",
+        "tokens": 30,
+        "chars": 161,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_49e6478a-a81",
+        "tokens": 21,
+        "chars": 108,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_b22e11a8-14d",
+        "tokens": 21,
+        "chars": 121,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_5c419f05-a76",
+        "tokens": 21,
+        "chars": 99,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_ba005f81-311",
+        "tokens": 27,
+        "chars": 120,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_36d2ef91-b00",
+        "tokens": 26,
+        "chars": 123,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_3b77d29d-97b",
+        "tokens": 26,
+        "chars": 142,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_bb9f4aa9-475",
+        "tokens": 29,
+        "chars": 157,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_88d1d4f0-db7",
+        "tokens": 21,
+        "chars": 101,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_643e4d71-aaf",
+        "tokens": 23,
+        "chars": 112,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_842db1fd-746",
+        "tokens": 29,
+        "chars": 145,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_78e40d53-ea3",
+        "tokens": 17,
+        "chars": 104,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_c2bdd13b-c0c",
+        "tokens": 18,
+        "chars": 84,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_5671afe0-0cc",
+        "tokens": 25,
+        "chars": 155,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_adebbce9-4da",
+        "tokens": 24,
+        "chars": 124,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_9c9bd6ca-cc4",
+        "tokens": 27,
+        "chars": 150,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_398dc2bb-bee",
+        "tokens": 28,
+        "chars": 139,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_881067dd-d5e",
+        "tokens": 17,
+        "chars": 91,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_866cd45b-a59",
+        "tokens": 33,
+        "chars": 166,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_d8e644ef-08f",
+        "tokens": 30,
+        "chars": 155,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_0b7d707c-053",
+        "tokens": 17,
+        "chars": 87,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_dbcad381-cfc",
+        "tokens": 25,
+        "chars": 151,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_2e41049a-8bc",
+        "tokens": 15,
+        "chars": 71,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_319beda7-0fa",
+        "tokens": 24,
+        "chars": 154,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_e814a4d0-206",
+        "tokens": 20,
+        "chars": 82,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_d882a2fc-b38",
+        "tokens": 16,
+        "chars": 75,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_5012d7f3-7f7",
+        "tokens": 22,
+        "chars": 71,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_6efafd94-d07",
+        "tokens": 19,
+        "chars": 64,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_1827d98d-924",
+        "tokens": 15,
+        "chars": 60,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_f5525832-46f",
+        "tokens": 36,
+        "chars": 137,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_c36f3c23-ac4",
+        "tokens": 28,
+        "chars": 120,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_2ccf1825-42a",
+        "tokens": 26,
+        "chars": 121,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_32d6dcfd-91f",
+        "tokens": 22,
+        "chars": 127,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_3fe8ad39-451",
+        "tokens": 14,
+        "chars": 49,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_a91f798f-314",
+        "tokens": 19,
+        "chars": 85,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_e46efbf4-5c9",
+        "tokens": 29,
+        "chars": 130,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_8dd66234-df8",
+        "tokens": 30,
+        "chars": 155,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_6cc4857e-9ad",
+        "tokens": 26,
+        "chars": 119,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_326085e7-e4b",
+        "tokens": 18,
+        "chars": 95,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_76363121-649",
+        "tokens": 24,
+        "chars": 119,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_388a7275-3dd",
+        "tokens": 25,
+        "chars": 113,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_4e3bc139-3fd",
+        "tokens": 30,
+        "chars": 146,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_3a2a5147-944",
+        "tokens": 16,
+        "chars": 77,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_c9d95284-881",
+        "tokens": 18,
+        "chars": 114,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_9f923cf2-584",
+        "tokens": 32,
+        "chars": 153,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_d632b994-3fb",
+        "tokens": 29,
+        "chars": 135,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_a1b4d701-701",
+        "tokens": 23,
+        "chars": 100,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_abb446aa-648",
+        "tokens": 26,
+        "chars": 128,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_b8306ad1-653",
+        "tokens": 21,
+        "chars": 90,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_8d514ee3-710",
+        "tokens": 18,
+        "chars": 60,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_f2ca4dbe-b7f",
+        "tokens": 21,
+        "chars": 105,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_13036ebb-91f",
+        "tokens": 16,
+        "chars": 103,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_c1f2b679-28b",
+        "tokens": 26,
+        "chars": 122,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_35004c43-d5d",
+        "tokens": 25,
+        "chars": 126,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_7fa0f2a0-755",
+        "tokens": 19,
+        "chars": 87,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_d4f51916-f07",
+        "tokens": 30,
+        "chars": 182,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_8e3fd4ae-6a6",
+        "tokens": 23,
+        "chars": 109,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_0610b6e3-f2a",
+        "tokens": 7,
+        "chars": 30,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_a923500f-222",
+        "tokens": 31,
+        "chars": 150,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_6a949674-60d",
+        "tokens": 20,
+        "chars": 88,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_f4921412-5ae",
+        "tokens": 28,
+        "chars": 130,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_03082080-85b",
+        "tokens": 23,
+        "chars": 111,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_d179bfed-68e",
+        "tokens": 25,
+        "chars": 114,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_623a52eb-3be",
+        "tokens": 15,
+        "chars": 71,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_bf4ccbd3-711",
+        "tokens": 31,
+        "chars": 149,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_6523d2dd-012",
+        "tokens": 22,
+        "chars": 120,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_faf1d661-c80",
+        "tokens": 25,
+        "chars": 113,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_3c5412af-0b7",
+        "tokens": 18,
+        "chars": 96,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_f604163f-c6b",
+        "tokens": 30,
+        "chars": 144,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_41abde74-485",
+        "tokens": 10,
+        "chars": 29,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_c47d7e7c-86e",
+        "tokens": 25,
+        "chars": 116,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_8ab0b35d-34a",
+        "tokens": 16,
+        "chars": 77,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_b8ba5bd0-e17",
+        "tokens": 24,
+        "chars": 112,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_b65d2c72-421",
+        "tokens": 17,
+        "chars": 78,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_95b7f57e-416",
+        "tokens": 34,
+        "chars": 148,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_a6270e98-5d0",
+        "tokens": 23,
+        "chars": 100,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_649099c5-47a",
+        "tokens": 20,
+        "chars": 103,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_e1c1897c-557",
+        "tokens": 19,
+        "chars": 91,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_ec18e97d-6ed",
+        "tokens": 19,
+        "chars": 83,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_00420fa0-b2b",
+        "tokens": 23,
+        "chars": 120,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_aa96cca7-a05",
+        "tokens": 21,
+        "chars": 109,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_c5848e56-d50",
+        "tokens": 22,
+        "chars": 113,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_ebddaeea-123",
+        "tokens": 18,
+        "chars": 100,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_acf8023c-669",
+        "tokens": 23,
+        "chars": 121,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_be2e3927-c1d",
+        "tokens": 18,
+        "chars": 90,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_756e94b8-4b3",
+        "tokens": 22,
+        "chars": 106,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_af59ebf7-0f3",
+        "tokens": 17,
+        "chars": 104,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_16465c9e-fda",
+        "tokens": 25,
+        "chars": 126,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_706e96a8-76f",
+        "tokens": 23,
+        "chars": 114,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_ea48af7f-bee",
+        "tokens": 25,
+        "chars": 113,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_5636ab37-843",
+        "tokens": 27,
+        "chars": 123,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_9d8ff987-579",
+        "tokens": 21,
+        "chars": 121,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_37365e10-865",
+        "tokens": 25,
+        "chars": 94,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_853289ed-e06",
+        "tokens": 14,
+        "chars": 81,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_67d72d61-018",
+        "tokens": 25,
+        "chars": 99,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_7660f525-1d1",
+        "tokens": 30,
+        "chars": 164,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_fccccf8c-fd6",
+        "tokens": 19,
+        "chars": 91,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_75dcfddd-d79",
+        "tokens": 22,
+        "chars": 67,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_1359cdf2-453",
+        "tokens": 23,
+        "chars": 124,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_5c2f4d79-339",
+        "tokens": 20,
+        "chars": 107,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_37e2567e-8ee",
+        "tokens": 33,
+        "chars": 161,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_5beaef4e-bb2",
+        "tokens": 13,
+        "chars": 51,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_4f96d042-f77",
+        "tokens": 15,
+        "chars": 57,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_60146c88-c20",
+        "tokens": 21,
+        "chars": 101,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_087cd0ac-ce5",
+        "tokens": 11,
+        "chars": 49,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_7c42f1d7-a5d",
+        "tokens": 16,
+        "chars": 62,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_d99536a3-5af",
+        "tokens": 26,
+        "chars": 124,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_ac4756fe-c0d",
+        "tokens": 23,
+        "chars": 128,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_abf8a4d1-09a",
+        "tokens": 24,
+        "chars": 129,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_69182c1d-5b6",
+        "tokens": 25,
+        "chars": 130,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_4c4ccdfb-fe2",
+        "tokens": 23,
+        "chars": 118,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_5916373f-a04",
+        "tokens": 24,
+        "chars": 137,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_fa638d8f-be5",
+        "tokens": 29,
+        "chars": 138,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_ce7251a9-5ca",
+        "tokens": 25,
+        "chars": 128,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_085e62b2-e1c",
+        "tokens": 29,
+        "chars": 119,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_13fc6b42-92a",
+        "tokens": 22,
+        "chars": 118,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_fcec9acb-68b",
+        "tokens": 28,
+        "chars": 143,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_0d139488-651",
+        "tokens": 16,
+        "chars": 83,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_6435b0cc-cd9",
+        "tokens": 19,
+        "chars": 79,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_54666792-01e",
+        "tokens": 19,
+        "chars": 79,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_38501d4c-e46",
+        "tokens": 20,
+        "chars": 95,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_16f64db2-637",
+        "tokens": 21,
+        "chars": 79,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_57f1900f-181",
+        "tokens": 18,
+        "chars": 75,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_3272c4da-39d",
+        "tokens": 20,
+        "chars": 100,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_e54d83cf-301",
+        "tokens": 14,
+        "chars": 68,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_58a4f59e-5f6",
+        "tokens": 16,
+        "chars": 70,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_938b2e20-ab2",
+        "tokens": 16,
+        "chars": 69,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_d4e75f5e-11e",
+        "tokens": 10,
+        "chars": 40,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_b9d44d9a-d64",
+        "tokens": 16,
+        "chars": 68,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_8a773169-d8e",
+        "tokens": 16,
+        "chars": 72,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_b9a053d0-66b",
+        "tokens": 21,
+        "chars": 72,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_c8f78876-a82",
+        "tokens": 16,
+        "chars": 69,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_1697eee6-a64",
+        "tokens": 22,
+        "chars": 81,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_20364d98-482",
+        "tokens": 30,
+        "chars": 179,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_57abbf79-8b6",
+        "tokens": 27,
+        "chars": 95,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_31dea2ab-b5d",
+        "tokens": 40,
+        "chars": 173,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_2096c9f3-2c0",
+        "tokens": 26,
+        "chars": 122,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_a17b0039-4f2",
+        "tokens": 37,
+        "chars": 149,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_d8a065d7-150",
+        "tokens": 22,
+        "chars": 104,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_acfba89b-536",
+        "tokens": 22,
+        "chars": 89,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_247b6851-27a",
+        "tokens": 26,
+        "chars": 141,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_b88a6550-85c",
+        "tokens": 22,
+        "chars": 130,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_de7bf54e-150",
+        "tokens": 34,
+        "chars": 199,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_66dcb3a1-e86",
+        "tokens": 25,
+        "chars": 129,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_bfe963bc-e46",
+        "tokens": 25,
+        "chars": 127,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_d4b6bb3a-a0b",
+        "tokens": 35,
+        "chars": 178,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_f536875c-c35",
+        "tokens": 21,
+        "chars": 101,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_aa6539f2-b18",
+        "tokens": 25,
+        "chars": 140,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_a9063d67-f09",
+        "tokens": 42,
+        "chars": 222,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_6f15f117-cfd",
+        "tokens": 31,
+        "chars": 152,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_0323d62d-806",
+        "tokens": 13,
+        "chars": 64,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_3a1432ac-173",
+        "tokens": 16,
+        "chars": 77,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_75045402-835",
+        "tokens": 16,
+        "chars": 85,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_347bcd0b-82a",
+        "tokens": 19,
+        "chars": 77,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_a0b00fe0-489",
+        "tokens": 21,
+        "chars": 80,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_0bd566c7-715",
+        "tokens": 28,
+        "chars": 99,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_19ed2afb-355",
+        "tokens": 18,
+        "chars": 66,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_ad3d9b1d-4de",
+        "tokens": 16,
+        "chars": 77,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_8126d5b0-27a",
+        "tokens": 28,
+        "chars": 128,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_5dab04c8-b54",
+        "tokens": 9,
+        "chars": 47,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_b8df7df5-c22",
+        "tokens": 27,
+        "chars": 109,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_9052895a-a7f",
+        "tokens": 28,
+        "chars": 100,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_a02a1656-68c",
+        "tokens": 31,
+        "chars": 161,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_f49cc8e7-b16",
+        "tokens": 9,
+        "chars": 35,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_5f9a0c66-809",
+        "tokens": 12,
+        "chars": 52,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_d29672e3-d71",
+        "tokens": 8,
+        "chars": 27,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_d3c120e1-d52",
+        "tokens": 23,
+        "chars": 107,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_97181452-10d",
+        "tokens": 23,
+        "chars": 109,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_95761bf6-a43",
+        "tokens": 28,
+        "chars": 143,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_89bb4ea9-0e0",
+        "tokens": 23,
+        "chars": 103,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_96ad8169-4b4",
+        "tokens": 39,
+        "chars": 169,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_2b641dbf-c09",
+        "tokens": 32,
+        "chars": 146,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_87ef8d62-3dd",
+        "tokens": 25,
+        "chars": 137,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_07729c45-a37",
+        "tokens": 23,
+        "chars": 116,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_9d637de8-8e4",
+        "tokens": 36,
+        "chars": 161,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_4ed3e2b8-76c",
+        "tokens": 34,
+        "chars": 140,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_b8e5017e-540",
+        "tokens": 37,
+        "chars": 167,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_c78889c8-abb",
+        "tokens": 16,
+        "chars": 73,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_342897f6-cff",
+        "tokens": 26,
+        "chars": 97,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_a258c0de-f82",
+        "tokens": 11,
+        "chars": 53,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_cdd6d8cf-949",
+        "tokens": 22,
+        "chars": 102,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_10da65f4-e23",
+        "tokens": 5,
+        "chars": 23,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_c515ad3e-03c",
+        "tokens": 20,
+        "chars": 90,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_b1c4cc14-70f",
+        "tokens": 29,
+        "chars": 143,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_d3ce1e5a-6aa",
+        "tokens": 20,
+        "chars": 105,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_2e325ed5-ee1",
+        "tokens": 15,
+        "chars": 83,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_ac8502a0-020",
+        "tokens": 23,
+        "chars": 105,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_ba3b121e-ec8",
+        "tokens": 11,
+        "chars": 64,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_d07c60cb-bba",
+        "tokens": 29,
+        "chars": 147,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_4eeed566-60d",
+        "tokens": 30,
+        "chars": 146,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_70d731d4-914",
+        "tokens": 18,
+        "chars": 101,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_47f5da0f-cd3",
+        "tokens": 29,
+        "chars": 181,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_b147a36c-30d",
+        "tokens": 18,
+        "chars": 110,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_620ecae6-55e",
+        "tokens": 34,
+        "chars": 153,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_48a2d6ba-d24",
+        "tokens": 30,
+        "chars": 148,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_b4dbb381-f61",
+        "tokens": 27,
+        "chars": 134,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_57334a02-33b",
+        "tokens": 15,
+        "chars": 79,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_f425f36d-ebe",
+        "tokens": 16,
+        "chars": 68,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_2e97a3bc-ac5",
+        "tokens": 17,
+        "chars": 70,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_75aaaa03-78b",
+        "tokens": 8,
+        "chars": 40,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_c82e9a42-33b",
+        "tokens": 24,
+        "chars": 155,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_c6bda287-471",
+        "tokens": 17,
+        "chars": 79,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_9d6d8587-27b",
+        "tokens": 18,
+        "chars": 83,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_96686839-9d6",
+        "tokens": 27,
+        "chars": 130,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_3b2a3512-736",
+        "tokens": 29,
+        "chars": 171,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_602d72b5-ded",
+        "tokens": 26,
+        "chars": 121,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_85e5416e-28d",
+        "tokens": 17,
+        "chars": 112,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_2aeb1ab8-a00",
+        "tokens": 32,
+        "chars": 193,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_ea1d6015-191",
+        "tokens": 19,
+        "chars": 127,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_24134dd3-d7a",
+        "tokens": 31,
+        "chars": 199,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_df30e536-038",
+        "tokens": 34,
+        "chars": 193,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_1afa6ff5-cda",
+        "tokens": 31,
+        "chars": 194,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_7ab3c494-89d",
+        "tokens": 23,
+        "chars": 132,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_afa10d0d-32b",
+        "tokens": 25,
+        "chars": 100,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_6410be0a-399",
+        "tokens": 37,
+        "chars": 179,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_b4e57315-dc7",
+        "tokens": 33,
+        "chars": 183,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_4a1816d7-5ea",
+        "tokens": 26,
+        "chars": 149,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_1025dd7e-6c7",
+        "tokens": 13,
+        "chars": 77,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_8c024e42-d04",
+        "tokens": 21,
+        "chars": 117,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_237bb7e1-c32",
+        "tokens": 25,
+        "chars": 149,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_e4a14bec-903",
+        "tokens": 18,
+        "chars": 101,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_b79cf443-d0d",
+        "tokens": 20,
+        "chars": 115,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_00ff765e-bea",
+        "tokens": 19,
+        "chars": 99,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_bdf1ded4-cff",
+        "tokens": 29,
+        "chars": 172,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_c5249eba-24c",
+        "tokens": 31,
+        "chars": 148,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_5f8dab31-c52",
+        "tokens": 25,
+        "chars": 109,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_c53b6409-10c",
+        "tokens": 34,
+        "chars": 174,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_0aa5b9c7-d84",
+        "tokens": 16,
+        "chars": 83,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_5edda6ae-757",
+        "tokens": 27,
+        "chars": 154,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_338ebb82-824",
+        "tokens": 27,
+        "chars": 158,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_116a197a-d96",
+        "tokens": 22,
+        "chars": 107,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_3b87f08a-094",
+        "tokens": 25,
+        "chars": 123,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_879fd7b9-93b",
+        "tokens": 19,
+        "chars": 93,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_888b60d2-056",
+        "tokens": 33,
+        "chars": 170,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_d7f05301-e42",
+        "tokens": 24,
+        "chars": 131,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_805b4d37-2c9",
+        "tokens": 36,
+        "chars": 182,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_6500850b-2ca",
+        "tokens": 36,
+        "chars": 220,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_d10fa130-c78",
+        "tokens": 34,
+        "chars": 144,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_b6a7f3f3-b08",
+        "tokens": 29,
+        "chars": 137,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_7e40a881-0e9",
+        "tokens": 40,
+        "chars": 194,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_81f7c543-251",
+        "tokens": 31,
+        "chars": 152,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_9b286af8-088",
+        "tokens": 28,
+        "chars": 147,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_a006a706-b00",
+        "tokens": 29,
+        "chars": 165,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_6c1bee45-b14",
+        "tokens": 24,
+        "chars": 140,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_a539f4b5-b29",
+        "tokens": 26,
+        "chars": 156,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_61a0b7e9-ca2",
+        "tokens": 13,
+        "chars": 76,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_a4bd2c7d-72e",
+        "tokens": 28,
+        "chars": 135,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_07bf9511-29c",
+        "tokens": 12,
+        "chars": 73,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_0986e017-01a",
+        "tokens": 34,
+        "chars": 182,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_51aafe23-c13",
+        "tokens": 33,
+        "chars": 167,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_f22ec8ce-774",
+        "tokens": 24,
+        "chars": 98,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_ed0c1319-dd0",
+        "tokens": 28,
+        "chars": 135,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_1fa43731-653",
+        "tokens": 19,
+        "chars": 110,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_cbb67ce8-bb0",
+        "tokens": 15,
+        "chars": 60,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_b5c0e64e-0bb",
+        "tokens": 27,
+        "chars": 153,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_c8d31d7e-d6c",
+        "tokens": 33,
+        "chars": 153,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_ff7e3576-ca7",
+        "tokens": 32,
+        "chars": 146,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_bf9d754c-dbf",
+        "tokens": 22,
+        "chars": 78,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_67fa24c5-ae0",
+        "tokens": 28,
+        "chars": 99,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_54bdde7b-16e",
+        "tokens": 28,
+        "chars": 170,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_daac6458-1de",
+        "tokens": 30,
+        "chars": 185,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_7569b506-6a7",
+        "tokens": 23,
+        "chars": 104,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_f673d0d9-d1b",
+        "tokens": 36,
+        "chars": 169,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_a36712f8-8e1",
+        "tokens": 29,
+        "chars": 145,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_3e150a12-41c",
+        "tokens": 25,
+        "chars": 143,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_baf5de92-96b",
+        "tokens": 25,
+        "chars": 136,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_5faa5d74-688",
+        "tokens": 20,
+        "chars": 67,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_ef23cdd9-0d6",
+        "tokens": 39,
+        "chars": 162,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_eb9235cd-937",
+        "tokens": 33,
+        "chars": 157,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_aaf2472c-322",
+        "tokens": 19,
+        "chars": 118,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_22a73291-da1",
+        "tokens": 18,
+        "chars": 104,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_669301d6-eeb",
+        "tokens": 22,
+        "chars": 108,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_b6ad6182-814",
+        "tokens": 23,
+        "chars": 126,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_fb865110-335",
+        "tokens": 23,
+        "chars": 134,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_422e085d-837",
+        "tokens": 27,
+        "chars": 148,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_837b1b74-3e8",
+        "tokens": 27,
+        "chars": 137,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_cace2825-635",
+        "tokens": 31,
+        "chars": 138,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_31f8ca28-87a",
+        "tokens": 15,
+        "chars": 65,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_5c7b2ebb-53c",
+        "tokens": 30,
+        "chars": 111,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_c6116b12-464",
+        "tokens": 23,
+        "chars": 86,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_fc27906e-69e",
+        "tokens": 23,
+        "chars": 109,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_30f8e225-201",
+        "tokens": 25,
+        "chars": 137,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_5f47f3c9-f7f",
+        "tokens": 19,
+        "chars": 83,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_5278187f-87a",
+        "tokens": 39,
+        "chars": 145,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_7adc2b9d-e64",
+        "tokens": 27,
+        "chars": 128,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_5a3aa4fc-8fa",
+        "tokens": 29,
+        "chars": 137,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_1c91dcad-17e",
+        "tokens": 22,
+        "chars": 94,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_c06c288b-bce",
+        "tokens": 23,
+        "chars": 118,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_05eca25f-656",
+        "tokens": 14,
+        "chars": 68,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_a8f91dc4-a3b",
+        "tokens": 6,
+        "chars": 23,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_ddb989be-972",
+        "tokens": 27,
+        "chars": 138,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_936773b4-8aa",
+        "tokens": 19,
+        "chars": 99,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_967f67b5-50f",
+        "tokens": 20,
+        "chars": 106,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_40042355-923",
+        "tokens": 33,
+        "chars": 162,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_159d1037-8b2",
+        "tokens": 31,
+        "chars": 173,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_422f0d9d-5f4",
+        "tokens": 32,
+        "chars": 168,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_eef93332-151",
+        "tokens": 25,
+        "chars": 122,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_20f57d04-867",
+        "tokens": 32,
+        "chars": 165,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_43539586-c0d",
+        "tokens": 31,
+        "chars": 178,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_47577410-37a",
+        "tokens": 27,
+        "chars": 137,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_046bf092-6a7",
+        "tokens": 32,
+        "chars": 143,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_677536e4-6b4",
+        "tokens": 37,
+        "chars": 149,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_c45c9d43-606",
+        "tokens": 27,
+        "chars": 118,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_b787d1b9-a0b",
+        "tokens": 21,
+        "chars": 127,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_9586b8de-949",
+        "tokens": 26,
+        "chars": 170,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_0a8aa1b7-bb4",
+        "tokens": 27,
+        "chars": 131,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_54ea59e8-572",
+        "tokens": 18,
+        "chars": 77,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_6030eb7c-a3a",
+        "tokens": 25,
+        "chars": 160,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_5e84f8f1-bee",
+        "tokens": 46,
+        "chars": 195,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_0458a0a1-79d",
+        "tokens": 16,
+        "chars": 79,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_c50c897c-c7c",
+        "tokens": 33,
+        "chars": 131,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_968edbbe-1dc",
+        "tokens": 36,
+        "chars": 158,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_d4e2bcfc-200",
+        "tokens": 33,
+        "chars": 148,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_977401f2-46b",
+        "tokens": 17,
+        "chars": 93,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_a08a62ce-890",
+        "tokens": 24,
+        "chars": 98,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_b4bc8d32-231",
+        "tokens": 19,
+        "chars": 72,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_aa56d532-d7a",
+        "tokens": 25,
+        "chars": 86,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_7edea1ce-882",
+        "tokens": 33,
+        "chars": 138,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_ba16729b-f70",
+        "tokens": 13,
+        "chars": 57,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_90bdc4a7-2fa",
+        "tokens": 24,
+        "chars": 128,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_56294d8f-4d1",
+        "tokens": 12,
+        "chars": 65,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_720f0652-cde",
+        "tokens": 8,
+        "chars": 55,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_fe6a4af5-5a7",
+        "tokens": 24,
+        "chars": 102,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_b84b086f-e1c",
+        "tokens": 38,
+        "chars": 198,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_7b51867f-483",
+        "tokens": 29,
+        "chars": 122,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_db02ff25-dc3",
+        "tokens": 37,
+        "chars": 169,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_1c29bebe-6f0",
+        "tokens": 24,
+        "chars": 127,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_60bc77d5-622",
+        "tokens": 25,
+        "chars": 109,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_88101b47-275",
+        "tokens": 19,
+        "chars": 119,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_848173b6-71e",
+        "tokens": 27,
+        "chars": 124,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_c3dfd598-961",
+        "tokens": 30,
+        "chars": 177,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_1c305424-71d",
+        "tokens": 28,
+        "chars": 151,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_facd36b3-810",
+        "tokens": 17,
+        "chars": 102,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_8a5267e0-422",
+        "tokens": 27,
+        "chars": 112,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_e5085a58-65f",
+        "tokens": 21,
+        "chars": 110,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_496dcd4b-d8c",
+        "tokens": 19,
+        "chars": 132,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_08d8c12c-2b8",
+        "tokens": 30,
+        "chars": 184,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_eac64134-476",
+        "tokens": 27,
+        "chars": 166,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_4eb0208d-855",
+        "tokens": 30,
+        "chars": 202,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_1812e161-abd",
+        "tokens": 31,
+        "chars": 188,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_dca7b0af-57c",
+        "tokens": 20,
+        "chars": 104,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_24a4024e-7c3",
+        "tokens": 14,
+        "chars": 84,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_4b7edb44-b44",
+        "tokens": 35,
+        "chars": 173,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_ad5ed8e2-5ef",
+        "tokens": 32,
+        "chars": 179,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_9de1c31e-faf",
+        "tokens": 36,
+        "chars": 185,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_b0820465-630",
+        "tokens": 29,
+        "chars": 108,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_adcd7557-c86",
+        "tokens": 25,
+        "chars": 142,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_05690dab-7b7",
+        "tokens": 30,
+        "chars": 160,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_c8ec88ab-2a3",
+        "tokens": 15,
+        "chars": 83,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_29fad378-aef",
+        "tokens": 21,
+        "chars": 126,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_3d842709-700",
+        "tokens": 30,
+        "chars": 176,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_f0528020-ff9",
+        "tokens": 25,
+        "chars": 108,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_8371fd6e-3b0",
+        "tokens": 23,
+        "chars": 114,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_aa77c71e-11e",
+        "tokens": 23,
+        "chars": 139,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_a70f7030-0b1",
+        "tokens": 14,
+        "chars": 67,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_1d1651c1-274",
+        "tokens": 39,
+        "chars": 184,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_91680c64-3e7",
+        "tokens": 28,
+        "chars": 146,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_668d94c5-3bf",
+        "tokens": 14,
+        "chars": 81,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_3ee570f9-9a9",
+        "tokens": 33,
+        "chars": 208,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_1f5018f7-c78",
+        "tokens": 19,
+        "chars": 131,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_88321b6d-8b4",
+        "tokens": 19,
+        "chars": 111,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_8938e4eb-9d1",
+        "tokens": 19,
+        "chars": 100,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_dd221d17-cb3",
+        "tokens": 22,
+        "chars": 126,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_cc126b88-43e",
+        "tokens": 15,
+        "chars": 82,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_c1299a59-c76",
+        "tokens": 15,
+        "chars": 102,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_20ff07ac-905",
+        "tokens": 14,
+        "chars": 72,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_bdfab885-e24",
+        "tokens": 19,
+        "chars": 87,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_011308d8-229",
+        "tokens": 22,
+        "chars": 108,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_c4ab1a84-f1c",
+        "tokens": 17,
+        "chars": 93,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_de3437e0-42f",
+        "tokens": 25,
+        "chars": 111,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_ef73de7d-a85",
+        "tokens": 22,
+        "chars": 117,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_6f357e5c-288",
+        "tokens": 32,
+        "chars": 164,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_3bc3119f-717",
+        "tokens": 28,
+        "chars": 181,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_4391f929-7dc",
+        "tokens": 26,
+        "chars": 167,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_7e2d56be-554",
+        "tokens": 32,
+        "chars": 165,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_2f26c125-df1",
+        "tokens": 10,
+        "chars": 42,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_2c21c380-3f5",
+        "tokens": 29,
+        "chars": 157,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_c4b2b6b5-81d",
+        "tokens": 16,
+        "chars": 68,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_dd14529e-6db",
+        "tokens": 23,
+        "chars": 140,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_5ebb8a1b-0d6",
+        "tokens": 22,
+        "chars": 122,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_e8b9619a-796",
+        "tokens": 31,
+        "chars": 161,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_df6900b0-ff9",
+        "tokens": 15,
+        "chars": 83,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_5cfbc08c-7cb",
+        "tokens": 15,
+        "chars": 94,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_4695acc7-d8b",
+        "tokens": 5,
+        "chars": 28,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_c298f6cd-cdb",
+        "tokens": 15,
+        "chars": 109,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_09b920fc-d32",
+        "tokens": 17,
+        "chars": 86,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_2d1d6abb-9cb",
+        "tokens": 20,
+        "chars": 125,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_6a42e618-951",
+        "tokens": 22,
+        "chars": 112,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_3d409c2e-669",
+        "tokens": 17,
+        "chars": 89,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_f643fadd-e3f",
+        "tokens": 26,
+        "chars": 111,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_7bdcda9e-70b",
+        "tokens": 34,
+        "chars": 187,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_9f157e29-d6d",
+        "tokens": 20,
+        "chars": 110,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_58a4501a-9c5",
+        "tokens": 22,
+        "chars": 104,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_376e7ea0-f34",
+        "tokens": 18,
+        "chars": 92,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_c44ddca7-690",
+        "tokens": 41,
+        "chars": 150,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_f78db771-004",
+        "tokens": 25,
+        "chars": 116,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_24d3cdb7-de8",
+        "tokens": 25,
+        "chars": 112,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_6adc75ca-f08",
+        "tokens": 23,
+        "chars": 121,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_7ad47aa7-fd8",
+        "tokens": 33,
+        "chars": 172,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_57f5ee24-286",
+        "tokens": 14,
+        "chars": 80,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_3e094397-351",
+        "tokens": 28,
+        "chars": 135,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_5aac867f-f16",
+        "tokens": 26,
+        "chars": 156,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_d1752ecf-50c",
+        "tokens": 25,
+        "chars": 123,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_2cffe536-a6f",
+        "tokens": 30,
+        "chars": 165,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_59c7e9f5-fcb",
+        "tokens": 28,
+        "chars": 160,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_7184c269-295",
+        "tokens": 27,
+        "chars": 146,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_191dce95-5e5",
+        "tokens": 25,
+        "chars": 146,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_efb36ad6-220",
+        "tokens": 24,
+        "chars": 122,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_3bed20f1-759",
+        "tokens": 32,
+        "chars": 164,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_75cf2439-bb7",
+        "tokens": 29,
+        "chars": 145,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_456b2ae8-eb6",
+        "tokens": 30,
+        "chars": 167,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_e37f390f-508",
+        "tokens": 20,
+        "chars": 71,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_cafd7580-d8d",
+        "tokens": 29,
+        "chars": 142,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_2b6a77e0-edb",
+        "tokens": 25,
+        "chars": 123,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_fa7afb5b-497",
+        "tokens": 28,
+        "chars": 127,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_3fa88099-4bb",
+        "tokens": 32,
+        "chars": 106,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_c9a7fff3-a25",
+        "tokens": 28,
+        "chars": 127,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_090d326a-722",
+        "tokens": 36,
+        "chars": 162,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_87af41a6-ca6",
+        "tokens": 32,
+        "chars": 133,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_5efb5027-6a8",
+        "tokens": 31,
+        "chars": 163,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_52fe4e13-d6b",
+        "tokens": 24,
+        "chars": 136,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_1c84a2f8-5d2",
+        "tokens": 28,
+        "chars": 159,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_1ea52f47-a00",
+        "tokens": 27,
+        "chars": 154,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_c74994de-c33",
+        "tokens": 21,
+        "chars": 100,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_90ee82ff-0e4",
+        "tokens": 28,
+        "chars": 150,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_343002ed-904",
+        "tokens": 25,
+        "chars": 115,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_bdbb85aa-4e3",
+        "tokens": 15,
+        "chars": 81,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_2c37f0e4-c63",
+        "tokens": 23,
+        "chars": 115,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_029c9360-d3c",
+        "tokens": 13,
+        "chars": 78,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_1b0a6711-62b",
+        "tokens": 15,
+        "chars": 82,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_8dca87ff-e5d",
+        "tokens": 27,
+        "chars": 121,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_60bf82aa-50e",
+        "tokens": 32,
+        "chars": 141,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_1e5c5f5b-81d",
+        "tokens": 24,
+        "chars": 187,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_f8a00c39-b44",
+        "tokens": 23,
+        "chars": 122,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_813dff0a-dd4",
+        "tokens": 15,
+        "chars": 97,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_1b9c2123-873",
+        "tokens": 16,
+        "chars": 77,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_1b2ca59e-e99",
+        "tokens": 24,
+        "chars": 108,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_0a75434a-b3d",
+        "tokens": 29,
+        "chars": 113,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_2073f324-84c",
+        "tokens": 32,
+        "chars": 196,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_1b50a8fd-02e",
+        "tokens": 19,
+        "chars": 74,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_79cb8956-384",
+        "tokens": 29,
+        "chars": 129,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_9da52417-bc4",
+        "tokens": 32,
+        "chars": 136,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_4c6ef532-59e",
+        "tokens": 30,
+        "chars": 171,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_71ee17d5-9ec",
+        "tokens": 17,
+        "chars": 65,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_0e93f93c-c72",
+        "tokens": 13,
+        "chars": 67,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_4d05c45b-0b1",
+        "tokens": 17,
+        "chars": 62,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_8aa1dd4c-933",
+        "tokens": 18,
+        "chars": 110,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_cebc715f-707",
+        "tokens": 19,
+        "chars": 97,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_d2087723-2b0",
+        "tokens": 24,
+        "chars": 110,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_9ca12cb9-232",
+        "tokens": 31,
+        "chars": 150,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_93f583fd-95f",
+        "tokens": 22,
+        "chars": 98,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_e46e0c88-a76",
+        "tokens": 33,
+        "chars": 156,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_7482e4ed-1d6",
+        "tokens": 14,
+        "chars": 61,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_785d5f62-68f",
+        "tokens": 19,
+        "chars": 84,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_d515be06-7a6",
+        "tokens": 26,
+        "chars": 113,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_57958ff6-8ce",
+        "tokens": 20,
+        "chars": 105,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_236ea125-70d",
+        "tokens": 21,
+        "chars": 87,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_d261797c-48f",
+        "tokens": 11,
+        "chars": 60,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_f4cb03dc-e78",
+        "tokens": 22,
+        "chars": 100,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_09369769-fe6",
+        "tokens": 18,
+        "chars": 87,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_10103bd0-a72",
+        "tokens": 26,
+        "chars": 105,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_16dc9c57-fbc",
+        "tokens": 26,
+        "chars": 122,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_b4cb7187-4e9",
+        "tokens": 25,
+        "chars": 107,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_2c5f4805-030",
+        "tokens": 38,
+        "chars": 138,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_39bcb7cf-675",
+        "tokens": 33,
+        "chars": 158,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_b6d7258a-ffb",
+        "tokens": 12,
+        "chars": 59,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_6d6eccb6-b7d",
+        "tokens": 20,
+        "chars": 68,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_d5a35a4e-31b",
+        "tokens": 16,
+        "chars": 63,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_c0af8d6a-689",
+        "tokens": 22,
+        "chars": 71,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_93baed34-a86",
+        "tokens": 16,
+        "chars": 69,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_9e4221e5-f3a",
+        "tokens": 14,
+        "chars": 79,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_5af9f039-499",
+        "tokens": 14,
+        "chars": 65,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_b2ca2954-bcf",
+        "tokens": 31,
+        "chars": 164,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_def22e4c-d7b",
+        "tokens": 32,
+        "chars": 149,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_6dd73dd4-dad",
+        "tokens": 29,
+        "chars": 118,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_e512d30e-421",
+        "tokens": 16,
+        "chars": 84,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_02963027-16b",
+        "tokens": 29,
+        "chars": 128,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_cbdc34db-d30",
+        "tokens": 16,
+        "chars": 52,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_14a1c413-5c0",
+        "tokens": 38,
+        "chars": 145,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_d0a644f5-5b9",
+        "tokens": 47,
+        "chars": 123,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_399cab52-556",
+        "tokens": 27,
+        "chars": 166,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_15fd8c9c-83c",
+        "tokens": 37,
+        "chars": 167,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_780f4b29-66d",
+        "tokens": 19,
+        "chars": 92,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_7415a8d3-bf5",
+        "tokens": 23,
+        "chars": 122,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_f2842463-f43",
+        "tokens": 24,
+        "chars": 110,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_19e470d7-311",
+        "tokens": 21,
+        "chars": 88,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_3c4dff46-ee3",
+        "tokens": 25,
+        "chars": 128,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_90e5e496-c3c",
+        "tokens": 19,
+        "chars": 85,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_4fb90ff1-d30",
+        "tokens": 14,
+        "chars": 72,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_042df65b-2eb",
+        "tokens": 26,
+        "chars": 139,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_a6ea446d-5e8",
+        "tokens": 27,
+        "chars": 121,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_3afd60be-f6f",
+        "tokens": 27,
+        "chars": 103,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_72df8b90-744",
+        "tokens": 37,
+        "chars": 181,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_5d600cec-19f",
+        "tokens": 15,
+        "chars": 67,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_90db0d9b-2b5",
+        "tokens": 16,
+        "chars": 66,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_d062c00a-e72",
+        "tokens": 6,
+        "chars": 21,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_cf37a71f-0a2",
+        "tokens": 34,
+        "chars": 147,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_c6b9bd48-1c8",
+        "tokens": 37,
+        "chars": 161,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_181f53f6-af7",
+        "tokens": 34,
+        "chars": 166,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_8f254de3-0f8",
+        "tokens": 14,
+        "chars": 53,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_1d904e31-5c7",
+        "tokens": 33,
+        "chars": 162,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_9258862b-623",
+        "tokens": 16,
+        "chars": 91,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_970587d3-f38",
+        "tokens": 29,
+        "chars": 115,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_7b8f2d5f-fce",
+        "tokens": 13,
+        "chars": 60,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_339da1b6-244",
+        "tokens": 11,
+        "chars": 44,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_aabe25a3-868",
+        "tokens": 13,
+        "chars": 76,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_0e43b24a-d12",
+        "tokens": 22,
+        "chars": 103,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_7bc52a48-967",
+        "tokens": 23,
+        "chars": 100,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_72453e14-70a",
+        "tokens": 25,
+        "chars": 135,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_383bd466-040",
+        "tokens": 24,
+        "chars": 123,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_ae9d8737-eb0",
+        "tokens": 20,
+        "chars": 73,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_0a8b1214-893",
+        "tokens": 27,
+        "chars": 91,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_296c4d61-45c",
+        "tokens": 15,
+        "chars": 69,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_ec4b28e2-c53",
+        "tokens": 14,
+        "chars": 76,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_4fde0b98-1f8",
+        "tokens": 15,
+        "chars": 77,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_da675d9c-6e6",
+        "tokens": 18,
+        "chars": 70,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_aed308c8-44d",
+        "tokens": 25,
+        "chars": 103,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_c58e579e-629",
+        "tokens": 15,
+        "chars": 58,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_71529ad0-a16",
+        "tokens": 28,
+        "chars": 161,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_3ab5ebc3-2eb",
+        "tokens": 19,
+        "chars": 111,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_43597c72-65b",
+        "tokens": 14,
+        "chars": 68,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_55e1db4d-e9d",
+        "tokens": 28,
+        "chars": 127,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_06c7d3e6-6b3",
+        "tokens": 26,
+        "chars": 128,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_1b07a279-868",
+        "tokens": 27,
+        "chars": 130,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_ae77fcf3-c6d",
+        "tokens": 35,
+        "chars": 140,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_209273af-aee",
+        "tokens": 22,
+        "chars": 102,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_f3dd5a0a-53d",
+        "tokens": 15,
+        "chars": 64,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_ee6059a7-175",
+        "tokens": 22,
+        "chars": 143,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_6fb32897-b20",
+        "tokens": 24,
+        "chars": 84,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_91aaf3b4-663",
+        "tokens": 20,
+        "chars": 118,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_49ac587b-bdb",
+        "tokens": 18,
+        "chars": 101,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_fa7df207-098",
+        "tokens": 30,
+        "chars": 171,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_da48357d-f8c",
+        "tokens": 21,
+        "chars": 133,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_bc348dcf-4cd",
+        "tokens": 23,
+        "chars": 140,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_10e682b9-6e2",
+        "tokens": 24,
+        "chars": 139,
+        "meetsOneBlock": false
+      },
+      {
+        "itemId": "art_df13b131-c12",
+        "tokens": 24,
+        "chars": 129,
+        "meetsOneBlock": false
+      }
+    ]
+  }
+}

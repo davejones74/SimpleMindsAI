@@ -148,7 +148,7 @@ export function planCuration(rawText, {
  * block. Merging never crosses a domain or exceeds maxChars, so a merge cannot
  * silently mix unrelated material.
  */
-export function mergeAdjacentUnits(units, { minChars = 800, maxChars = 6_000 } = {}) {
+export function mergeAdjacentUnits(units, { minChars = 800, maxChars = 6_000, mergeAcrossDomains = false } = {}) {
   const list = (Array.isArray(units) ? units : []).filter((u) => u && typeof u.text === "string" && u.text.trim());
   const out = [];
   let current = null;
@@ -160,7 +160,8 @@ export function mergeAdjacentUnits(units, { minChars = 800, maxChars = 6_000 } =
       continue;
     }
     const combined = `${current.text}\n\n${text}`;
-    if (current.domain === domain && current.text.length < minChars && combined.length <= maxChars) {
+    const domainCompatible = mergeAcrossDomains || current.domain === domain;
+    if (domainCompatible && current.text.length < minChars && combined.length <= maxChars) {
       current = { ...current, text: combined, mergedUnits: (current.mergedUnits ?? 1) + 1 };
       continue;
     }

@@ -93,6 +93,10 @@ export async function runLearningCycle(ctx) {
       units = mergeAdjacentUnits(units, {
         minChars: config.curatorMergeMinChars,
         maxChars: config.curatorMergeMaxChars,
+        // Teacher units from one source often carry different domain labels;
+        // merging them is still coherent and prevents the source from remaining
+        // a pile of sub-block fragments.
+        mergeAcrossDomains: config.curatorMergeAcrossDomains !== false,
       });
     }
     if (segmentationStats(plan, doc.text).chunks > 1) {

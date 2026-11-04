@@ -597,6 +597,10 @@ export const config = {
   curatorMergeUnits: bool("CURATOR_MERGE_UNITS", true),
   curatorMergeMinChars: num("CURATOR_MERGE_MIN_CHARS", 800),
   curatorMergeMaxChars: num("CURATOR_MERGE_MAX_CHARS", 6_000),
+  // Merge adjacent units from the same source even when the teacher labelled
+  // them with different domains. This is still one source document and avoids
+  // leaving the source as a pile of sub-128-token fragments.
+  curatorMergeAcrossDomains: bool("CURATOR_MERGE_ACROSS_DOMAINS", true),
 
   // ---- Phase 3: bounded crawling discovery ----
   // Domain allow-list: comma-separated; empty defaults to CRAWL_URLS hosts only.

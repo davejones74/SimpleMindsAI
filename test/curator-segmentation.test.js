@@ -42,6 +42,13 @@ test("adjacent short units merge only within one domain", () => {
   assert.equal(merged[0].domain, "science");
   assert.match(merged[0].text, /short two/);
   assert.equal(merged[1].domain, "history");
+
+  const across = mergeAdjacentUnits([
+    { text: "short one", domain: "science" },
+    { text: "short two", domain: "history" },
+  ], { minChars: 800, maxChars: 6_000, mergeAcrossDomains: true });
+  assert.equal(across.length, 1, "same-source units may merge across domains when explicitly enabled");
+  assert.match(across[0].text, /short two/);
 });
 
 test("learning cycle curates every chunk of a long source", async () => {
