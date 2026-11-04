@@ -1,0 +1,76 @@
+{
+  "schema": "sma/sealed-cohort@1",
+  "id": "curation-experiment-retention-v1",
+  "kind": "retention",
+  "createdAt": "2026-11-04T21:46:05.487Z",
+  "sealed": true,
+  "neverTrain": true,
+  "source": "Held-out probe from the first 2k chars of each training source",
+  "notes": "The same text is included in every curation mode, so forgetting is comparable.",
+  "trainedInVersions": null,
+  "itemCount": 10,
+  "chars": 7472,
+  "datasetHash": "cfff2a6c3f41bc5b5923526f278f679dc28024b1ffe6fc9d83544cfeda96290f",
+  "items": [
+    {
+      "itemId": "pride-prejudice-retention-0",
+      "contentHash": "98a9306494a3f4d6ded4aaa64c448cb933354845123f9ddddbff0cce7e519fce",
+      "sourceUrl": "https://www.gutenberg.org/files/1342/1342-0.txt",
+      "chars": 623
+    },
+    {
+      "itemId": "pride-prejudice-retention-1",
+      "contentHash": "afd5261d29cd91bd835ce64519904306c49bdc72ed052c2f5e3f17f744823e16",
+      "sourceUrl": "https://www.gutenberg.org/files/1342/1342-0.txt",
+      "chars": 698
+    },
+    {
+      "itemId": "frankenstein-retention-0",
+      "contentHash": "699604bd9ab9dbd7994077379b74123d429db7b1126fdf7e9b0d1ad5f6558f12",
+      "sourceUrl": "https://www.gutenberg.org/files/84/84-0.txt",
+      "chars": 774
+    },
+    {
+      "itemId": "frankenstein-retention-1",
+      "contentHash": "6f316287c8da93a4b46dc993563a680a7b62d7d59ff28661e4121f99da2c4c6c",
+      "sourceUrl": "https://www.gutenberg.org/files/84/84-0.txt",
+      "chars": 966
+    },
+    {
+      "itemId": "moby-dick-retention-0",
+      "contentHash": "024edea6cd6c06acd00f36d7f63d4f39d566e1c979af9adfb1413f6251ee1b54",
+      "sourceUrl": "https://www.gutenberg.org/files/2701/2701-0.txt",
+      "chars": 978
+    },
+    {
+      "itemId": "moby-dick-retention-1",
+      "contentHash": "f7b922ad446b50ab30f8f6523a7a5db2ffc1334857ae73d69b27831f1cf7b08e",
+      "sourceUrl": "https://www.gutenberg.org/files/2701/2701-0.txt",
+      "chars": 989
+    },
+    {
+      "itemId": "sherlock-holmes-retention-0",
+      "contentHash": "4029c0852dd2ec7cfcf45948dde520e66164edd86af027148787f91b449f7b40",
+      "sourceUrl": "https://www.gutenberg.org/files/1661/1661-0.txt",
+      "chars": 525
+    },
+    {
+      "itemId": "sherlock-holmes-retention-1",
+      "contentHash": "0f4647055a3521eb21f3b215ca6e2962052e23b604e39642591ce1e0e582fa5b",
+      "sourceUrl": "https://www.gutenberg.org/files/1661/1661-0.txt",
+      "chars": 874
+    },
+    {
+      "itemId": "tale-two-cities-retention-0",
+      "contentHash": "e53a1adecff4391b5be2b79dbfb494d64bb9b0042f3bdb39dd8e3167463c436f",
+      "sourceUrl": "https://www.gutenberg.org/files/98/98-0.txt",
+      "chars": 307
+    },
+    {
+      "itemId": "tale-two-cities-retention-1",
+      "contentHash": "0f429ee395f7524ec546fc2b42d2c8c2fed5fd2f734f06549ccef5517ecd2f94",
+      "sourceUrl": "https://www.gutenberg.org/files/98/98-0.txt",
+      "chars": 738
+    }
+  ]
+}
