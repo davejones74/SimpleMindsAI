@@ -578,6 +578,11 @@ def plan_prune(
             })
     for version in protect or ():
         _protect(version, "operator-protected")
+    # Working and last-known-good checkpoints are live training state even when
+    # they are not the serving pointer. They must survive a generic prune.
+    for label, pointer in (("working pointer", working_version(root)), ("working last-good pointer", working_last_good_version(root))):
+        if pointer:
+            _protect(pointer, label)
 
     window = committed[-keep:] if keep > 0 else []
     for version in window:
@@ -959,6 +964,9 @@ def plan_prune_runs(
     retained_set.add(active)
     for version in protect or ():
         retained_set.add(version)
+    for pointer in (working_version(root), working_last_good_version(root)):
+        if pointer and pointer in committed:
+            retained_set.add(pointer)
 
     runs_dir = root / RUNS_DIR_NAME
     # Detect live/resumable runs; never propose their state.
@@ -1224,12 +1232,30 @@ def sweep_stale_staging(root: Path, older_than_s: float = 7 * 24 * 3600) -> list
 
 
 def write_json(path: Path, payload: Dict[str, Any]) -> None:
+    """Atomically replace a JSON file.
+
+    Pointers and manifests are read by recovery after arbitrary process death.
+    A direct truncate-and-write would expose a partial/invalid JSON document at
+    exactly the moment the pointer is most important. Write a sibling temp file,
+    fsync it, then atomically replace the target. A killed writer leaves the old
+    valid file (or a clearly named temp), never a half-written pointer.
+    """
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w", encoding="utf-8") as fh:
-        json.dump(payload, fh, indent=2, sort_keys=True, default=str)
-        fh.flush()
-        os.fsync(fh.fileno())
+    tmp = path.with_name(f".{path.name}.writing.{os.getpid()}")
+    try:
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump(payload, fh, indent=2, sort_keys=True, default=str)
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(tmp, path)
+        fsync_dir(path.parent)
+    finally:
+        try:
+            if tmp.exists():
+                tmp.unlink()
+        except OSError:
+            pass
 
 
 def read_json(path: Path) -> Dict[str, Any]:

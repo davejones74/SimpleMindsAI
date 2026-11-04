@@ -118,36 +118,37 @@ function classify(article, reviews, policy) {
   };
 
   if (isReplayPool(article)) {
-    return { ...base, classification: "ALREADY_ELIGIBLE", reason: "already in replay pool" };
+    return { ...base, classification: "ALREADY_ELIGIBLE", reason: "already in replay pool", reasonCode: "already-eligible" };
   }
-  if (article.status === STATUS.REJECTED) return { ...base, classification: "INELIGIBLE", reason: "explicitly rejected" };
-  if (article.status === STATUS.QUARANTINED || article.quarantined === true) return { ...base, classification: "INELIGIBLE", reason: "quarantined" };
-  if (article.excludedReason) return { ...base, classification: "INELIGIBLE", reason: `excluded: ${article.excludedReason}` };
-  if (article.status !== STATUS.RETIRED) return { ...base, classification: "NOT_TARGET", reason: `status ${article.status}` };
+  if (article.status === STATUS.REJECTED) return { ...base, classification: "INELIGIBLE", reason: "explicitly rejected", reasonCode: "explicit-rejected" };
+  if (article.status === STATUS.QUARANTINED || article.quarantined === true) return { ...base, classification: "INELIGIBLE", reason: "quarantined", reasonCode: "quarantined" };
+  if (article.excludedReason) return { ...base, classification: "INELIGIBLE", reason: `excluded: ${article.excludedReason}`, reasonCode: `excluded-${article.excludedReason}` };
+  if (article.status !== STATUS.RETIRED) return { ...base, classification: "NOT_TARGET", reason: `status ${article.status}`, reasonCode: "not-retired" };
 
   const text = integrity(article);
-  if (!text.ok) return { ...base, classification: "INELIGIBLE", reason: text.reason };
+  if (!text.ok) return { ...base, classification: "INELIGIBLE", reason: text.reason, reasonCode: text.reason };
 
   const decisive = lastDecisiveReview(reviews);
-  if (!decisive) return { ...base, classification: "UNRESOLVED", reason: "no decisive review history" };
-  if (decisive.verdict === "reject") return { ...base, classification: "INELIGIBLE", reason: "last decisive review is reject" };
+  if (!decisive) return { ...base, classification: "UNRESOLVED", reason: "no decisive review history", reasonCode: "no-decisive-review" };
+  if (decisive.verdict === "reject") return { ...base, classification: "INELIGIBLE", reason: "last decisive review is reject", reasonCode: "last-review-reject" };
 
   const gate = quality(article);
   if (gate.decision === "reject") {
-    return { ...base, classification: "INELIGIBLE", reason: `quality/language gate: ${gate.reason}` };
+    return { ...base, classification: "INELIGIBLE", reason: `quality/language gate: ${gate.reason}`, reasonCode: `gate-${gate.gate ?? "quality"}` };
   }
 
   const licence = licenceFor(article, policy);
   if (licence.status === "uncertain" || licence.status === "unknown") {
-    return { ...base, classification: "UNRESOLVED", reason: `licence ${licence.status}: ${licence.reason}`, licence };
+    return { ...base, classification: "UNRESOLVED", reason: `licence ${licence.status}: ${licence.reason}`, reasonCode: `licence-${licence.status}`, licence };
   }
   if (licence.status !== "safe") {
-    return { ...base, classification: "INELIGIBLE", reason: `licence ${licence.status}: ${licence.reason}`, licence };
+    return { ...base, classification: "INELIGIBLE", reason: `licence ${licence.status}: ${licence.reason}`, reasonCode: `licence-${licence.status}`, licence };
   }
 
   return {
     ...base,
     classification: "ELIGIBLE",
+    reasonCode: "eligible",
     reason: "approved review, valid text, quality/language pass, safe licence family",
     licence,
     reviewAt: decisive.at ?? null,
@@ -187,6 +188,18 @@ async function main() {
       acc[row.classification] = (acc[row.classification] ?? 0) + 1;
       return acc;
     }, {});
+    const aggregate = (rows, key) => rows.reduce((acc, row) => {
+      const value = row[key] ?? "unknown";
+      const entry = acc[value] ?? { count: 0, estimatedTokens: 0 };
+      entry.count += 1;
+      entry.estimatedTokens += row.estimatedTokens ?? 0;
+      acc[value] = entry;
+      return acc;
+    }, {});
+    const byReasonCode = aggregate(results, "reasonCode");
+    const bySourceDomain = aggregate(results, "sourceDomain");
+    const unresolvedByReasonCode = aggregate(results.filter((row) => row.classification === "UNRESOLVED"), "reasonCode");
+    const unresolvedBySourceDomain = aggregate(results.filter((row) => row.classification === "UNRESOLVED"), "sourceDomain");
     const eligible = results.filter((row) => row.classification === "ELIGIBLE");
     const unresolved = results.filter((row) => row.classification === "UNRESOLVED");
     const ineligible = results.filter((row) => row.classification === "INELIGIBLE");
@@ -219,6 +232,10 @@ async function main() {
       ineligibleEstimatedTokens: ineligible.reduce((sum, row) => sum + row.estimatedTokens, 0),
       restoredInApply: applied.filter((row) => row.updated).length,
       alreadyEligible: results.filter((row) => row.classification === "ALREADY_ELIGIBLE").length,
+      byReasonCode,
+      bySourceDomain,
+      unresolvedByReasonCode,
+      unresolvedBySourceDomain,
       samples: {
         eligible: eligible.slice(0, 50),
         unresolved: unresolved.slice(0, 50),

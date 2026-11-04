@@ -382,6 +382,7 @@ export function pythonTrainer({
         staged,
         published: out.published !== false,
         carryOptimizerFrom: out.carryOptimizerFrom ?? null,
+        optimizerMode: out.optimizerMode ?? null,
         parentVersion: out.parentVersion ?? parentVersion,
         trainingRunId: out.trainingRunId ?? null,
         nodeRunId: out.nodeRunId ?? runId ?? null,

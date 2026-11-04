@@ -682,6 +682,12 @@ def _cmd_train_locked(args: argparse.Namespace, root: Path, version: str, node_r
     runtime["wallSeconds"] = result.wallSeconds
     train_state["corpusFiles"] = corpus_files
     train_state["runtime"] = runtime
+    if args.resume_from:
+        train_state["optimizerMode"] = "restored"
+    elif getattr(args, "carry_optimizer", False):
+        train_state["optimizerMode"] = "carried" if carry_optimizer_from else "reset-no-parent-state"
+    else:
+        train_state["optimizerMode"] = "fresh"
     if carry_optimizer_from:
         train_state["carryOptimizerFrom"] = carry_optimizer_from
         train_state["carryOptimizerState"] = "parent-optimizer-moments"
@@ -835,6 +841,7 @@ def _cmd_train_locked(args: argparse.Namespace, root: Path, version: str, node_r
         "published": not stage_only,
         "staged": stage_only,
         "carryOptimizerFrom": train_state.get("carryOptimizerFrom"),
+        "optimizerMode": train_state.get("optimizerMode"),
         "device": device,
         "checkpointDtype": str(next(model.parameters()).dtype).replace("torch.", ""),
         "wallSeconds": result.wallSeconds,

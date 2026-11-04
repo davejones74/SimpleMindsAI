@@ -456,7 +456,7 @@ export const config = {
   workingGuard: {
     maxRegressionNats: num("WORKING_GUARD_MAX_REGRESSION_NATS", 0.05),
     maxGroupRegressionNats: num("WORKING_GUARD_MAX_GROUP_REGRESSION_NATS", 0.15),
-    maxDriftNats: num("WORKING_GUARD_MAX_DRIFT_NATS", 0.25),
+    maxDriftNats: num("WORKING_GUARD_MAX_DRIFT_NATS", 0.10),
     minGroupTokens: num("WORKING_GUARD_MIN_GROUP_TOKENS", 100),
     maxRegressedGroupShare: num("WORKING_GUARD_MAX_REGRESSED_GROUP_SHARE", 0.75),
     minGroups: num("WORKING_GUARD_MIN_GROUPS", 5),

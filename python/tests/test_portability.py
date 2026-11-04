@@ -161,6 +161,8 @@ def test_rocm_reports_shared_memory_and_gfx_arch(monkeypatch):
 def test_cuda_reports_dedicated_memory(monkeypatch):
     if not torch.cuda.is_available():
         pytest.skip("GPU required")
+    if getattr(torch.version, "hip", None):
+        pytest.skip("NVIDIA dedicated-memory simulation is not applicable on ROCm")
 
     class _Props:
         name = "NVIDIA GeForce RTX 4090"

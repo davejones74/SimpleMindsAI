@@ -1163,7 +1163,7 @@ export async function executeFullRun({
                 : null,
             tokensPresented: trainingResult.tokensSeen ?? null,
             uniqueTokens: trainingResult.trainTokensSeen ?? null,
-            optimizerState: trainingResult.carryOptimizerFrom ? "carried" : "fresh",
+            optimizerState: trainingResult.optimizerMode ?? (trainingResult.carryOptimizerFrom ? "carried" : "fresh"),
             carryOptimizerFrom: trainingResult.carryOptimizerFrom ?? null,
           }
         : null,
@@ -1702,7 +1702,7 @@ export async function recoverPendingPromotions({ registry, store, trainer = null
     return [];
   }
   const commitConsumption =
-    options.markConsumed ?? ((ids, runId) => store.markConsumed(ids, { runId }));
+    options.markConsumed ?? ((ids, runId, meta = {}) => store.markConsumed(ids, { runId, ...meta }));
   const recovered = [];
   for (const file of files) {
     const manifestPath = path.join(dir, file);

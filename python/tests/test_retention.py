@@ -37,8 +37,10 @@ def make_version(root: Path, version: str, *, parent: str | None = None, committ
         {
             "version": version,
             "parentVersion": parent,
+            "createdAt": "2026-10-14T00:00:00Z",
             "artifactName": f"simpleminds-62m-20261014-{version}",
             "sizes": {"parametersUniqueByStorage": 61_839_744},
+            "tensors": {"model.norm.weight": "a" * 64},
         },
     )
     store.write_json(v / "train-state.json", {"stepsCompleted": 60, "parentVersion": parent})
@@ -611,3 +613,48 @@ def test_prune_runs_never_touches_version_directories_or_records(store_root):
         if p.is_file() and p.parts[0].startswith("v")
     }
     assert before == after
+
+
+# ------------------------------------------------- working checkpoint protection
+
+
+def test_plan_prune_protects_working_and_last_good_pointers(store_root):
+    for i in range(1, 7):
+        make_version(store_root, f"v{i:03d}")
+    store.set_active(store_root, "v006")
+    store.set_working(store_root, "v003", {"runId": "run-working"})
+    store.set_working_last_good(store_root, "v002", {"runId": "run-working"})
+
+    plan = store.plan_prune(store_root, keep=1, active="v006")
+    protected = {p["version"]: p["reason"] for p in plan["protected"]}
+    assert protected["v003"] == "working pointer"
+    assert protected["v002"] == "working last-good pointer"
+    pruned = {p["version"] for p in plan["prune"]}
+    assert "v002" not in pruned
+    assert "v003" not in pruned
+    assert "v006" not in pruned
+
+
+def test_prune_runs_protects_working_and_last_good_optimizer_state(store_root):
+    for i in range(1, 7):
+        make_version(store_root, f"v{i:03d}")
+    runs = store_root / store.RUNS_DIR_NAME
+    runs.mkdir()
+    for version in ("v002", "v003", "v004"):
+        (runs / f"{version}.train-state.pt").write_bytes(b"0" * 32)
+    store.set_active(store_root, "v006")
+    store.set_working(store_root, "v003", {"runId": "run-working"})
+    store.set_working_last_good(store_root, "v002", {"runId": "run-working"})
+
+    plan = store.plan_prune_runs(store_root, keep=1, active="v006")
+    candidates = {p["version"] for p in plan["prune"]}
+    assert "v002" not in candidates
+    assert "v003" not in candidates
+    assert "v004" in candidates
+
+
+def test_write_json_is_atomic_and_leaves_no_partial_temp(store_root, tmp_path):
+    target = tmp_path / "pointer.json"
+    store.write_json(target, {"version": "v001"})
+    assert json.loads(target.read_text())["version"] == "v001"
+    assert not list(tmp_path.glob(".*.writing.*"))

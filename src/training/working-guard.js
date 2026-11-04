@@ -11,7 +11,7 @@ import { config } from "../config.js";
  * Pure function: all losses and groups are supplied by the caller and recorded
  * with the decision.
  */
-export const WORKING_GUARD_VERSION = "working-guard-v1";
+export const WORKING_GUARD_VERSION = "working-guard-v2";
 
 function finite(value) {
   return Number.isFinite(Number(value));
@@ -61,7 +61,7 @@ export function decideWorkingAdvancement({
   const t = {
     maxRegressionNats: Number(thresholds?.maxRegressionNats ?? 0.05),
     maxGroupRegressionNats: Number(thresholds?.maxGroupRegressionNats ?? 0.15),
-    maxDriftNats: Number(thresholds?.maxDriftNats ?? 0.25),
+    maxDriftNats: Number(thresholds?.maxDriftNats ?? 0.10),
     minGroupTokens: Number(thresholds?.minGroupTokens ?? 100),
     maxRegressedGroupShare: Number(thresholds?.maxRegressedGroupShare ?? 0.75),
     minGroups: Number(thresholds?.minGroups ?? 5),
@@ -96,13 +96,21 @@ export function decideWorkingAdvancement({
   const drift = stableLoss == null ? null : candidateLoss - stableLoss;
   const groups = groupDeltas(reference, candidate, t.minGroupTokens);
   const regressed = groups.filter((row) => row.improvement < -t.maxGroupRegressionNats);
-  const regressedShare = groups.length ? regressed.length / groups.length : null;
+  const negativeGroups = groups.filter((row) => row.improvement < 0);
+  // Broad-regression share uses the per-run small-regression tolerance, not the
+  // catastrophic individual threshold. This rejects a broad drift (many groups
+  // worse than the overall allowance) while still allowing a small global
+  // regression whose individual groups stay within that allowance.
+  const overTolerance = groups.filter((row) => row.improvement < -t.maxRegressionNats);
+  const regressedShare = groups.length ? overTolerance.length / groups.length : null;
   const worstGroup = groups.reduce((worst, row) => (!worst || row.improvement < worst.improvement ? row : worst), null);
   const metrics = {
     regression,
     drift,
     groupsCompared: groups.length,
     regressedGroups: regressed.length,
+    negativeGroups: negativeGroups.length,
+    groupsOverTolerance: overTolerance.length,
     regressedGroupShare: regressedShare,
     worstGroup: worstGroup ? { group: worstGroup.group, improvement: worstGroup.improvement, tokens: worstGroup.tokens } : null,
   };
@@ -113,16 +121,16 @@ export function decideWorkingAdvancement({
   if (t.maxRegressionNats >= 0 && regression > t.maxRegressionNats) {
     return { ...base, decision: "rejected", reason: `candidate loss regressed ${regression.toFixed(4)} nats versus the working reference (max ${t.maxRegressionNats})`, metrics };
   }
-  if (groups.length >= t.minGroups && t.maxRegressedGroupShare < 1 && regressedShare > t.maxRegressedGroupShare) {
-    return { ...base, decision: "rejected", reason: `${regressed.length}/${groups.length} source groups regressed by more than ${t.maxGroupRegressionNats} nats`, metrics };
-  }
-  if (groups.length > 0 && regressed.length > 0) {
+  if (t.maxGroupRegressionNats >= 0 && regressed.length > 0) {
     return {
       ...base,
-      decision: "accepted",
-      reason: `working guard accepted: overall ${regression <= 0 ? "improved" : "regressed"} ${Math.abs(regression).toFixed(4)} nats; ${regressed.length} isolated group regression(s) within limit`,
+      decision: "rejected",
+      reason: `source group ${regressed[0].group} regressed ${(-regressed[0].improvement).toFixed(4)} nats (max ${t.maxGroupRegressionNats}); ${regressed.length}/${groups.length} group(s) over the individual limit`,
       metrics,
     };
+  }
+  if (groups.length >= t.minGroups && t.maxRegressedGroupShare < 1 && regressedShare > t.maxRegressedGroupShare) {
+    return { ...base, decision: "rejected", reason: `${regressed.length}/${groups.length} source groups regressed by more than ${t.maxGroupRegressionNats} nats`, metrics };
   }
   return {
     ...base,

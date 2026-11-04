@@ -121,3 +121,34 @@ def test_carry_optimizer_moments_survive_a_new_corpus_configuration(tokenizer):
     second_step = int(next(iter(opt2.state.values()))["step"])
     assert second_step > first_step, "AdamW step counters continue across the working run"
     assert torch.isfinite(torch.tensor(second_step))
+
+
+def test_incompatible_carried_optimizer_state_fails_closed(tokenizer):
+    docs = data_mod.load_documents([FIXTURE_CORPUS])
+    model, _, _ = arch.build_model("small", seed=11)
+    model = model.float()
+    cfg = train_mod.TrainConfig(
+        learningRate=1e-4,
+        steps=1,
+        sequenceLength=64,
+        microBatchSize=2,
+        gradAccumSteps=2,
+        warmupSteps=1,
+        validationBlocks=1,
+        spikeWarmup=1000,
+        computeDtype="float32",
+        validationPolicy="legacy-tail-split",
+        allowLegacyValidation=True,
+    )
+    with pytest.raises(ValueError, match="carry_optimizer_state"):
+        train_mod.train(
+            model=model,
+            tokenizer=tokenizer,
+            documents=docs,
+            cfg=cfg,
+            parent_version="v001",
+            new_version="v002",
+            tokenizer_path=FIXTURE_CORPUS,
+            device="cpu",
+            carry_optimizer_state={"state": {}, "param_groups": []},
+        )

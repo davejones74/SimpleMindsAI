@@ -193,6 +193,7 @@ const baseConfig = {
   promoteMinGroups: 20,
   promoteBootstrapSamples: 200,
   promotePerDocument: true,
+  workingGuard: { ...config.workingGuard, maxRegressedGroupShare: 1 },
 };
 
 test("first run bootstraps working from stable; stable rejects, working accepts", async () => {
@@ -290,9 +291,9 @@ test("working guard accepts a localized regression but blocks cumulative drift",
   const stable = { ok: true, version: "stable", loss: 10, perDocument: [], groups: EVAL_GROUPS.map((group) => ({ group, tokens: 200, loss: 10 })) };
   const parent = { ok: true, version: "w1", loss: 10.2, perDocument: [], groups: EVAL_GROUPS.map((group) => ({ group, tokens: 200, loss: 10.2 })) };
   const candidate = { ok: true, version: "w2", loss: 10.26, perDocument: [], groups: EVAL_GROUPS.map((group) => ({ group, tokens: 200, loss: 10.26 })) };
-  const accepted = decideWorkingAdvancement({ parent, candidate: { ...candidate, loss: 10.21, groups: parent.groups.map((g) => ({ ...g, loss: 10.21 })) }, stable, thresholds: { maxRegressionNats: 0.05, maxGroupRegressionNats: 0.15, maxDriftNats: 0.25, minGroupTokens: 100, maxRegressedGroupShare: 0.75, minGroups: 5 } });
+  const accepted = decideWorkingAdvancement({ parent, candidate: { ...candidate, loss: 10.21, groups: parent.groups.map((g) => ({ ...g, loss: 10.21 })) }, stable, thresholds: { maxRegressionNats: 0.05, maxGroupRegressionNats: 0.15, maxDriftNats: 0.25, minGroupTokens: 100, maxRegressedGroupShare: 1, minGroups: 5 } });
   assert.equal(accepted.decision, "accepted");
-  const rejected = decideWorkingAdvancement({ parent, candidate, stable, thresholds: { maxRegressionNats: 0.5, maxGroupRegressionNats: 0.5, maxDriftNats: 0.25, minGroupTokens: 100, maxRegressedGroupShare: 0.75, minGroups: 5 } });
+  const rejected = decideWorkingAdvancement({ parent, candidate, stable, thresholds: { maxRegressionNats: 0.5, maxGroupRegressionNats: 0.5, maxDriftNats: 0.25, minGroupTokens: 100, maxRegressedGroupShare: 1, minGroups: 5 } });
   assert.equal(rejected.decision, "rejected");
   assert.match(rejected.reason, /drift|above the stable baseline/i);
 });
