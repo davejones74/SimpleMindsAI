@@ -1,0 +1,31 @@
+{
+  "schema": "sma/replay-correction-simulation@1",
+  "snapshot": "/var/lib/simpleminds/data/snapshots/dataset-20261104-539-a0bbc9108d9f.jsonl",
+  "runId": "run-425",
+  "configuredReplayPercent": 20,
+  "estimateTokens": {
+    "fresh": 2261,
+    "targetReplay": 565,
+    "keptReplay": 560
+  },
+  "before": {
+    "fresh_docs": 36,
+    "replay_docs": 26,
+    "validation_docs": 5,
+    "fresh_tokens_actual": 1909,
+    "replay_tokens_actual": 1105,
+    "validation_tokens_actual": 212,
+    "replay_share_actual": 0.3666224286662243
+  },
+  "after": {
+    "fresh_docs": 36,
+    "replay_docs": 10,
+    "removed_replay_docs": 16,
+    "validation_docs": 5,
+    "fresh_tokens_actual": 1909,
+    "replay_tokens_actual": 467,
+    "validation_tokens_actual": 212,
+    "replay_share_actual": 0.19654882154882156
+  },
+  "note": "Actual tokenizer counts on the frozen run-425 snapshot; selection uses the same char/4 estimate as the corrected lifecycle. The trainer-level actual proportions will be recorded after deployment."
+}

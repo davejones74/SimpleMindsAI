@@ -30,6 +30,7 @@
           <button id="modeBrain" type="button" class="active" data-mode="brain" aria-pressed="true" title="Cinematic overview (B)">Brain</button>
           <button id="modeArchitecture" type="button" data-mode="architecture" aria-pressed="false" title="Precise blueprint view (A)">Architecture</button>
         </div>
+        <button id="knowledgeToggle" type="button" class="knowledge-toggle-button" aria-expanded="false" aria-controls="knowledgePanel" title="Knowledge accumulation observability (K)">Knowledge</button>
         <button id="livingToggle" type="button" class="living-toggle-button" aria-expanded="false" aria-controls="livingPanel" title="Cinematic and reduced-motion controls">Living</button>
         <button id="resetView" type="button" title="Reset the camera (R)">Reset view</button>
         <button id="overview" type="button" title="Clear selection and return to the whole brain (Esc)">Overview</button>
@@ -83,6 +84,22 @@
           <span class="living-key"><i class="legend-swatch pulse"></i> illustrative pulse</span>
           <span class="living-key"><i class="legend-swatch attention"></i> speculative</span>
         </div>
+      </aside>
+
+      <aside id="knowledgePanel" class="brain-knowledge hidden" aria-label="Knowledge accumulation observability">
+        <div class="brain-panel-head">
+          <div>
+            <div class="brain-panel-title">Knowledge accumulation</div>
+            <div id="knowledgeSubtitle" class="knowledge-subtitle">Production telemetry · loading</div>
+          </div>
+          <div class="knowledge-head-actions">
+            <button id="knowledgeRefresh" type="button" class="knowledge-refresh" title="Refresh knowledge telemetry">Refresh</button>
+            <button id="knowledgeClose" type="button" class="panel-collapse" aria-label="Close knowledge accumulation" title="Close knowledge accumulation">
+              <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+            </button>
+          </div>
+        </div>
+        <div id="knowledgeBody" class="knowledge-body"></div>
       </aside>
 
       <aside id="legend" class="brain-legend" aria-label="Visual language and component type legend">
@@ -150,5 +167,6 @@
   </div>
 
   <script type="module" src="/admin/brain/brain.js"></script>
+  <script type="module" src="/admin/brain/knowledge.js"></script>
 </body>
 </html>

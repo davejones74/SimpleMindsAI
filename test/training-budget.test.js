@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { computeTrainingBudget, checkMinimumTrainingData, computeEvaluationCadence } from "../src/training/budget.js";
-import { estimateTokenCount, selectReplayRows, selectValidationRows } from "../src/dataset/snapshot.js";
+import { estimateTokenCount, selectReplayRows, selectValidationRows, trimReplayToFreshTarget } from "../src/dataset/snapshot.js";
 
 test("budget derives steps from training blocks and rounds up to a whole step", () => {
   const b = computeTrainingBudget({
@@ -151,4 +151,48 @@ test("budget refuses a run below the configured minimum step floor", () => {
   assert.equal(enough.meetsMinimum, true);
   assert.equal(enough.steps, 4000);
   assert.equal(enough.tokensPlanned, 4000 * 16 * 128);
+});
+
+test("post-partition replay trimming respects final fresh tokens, not pre-validation fresh tokens", () => {
+  const rows = [
+    { articleId: "f1", corpusRole: undefined, text: "x".repeat(400) },
+    { articleId: "f2", corpusRole: undefined, text: "x".repeat(400) },
+    { articleId: "r1", corpusRole: "replay", text: "y".repeat(100) },
+    { articleId: "r2", corpusRole: "replay", text: "y".repeat(100) },
+    { articleId: "r3", corpusRole: "replay", text: "y".repeat(100) },
+    { articleId: "v1", corpusRole: "validation", text: "z".repeat(200) },
+  ];
+  const trimmed = trimReplayToFreshTarget(rows, { replayPercent: 20 });
+  assert.equal(trimmed.freshTokens, 200);
+  assert.equal(trimmed.targetTokens, 50);
+  assert.equal(trimmed.replayTokens, 50);
+  assert.equal(trimmed.replayRows.length, 2);
+  assert.equal(trimmed.removedReplayRows, 1);
+  assert.equal(trimmed.replayShare, 0.2);
+  assert.equal(trimmed.rows.filter((row) => row.corpusRole === "validation").length, 1);
+});
+
+test("post-partition trimming drops replay instead of substituting it when fresh is insufficient", () => {
+  const rows = [
+    { articleId: "r1", corpusRole: "replay", text: "y".repeat(400) },
+    { articleId: "r2", corpusRole: "replay", text: "y".repeat(400) },
+    { articleId: "v1", corpusRole: "validation", text: "z".repeat(400) },
+  ];
+  const trimmed = trimReplayToFreshTarget(rows, { replayPercent: 20 });
+  assert.equal(trimmed.freshTokens, 0);
+  assert.equal(trimmed.replayTokens, 0);
+  assert.equal(trimmed.replayRows.length, 0);
+  assert.equal(trimmed.removedReplayRows, 2);
+  assert.equal(trimmed.replayShare, 0);
+});
+
+test("post-partition trimming accepts zero replay when configured target is zero", () => {
+  const rows = [
+    { articleId: "f1", corpusRole: undefined, text: "x".repeat(400) },
+    { articleId: "r1", corpusRole: "replay", text: "y".repeat(100) },
+  ];
+  const trimmed = trimReplayToFreshTarget(rows, { replayPercent: 0 });
+  assert.equal(trimmed.replayRows.length, 0);
+  assert.equal(trimmed.replayTokens, 0);
+  assert.equal(trimmed.replayShare, 0);
 });

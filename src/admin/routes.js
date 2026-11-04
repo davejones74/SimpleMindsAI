@@ -21,6 +21,7 @@ import {
 } from "./metrics.js";
 import { config } from "../config.js";
 import { validateBlueprint } from "./public/brain/schema.js";
+import { buildKnowledgeAccumulation } from "./knowledge-accumulation.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, "..", "..");
@@ -172,6 +173,18 @@ export function attachAdmin({ app, store, registry, governance, chat, conversati
       frontier: frontier ? frontier.summary() : null,
       changeSeq: changeFeed.currentSeq(),
     });
+  }));
+
+  // ------------------------------------------------- knowledge accumulation
+  router.get("/knowledge-accumulation", asyncRoute(async (req, res) => {
+    const w = req.workspace;
+    ok(res, await buildKnowledgeAccumulation({
+      store: w.services.store,
+      registry: w.services.registry,
+      pythonStorePath: w.pythonStorePath,
+      supervisor,
+      config,
+    }));
   }));
 
   // ------------------------------------------------------------- articles

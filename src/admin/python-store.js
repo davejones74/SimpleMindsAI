@@ -146,6 +146,11 @@ function trainStateSummary(trainState) {
     stoppedEarly: trainState.stoppedEarly ?? null,
     stopReason: trainState.stopReason ?? null,
     evalEvery: Number.isInteger(trainState?.config?.evalEvery) ? trainState.config.evalEvery : null,
+    optimizerMode: trainState.optimizerMode ?? null,
+    carryOptimizerFrom: trainState.carryOptimizerFrom ?? null,
+    wallSeconds: Number.isFinite(trainState?.runtime?.wallSeconds) ? trainState.runtime.wallSeconds : null,
+    cudaMaxMemoryAllocatedBytes: Number.isFinite(trainState?.runtime?.cudaMaxMemoryAllocatedBytes) ? trainState.runtime.cudaMaxMemoryAllocatedBytes : null,
+    cudaMaxMemoryReservedBytes: Number.isFinite(trainState?.runtime?.cudaMaxMemoryReservedBytes) ? trainState.runtime.cudaMaxMemoryReservedBytes : null,
   };
 }
 
@@ -189,6 +194,10 @@ export function readPythonStore(explicit = null) {
     exists,
     activeVersion: null,
     active: null,
+    workingVersion: null,
+    working: null,
+    workingLastGoodVersion: null,
+    workingLastGood: null,
     versions: [],
     allocatedVersions: [],
     reason: null,
@@ -201,6 +210,12 @@ export function readPythonStore(explicit = null) {
   const active = readJsonSafe(path.join(root, "active.json"));
   result.active = active;
   result.activeVersion = active?.version ?? null;
+  const working = readJsonSafe(path.join(root, "working.json"));
+  result.working = working;
+  result.workingVersion = working?.version ?? null;
+  const workingLastGood = readJsonSafe(path.join(root, "working-last-good.json"));
+  result.workingLastGood = workingLastGood;
+  result.workingLastGoodVersion = workingLastGood?.version ?? null;
 
   for (const version of listVersionDirs(root)) {
     const dir = path.join(root, version);

@@ -1,0 +1,397 @@
+{
+  "schema": "sma/adamw-continuity-evidence@1",
+  "checkpointPaths": {
+    "v493": "/var/lib/simpleminds/store/_runs/v493.train-state.pt",
+    "v495": "/var/lib/simpleminds/store/_runs/v495.train-state.pt"
+  },
+  "trainStateMetadata": {
+    "v493": {
+      "stepsCompleted": 7,
+      "orderLength": 14,
+      "cursor": 14
+    },
+    "v495": {
+      "stepsCompleted": 8,
+      "orderLength": 16,
+      "cursor": 16
+    }
+  },
+  "optimizer": {
+    "paramGroupCountBefore": 2,
+    "paramGroupCountAfter": 2,
+    "paramCountsBefore": [
+      57,
+      17
+    ],
+    "paramCountsAfter": [
+      57,
+      17
+    ],
+    "stateEntriesBefore": 74,
+    "stateEntriesAfter": 74,
+    "paramGroupsBefore": [
+      {
+        "weight_decay": 0.01,
+        "lr": 7e-05,
+        "betas": [
+          0.9,
+          0.95
+        ],
+        "eps": 1e-08,
+        "amsgrad": false,
+        "maximize": false,
+        "foreach": null,
+        "capturable": false,
+        "differentiable": false,
+        "fused": null,
+        "decoupled_weight_decay": true
+      },
+      {
+        "weight_decay": 0.0,
+        "lr": 7e-05,
+        "betas": [
+          0.9,
+          0.95
+        ],
+        "eps": 1e-08,
+        "amsgrad": false,
+        "maximize": false,
+        "foreach": null,
+        "capturable": false,
+        "differentiable": false,
+        "fused": null,
+        "decoupled_weight_decay": true
+      }
+    ],
+    "paramGroupsAfter": [
+      {
+        "weight_decay": 0.01,
+        "lr": 8e-05,
+        "betas": [
+          0.9,
+          0.95
+        ],
+        "eps": 1e-08,
+        "amsgrad": false,
+        "maximize": false,
+        "foreach": null,
+        "capturable": false,
+        "differentiable": false,
+        "fused": null,
+        "decoupled_weight_decay": true
+      },
+      {
+        "weight_decay": 0.01,
+        "lr": 8e-05,
+        "betas": [
+          0.9,
+          0.95
+        ],
+        "eps": 1e-08,
+        "amsgrad": false,
+        "maximize": false,
+        "foreach": null,
+        "capturable": false,
+        "differentiable": false,
+        "fused": null,
+        "decoupled_weight_decay": true
+      }
+    ]
+  },
+  "stepCounters": {
+    "minBefore": 7,
+    "maxBefore": 7,
+    "minAfter": 15,
+    "maxAfter": 15,
+    "deltaDistribution": {
+      "8": 74
+    },
+    "allParamsAdvancedByEight": true,
+    "sample": {
+      "0": {
+        "before": 7,
+        "after": 15
+      },
+      "1": {
+        "before": 7,
+        "after": 15
+      },
+      "2": {
+        "before": 7,
+        "after": 15
+      },
+      "3": {
+        "before": 7,
+        "after": 15
+      },
+      "4": {
+        "before": 7,
+        "after": 15
+      },
+      "5": {
+        "before": 7,
+        "after": 15
+      },
+      "6": {
+        "before": 7,
+        "after": 15
+      },
+      "7": {
+        "before": 7,
+        "after": 15
+      },
+      "8": {
+        "before": 7,
+        "after": 15
+      },
+      "9": {
+        "before": 7,
+        "after": 15
+      }
+    }
+  },
+  "momentTensors": {
+    "comparedTensors": 148,
+    "changedTensorCount": 148,
+    "unchangedTensorCount": 0,
+    "unchangedSample": [],
+    "samples": [
+      {
+        "param": 0,
+        "stepBefore": 7,
+        "stepAfter": 15,
+        "stepDelta": 8,
+        "exp_avg_before": {
+          "shape": [
+            128256,
+            384
+          ],
+          "dtype": "torch.float32",
+          "numel": 49250304,
+          "absMax": 0.004202778451144695,
+          "absMean": 1.017438194139686e-06,
+          "sha256": "5071a83b189d909eb4acc22d5ed1f62c24262c4c06ca3f495d6ffa63711e0d30"
+        },
+        "exp_avg_after": {
+          "shape": [
+            128256,
+            384
+          ],
+          "dtype": "torch.float32",
+          "numel": 49250304,
+          "absMax": 0.0049823857843875885,
+          "absMean": 1.6367442867704085e-06,
+          "sha256": "e918b4a7532b4ef4e7c397c39baffadc9eb794ddf71685b8dfb558988ff2d83b"
+        },
+        "exp_avg_sq_after": {
+          "shape": [
+            128256,
+            384
+          ],
+          "dtype": "torch.float32",
+          "numel": 49250304,
+          "absMax": 4.0440616430714726e-05,
+          "absMean": 1.8233394794009428e-09,
+          "sha256": "21a012cadb3a65fd52f7f026a241ba1e6583be7c8dbe41bd5a7aa10b51bedd71"
+        }
+      },
+      {
+        "param": 1,
+        "stepBefore": 7,
+        "stepAfter": 15,
+        "stepDelta": 8,
+        "exp_avg_before": {
+          "shape": [
+            384,
+            384
+          ],
+          "dtype": "torch.float32",
+          "numel": 147456,
+          "absMax": 0.0005223337793722749,
+          "absMean": 3.7672751204809174e-05,
+          "sha256": "180edaffefb09c0d7d98a9677252dd3a6c20aacddec6b9eb39bae70c9ea8dd0f"
+        },
+        "exp_avg_after": {
+          "shape": [
+            384,
+            384
+          ],
+          "dtype": "torch.float32",
+          "numel": 147456,
+          "absMax": 0.0007350004743784666,
+          "absMean": 5.350156425265595e-05,
+          "sha256": "df6da835fb0b578e8efded4b172f7f39d21e5e63b0ad2e84f7b93622d849146e"
+        },
+        "exp_avg_sq_after": {
+          "shape": [
+            384,
+            384
+          ],
+          "dtype": "torch.float32",
+          "numel": 147456,
+          "absMax": 1.1778407724705175e-06,
+          "absMean": 4.587527513422174e-08,
+          "sha256": "3a4cf0b1ec340c9759022921e62a7972f95f6e66c7ef2530ced9ea815712d249"
+        }
+      },
+      {
+        "param": 2,
+        "stepBefore": 7,
+        "stepAfter": 15,
+        "stepDelta": 8,
+        "exp_avg_before": {
+          "shape": [
+            128,
+            384
+          ],
+          "dtype": "torch.float32",
+          "numel": 49152,
+          "absMax": 0.0002800936927087605,
+          "absMean": 2.9803029974573292e-05,
+          "sha256": "b6f3ffd320ee1b0805c14f144ded1499bcca99f8178bf3a185e3453329841e9a"
+        },
+        "exp_avg_after": {
+          "shape": [
+            128,
+            384
+          ],
+          "dtype": "torch.float32",
+          "numel": 49152,
+          "absMax": 0.0003680236986838281,
+          "absMean": 4.126119893044233e-05,
+          "sha256": "7c5b3bca37c75534f18685d2db3b64813138bbacb913fc970f3f4bac0f926cbe"
+        },
+        "exp_avg_sq_after": {
+          "shape": [
+            128,
+            384
+          ],
+          "dtype": "torch.float32",
+          "numel": 49152,
+          "absMax": 4.3324206444594893e-07,
+          "absMean": 2.2017802692175792e-08,
+          "sha256": "ebe5a350fb9f4defa871b2c2155dc64e9e14b3142ba252a0289e7532b40359aa"
+        }
+      },
+      {
+        "param": 3,
+        "stepBefore": 7,
+        "stepAfter": 15,
+        "stepDelta": 8,
+        "exp_avg_before": {
+          "shape": [
+            128,
+            384
+          ],
+          "dtype": "torch.float32",
+          "numel": 49152,
+          "absMax": 0.0032083045225590467,
+          "absMean": 0.0003929499944206327,
+          "sha256": "6b49e19f4cd98e41ff1cc2a944b02dc9c0d45a17748b07ace2c56a601eff97fd"
+        },
+        "exp_avg_after": {
+          "shape": [
+            128,
+            384
+          ],
+          "dtype": "torch.float32",
+          "numel": 49152,
+          "absMax": 0.004011283162981272,
+          "absMean": 0.0006277909269556403,
+          "sha256": "150ed972c922d6dcca1c243fbb3e615eb324f676c7b58d2db947385de6b3d2a0"
+        },
+        "exp_avg_sq_after": {
+          "shape": [
+            128,
+            384
+          ],
+          "dtype": "torch.float32",
+          "numel": 49152,
+          "absMax": 4.141174940741621e-05,
+          "absMean": 5.063295702711912e-06,
+          "sha256": "2e377b3b21236b1d5bd13f65d2421d1f96dc5cf207b2ab253a2449c5273b04cb"
+        }
+      },
+      {
+        "param": 4,
+        "stepBefore": 7,
+        "stepAfter": 15,
+        "stepDelta": 8,
+        "exp_avg_before": {
+          "shape": [
+            384,
+            384
+          ],
+          "dtype": "torch.float32",
+          "numel": 147456,
+          "absMax": 0.0011101248674094677,
+          "absMean": 0.00012633015285246074,
+          "sha256": "1b404981243516a59d7ce15d70d292951f4e6df424c4a4b6481958440f3148d6"
+        },
+        "exp_avg_after": {
+          "shape": [
+            384,
+            384
+          ],
+          "dtype": "torch.float32",
+          "numel": 147456,
+          "absMax": 0.0016350157093256712,
+          "absMean": 0.00017408045823685825,
+          "sha256": "fc7190cb723ab536784196533004c5d38b323d6f9551bf0d9e16f0898de93099"
+        },
+        "exp_avg_sq_after": {
+          "shape": [
+            384,
+            384
+          ],
+          "dtype": "torch.float32",
+          "numel": 147456,
+          "absMax": 4.811408416571794e-06,
+          "absMean": 2.9549013902396837e-07,
+          "sha256": "67f369858c46a9924c7ee334f427548a76ca1f7d777bd012982ce6c311d2ca2b"
+        }
+      },
+      {
+        "param": 5,
+        "stepBefore": 7,
+        "stepAfter": 15,
+        "stepDelta": 8,
+        "exp_avg_before": {
+          "shape": [
+            1024,
+            384
+          ],
+          "dtype": "torch.float32",
+          "numel": 393216,
+          "absMax": 0.0006259410874918103,
+          "absMean": 4.8841367970453575e-05,
+          "sha256": "2e7357d674c8825a0565b2657631d1203488c9b926b6b2583d05b71cc28e30da"
+        },
+        "exp_avg_after": {
+          "shape": [
+            1024,
+            384
+          ],
+          "dtype": "torch.float32",
+          "numel": 393216,
+          "absMax": 0.0009001815924420953,
+          "absMean": 6.18634294369258e-05,
+          "sha256": "6c03c4011c0d78b9c017478e1e7605fcd75d72188af7b89fa2fbf9be18d37bc5"
+        },
+        "exp_avg_sq_after": {
+          "shape": [
+            1024,
+            384
+          ],
+          "dtype": "torch.float32",
+          "numel": 393216,
+          "absMax": 1.9938902369176503e-06,
+          "absMean": 3.935737424853869e-08,
+          "sha256": "c8eab039f4f84565768f0432485cbb5fe6a5215483decc8290eca84b0927ada7"
+        }
+      }
+    ]
+  },
+  "continuityNote": "v493 optimizer carried 7 completed steps; eight new steps make every per-parameter counter 15. A reset optimizer would start at step 8, not 15. All 148 moment tensors changed and no state entry was missing.",
+  "caveat": "The no-decay param group weight_decay changed 0.0 -> 0.01 in v495; this is a parameter-group hyperparameter difference, not evidence of reset moments or step counters. It should be reviewed separately."
+}

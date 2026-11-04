@@ -116,6 +116,15 @@ const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "
 const fmt = (v) => (v === null || v === undefined ? "—" : typeof v === "number" ? (Number.isInteger(v) ? v.toLocaleString() : v.toFixed(3)) : String(v));
 const when = (iso) => (iso ? new Date(iso).toLocaleString() : "—");
 const badge = (cls, text) => `<span class="badge ${esc(cls)}">${esc(text)}</span>`;
+function jobBadge(job) {
+  const status = job?.status ?? "unknown";
+  const cls = status === "running" || status === "completed"
+    ? "REVIEWED"
+    : status === "failed" || status === "stopped" || status === "interrupted"
+      ? "REJECTED"
+      : "PENDING_REVIEW";
+  return badge(cls, status);
+}
 
 /**
  * The shared model-version scope. The pinned version is a VIEWING selector — it
@@ -1773,7 +1782,7 @@ function renderControl() {
 
     <div class="cols">
       <div class="panel">
-        <div class="k">Learning ${learning ? badge("PENDING_REVIEW", learning.status) : badge("INGESTED", "idle")}</div>
+        <div class="k">Learning ${learning ? jobBadge(learning) : badge("INGESTED", "idle")}</div>
         <div class="small muted">Harvest the explicitly-configured sources, curate with the teacher, ingest and review. No autonomous source discovery.</div>
         <div class="toolbar" style="margin-top:8px">
           <select id="learnMode" ${roAttr()}>
@@ -1794,7 +1803,7 @@ function renderControl() {
       </div>
 
       <div class="panel">
-        <div class="k">Training ${training ? badge("PENDING_REVIEW", training.status) : badge("INGESTED", "idle")}</div>
+        <div class="k">Training ${training ? jobBadge(training) : badge("INGESTED", "idle")}</div>
         <div class="small muted">Eligible reviewed+unconsumed now: <strong>${fmt(elig.trainable)}</strong> (min ${fmt(elig.minEligible)}).${elig.eligible ? "" : " One-shot refuses below the gate rather than training on nothing."}</div>
         <div class="toolbar" style="margin-top:8px">
           <select id="trainMode" ${roAttr()}>
@@ -1820,7 +1829,7 @@ function renderControl() {
     </div>
 
     <div class="panel">
-      <div class="k">Review backlog ${review ? badge("PENDING_REVIEW", review.status) : badge("INGESTED", "idle")}</div>
+      <div class="k">Review backlog ${review ? jobBadge(review) : badge("INGESTED", "idle")}</div>
       <div class="small muted">Drain the pending review queue under the SAME cooldown/attempt policy as the learner — an override, never a bypass. Articles that exhaust their inconclusive teacher attempts are retired with an auditable transition (retried only after the cooldown); transient critic failures use a separate allowance.</div>
       <div class="toolbar" style="margin-top:8px">
         <label class="small muted">limit (0 = all)</label>
@@ -1832,7 +1841,7 @@ function renderControl() {
     </div>
 
     <div class="panel">
-      <div class="k">Fresh brain ${fresh ? badge("PENDING_REVIEW", fresh.status) : ""}</div>
+      <div class="k">Fresh brain ${fresh ? jobBadge(fresh) : ""}</div>
       <div class="small muted">Create a genuinely randomly-initialised brain (no pretrained student weights), registered as an unpromoted candidate. It never activates itself.</div>
       <div class="toolbar" style="margin-top:8px">
         <label class="small muted">seed</label>
@@ -1851,7 +1860,7 @@ function renderControl() {
             <td class="small wrap"><a href="#" data-job="${esc(j.jobId)}">${esc(j.jobId)}</a></td>
             <td>${esc(j.kind)}</td>
             <td class="small">${esc(j.mode ?? "—")}</td>
-            <td>${badge(j.terminal ? (j.status === "completed" ? "REVIEWED" : j.status === "failed" ? "REJECTED" : "PENDING_REVIEW") : "PENDING_REVIEW", j.status)}</td>
+            <td>${jobBadge(j)}</td>
             <td class="small wrap">${esc(j.phase ?? "—")}</td>
             <td class="small wrap">${progressText(j.progress)}</td>
             <td class="small">${when(j.createdAt)}</td>

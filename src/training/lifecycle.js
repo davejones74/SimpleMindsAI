@@ -3,7 +3,7 @@ import { mkdir, writeFile, readFile, readdir } from "node:fs/promises";
 import { readFileSync } from "node:fs";
 import { config } from "../config.js";
 import { createHash } from "node:crypto";
-import { collectRowsFromArticles, buildSnapshot } from "../dataset/snapshot.js";
+import { collectRowsFromArticles, buildSnapshot, trimReplayToFreshTarget } from "../dataset/snapshot.js";
 import { buildPartition, InsufficientValidationError } from "../dataset/partition.js";
 import { loadEvaluationSet, makeEvalGuard } from "../dataset/evaluation-set.js";
 import { validateCurriculum, fallbackCurriculum } from "../curriculum/validation.js";
@@ -16,6 +16,7 @@ import { baselineCacheKey, cacheEntrySatisfiesEvidence, loadEvalCache, saveEvalC
 import { computeTrainingBudget, checkMinimumTrainingData, computeEvaluationCadence } from "./budget.js";
 import { evaluateGenerationQuality } from "./generation-quality.js";
 import { decideWorkingAdvancement } from "./working-guard.js";
+import { historicallyExposedArticleIds } from "./exposure.js";
 
 /**
  * Perpetual Training lifecycle — ONE TrainingRun from cradle to grave
@@ -75,47 +76,6 @@ async function updateManifest(manifestPath, manifest, fields) {
   return updated;
 }
 
-/**
- * Durable evidence that an article was already presented to the trainer:
- * run-linked snapshots, the consumption ledger, and contribution records.
- *
- * A persisted snapshot is NOT by itself proof of training exposure: the manifest
- * is written before baseline evaluation and before `train`, so a run that fails
- * earlier (CLI/preflight) still leaves one behind. Counting such a snapshot
- * would permanently relabel still-unconsumed material as historically exposed,
- * and a retry could never obtain a prospective validation cluster. Only
- * snapshots actually linked to a TrainingRun count; a run is created immediately
- * before training, after the preflight, so an unlinked snapshot was never
- * presented to the trainer.
- */
-function historicallyExposedArticleIds(registry, store) {
-  const priorSnapshots = typeof registry.listSnapshots === "function" ? registry.listSnapshots() : [];
-  const priorRuns = typeof registry.listRuns === "function" ? registry.listRuns() : [];
-  const runDatasetIds = new Set(
-    priorRuns
-      .filter((run) => run?.datasetId && run.status !== "created")
-      .map((run) => run.datasetId),
-  );
-  const ids = new Set();
-  for (const prior of priorSnapshots) {
-    if (!runDatasetIds.has(prior.datasetId)) continue;
-    for (const id of prior.articleIds ?? []) ids.add(id);
-  }
-  // Historical exposure is broader than snapshots: the article store's durable
-  // consumption and contribution ledgers record material that appeared in
-  // completed training runs even when the snapshot record is not available in
-  // this workspace. Missing ledgers are reported as uncertainty, never as proof
-  // that material was unseen.
-  for (const record of store.consumption ?? []) {
-    if (record?.articleId) ids.add(record.articleId);
-  }
-  for (const record of store.contributions ?? []) {
-    for (const id of [...(record.freshArticleIds ?? []), ...(record.replayArticleIds ?? [])]) {
-      if (id) ids.add(id);
-    }
-  }
-  return ids;
-}
 
 export async function executeFullRun({
   registry,
@@ -261,9 +221,9 @@ export async function executeFullRun({
       deferValidationPartition: pythonMode && validationPolicy === "document-source-disjoint",
       historicalArticleIds: priorExposed,
     });
-    const { rows } = collected;
+    let { rows } = collected;
     let { freshArticleIds, replayArticleIds, validationArticleIds } = collected;
-    const corpusStats = collected.stats;
+    let corpusStats = collected.stats;
     // Refuse BEFORE baking an artifact when there is nothing to collect: a
     // continuous job treats this as a wait condition and polls, so an empty
     // snapshot manifest must not be appended on every cycle.
@@ -314,6 +274,27 @@ export async function executeFullRun({
       // set also prevents a later promotion from consuming the holdout.
       freshArticleIds = freshArticleIds.filter((id) => !validationIds.has(id));
       if (!freshArticleIds.length && !corpusOnly) throw noEligibleMaterial();
+    }
+
+    if (!corpusOnly && !config.snapshotIncludeConsumed && config.trainReplayPercent > 0 && replayArticleIds.length) {
+      const trimmed = trimReplayToFreshTarget(rows, { replayPercent: config.trainReplayPercent });
+      rows = trimmed.rows;
+      replayArticleIds = trimmed.replayRows.map((row) => row.articleId);
+      const validationCount = rows.filter((row) => row.corpusRole === "validation").length;
+      corpusStats = {
+        ...corpusStats,
+        collected: rows.length,
+        fresh: freshArticleIds.length,
+        replay: replayArticleIds.length,
+        validation: validationCount,
+        retained: replayArticleIds.length + validationCount,
+        estimatedReplayShare: trimmed.replayShare,
+      };
+      if (trimmed.removedReplayRows > 0) {
+        logger?.warn?.(
+          `[lifecycle] trimmed ${trimmed.removedReplayRows} replay row(s) to keep the final training replay share at or below ${config.trainReplayPercent}%`,
+        );
+      }
     }
 
     snapshot = await buildSnapshot({

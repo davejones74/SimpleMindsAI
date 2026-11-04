@@ -96,6 +96,36 @@ function stableOrder(rows) {
 }
 
 /** Pick a deterministic replay sample sized to the requested token share. */
+export function trimReplayToFreshTarget(rows, { replayPercent = 20 } = {}) {
+  const pct = Math.max(0, Math.min(100, Number(replayPercent) || 0));
+  const replayRows = rows.filter((row) => row.corpusRole === "replay");
+  const nonReplayRows = rows.filter((row) => row.corpusRole !== "replay");
+  const freshRows = nonReplayRows.filter((row) => row.corpusRole !== "validation");
+  const freshTokens = freshRows.reduce((sum, row) => sum + estimateTokenCount(row.text), 0);
+  const targetTokens = pct >= 100
+    ? Number.POSITIVE_INFINITY
+    : Math.round((freshTokens * pct) / (100 - pct));
+  const keptReplay = [];
+  let replayTokens = 0;
+  for (const row of replayRows) {
+    const tokens = estimateTokenCount(row.text);
+    if (replayTokens + tokens > targetTokens) continue;
+    keptReplay.push(row);
+    replayTokens += tokens;
+  }
+  const trainingTokens = freshTokens + replayTokens;
+  return {
+    rows: [...nonReplayRows, ...keptReplay],
+    freshRows,
+    replayRows: keptReplay,
+    removedReplayRows: replayRows.length - keptReplay.length,
+    freshTokens,
+    replayTokens,
+    targetTokens,
+    replayShare: trainingTokens ? replayTokens / trainingTokens : 0,
+  };
+}
+
 export function selectReplayRows(freshRows, replayCandidates, {
   replayPercent = 20,
   maxRows = Number.POSITIVE_INFINITY,
