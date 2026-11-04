@@ -1,0 +1,98 @@
+{
+  "schema": "sma/production-activation-manifest@1",
+  "at": "2026-11-04T09:25:00Z",
+  "branches": {
+    "pilot": "knowledge-accumulation-pilot-20261102@79a9f2c",
+    "release": "knowledge-accumulation-release-readiness-20261103@7f49a8f",
+    "operational": "knowledge-accumulation-operational-rehearsal-20261103@d5b8309",
+    "activation": "knowledge-accumulation-production-activation-20261104"
+  },
+  "commits": {
+    "baseRelease": "7f49a8f",
+    "productionRepoHeadBefore": "79a9f2c",
+    "deployedCode": "15c817b",
+    "activationDocs": "76d47ab"
+  },
+  "deployment": {
+    "source": "/opt/simpleminds",
+    "backup": "/opt/simpleminds/.deploy-backup/deploy-20261104T092218Z",
+    "service": "simpleminds.service"
+  },
+  "productionBackup": {
+    "path": "/var/lib/simpleminds/backups/knowledge-accumulation-activation-20261104T072518Z/store-and-data.tar",
+    "sha256": "b653c5944fb695a82f69997e098aa880bef9dee90d306c617266aa40964655e8",
+    "bytes": 23808942080
+  },
+  "pointers": {
+    "active": "v493",
+    "working": "v495",
+    "workingLastGood": "v493"
+  },
+  "firstRun": "run-420",
+  "recommendation": "ACTIVATED",
+  "productionMutation": true,
+  "scripts": {
+    "scripts/knowledge-pilot/classify-replay.mjs": {
+      "sha256": "af399bd801b97e27978c61f9138fe261b43fae3865febce2b5bfd3b853fcfe6e"
+    },
+    "scripts/knowledge-pilot/activation-bootstrap-run.mjs": {
+      "sha256": "af8075e4da3d2e89f7d628b9b0166121677f3654de310487dcbdb3db9e35e95c"
+    },
+    "scripts/knowledge-pilot/activation-acquire-validation.mjs": {
+      "sha256": "ba4197af49a445c11693ac34427943d642e84a75f9c5494971bbd9c3d167c28f"
+    },
+    "src/training/lifecycle.js": {
+      "sha256": "909218e4911af254793a5141c246247ed27ff55bd776fe8c9d0a28f7f6b81330"
+    }
+  },
+  "documents": {
+    "docs/knowledge-accumulation-production-activation/ACTIVATION-REPORT.md": {
+      "sha256": "e78d073c8d8c9048f9176d98243cc5b9bd16773a69e1927ab533561c7337f88a"
+    },
+    "docs/knowledge-accumulation-production-activation/MONITORING.md": {
+      "sha256": "edfb723f327fcf717476de099ada20af57f55a4d3f7699413f272f5bfa0f6345"
+    },
+    "docs/knowledge-accumulation-production-activation/README.md": {
+      "sha256": "5ef386a27e43d30c93b3c8aeb217fde733761185978c6ca48d6f68dd4801bc72"
+    },
+    "docs/knowledge-accumulation-production-activation/reports/backup-manifest.json": {
+      "sha256": "834f952d1cd5203e55929edd5b92bf34a3b068567a9fca346317b7d83a9cea30"
+    },
+    "docs/knowledge-accumulation-production-activation/reports/effective-config.json": {
+      "sha256": "ed431b98afaa929b532cfc1dfcfde0c5c4f85036a6752b2215a2db237fe0770d"
+    },
+    "docs/knowledge-accumulation-production-activation/reports/first-run-420.json": {
+      "sha256": "6f08c0007a4102b4ba2cb1fc9071640d8895c751637a9bef846dcb6c66b76b0d"
+    },
+    "docs/knowledge-accumulation-production-activation/reports/migration-reconciliation.json": {
+      "sha256": "37f89ccf25ac014d007518d3e72be51c9607e6be17905c917edb37dca5e27fed"
+    },
+    "docs/knowledge-accumulation-production-activation/reports/monitoring.json": {
+      "sha256": "843037caa75459df2ed3b5b75c92c8a51a4b98961efef56063e8b383e54e4e93"
+    },
+    "docs/knowledge-accumulation-production-activation/reports/post-activation-state.json": {
+      "sha256": "ed5965da8748b814a1fc1967fe05957354dfeeb4ad2ff139974adf83baef791a"
+    },
+    "docs/knowledge-accumulation-production-activation/reports/pre-state.json": {
+      "sha256": "718e39770685082c71fb6db9e294ffaaf362bb1fbe679407ac54e1bbbc574566"
+    },
+    "docs/knowledge-accumulation-production-activation/reports/production-dry-run-after.json": {
+      "sha256": "1f0998923c54056467d09d9e0cbec799fd5bcf7d4eb20ecd7433402c9d728050"
+    },
+    "docs/knowledge-accumulation-production-activation/reports/production-dry-run-pre-activation.json": {
+      "sha256": "7e0ef13431a028d8069de19cd43f86191b7fda467d1125f3235a17bf393b3c98"
+    },
+    "docs/knowledge-accumulation-production-activation/reports/production-dry-run-stopped.json": {
+      "sha256": "5e260a68c446667db29538ad20c4ef51b5c61536ab2233b3711d0be1d818d7ca"
+    },
+    "docs/knowledge-accumulation-production-activation/reports/production-migration-apply.json": {
+      "sha256": "5a2e3dd19955f9b819d8e931d1c75664b8bce5f38e34b73594f1a859730a2747"
+    },
+    "docs/knowledge-accumulation-production-activation/reports/snapshot-dry-run.json": {
+      "sha256": "8b05107dbc90c0c889622989e094b0927774e5b782fdad5519d595c97ba068e4"
+    },
+    "docs/knowledge-accumulation-production-activation/reports/targeted-acquisitions.json": {
+      "sha256": "9d5a1e36bbcc2d01787aebf21183381ee9f18563ae4035464fdd3e4a86759611"
+    }
+  }
+}
