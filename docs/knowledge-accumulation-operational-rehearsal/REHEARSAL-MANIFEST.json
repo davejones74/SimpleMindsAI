@@ -1,13 +1,18 @@
 {
   "schema": "sma/operational-rehearsal-manifest@1",
-  "at": "2026-11-04T05:30:00Z",
+  "at": "2026-11-04T05:35:00Z",
   "branches": {
     "pilot": "knowledge-accumulation-pilot-20261102@79a9f2c",
     "release": "knowledge-accumulation-release-readiness-20261103@7f49a8f",
     "rehearsal": "knowledge-accumulation-operational-rehearsal-20261103"
   },
   "baseCommit": "7f49a8f",
-  "rehearsalCommit": "b0fbf83",
+  "rehearsalCommit": "7eb84f9",
+  "releaseDocCorrection": {
+    "path": "docs/knowledge-accumulation-release-readiness/IMPLEMENTATION-REPORT.md",
+    "change": "ROCm focused count corrected from 47 to 48 (5 working-checkpoint + 43 retention)",
+    "sha256": "f5212b9d4e4213b5f73b41756b4087c84117768f5a62e31bb770d34c51bbd656"
+  },
   "productionMutation": false,
   "recommendation": "READY FOR SEPARATELY AUTHORISED BOUNDED PILOT",
   "scripts": {
