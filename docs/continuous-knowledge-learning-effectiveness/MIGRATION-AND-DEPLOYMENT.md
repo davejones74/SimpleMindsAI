@@ -221,3 +221,16 @@ This procedure was executed under the Milestone 3 authorisation.
 - Original frontier preserved at `/var/lib/simpleminds/data/frontier`; the trial used `/var/lib/simpleminds/data/frontier-milestone3`.
 - Sealed prospective/retention results did not demonstrate improvement; see `MILESTONE-3-REPORT.md`.
 - Replay trim remains an open production defect (measured 27.8–44.8% vs 20% target).
+
+---
+
+## 12. Milestone 4 execution record (2026-11-05)
+
+- Final deployed commit: `7662797` (`Enforce tokenizer-authoritative replay budget`).
+- Code backup: `/opt/simpleminds/.deploy-backup/deploy-20261105T041252Z`.
+- Environment SHA-256: `5f2b7dcd5bc645e6f91cfea9e67d82f44549f02bb11ec4d780308553faebfc26`.
+- Working lineage reset to stable `v493`, then advanced `v493 → v505 → v506`; `v507` rolled back to `v506`.
+- Unchanged stable gate promoted `v505` and `v506`; `v506` is now active.
+- Replay composition measured at actual training consumption: 19.99%, 19.78%, 19.82%.
+- Sealed prospective and retention improvements confirmed for `v505`/`v506`.
+- Original frontier still preserved; English trial frontier remains in use.

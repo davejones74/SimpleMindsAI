@@ -1,0 +1,14 @@
+SimpleMindsAI deployment
+  source:       /home/dave/Repositories/SimpleMindsAI
+  destination:  /opt/simpleminds
+  service:      simpleminds
+  env file:     /etc/simpleminds/simpleminds.env (will NOT be modified)
+  backup:       /opt/simpleminds/.deploy-backup/deploy-20261105T041252Z
+  restart:      none
+  dry run:      no
+npm install skipped (lock unchanged and node_modules present).
+Verifying deployed Python CLI contract...
+Deployed file hash manifest: /opt/simpleminds/.deploy-backup/deploy-20261105T041252Z/DEPLOYED.sha256
+Deployment complete. Secrets env file unchanged: f75d6845be1d6080f64a98ae7cc7af5aeb3079d9809f8770d7dd2fe4dab42046
+Rollback backup: /opt/simpleminds/.deploy-backup/deploy-20261105T041252Z
+No service restart requested. Restart manually when ready.

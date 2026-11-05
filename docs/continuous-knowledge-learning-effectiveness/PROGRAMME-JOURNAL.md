@@ -380,3 +380,17 @@ The data pipeline changes demonstrably increase useful trainable tokens and, und
 ### Outcome
 
 Operational deployment succeeded; cumulative learning was **not demonstrated**. Stable serving unchanged. See `MILESTONE-3-REPORT.md` for the full evidence and recommendation.
+
+---
+
+## Milestone 4 — reliable replay and demonstrated learning
+
+- Implemented tokenizer-authoritative replay budgeting after validation partitioning, with a 2-point tolerance and fail-closed preflight check.
+- Production runs measured **19.99%**, **19.78%** and **19.82%** replay at actual training consumption.
+- Reset the working lineage to `v493`, then advanced `v493 → v505 → v506`.
+- Unchanged stable gate promoted `v505` and `v506`; `v506` is now serving.
+- Sealed prospective: `v505` −0.0098 nats, `v506` −0.0106 nats (CIs exclude zero).
+- Sealed retention: `v506` −0.0231 nats (CI excludes zero).
+- `v507` regressed sealed prospective/retention and was rolled back to `v506`.
+- Node full suite after final code: **832 tests, 825 passed, 0 failed, 7 skipped**.
+- Cumulative learning is now demonstrated, modestly but with statistical support.

@@ -10,6 +10,7 @@ This directory contains the read-only assessment and the release-candidate engin
 | [`MIGRATION-AND-DEPLOYMENT.md`](./MIGRATION-AND-DEPLOYMENT.md) | Prepared migration/deployment procedure; not executed against production |
 | [`MILESTONE-2-REPORT.md`](./MILESTONE-2-REPORT.md) | Sealed-cohort, curation/training experiment, replay-recovery, correctness and deployment-readiness results |
 | [`MILESTONE-3-REPORT.md`](./MILESTONE-3-REPORT.md) | Controlled production deployment, fresh-lineage trial, sealed results, short-prose experiment and production-readiness recommendation |
+| [`MILESTONE-4-REPORT.md`](./MILESTONE-4-REPORT.md) | Tokenizer-authoritative replay fix, corrected lineage trial, sealed learning results and cumulative-learning conclusion |
 | [`cohorts/`](./cohorts/) | Sealed prospective and retention cohort JSONL + manifests + SHA-256 sums |
 | [`evidence/`](./evidence/) | Read-only production measurements: learning effectiveness, segmentation yield, validation supply, retired audit, licence backfill dry-run |
 

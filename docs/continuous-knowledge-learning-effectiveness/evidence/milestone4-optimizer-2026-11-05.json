@@ -1,0 +1,70 @@
+{
+  "schema": "sma/milestone4-optimizer@1",
+  "at": "2026-11-05T05:17:52.891479+00:00",
+  "versions": {
+    "v493": {
+      "bytes": 494800519,
+      "groupSizes": [
+        57,
+        17
+      ],
+      "weightDecay": [
+        0.01,
+        0.0
+      ],
+      "stepsUnique": [
+        7
+      ],
+      "stateEntries": 74,
+      "stepsCompleted": 7
+    },
+    "v505": {
+      "bytes": 494800519,
+      "groupSizes": [
+        57,
+        17
+      ],
+      "weightDecay": [
+        0.01,
+        0.0
+      ],
+      "stepsUnique": [
+        15
+      ],
+      "stateEntries": 74,
+      "stepsCompleted": 8
+    },
+    "v506": {
+      "bytes": 494800711,
+      "groupSizes": [
+        57,
+        17
+      ],
+      "weightDecay": [
+        0.01,
+        0.0
+      ],
+      "stepsUnique": [
+        32
+      ],
+      "stateEntries": 74,
+      "stepsCompleted": 17
+    },
+    "v507": {
+      "bytes": 494800775,
+      "groupSizes": [
+        57,
+        17
+      ],
+      "weightDecay": [
+        0.01,
+        0.0
+      ],
+      "stepsUnique": [
+        67
+      ],
+      "stateEntries": 74,
+      "stepsCompleted": 35
+    }
+  }
+}
