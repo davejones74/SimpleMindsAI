@@ -40,6 +40,10 @@ const EMPTY = {
   pendingBefore: 0,
   pendingAfter: 0,
   eligibleRemaining: 0,
+  // Earliest wall-clock time at which a currently-cooling article becomes
+  // reviewable again. The caller uses this to WAIT for the backlog instead of
+  // declaring a pass "drained" while pending articles remain untouched.
+  nextEligibleAt: null,
 };
 
 /**
@@ -80,6 +84,14 @@ export async function reviewPendingArticles(store, scorer, opts = {}) {
   }
 
   const counters = { ...EMPTY, locked: false };
+  // Track the earliest cooldown expiry across everything this pass deferred,
+  // INCLUDING the articles it just reviewed (their next attempt is cooling).
+  let soonestCooldownMs = Number.POSITIVE_INFINITY;
+  const noteCooldown = (attempts) => {
+    if (attempts?.pending && attempts.inCooldown && Number.isFinite(attempts.cooldownRemainingMs)) {
+      soonestCooldownMs = Math.min(soonestCooldownMs, attempts.cooldownRemainingMs);
+    }
+  };
   counters.pendingBefore = store.getStats().pendingReview;
   try {
     if (opts.select !== false) {
@@ -122,8 +134,10 @@ export async function reviewPendingArticles(store, scorer, opts = {}) {
           continue;
         }
         if (before && !before.eligible) {
-          if (before.inCooldown) counters.skippedCooldown++;
-          else if (before.technicalCapReached) counters.skippedTechnicalCap++;
+          if (before.inCooldown) {
+            counters.skippedCooldown++;
+            noteCooldown(before);
+          } else if (before.technicalCapReached) counters.skippedTechnicalCap++;
           else counters.skippedCap++;
           continue;
         }
@@ -224,6 +238,7 @@ export async function reviewPendingArticles(store, scorer, opts = {}) {
             const postThrow = store.reviewAttempts(article.articleId, policyOpts);
             const cause = retirementCause(postThrow);
             if (cause) await retire(article.articleId, cause);
+            else noteCooldown(postThrow);
           } catch (recErr) {
             counters.failed++;
             log("err", `review failed and could not be recorded for ${article.articleId}: ${recErr.message}`);
@@ -262,6 +277,7 @@ export async function reviewPendingArticles(store, scorer, opts = {}) {
         const post = store.reviewAttempts(article.articleId, policyOpts);
         const cause = retirementCause(post);
         if (cause) await retire(article.articleId, cause);
+        else noteCooldown(post);
       }
       if (!nextCursor || nextCursor === after) break;
       after = nextCursor;
@@ -272,6 +288,7 @@ export async function reviewPendingArticles(store, scorer, opts = {}) {
 
   counters.pendingAfter = store.getStats().pendingReview;
   counters.eligibleRemaining = counters.skippedCooldown + counters.skippedTechnicalCap + counters.skippedCap;
+  if (Number.isFinite(soonestCooldownMs)) counters.nextEligibleAt = Date.now() + soonestCooldownMs;
   // A pass is "waiting" (not stalled) when it made no progress only because the
   // backlog is cooling down or another worker holds the review lock.
   counters.waiting = counters.reviewed === 0 && counters.retired === 0 && counters.skippedCooldown > 0;

@@ -1789,7 +1789,7 @@ function renderControl() {
             <option value="bounded">bounded (single pass)</option>
             <option value="continuous">continuous (poll)</option>
           </select>
-          <label class="small muted">target articles <span class="muted" title="bounded mode only — continuous runs until an operator stop, no-progress, or source exhaustion">(bounded)</span></label>
+          <label class="small muted">target articles <span class="muted" title="bounded mode only — continuous runs until an operator stop (empty sources are waited through, not treated as completion)">(bounded)</span></label>
           <input type="number" id="learnTarget" value="100" min="1" style="width:90px" ${roAttr()} />
           <label class="small muted">max raw docs (0=all)</label>
           <input type="number" id="learnRaw" value="0" min="0" style="width:90px" ${roAttr()} />
@@ -1830,7 +1830,7 @@ function renderControl() {
 
     <div class="panel">
       <div class="k">Review backlog ${review ? jobBadge(review) : badge("INGESTED", "idle")}</div>
-      <div class="small muted">Drain the pending review queue under the SAME cooldown/attempt policy as the learner — an override, never a bypass. Articles that exhaust their inconclusive teacher attempts are retired with an auditable transition (retried only after the cooldown); transient critic failures use a separate allowance.</div>
+      <div class="small muted">Drain the pending review queue under the SAME cooldown/attempt policy as the learner — an override, never a bypass. The drain keeps visiting the whole queue (waiting through cooldowns if necessary) until no pending article is left untouched. Articles that exhaust their inconclusive teacher attempts are retired with an auditable transition; transient critic failures use a separate allowance.</div>
       <div class="toolbar" style="margin-top:8px">
         <label class="small muted">limit (0 = all)</label>
         <input type="number" id="reviewLimit" value="0" min="0" style="width:90px" ${roAttr()} />
@@ -1901,8 +1901,9 @@ function applyControlForm() {
 
 function wireControl() {
   applyControlForm();
-  // The target only bounds a single pass; a continuous run learns until it is
-  // stopped, makes no progress, or exhausts its sources. Make that explicit.
+  // The target only bounds a single pass; a continuous run learns until an
+  // operator stops it. Empty sources and review cooldowns are WAITS, not a
+  // terminal "completed" outcome, so the job survives months unattended.
   const learnModeEl = document.getElementById("learnMode");
   const learnTargetEl = document.getElementById("learnTarget");
   const syncLearnTarget = () => {

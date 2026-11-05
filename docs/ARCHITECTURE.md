@@ -709,9 +709,11 @@ are appended to `jobs.ndjson` / `job-events.ndjson` / `job-log.ndjson`, so histo
 survives a restart. Cancellation is cooperative-first — an abort signal is raised,
 `runJsonProcess` kills the spawned process tree after a bounded grace period, and
 `killProcessTree` (`src/jobs/process.js`) is the Windows/Ubuntu last resort.
-Nothing auto-resumes on boot: `reconcile()` folds each non-terminal job against
-the real lifecycle/registry/checkpoint/promotion state and reports `interrupted`
-(or `completed` if promotion genuinely committed before the crash). Training
+Continuous learning/training and review drains auto-resume on boot from durable
+state; an explicit operator stop/pause is preserved instead. For one-shot work,
+`reconcile()` folds each non-terminal job against the real lifecycle/registry/
+checkpoint/promotion state and reports `interrupted` (or `completed` if promotion
+genuinely committed before the crash). Training
 resolves an explicit `parentVersion` fail-closed via the python-trainer
 (`resolvePythonVersion`), and fresh brains are registered unpromoted — the
 learner never activates itself. Related endpoints: `jobs` (+`/:id`, `/:id/log`,

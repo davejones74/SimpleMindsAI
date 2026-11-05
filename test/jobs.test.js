@@ -861,7 +861,7 @@ test("reconcile: a run completed before the crash marks the job completed", asyn
   await registry.close();
 });
 
-test("reconcile: a stranded job with no finished run is interrupted, never resumed", async () => {
+test("reconcile: a stranded continuous learning job is auto-resumed, never abandoned", async () => {
   const dir = tmp();
   const store = await seededStore(0);
   const registry = await RegistryStore.open(tmp());
@@ -870,11 +870,65 @@ test("reconcile: a stranded job with no finished run is interrupted, never resum
   await js.jobEvent(job.jobId, { status: JOB_STATUS.RUNNING, phase: "harvest" });
   await js.close();
 
+  const sup = new JobSupervisor({
+    store,
+    registry,
+    dir,
+    learningDeps: {
+      collectDocuments: async () => ({ mode: "fixture", capability: "fixture-harvest", documents: [], failures: [] }),
+    },
+  });
+  await sup.init({ reconcile: true });
+  for (let i = 0; i < 200; i++) {
+    const live = sup.getJob(job.jobId);
+    if (live.status === JOB_STATUS.RUNNING || live.status === JOB_STATUS.WAITING) break;
+    await new Promise((r) => setTimeout(r, 10));
+  }
+  const recovered = sup.getJob(job.jobId);
+  assert.notEqual(recovered.status, JOB_STATUS.INTERRUPTED, "a continuous job must survive a restart");
+  assert.equal(recovered.terminal, false);
+
+  await sup.stop(job.jobId);
+  await waitTerminal(sup, job.jobId);
+  await sup.close();
+  await store.close();
+  await registry.close();
+});
+
+test("reconcile: a stranded one-shot job with no finished run stays interrupted", async () => {
+  const dir = tmp();
+  const store = await seededStore(0);
+  const registry = await RegistryStore.open(tmp());
+  const js = await JobStore.open(dir);
+  const job = await js.createJob({ kind: "training", mode: "one-shot" });
+  await js.jobEvent(job.jobId, { status: JOB_STATUS.RUNNING, phase: "training" });
+  await js.close();
+
   const sup = new JobSupervisor({ store, registry, dir });
   await sup.init({ reconcile: true });
   const recovered = sup.getJob(job.jobId);
   assert.equal(recovered.status, JOB_STATUS.INTERRUPTED);
   assert.equal(recovered.terminal, true);
+
+  await sup.close();
+  await store.close();
+  await registry.close();
+});
+
+test("reconcile: an operator pause is preserved, not auto-resumed", async () => {
+  const dir = tmp();
+  const store = await seededStore(0);
+  const registry = await RegistryStore.open(tmp());
+  const js = await JobStore.open(dir);
+  const job = await js.createJob({ kind: "training", mode: "continuous" });
+  await js.jobEvent(job.jobId, { status: JOB_STATUS.PAUSED, phase: "paused", meta: { pauseReason: "operator" } });
+  await js.close();
+
+  const sup = new JobSupervisor({ store, registry, dir });
+  await sup.init({ reconcile: true });
+  const recovered = sup.getJob(job.jobId);
+  assert.equal(recovered.status, JOB_STATUS.PAUSED);
+  assert.equal(recovered.terminal, false);
 
   await sup.close();
   await store.close();

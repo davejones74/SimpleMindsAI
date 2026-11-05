@@ -71,10 +71,12 @@ durable, observable jobs instead of ad-hoc scripts:
   restart.
 - Jobs are **cooperative-first**: stop signals an abort; the process tree is
   terminated after a bounded grace period, never leaving a partial checkpoint or
-  a misrepresented `running` state. Nothing auto-resumes on boot — a job the
-  process left non-terminal is reconciled against the actual lifecycle/registry/
-  checkpoint state and reported as `interrupted` (or `completed` if promotion
-  really committed before the crash).
+  a misrepresented `running` state. Continuous learning/training and review
+  drains auto-resume on boot from durable state; only an explicit operator stop
+  or pause survives as stopped/paused. A one-shot job the process left
+  non-terminal is reconciled against the actual lifecycle/registry/checkpoint
+  state and reported as `interrupted` (or `completed` if promotion really
+  committed before the crash).
 - Bounded learning performs a single pass and reports **source exhaustion**
   honestly rather than pretending a target was reached; continuous learning polls
   at a configurable interval. One-shot training **refuses below the eligible
@@ -293,10 +295,12 @@ Real, unfixed, and listed so they are not mistaken for intended behavior.
    surfaces both stalls: training logs the `repeated-rejection` phase after
    `TRAIN_MAX_CONSECUTIVE_REJECTIONS` and then keeps waiting for new material
    (continuous training is perpetual and never stops on rejections; rejected runs
-   consume their batch, so new cycles only see new material), learning raises
-   `no-progress` after `LEARNING_NO_PROGRESS_CYCLES`, and both honour an optional
-   `JOBS_MAX_RUNTIME_MS` wall-clock bound (`max-runtime`). Progress is counted
-   only from genuinely acquired (`ingested`) material, not deduped events.
+   consume their batch, so new cycles only see new material); learning surfaces
+   `waiting-for-new-material` after `LEARNING_NO_PROGRESS_CYCLES` and keeps
+   polling instead of terminating (existing eligible material stays available),
+   and both honour an optional `JOBS_MAX_RUNTIME_MS` wall-clock bound
+   (`max-runtime`). Progress is counted only from genuinely acquired
+   (`ingested`) material, not deduped events.
    Regression coverage in `test/jobs-resilience.test.js`.
 
 ---

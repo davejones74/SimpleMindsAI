@@ -798,10 +798,11 @@ export const config = {
 
   // ---- Managed lifecycle jobs (learning / training / fresh-brain) ----
   // The JobSupervisor owns long-running work triggered from the Observatory.
-  // Jobs are foreground-observable, cooperatively cancellable, and never
-  // auto-resume after a restart (a stranded job is reported, not silently
-  // continued). Defaults are deliberately modest so a UI click cannot launch an
-  // unbounded GPU run by accident.
+  // Jobs are foreground-observable and cooperatively cancellable. Continuous
+  // learning/training and review drains are auto-resumed from durable state
+  // after a process restart; only a deliberate operator stop or pause leaves
+  // them stopped/paused. Defaults are deliberately modest so a UI click cannot
+  // launch an unbounded GPU run by accident.
   jobs: {
     // How often a continuous job re-checks for eligible material / new work.
     pollIntervalMs: num("JOBS_POLL_INTERVAL_MS", 60_000),
@@ -818,8 +819,10 @@ export const config = {
       // Safety cap on raw documents processed per bounded run (0 = no cap).
       maxRawDocs: num("LEARNING_MAX_RAW_DOCS", 0),
       // Continuous learning: after this many consecutive cycles that acquire
-      // nothing new (ingested=deduped=0 and trainable unchanged), stop with
-      // outcome `no-progress` instead of polling forever. 0 disables the guard.
+      // nothing new (ingested=deduped=0 and trainable unchanged), surface a
+      // WAITING state and keep polling for fresh material instead of stopping.
+      // Existing eligible material is retained for training while it waits.
+      // 0 disables the wait/throttle (the job still never terminates on it).
       noProgressCycles: num("LEARNING_NO_PROGRESS_CYCLES", 5),
       // Acquisition waiting / backoff. When a continuous job has no claimable or
       // retryable frontier work and no immediately viable provider, it persists a

@@ -85,9 +85,13 @@ const MATERIAL_WAIT = {
  *   - ONE active job per kind. A duplicate start is a 409, not a second run.
  *   - Jobs are durable: creation, transitions, progress and output are appended
  *     to the JobStore. On boot, `reconcile()` resolves any job the previous
- *     process left non-terminal — reporting `interrupted` with diagnostics, or
- *     `completed` when the underlying work (e.g. a promotion) actually finished
- *     before the crash. Jobs are NEVER auto-resumed.
+ *     process left non-terminal. Continuous learning/training and any review
+ *     drain are RESUMED from their durable state; a one-shot job whose work
+ *     actually finished before the crash is reported `completed`, and one that
+ *     did not is reported `interrupted` with diagnostics. An operator stop is
+ *     completed as `stopped`, and an operator pause is preserved as `paused`:
+ *     only deliberate operator intent survives instead of being overwritten by
+ *     a process restart.
  *   - Cancellation is cooperative first (a stop flag the loops honour), then a
  *     bounded grace window, and only then a forced process-tree kill.
  *
@@ -312,14 +316,14 @@ export class JobSupervisor {
       if (!validateTransition(job.status, JOB_STATUS.PAUSE_REQUESTED)) {
         throw new Error(`illegal status transition: ${job.status} -> ${JOB_STATUS.PAUSE_REQUESTED}`);
       }
-      await this.#event(jobId, { status: JOB_STATUS.PAUSE_REQUESTED, note: "pause requested but no active worker" });
+      await this.#event(jobId, { status: JOB_STATUS.PAUSE_REQUESTED, note: "pause requested but no active worker", meta: { pauseReason: "operator" } });
       return this.getJob(jobId);
     }
     if (!validateTransition(job.status, JOB_STATUS.PAUSE_REQUESTED)) {
       throw new Error(`illegal status transition: ${job.status} -> ${JOB_STATUS.PAUSE_REQUESTED}`);
     }
     control.shouldPause = true; // distinct from shouldStop: does NOT exit
-    await this.#event(jobId, { status: JOB_STATUS.PAUSE_REQUESTED, note: "pause requested" });
+    await this.#event(jobId, { status: JOB_STATUS.PAUSE_REQUESTED, note: "pause requested", meta: { pauseReason: "operator" } });
     return this.getJob(jobId);
   }
 
@@ -387,8 +391,11 @@ export class JobSupervisor {
     const onProgress = (progress) => this.#progress(jobId, progress);
     try {
       const job = this.getJob(jobId);
-      if (!validateTransition(job?.status ?? "queued", JOB_STATUS.RUNNING)) {
-        throw new Error(`illegal status transition: ${job?.status ?? "queued"} -> ${JOB_STATUS.RUNNING}`);
+      // A recovered job may already be recorded RUNNING (the process died while
+      // it was executing). Treat that as an idempotent resume, not an illegal
+      // running -> running transition.
+      if ((job?.status ?? JOB_STATUS.QUEUED) !== JOB_STATUS.RUNNING && !validateTransition(job?.status ?? JOB_STATUS.QUEUED, JOB_STATUS.RUNNING)) {
+        throw new Error(`illegal status transition: ${job?.status ?? JOB_STATUS.QUEUED} -> ${JOB_STATUS.RUNNING}`);
       }
       await this.#event(jobId, {
         status: JOB_STATUS.RUNNING,
@@ -398,7 +405,7 @@ export class JobSupervisor {
       });
       const result = await this.#dispatch(job, params, control, { log, onPhase, onProgress });
       if (result.outcome === "paused") {
-        await this.#event(jobId, { status: JOB_STATUS.PAUSED, note: "paused by operator", result });
+        await this.#event(jobId, { status: JOB_STATUS.PAUSED, note: "paused by operator", result, meta: { pauseReason: "operator" } });
       } else if (this.#shouldStop(jobId)) {
         await this.#event(jobId, { status: JOB_STATUS.STOPPED, note: "stopped by operator", result });
       } else {
@@ -523,9 +530,9 @@ export class JobSupervisor {
       // Progress = the corpus actually moved: a NEW ingested article or a rise
       // in trainable count. Dedupes are NOT progress (the same material seen
       // again), and a pass that filters everything out as junk acquires nothing.
-      // A continuous learning job that makes no progress for
-      // LEARNING_NO_PROGRESS_CYCLES cycles stops with outcome `no-progress`
-      // instead of polling forever.
+      // A continuous learning job NEVER terminates for lack of new material: it
+      // surfaces a WAITING state and keeps polling, leaving all existing eligible
+      // material available for continuous training in the meantime.
       const acquired = (last?.ingested ?? 0) > 0;
       const trainableGrew = prevTrainable === null ? true : (last?.trainable ?? 0) > prevTrainable;
       prevTrainable = last?.trainable ?? prevTrainable;
@@ -690,13 +697,24 @@ export class JobSupervisor {
       }
       const noProgressCap = config.jobs.learning.noProgressCycles;
       if (continuous && noProgressCap > 0 && noProgressStreak >= noProgressCap) {
+        // Perpetual means perpetual: no fresh material is a WAIT, never a
+        // terminal outcome. Existing reviewed+unconsumed articles stay available
+        // to the continuous training job until genuinely new material arrives.
+        const nextAttemptAt = new Date(this.clock() + config.jobs.pollIntervalMs).toISOString();
         await this.#safeEvent(jobId, {
-          status: JOB_STATUS.RUNNING,
-          phase: "no-progress",
-          note: `stopping: ${noProgressStreak} consecutive cycle(s) acquired nothing new (LEARNING_NO_PROGRESS_CYCLES=${noProgressCap})`,
+          status: JOB_STATUS.WAITING,
+          phase: "waiting-for-new-material",
+          note: `waiting: ${noProgressStreak} consecutive cycle(s) acquired nothing new; existing eligible material retained (${last?.trainable ?? 0} trainable) while waiting for fresh sources`,
+          meta: {
+            waitingReason: "no-new-material",
+            noProgressStreak,
+            trainable: last?.trainable ?? null,
+            nextAttemptAt,
+          },
         });
-        outcome = "no-progress";
-        break;
+        noProgressStreak = 0;
+        await this.#gate(jobId, config.jobs.pollIntervalMs);
+        continue;
       }
       await this.#gate(jobId, continuous ? config.jobs.pollIntervalMs : 0);
     }
@@ -922,10 +940,12 @@ export class JobSupervisor {
 
   async #runReview(job, params, base) {
     const { jobId } = job;
+    const continuous = job.mode === "continuous";
     const startedAt = this.clock();
     const total = { selected: 0, reviewed: 0, retired: 0, failed: 0, skippedCooldown: 0, skippedCap: 0, skippedTechnicalCap: 0 };
     let passes = 0;
     let outcome = "stopped";
+    let lastWaitNote = null;
     for (;;) {
       if (this.#shouldStop(jobId)) { outcome = "stopped"; break; }
       if (this.#runtimeExceeded(startedAt)) {
@@ -952,22 +972,79 @@ export class JobSupervisor {
       });
       for (const k of Object.keys(total)) total[k] += result[k] ?? 0;
       const stats = this.store.getStats();
+      const pending = result.pendingAfter ?? stats.pendingReview;
       await this.#progress(
         jobId,
-        { passes, ...total, pending: result.pendingAfter ?? stats.pendingReview, cooling: result.skippedCooldown, eligibleRemaining: result.eligibleRemaining ?? 0 },
+        {
+          passes,
+          ...total,
+          pending,
+          cooling: result.skippedCooldown,
+          eligibleRemaining: result.eligibleRemaining ?? 0,
+          nextEligibleAt: result.nextEligibleAt ?? null,
+        },
         { force: true },
       );
       if (result.locked) {
-        await this.#safeEvent(jobId, {
-          status: JOB_STATUS.WAITING,
-          phase: "waiting-for-review-lock",
-          note: "another review worker holds REVIEW.lock; retrying",
-        });
+        const note = "another review worker holds REVIEW.lock; retrying";
+        if (note !== lastWaitNote) {
+          lastWaitNote = note;
+          await this.#safeEvent(jobId, {
+            status: JOB_STATUS.WAITING,
+            phase: "waiting-for-review-lock",
+            note,
+          });
+        }
         await this.#gate(jobId, config.jobs.pollIntervalMs);
         continue;
       }
-      outcome = "drained";
-      break;
+      if (pending <= 0) {
+        // A finite drain is finished only when the queue is actually empty. A
+        // continuous review worker stays alive and keeps the backlog empty.
+        if (!continuous) {
+          outcome = "drained";
+          break;
+        }
+        const note = "review queue empty; waiting for new pending articles";
+        if (note !== lastWaitNote) {
+          lastWaitNote = note;
+          await this.#safeEvent(jobId, {
+            status: JOB_STATUS.WAITING,
+            phase: "waiting-for-review-material",
+            note,
+            meta: { waitingReason: "no-pending-review-material" },
+          });
+        }
+        await this.#gate(jobId, config.jobs.pollIntervalMs);
+        continue;
+      }
+      // Pending articles remain. This is the defect the old "drained" outcome
+      // hid: a pass limited to N reviews (or every article merely cooling down)
+      // left the rest untouched. Wait for the earliest cooldown expiry and run
+      // another pass; never stop with pending work still in the queue.
+      lastWaitNote = null;
+      const now = this.clock();
+      let waitMs = Number.isFinite(result.nextEligibleAt)
+        ? Math.max(0, result.nextEligibleAt - now)
+        : config.jobs.pollIntervalMs;
+      // Never oversleep an operator runtime bound.
+      const maxRuntime = config.jobs.maxRuntimeMs;
+      if (maxRuntime > 0) waitMs = Math.min(waitMs, Math.max(0, startedAt + maxRuntime - now));
+      const nextAt = Number.isFinite(result.nextEligibleAt) ? new Date(result.nextEligibleAt).toISOString() : null;
+      const note = nextAt
+        ? `waiting: ${pending} pending review(s) cooling down; next attempt at ${nextAt}`
+        : `waiting: ${pending} pending review(s) remain; retrying`;
+      if (note !== lastWaitNote) {
+        lastWaitNote = note;
+        await this.#safeEvent(jobId, {
+          status: JOB_STATUS.WAITING,
+          phase: nextAt ? "waiting-for-review-cooldown" : "waiting-for-review-retry",
+          note,
+          meta: { waitingReason: nextAt ? "review-cooldown" : "review-retry", pending, nextEligibleAt: nextAt },
+        });
+      }
+      await this.#gate(jobId, waitMs);
+      continue;
     }
     const stats = this.store.getStats();
     return {
@@ -1049,7 +1126,7 @@ export class JobSupervisor {
 
   /** Operator pause: report PAUSED at the safe boundary, then hold the worker. */
   async #holdPause(jobId) {
-    await this.#event(jobId, { status: JOB_STATUS.PAUSED, note: "paused at safe boundary; waiting for resume" });
+    await this.#event(jobId, { status: JOB_STATUS.PAUSED, note: "paused at safe boundary; waiting for resume", meta: { pauseReason: "operator" } });
     await this.#holdGate(jobId);
   }
 
@@ -1060,6 +1137,7 @@ export class JobSupervisor {
     await this.#event(jobId, {
       status: JOB_STATUS.PAUSED,
       note: `paused: network unavailable (${reason}); will retry on resume`,
+      meta: { pauseReason: "network", reason },
     });
     await this.#holdGate(jobId);
   }
@@ -1158,17 +1236,63 @@ export class JobSupervisor {
 
   // ------------------------------------------------------------ reconcile
   /**
-   * Resolve jobs the previous process left non-terminal. A WAITING learning job
-   * is RECOVERED — it resumes at its persisted `nextAttemptAt` deadline rather
-   * than being reported interrupted. Everything else is reported `interrupted`
-   * (or `completed` when the underlying work actually finished before the crash).
+   * Resolve jobs the previous process left non-terminal.
+   *
+   * The ONLY things that may stop a perpetual operation are deliberate operator
+   * actions: an explicit stop becomes `stopped`, and an explicit pause becomes
+   * `paused` (never silently resumed). Everything else is recovered:
+   *
+   *   - continuous learning/training resume from durable state (the learning
+   *     loop honours its persisted `nextAttemptAt`; training re-checks material
+   *     and the RUN.lock before starting a new run);
+   *   - a review drain/continuous job resumes so a backlog can never be left
+   *     half-reviewed by a restart;
+   *   - an automatic network pause is cleared (it was not operator intent);
+   *   - one-shot work keeps the honest diagnostic: completed when the underlying
+   *     work actually finished before the crash, interrupted otherwise.
    */
   async reconcile() {
     const active = this.jobStore.activeJobs();
     for (const job of active) {
-      if (job.kind === "learning" && job.status === JOB_STATUS.WAITING) {
-        this.#respawnLearning(job);
-        this.changeFeed?.emit("job.status", { jobId: job.jobId, status: JOB_STATUS.WAITING, recovered: true });
+      // Operator intent is durable. Normalise a half-finished stop/pause to its
+      // terminal/steady state instead of reporting an "interruption".
+      if (job.status === JOB_STATUS.STOP_REQUESTED || job.status === JOB_STATUS.STOPPING) {
+        await this.#event(job.jobId, {
+          status: JOB_STATUS.STOPPED,
+          note: "operator stop preserved across restart",
+        });
+        this.changeFeed?.emit("job.status", { jobId: job.jobId, status: JOB_STATUS.STOPPED, recovered: true });
+        continue;
+      }
+      if (job.status === JOB_STATUS.PAUSE_REQUESTED) {
+        await this.#event(job.jobId, {
+          status: JOB_STATUS.PAUSED,
+          note: "operator pause preserved across restart; resume to continue",
+          meta: { pauseReason: "operator" },
+        });
+        this.changeFeed?.emit("job.status", { jobId: job.jobId, status: JOB_STATUS.PAUSED, recovered: true });
+        continue;
+      }
+      if (job.status === JOB_STATUS.PAUSED) {
+        // Provenance is explicit on new pauses; fall back to the historical note
+        // for a job paused by an older process before this field existed.
+        const pauseReason =
+          job.meta?.pauseReason ??
+          (/^paused: network unavailable/.test(String(job.note ?? "")) ? "network" : null);
+        if (pauseReason === "network" && this.#autoResumable(job)) {
+          this.#respawnContinuous(job);
+          this.changeFeed?.emit("job.status", { jobId: job.jobId, status: JOB_STATUS.RUNNING, recovered: true, reason: "network-pause-cleared" });
+          continue;
+        }
+        // A deliberate operator pause (or a legacy pause without provenance) is
+        // left exactly where the operator put it.
+        this.changeFeed?.emit("job.status", { jobId: job.jobId, status: JOB_STATUS.PAUSED, recovered: true });
+        continue;
+      }
+      if (this.#autoResumable(job)) {
+        if (job.kind === "training") await this.#repairOrphanedTrainingRun(job);
+        this.#respawnContinuous(job);
+        this.changeFeed?.emit("job.status", { jobId: job.jobId, status: JOB_STATUS.RUNNING, recovered: true, reason: "continuous-job-resumed" });
         continue;
       }
       let diag = { outcome: JOB_STATUS.INTERRUPTED, note: "process restarted while job was active" };
@@ -1189,13 +1313,20 @@ export class JobSupervisor {
     return active.map((j) => j.jobId);
   }
 
+  /** Continuous work and finite review drains must survive a process restart. */
+  #autoResumable(job) {
+    if (!job) return false;
+    if (job.kind === "review") return true;
+    return job.mode === "continuous";
+  }
+
   /**
-   * Re-spawn the worker for a WAITING learning job so it resumes at its persisted
-   * deadline. The job remains cancellable (a fresh control), holds no execution
-   * resource while it is simply waiting (the loop sleeps in `#gate`), and never
-   * busy-loops because the deadline + backoff gate the next cycle.
+   * Re-spawn a crash-interrupted worker. The job remains cancellable (a fresh
+   * control), holds no execution resource while it is merely waiting (the loops
+   * sleep in `#gate`), and never busy-loops because the persisted deadlines and
+   * poll intervals gate the next unit of work.
    */
-  #respawnLearning(job) {
+  #respawnContinuous(job) {
     const control = {
       controller: new AbortController(),
       shouldStop: false,
@@ -1204,8 +1335,36 @@ export class JobSupervisor {
       promise: null,
     };
     this.controls.set(job.jobId, control);
+    if (job.kind === "training") {
+      this.telemetry.beginJob({ jobId: job.jobId, mode: job.mode, at: this.clock() });
+    }
     control.promise = this.#run(job, job.params, control).finally(() => this.controls.delete(job.jobId));
     this.changeFeed?.emit("job.started", { jobId: job.jobId, kind: job.kind, mode: job.mode, recovered: true });
+  }
+
+  /**
+   * A training process that died mid-run leaves a non-terminal run behind. Mark
+   * it interrupted ONLY when no live process owns RUN.lock, then let the
+   * resumed continuous job start its next run. A run owned by another live
+   * co-operating process is left untouched (the resumed job waits for the lock).
+   */
+  async #repairOrphanedTrainingRun(job) {
+    if (typeof this.registry?.listRuns !== "function") return null;
+    const lock = typeof this.registry.runLockInfo === "function" ? this.registry.runLockInfo() : null;
+    if (lock?.ownerAlive) return null;
+    const startMs = Date.parse(job.createdAt) - 1000;
+    const runs = this.registry
+      .listRuns()
+      .filter((r) => Number.isFinite(startMs) && Date.parse(r.startedAt) >= startMs)
+      .sort((a, b) => (a.startedAt < b.startedAt ? 1 : -1));
+    const run = runs[0];
+    if (!run) return null;
+    if (run.status === "promoted" || run.status === "rejected" || run.status === "failed") return run;
+    await this.registry.runEvent(run.runId, {
+      status: "failed",
+      note: "interrupted: process restarted before completion; continuous job resumed",
+    });
+    return { ...run, status: "failed" };
   }
 
   async #diagnoseTraining(job) {

@@ -220,8 +220,9 @@ development store:
 - **Fresh brain** — creates a genuinely randomly-initialised version (no pretrained
   student weights) as an unpromoted candidate; it never activates itself.
 - **Stop** is cooperative-first with a bounded grace period before the process tree is
-  terminated; **no job auto-resumes** on restart (non-terminal jobs are reconciled and
-  reported as `interrupted`).
+  terminated. Continuous learning/training and review drains **auto-resume** from durable
+  state after a restart; only a deliberate operator stop/pause leaves them stopped or paused.
+  One-shot work is reconciled honestly (`completed` if it committed, otherwise `interrupted`).
 - **Teacher readiness** is probed before work and reports the actual configured Ollama
   model, availability and pinned digest match.
 

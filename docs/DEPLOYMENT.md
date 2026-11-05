@@ -346,7 +346,7 @@ most relevant to deployment:
 | `EVAL_MIN_TOKENS` | `0` | Advisory floor on frozen-eval-set size, by a ~4-chars/token estimate. Non-enforcing; recommended `20000` so a return to a tiny set warns loudly. |
 | `PROMOTE_EVAL_SEQ_LEN` | `128` | Eval block length, pinned to `TRAIN_SEQ_LEN`. Changing it changes the metric signature and starts a new, incomparable promotion ladder. |
 | `JOBS_MAX_RUNTIME_MS` | `0` | Wall-clock bound for a job; `0` is unbounded. A job past it ends `max-runtime`. |
-| `LEARNING_NO_PROGRESS_CYCLES` | `5` | Consecutive no-progress learning cycles before the job ends `no-progress`. |
+| `LEARNING_NO_PROGRESS_CYCLES` | `5` | Consecutive no-progress learning cycles before the job surfaces `waiting-for-new-material` and keeps polling (it never terminates for lack of fresh material). |
 | `TRAIN_MAX_CONSECUTIVE_REJECTIONS` | `5` | Consecutive rejected training candidates before the supervisor logs the `repeated-rejection` phase and keeps waiting for new material (continuous training never stops on rejections). `0` disables the guard. |
 
 The full, authoritative list lives in `.env.example` and `src/config.js`. The

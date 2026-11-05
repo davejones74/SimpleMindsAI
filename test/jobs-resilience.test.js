@@ -6,7 +6,7 @@ import path from "node:path";
 import { ArticleStore } from "../src/storage/article-store.js";
 import { RegistryStore } from "../src/storage/registry-store.js";
 import { JobSupervisor } from "../src/jobs/supervisor.js";
-import { JOB_STATUS } from "../src/jobs/job-store.js";
+import { JobStore, JOB_STATUS } from "../src/jobs/job-store.js";
 import { config } from "../src/config.js";
 
 /**
@@ -242,7 +242,7 @@ test("continuous training respects the max-runtime guard", async () => {
   }
 });
 
-test("continuous learning stops when it acquires nothing new for the configured streak", async () => {
+test("continuous learning waits through a no-new-material streak instead of stopping", async () => {
   const prevNoProgress = config.jobs.learning.noProgressCycles;
   const prevPoll = config.jobs.pollIntervalMs;
   config.jobs.learning.noProgressCycles = 2;
@@ -268,9 +268,15 @@ test("continuous learning stops when it acquires nothing new for the configured 
     await sup.init({ reconcile: false });
 
     const job = await sup.startLearning({ mode: "continuous", targetArticles: 5 });
+    await waitFor(() => sup.getJob(job.jobId).phase === "waiting-for-new-material", 5000);
+    const waiting = sup.getJob(job.jobId);
+    assert.equal(waiting.status, JOB_STATUS.WAITING);
+    assert.equal(waiting.terminal, false, "a no-new-material streak must never terminate continuous learning");
+    assert.ok((waiting.progress?.cycle ?? 0) >= 3, "the wait must trigger after the configured stalled cycles");
+
+    await sup.stop(job.jobId);
     const done = await waitTerminal(sup, job.jobId);
-    assert.equal(done.result.outcome, "no-progress");
-    assert.ok(done.result.cycles >= 3, "the streak guard must fire after the configured number of stalled cycles");
+    assert.equal(done.result.outcome, "stopped");
 
     await sup.close();
     await registry.close();
@@ -461,4 +467,159 @@ test("review drain job: processes the whole pending backlog and reports it drain
   } finally {
     config.jobs.pollIntervalMs = prevPoll;
   }
+});
+
+test("review drain keeps going past a per-pass limit until no pending article is untouched", async () => {
+  const prevPoll = config.jobs.pollIntervalMs;
+  config.jobs.pollIntervalMs = 5;
+  try {
+    const store = await ArticleStore.open(tmp());
+    for (let i = 0; i < 5; i++) {
+      await store.ingestArticle({ text: `Backlog article ${i} that must not be abandoned.`, domain: "reasoning", reviewRequested: true });
+    }
+    const registry = await RegistryStore.open(tmp());
+    const sup = new JobSupervisor({
+      store,
+      registry,
+      dir: tmp(),
+      scorer: { scoreOffline: async () => ({ verdict: "approve", score: 9, rationale: "fine" }) },
+    });
+    await sup.init({ reconcile: false });
+
+    const job = await sup.startReview({ mode: "drain", limit: 2 });
+    const done = await waitTerminal(sup, job.jobId, 15000);
+    assert.equal(done.result.outcome, "drained");
+    assert.equal(done.result.reviewed, 5, "the limit caps a pass, not the whole drain");
+    assert.equal(store.getStats().pendingReview, 0);
+
+    await sup.close();
+    await registry.close();
+    await store.close();
+  } finally {
+    config.jobs.pollIntervalMs = prevPoll;
+  }
+});
+
+test("review drain waits through cooldown and revisits cooling articles until they are decided", async () => {
+  const prevPoll = config.jobs.pollIntervalMs;
+  const prevCooldown = config.review.cooldownMs;
+  const prevAttempts = config.review.maxAttempts;
+  config.jobs.pollIntervalMs = 5;
+  config.review.cooldownMs = 20;
+  config.review.maxAttempts = 2;
+  try {
+    const store = await ArticleStore.open(tmp());
+    await store.ingestArticle({ text: "A cooling article the teacher cannot decide on first inspection.", domain: "reasoning", reviewRequested: true });
+    const registry = await RegistryStore.open(tmp());
+    const sup = new JobSupervisor({
+      store,
+      registry,
+      dir: tmp(),
+      scorer: { scoreOffline: async () => ({ verdict: "uncertain", score: 0, rationale: "meh" }) },
+    });
+    await sup.init({ reconcile: false });
+
+    const job = await sup.startReview({ mode: "drain" });
+    const done = await waitTerminal(sup, job.jobId, 15000);
+    assert.equal(done.result.outcome, "drained");
+    assert.equal(store.getStats().pendingReview, 0, "a cooling article must be revisited, not left pending forever");
+    assert.equal(store.getStats().retired, 1, "the second inconclusive attempt retires it");
+
+    await sup.close();
+    await registry.close();
+    await store.close();
+  } finally {
+    config.jobs.pollIntervalMs = prevPoll;
+    config.review.cooldownMs = prevCooldown;
+    config.review.maxAttempts = prevAttempts;
+  }
+});
+
+test("reconcile: a stranded continuous training job is resumed and waits for validation material", async () => {
+  const dir = tmp();
+  const store = await seededStore(4);
+  const registry = await RegistryStore.open(tmp());
+  const js = await JobStore.open(dir);
+  const job = await js.createJob({ kind: "training", mode: "continuous", params: { parentVersion: null, minEligible: 1 } });
+  await js.jobEvent(job.jobId, { status: JOB_STATUS.WAITING, phase: "waiting-for-validation" });
+  await js.close();
+
+  const trainer = {
+    kind: "python",
+    version: "test",
+    resolveBaseline: async () => ({ version: "v001", path: "x/v001" }),
+    resolveVersion: async (v) => ({ version: v, path: `x/${v}` }),
+    preflight: async () => ({ ok: false, code: "INSUFFICIENT_VALIDATION", error: "no prospective validation clusters" }),
+    train: async () => { throw new Error("train must not be reached while validation material is insufficient"); },
+  };
+  const sup = new JobSupervisor({
+    store,
+    registry,
+    dir,
+    trainerFactory: () => trainer,
+    trainingDeps: { paths: { snapshots: tmp(), models: tmp(), plans: tmp(), evaluation: tmp() } },
+  });
+  await sup.init({ reconcile: true });
+  await waitFor(() => sup.getJob(job.jobId).phase === "waiting-for-validation", 5000);
+  const live = sup.getJob(job.jobId);
+  assert.notEqual(live.status, JOB_STATUS.INTERRUPTED, "a restart must not interrupt continuous training");
+  assert.equal(live.status, JOB_STATUS.WAITING);
+
+  await sup.stop(job.jobId);
+  await waitTerminal(sup, job.jobId);
+  await sup.close();
+  await store.close();
+  await registry.close();
+});
+
+test("reconcile: a stranded review drain is resumed and finishes the backlog", async () => {
+  const dir = tmp();
+  const store = await ArticleStore.open(tmp());
+  for (let i = 0; i < 3; i++) {
+    await store.ingestArticle({ text: `Restart backlog article ${i} with enough prose.`, domain: "reasoning", reviewRequested: true });
+  }
+  const registry = await RegistryStore.open(tmp());
+  const js = await JobStore.open(dir);
+  const job = await js.createJob({ kind: "review", mode: "drain", params: { limit: 0 } });
+  await js.jobEvent(job.jobId, { status: JOB_STATUS.RUNNING, phase: "review" });
+  await js.close();
+
+  const sup = new JobSupervisor({
+    store,
+    registry,
+    dir,
+    scorer: { scoreOffline: async () => ({ verdict: "approve", score: 9, rationale: "fine" }) },
+  });
+  await sup.init({ reconcile: true });
+  const done = await waitTerminal(sup, job.jobId, 15000);
+  assert.equal(done.result.outcome, "drained");
+  assert.equal(store.getStats().pendingReview, 0);
+
+  await sup.close();
+  await store.close();
+  await registry.close();
+});
+
+test("reconcile: an orphaned in-flight training run is marked interrupted while the continuous job resumes", async () => {
+  const dir = tmp();
+  const store = await seededStore(0); // resumes into waiting-for-eligible, no new run needed
+  const registry = await RegistryStore.open(tmp());
+  const orphan = await registry.createRun({ baseModel: "base-1", trainerKind: "python" });
+  const js = await JobStore.open(dir);
+  const job = await js.createJob({ kind: "training", mode: "continuous", params: { parentVersion: null, minEligible: 1 } });
+  await js.jobEvent(job.jobId, { status: JOB_STATUS.RUNNING, phase: "training" });
+  await js.close();
+
+  const sup = new JobSupervisor({ store, registry, dir });
+  await sup.init({ reconcile: true });
+  await waitFor(() => sup.getJob(job.jobId).status === JOB_STATUS.WAITING, 5000);
+  const live = sup.getJob(job.jobId);
+  assert.notEqual(live.status, JOB_STATUS.INTERRUPTED, "the continuous job must resume");
+  assert.equal(registry.getRun(orphan.runId).status, "failed", "the abandoned run is honestly marked interrupted");
+
+  await sup.stop(job.jobId);
+  await waitTerminal(sup, job.jobId);
+  await sup.close();
+  await store.close();
+  await registry.close();
 });
