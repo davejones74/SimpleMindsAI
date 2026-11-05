@@ -277,7 +277,7 @@ export async function executeFullRun({
     }
 
     if (!corpusOnly && !config.snapshotIncludeConsumed && config.trainReplayPercent > 0 && replayArticleIds.length) {
-      const trimmed = trimReplayToFreshTarget(rows, { replayPercent: config.trainReplayPercent });
+      const trimmed = trimReplayToFreshTarget(rows, { replayPercent: config.trainReplayPercent, validationArticleIds });
       rows = trimmed.rows;
       replayArticleIds = trimmed.replayRows.map((row) => row.articleId);
       const validationCount = rows.filter((row) => row.corpusRole === "validation").length;

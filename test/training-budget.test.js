@@ -196,3 +196,16 @@ test("post-partition trimming accepts zero replay when configured target is zero
   assert.equal(trimmed.replayTokens, 0);
   assert.equal(trimmed.replayShare, 0);
 });
+
+
+test("replay trim excludes validation by explicit ID even when a row role is absent", () => {
+  const rows = [
+    { articleId: "f1", corpusRole: undefined, text: "x".repeat(400) },
+    { articleId: "v1", corpusRole: undefined, text: "y".repeat(4000) },
+    { articleId: "r1", corpusRole: "replay", text: "z".repeat(100) },
+  ];
+  const trimmed = trimReplayToFreshTarget(rows, { replayPercent: 20, validationArticleIds: ["v1"] });
+  assert.equal(trimmed.freshRows.length, 1);
+  assert.equal(trimmed.replayRows.length, 1);
+  assert.ok(trimmed.replayShare <= 0.2 + 1e-9, String(trimmed.replayShare));
+});

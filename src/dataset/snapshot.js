@@ -98,11 +98,16 @@ function stableOrder(rows) {
 }
 
 /** Pick a deterministic replay sample sized to the requested token share. */
-export function trimReplayToFreshTarget(rows, { replayPercent = 20 } = {}) {
+export function trimReplayToFreshTarget(rows, { replayPercent = 20, validationArticleIds = null } = {}) {
   const pct = Math.max(0, Math.min(100, Number(replayPercent) || 0));
-  const replayRows = rows.filter((row) => row.corpusRole === "replay");
+  // Exclude validation by explicit identity as well as by role. The lifecycle
+  // knows the partition's validation IDs even if a row role was lost or a
+  // caller supplies rows from a different serialisation path.
+  const validationIds = new Set(validationArticleIds ?? []);
+  const isValidation = (row) => row.corpusRole === "validation" || validationIds.has(row.articleId);
+  const replayRows = rows.filter((row) => row.corpusRole === "replay" && !isValidation(row));
   const nonReplayRows = rows.filter((row) => row.corpusRole !== "replay");
-  const freshRows = nonReplayRows.filter((row) => row.corpusRole !== "validation");
+  const freshRows = nonReplayRows.filter((row) => !isValidation(row));
   const freshTokens = freshRows.reduce((sum, row) => sum + estimateTokenCount(row.text), 0);
   const targetTokens = pct >= 100
     ? Number.POSITIVE_INFINITY
