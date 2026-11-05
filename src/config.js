@@ -447,6 +447,10 @@ export const config = {
   trainMinUniqueTokens: num("TRAIN_MIN_UNIQUE_TOKENS", 1700),
   // Replay share of the training corpus by token estimate. 0 disables replay.
   trainReplayPercent: num("TRAIN_REPLAY_PERCENT", 20),
+  // Permitted percentage-point overshoot of the replay target, measured on
+  // actual tokenizer tokens at the final training corpus. Beyond this the run
+  // fails closed rather than training with an invalid mix.
+  trainReplayTolerancePoints: num("TRAIN_REPLAY_TOLERANCE_POINTS", 2),
   // Cumulative learning. When true and the trainer exposes a working pointer,
   // normal runs train from the durable working checkpoint (falling back to the
   // stable active checkpoint when no valid working pointer exists). `active`

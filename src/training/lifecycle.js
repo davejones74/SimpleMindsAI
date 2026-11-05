@@ -1,6 +1,6 @@
 import path from "node:path";
 import { mkdir, writeFile, readFile, readdir } from "node:fs/promises";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { config } from "../config.js";
 import { createHash } from "node:crypto";
 import { collectRowsFromArticles, buildSnapshot, trimReplayToFreshTarget } from "../dataset/snapshot.js";
@@ -16,6 +16,8 @@ import { baselineCacheKey, cacheEntrySatisfiesEvidence, loadEvalCache, saveEvalC
 import { computeTrainingBudget, checkMinimumTrainingData, computeEvaluationCadence } from "./budget.js";
 import { evaluateGenerationQuality } from "./generation-quality.js";
 import { decideWorkingAdvancement } from "./working-guard.js";
+import { replayShareWithinTolerance, selectReplayWithinBudget } from "./replay-budget.js";
+import { measureDocuments } from "./tokenizer-measurement.js";
 import { historicallyExposedArticleIds } from "./exposure.js";
 
 /**
@@ -33,6 +35,23 @@ import { historicallyExposedArticleIds } from "./exposure.js";
  * re-collects them — no duplicate, no loss. RecoverStaleRuns() marks any run
  * stranded in created/running/evaluating as failed on the next start.
  */
+function resolveTokenizerPath() {
+  const root = config.pythonStore;
+  if (!root) return null;
+  for (const pointer of ["active.json", "working.json"]) {
+    try {
+      const record = JSON.parse(readFileSync(path.join(root, pointer), "utf8"));
+      if (record?.version) {
+        const candidate = path.join(root, record.version, "tokenizer.json");
+        if (existsSync(candidate)) return candidate;
+      }
+    } catch {
+      /* pointer unavailable */
+    }
+  }
+  return null;
+}
+
 function computeFileHash(filePath) {
   return createHash("sha256")
     .update(readFileSync(filePath, "utf8"), "utf8")
@@ -327,6 +346,89 @@ export async function executeFullRun({
       throw err;
     }
 
+    // ---- tokenizer-authoritative replay budget ----
+    // Replay was selected before validation partitioning. A character estimate
+    // is not the training denominator, so measure the exact snapshot rows with
+    // the student tokenizer and rebuild the snapshot if the final share exceeds
+    // the configured target plus tolerance. This runs before the plan/run are
+    // created, so the auditable manifest names the final artifact.
+    if (
+      pythonMode &&
+      !corpusOnly &&
+      !config.snapshotIncludeConsumed &&
+      config.trainReplayPercent > 0 &&
+      replayArticleIds.length > 0
+    ) {
+      const tokenizerPath = resolveTokenizerPath();
+      if (!tokenizerPath) {
+        const err = new Error("cannot verify replay composition: tokenizer unavailable");
+        err.code = "REPLAY_BUDGET_UNVERIFIABLE";
+        throw err;
+      }
+      const freshRows = snapshot.rows.filter((row) => row.corpusRole !== "replay" && row.corpusRole !== "validation");
+      const replayRows = snapshot.rows.filter((row) => row.corpusRole === "replay");
+      const measured = await measureDocuments(
+        [...freshRows, ...replayRows].map((row) => ({ itemId: row.articleId, text: row.text })),
+        { tokenizerPath, seqLen: config.trainSeqLen },
+      );
+      const tokenById = new Map((measured.documents ?? []).map((row) => [row.itemId, row.tokens]));
+      const freshTokens = freshRows.reduce((sum, row) => sum + (tokenById.get(row.articleId) ?? 0), 0);
+      const replayTokens = replayRows.reduce((sum, row) => sum + (tokenById.get(row.articleId) ?? 0), 0);
+      const check = replayShareWithinTolerance({
+        freshTokens,
+        replayTokens,
+        replayPercent: config.trainReplayPercent,
+        tolerancePoints: config.trainReplayTolerancePoints,
+      });
+      if (!check.withinTolerance) {
+        const selected = selectReplayWithinBudget({
+          replayRows,
+          tokenById,
+          freshTokens,
+          replayPercent: config.trainReplayPercent,
+        });
+        if (!selected.keptRows.length) {
+          const err = new Error(
+            `replay composition ${(check.share * 100).toFixed(2)}% exceeds ${config.trainReplayPercent}% ` +
+              `(+${config.trainReplayTolerancePoints} points) and no replay row fits the token budget`,
+          );
+          err.code = "REPLAY_SHARE_EXCEEDED";
+          err.replayShare = check.share;
+          throw err;
+        }
+        const keptIds = new Set(selected.keptRows.map((row) => row.articleId));
+        const trimmedRows = snapshot.rows.filter((row) => row.corpusRole !== "replay" || keptIds.has(row.articleId));
+        const validationCount = trimmedRows.filter((row) => row.corpusRole === "validation").length;
+        const newStats = {
+          ...corpusStats,
+          collected: trimmedRows.length,
+          replay: selected.keptRows.length,
+          validation: validationCount,
+          retained: selected.keptRows.length + validationCount,
+          estimatedReplayShare: selected.replayShare,
+        };
+        replayArticleIds = selected.keptRows.map((row) => row.articleId);
+        snapshot = await buildSnapshot({
+          registry,
+          rowsRaw: trimmedRows,
+          freshArticleIds,
+          dir: options.paths?.snapshots,
+          evalGuard: makeEvalGuard(evalSet),
+          replayArticleIds,
+          validationArticleIds,
+          partition,
+          corpusMode: config.trainCorpusMode,
+          corpusStats: newStats,
+          corpusPolicy,
+        });
+        corpusStats = newStats;
+        logger?.warn?.(
+          `[lifecycle] tokenizer replay budget removed ${selected.removedRows} replay row(s): ` +
+            `${(check.share * 100).toFixed(2)}% -> ${(selected.replayShare * 100).toFixed(2)}%`,
+        );
+      }
+    }
+
     // ---- validated curriculum plan ----
     const storeStats = typeof store.getStats === "function" ? store.getStats() : {};
     let plan;
@@ -475,17 +577,27 @@ export async function executeFullRun({
         }
       }
     }
-    // The replay share is SIZED by token estimate in Node but only MEASURED by
-    // the tokenizer here. Record the measured share on the run (never silently
-    // claim the target was hit) and warn when it overshoots the configured cap,
-    // so a corpus where fresh material is dwarfed by the replay pool is visible.
+    // The trainer preflight is the authoritative final measurement: it packs
+    // the exact snapshot the trainer will consume. Fail closed if composition
+    // is still outside the configured target plus tolerance.
     if (pythonMode && corpusPreflight && Number.isFinite(corpusPreflight.trainTokensSeen) && corpusPreflight.trainTokensSeen > 0) {
-      const measuredReplayShare = (Number(corpusPreflight.replayTokensSeen) || 0) / corpusPreflight.trainTokensSeen;
-      const cap = (Number(config.trainReplayPercent) || 0) / 100;
-      if (Number.isFinite(measuredReplayShare) && cap > 0 && measuredReplayShare > cap + 0.02) {
-        logger?.warn?.(
-          `[lifecycle] replay token share ${(measuredReplayShare * 100).toFixed(1)}% exceeds configured TRAIN_REPLAY_PERCENT=${config.trainReplayPercent}% (measured, not enforced)`,
+      const freshTokens = Number(corpusPreflight.freshTokensSeen ?? 0);
+      const replayTokens = Number(corpusPreflight.replayTokensSeen ?? 0);
+      const check = replayShareWithinTolerance({
+        freshTokens,
+        replayTokens,
+        replayPercent: config.trainReplayPercent,
+        tolerancePoints: config.trainReplayTolerancePoints,
+      });
+      if (!check.withinTolerance) {
+        const err = new Error(
+          `replay composition ${(check.share * 100).toFixed(2)}% exceeds ${config.trainReplayPercent}% ` +
+            `(+${config.trainReplayTolerancePoints} points) in the final trainer preflight`,
         );
+        err.code = "REPLAY_SHARE_EXCEEDED";
+        err.replayShare = check.share;
+        err.corpusPreflight = corpusPreflight;
+        throw err;
       }
     }
     // The fixed cadence was sized for 60-step runs. Tighten it to the ACTUAL
