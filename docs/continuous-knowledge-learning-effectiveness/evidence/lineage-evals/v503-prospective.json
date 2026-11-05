@@ -1,0 +1,400 @@
+{
+  "device": "cuda",
+  "evalLoss": 8.556660120604468,
+  "evaluationSet": {
+    "articles": [
+      {
+        "articleId": "prospective-20261104.jsonl#0",
+        "contentHash": "347f7e25a89bb65542bdfb9cdba600a1468baa907bd0b203763716324e7847db"
+      },
+      {
+        "articleId": "prospective-20261104.jsonl#1",
+        "contentHash": "c850a1b4bafecb82e0ec5119d2216f6aff0694c44721111fec2c8b7bcd3c1104"
+      },
+      {
+        "articleId": "prospective-20261104.jsonl#2",
+        "contentHash": "659421130e9360298d954e5412469ce453160dc5c200d8a5748aa33660e4aefb"
+      },
+      {
+        "articleId": "prospective-20261104.jsonl#3",
+        "contentHash": "e492535cc9e7b1f8294a21945bf87b5297d44341ffab3cf53f135c0fd5a065a0"
+      },
+      {
+        "articleId": "prospective-20261104.jsonl#4",
+        "contentHash": "17041e6b813fdfe2b8bb47d567f043381fc7da3e798353f44748421775fccd9e"
+      },
+      {
+        "articleId": "prospective-20261104.jsonl#5",
+        "contentHash": "8545b0ab2ba6d719c431ba3cab8e4a39a08bb9b3a89f602470d68b231c1a4b82"
+      },
+      {
+        "articleId": "prospective-20261104.jsonl#6",
+        "contentHash": "1be7ac181b5c8a8d11f2efe3c8d56be79db921a67e424c4216f0c808852402e4"
+      },
+      {
+        "articleId": "prospective-20261104.jsonl#7",
+        "contentHash": "0376a1fcfac88732fd2104b3fd54740015d70a2febba1b2ecf94d9ab995a93a6"
+      },
+      {
+        "articleId": "prospective-20261104.jsonl#8",
+        "contentHash": "c40ee7e7ff857ee1273dd67fbcebb59b200fb4555f086ac097fc6303fd28f34f"
+      },
+      {
+        "articleId": "prospective-20261104.jsonl#9",
+        "contentHash": "069f8ec8aeaee71defb400b05649d062cebcd64f424a02edcaa91790f415a201"
+      },
+      {
+        "articleId": "prospective-20261104.jsonl#10",
+        "contentHash": "8e003cf97630f0f8ecd1d9e736d481d8ebccecc2da3e50985d9408b5b24ad3fa"
+      },
+      {
+        "articleId": "prospective-20261104.jsonl#11",
+        "contentHash": "5582a95dc22f5ce824349098b9fc55c28ef2b3d3fe14ce766ff3a2ae7b1f031c"
+      },
+      {
+        "articleId": "prospective-20261104.jsonl#12",
+        "contentHash": "70ae977fea7fcc7884f6fd6e8002d6c1709a23ef40167b6d7f3710f028e9be05"
+      },
+      {
+        "articleId": "prospective-20261104.jsonl#13",
+        "contentHash": "f29c1338cb57e14fefc2327f093995ebfe8d5fa1a595686d3fbbe1aac76e82ef"
+      },
+      {
+        "articleId": "prospective-20261104.jsonl#14",
+        "contentHash": "17316e84e337fd1ac8cafbbf0ef5cef360025999fcd650a6738c5fb51abd1465"
+      },
+      {
+        "articleId": "prospective-20261104.jsonl#15",
+        "contentHash": "4a2028af5c614e1a2bb62b7b3ef4718345aab0adadbcc2ef18631eb8b062c9cb"
+      },
+      {
+        "articleId": "prospective-20261104.jsonl#16",
+        "contentHash": "7aaa6165402ffbbea6eef5712028364eb53c05fe7f0bdabab08459c370a106b8"
+      },
+      {
+        "articleId": "prospective-20261104.jsonl#17",
+        "contentHash": "4e64d2942ddba5be0b84b06979d5717f8914c9bd298d2119e8bcbebc51a86733"
+      },
+      {
+        "articleId": "prospective-20261104.jsonl#18",
+        "contentHash": "e20b4ff1f75330996f100cea2916ff2be83af7ab32e3a64cf84bf4ef96e256ea"
+      },
+      {
+        "articleId": "prospective-20261104.jsonl#19",
+        "contentHash": "95f52c34f70ac66b0715a728376432be7a282951b1c4a560ba53d12841cba782"
+      },
+      {
+        "articleId": "prospective-20261104.jsonl#20",
+        "contentHash": "027bc2e58e56559b25536e58ff0299bf0dc419738c204aae31324ddad71a04c4"
+      },
+      {
+        "articleId": "prospective-20261104.jsonl#21",
+        "contentHash": "ebf83b56e6e3b6319706b2033d2b2ce5b98693433ea1027826ed7f666e08ad1a"
+      },
+      {
+        "articleId": "prospective-20261104.jsonl#22",
+        "contentHash": "6896ea2f68afc15a83e6f1c248bdee5c3df956eaf38b24c64e357bd86adfd2a0"
+      },
+      {
+        "articleId": "prospective-20261104.jsonl#23",
+        "contentHash": "ad4555b65cbcae2d80edce7d8d8df1e61c25b362959a4d114fefd0a723120f4f"
+      },
+      {
+        "articleId": "prospective-20261104.jsonl#24",
+        "contentHash": "c0f8ab2d9d0c45e885a5fe85a15eba13b1be3f65851a0a7af0426d302473a553"
+      },
+      {
+        "articleId": "prospective-20261104.jsonl#25",
+        "contentHash": "fb4872871a246324edad49a512b091015d4b414277be00952f95ccf42413d3f6"
+      },
+      {
+        "articleId": "prospective-20261104.jsonl#26",
+        "contentHash": "d5df8d15dde74dccb41cd7741325c1b3864b09b6f88ce45f0a0ec5dcec03488d"
+      },
+      {
+        "articleId": "prospective-20261104.jsonl#27",
+        "contentHash": "93c16e5c718894517b826dddbb76405212900dc9016b02b8199600c179e413f8"
+      },
+      {
+        "articleId": "prospective-20261104.jsonl#28",
+        "contentHash": "297ba786e6d14c4c4c5aa01e7663ba4f30ff8e2c864c20b126b0ff6b3ab00da0"
+      },
+      {
+        "articleId": "prospective-20261104.jsonl#29",
+        "contentHash": "e8ebfbfceec8d670b9d3f45c4b8a956dff33e44f8843c3f24f553978a540968c"
+      }
+    ],
+    "blockCount": 61,
+    "datasetHash": "81ae473919a4d4439aed19de1f963430fec1960373c18b26b46b015fad7073f2",
+    "documentCount": 30,
+    "sequenceLength": 128,
+    "strategy": "concatenate-chunk-v1",
+    "tokenizerHash": "ab4da6b2aa68247e9c0fa9b97fc7fcc796505038d01f7e144522a65ce0dbd2e5",
+    "tokensSeen": 7861
+  },
+  "groups": [
+    {
+      "documents": 5,
+      "group": "https://www.gutenberg.org/files/11/11-0.txt",
+      "loss": 8.454764529517245,
+      "tokens": 1366
+    },
+    {
+      "documents": 5,
+      "group": "https://www.gutenberg.org/files/36/36-0.txt",
+      "loss": 8.781848855595468,
+      "tokens": 1149
+    },
+    {
+      "documents": 5,
+      "group": "https://www.gutenberg.org/files/74/74-0.txt",
+      "loss": 8.847334503336873,
+      "tokens": 1357
+    },
+    {
+      "documents": 5,
+      "group": "https://www.gutenberg.org/files/76/76-0.txt",
+      "loss": 8.880237853646678,
+      "tokens": 1495
+    },
+    {
+      "documents": 5,
+      "group": "https://www.gutenberg.org/files/345/345-0.txt",
+      "loss": 7.923864228565364,
+      "tokens": 1132
+    },
+    {
+      "documents": 5,
+      "group": "https://www.gutenberg.org/files/158/158-0.txt",
+      "loss": 8.362350914796894,
+      "tokens": 1362
+    }
+  ],
+  "lossSignature": {
+    "applies": false,
+    "loss": 8.556660120604468,
+    "reason": "the ln(V) band applies only to untrained RANDOM initialisations; a trained checkpoint is expected to score below it"
+  },
+  "ok": true,
+  "perDocument": [
+    {
+      "articleId": "prospective-20261104.jsonl#0",
+      "group": "https://www.gutenberg.org/files/11/11-0.txt",
+      "loss": 8.767802131782144,
+      "tokens": 295
+    },
+    {
+      "articleId": "prospective-20261104.jsonl#1",
+      "group": "https://www.gutenberg.org/files/11/11-0.txt",
+      "loss": 8.511622414937834,
+      "tokens": 205
+    },
+    {
+      "articleId": "prospective-20261104.jsonl#2",
+      "group": "https://www.gutenberg.org/files/11/11-0.txt",
+      "loss": 7.960267556767885,
+      "tokens": 294
+    },
+    {
+      "articleId": "prospective-20261104.jsonl#3",
+      "group": "https://www.gutenberg.org/files/11/11-0.txt",
+      "loss": 8.715419485842112,
+      "tokens": 323
+    },
+    {
+      "articleId": "prospective-20261104.jsonl#4",
+      "group": "https://www.gutenberg.org/files/11/11-0.txt",
+      "loss": 8.282831195846619,
+      "tokens": 249
+    },
+    {
+      "articleId": "prospective-20261104.jsonl#5",
+      "group": "https://www.gutenberg.org/files/36/36-0.txt",
+      "loss": 10.194139689289631,
+      "tokens": 361
+    },
+    {
+      "articleId": "prospective-20261104.jsonl#6",
+      "group": "https://www.gutenberg.org/files/36/36-0.txt",
+      "loss": 7.554439659405472,
+      "tokens": 133
+    },
+    {
+      "articleId": "prospective-20261104.jsonl#7",
+      "group": "https://www.gutenberg.org/files/36/36-0.txt",
+      "loss": 8.103199785252762,
+      "tokens": 283
+    },
+    {
+      "articleId": "prospective-20261104.jsonl#8",
+      "group": "https://www.gutenberg.org/files/36/36-0.txt",
+      "loss": 8.445665428437382,
+      "tokens": 249
+    },
+    {
+      "articleId": "prospective-20261104.jsonl#9",
+      "group": "https://www.gutenberg.org/files/36/36-0.txt",
+      "loss": 8.206042289733887,
+      "tokens": 123
+    },
+    {
+      "articleId": "prospective-20261104.jsonl#10",
+      "group": "https://www.gutenberg.org/files/74/74-0.txt",
+      "loss": 9.961782247477974,
+      "tokens": 321
+    },
+    {
+      "articleId": "prospective-20261104.jsonl#11",
+      "group": "https://www.gutenberg.org/files/74/74-0.txt",
+      "loss": 8.83849432091964,
+      "tokens": 285
+    },
+    {
+      "articleId": "prospective-20261104.jsonl#12",
+      "group": "https://www.gutenberg.org/files/74/74-0.txt",
+      "loss": 9.087095371727804,
+      "tokens": 206
+    },
+    {
+      "articleId": "prospective-20261104.jsonl#13",
+      "group": "https://www.gutenberg.org/files/74/74-0.txt",
+      "loss": 8.219599511125962,
+      "tokens": 278
+    },
+    {
+      "articleId": "prospective-20261104.jsonl#14",
+      "group": "https://www.gutenberg.org/files/74/74-0.txt",
+      "loss": 7.985541675867659,
+      "tokens": 267
+    },
+    {
+      "articleId": "prospective-20261104.jsonl#15",
+      "group": "https://www.gutenberg.org/files/76/76-0.txt",
+      "loss": 10.281597773234049,
+      "tokens": 324
+    },
+    {
+      "articleId": "prospective-20261104.jsonl#16",
+      "group": "https://www.gutenberg.org/files/76/76-0.txt",
+      "loss": 8.270215644836426,
+      "tokens": 300
+    },
+    {
+      "articleId": "prospective-20261104.jsonl#17",
+      "group": "https://www.gutenberg.org/files/76/76-0.txt",
+      "loss": 7.753037580922872,
+      "tokens": 238
+    },
+    {
+      "articleId": "prospective-20261104.jsonl#18",
+      "group": "https://www.gutenberg.org/files/76/76-0.txt",
+      "loss": 7.822405487060547,
+      "tokens": 250
+    },
+    {
+      "articleId": "prospective-20261104.jsonl#19",
+      "group": "https://www.gutenberg.org/files/76/76-0.txt",
+      "loss": 9.563521940465384,
+      "tokens": 383
+    },
+    {
+      "articleId": "prospective-20261104.jsonl#20",
+      "group": "https://www.gutenberg.org/files/345/345-0.txt",
+      "loss": 9.303091049194336,
+      "tokens": 103
+    },
+    {
+      "articleId": "prospective-20261104.jsonl#21",
+      "group": "https://www.gutenberg.org/files/345/345-0.txt",
+      "loss": 7.779414560736679,
+      "tokens": 246
+    },
+    {
+      "articleId": "prospective-20261104.jsonl#22",
+      "group": "https://www.gutenberg.org/files/345/345-0.txt",
+      "loss": 7.75078470302078,
+      "tokens": 318
+    },
+    {
+      "articleId": "prospective-20261104.jsonl#23",
+      "group": "https://www.gutenberg.org/files/345/345-0.txt",
+      "loss": 7.708222381652347,
+      "tokens": 252
+    },
+    {
+      "articleId": "prospective-20261104.jsonl#24",
+      "group": "https://www.gutenberg.org/files/345/345-0.txt",
+      "loss": 7.9372693473744285,
+      "tokens": 213
+    },
+    {
+      "articleId": "prospective-20261104.jsonl#25",
+      "group": "https://www.gutenberg.org/files/158/158-0.txt",
+      "loss": 10.004423671298557,
+      "tokens": 252
+    },
+    {
+      "articleId": "prospective-20261104.jsonl#26",
+      "group": "https://www.gutenberg.org/files/158/158-0.txt",
+      "loss": 7.8553077310755635,
+      "tokens": 276
+    },
+    {
+      "articleId": "prospective-20261104.jsonl#27",
+      "group": "https://www.gutenberg.org/files/158/158-0.txt",
+      "loss": 8.050989252726238,
+      "tokens": 300
+    },
+    {
+      "articleId": "prospective-20261104.jsonl#28",
+      "group": "https://www.gutenberg.org/files/158/158-0.txt",
+      "loss": 8.352957068549262,
+      "tokens": 270
+    },
+    {
+      "articleId": "prospective-20261104.jsonl#29",
+      "group": "https://www.gutenberg.org/files/158/158-0.txt",
+      "loss": 7.688435843496611,
+      "tokens": 264
+    }
+  ],
+  "source": "eval-set",
+  "trainedSteps": 22,
+  "verb": "eval",
+  "version": "v503",
+  "weights": {
+    "actualCount": 76,
+    "derivedReconstructed": true,
+    "derivedTensors": [
+      {
+        "loadedDtype": "float32",
+        "loadedSha256": "053f2582bb2fda4a592773493d243e6c8215a9d7d18920dda1ca1ce41bffc381",
+        "name": "model.rotary_emb.inv_freq",
+        "persistent": false,
+        "reason": "non-persistent buffer: not stored in the checkpoint, recomputed by the loader; reconciles to the manifest digest when cast to the recorded dtype",
+        "reconstructed": true,
+        "recordedDtype": "float32",
+        "recordedSha256": "053f2582bb2fda4a592773493d243e6c8215a9d7d18920dda1ca1ce41bffc381"
+      },
+      {
+        "loadedDtype": "float32",
+        "loadedSha256": "053f2582bb2fda4a592773493d243e6c8215a9d7d18920dda1ca1ce41bffc381",
+        "name": "model.rotary_emb.original_inv_freq",
+        "persistent": false,
+        "reason": "non-persistent buffer: not stored in the checkpoint, recomputed by the loader; reconciles to the manifest digest when cast to the recorded dtype",
+        "reconstructed": true,
+        "recordedDtype": "float32",
+        "recordedSha256": "053f2582bb2fda4a592773493d243e6c8215a9d7d18920dda1ca1ce41bffc381"
+      }
+    ],
+    "matched": 74,
+    "mismatched": [],
+    "missing": [],
+    "parameterUniqueByStorage": 61839744,
+    "persistedCount": 74,
+    "recordedCount": 76,
+    "unexpected": [],
+    "verified": true,
+    "verifiedAll": true
+  }
+}

@@ -1,0 +1,194 @@
+{
+  "device": "cuda",
+  "evalLoss": 8.494256337483725,
+  "evaluationSet": {
+    "articles": [
+      {
+        "articleId": "retention-20261104.jsonl#0",
+        "contentHash": "98a9306494a3f4d6ded4aaa64c448cb933354845123f9ddddbff0cce7e519fce"
+      },
+      {
+        "articleId": "retention-20261104.jsonl#1",
+        "contentHash": "afd5261d29cd91bd835ce64519904306c49bdc72ed052c2f5e3f17f744823e16"
+      },
+      {
+        "articleId": "retention-20261104.jsonl#2",
+        "contentHash": "699604bd9ab9dbd7994077379b74123d429db7b1126fdf7e9b0d1ad5f6558f12"
+      },
+      {
+        "articleId": "retention-20261104.jsonl#3",
+        "contentHash": "6f316287c8da93a4b46dc993563a680a7b62d7d59ff28661e4121f99da2c4c6c"
+      },
+      {
+        "articleId": "retention-20261104.jsonl#4",
+        "contentHash": "024edea6cd6c06acd00f36d7f63d4f39d566e1c979af9adfb1413f6251ee1b54"
+      },
+      {
+        "articleId": "retention-20261104.jsonl#5",
+        "contentHash": "f7b922ad446b50ab30f8f6523a7a5db2ffc1334857ae73d69b27831f1cf7b08e"
+      },
+      {
+        "articleId": "retention-20261104.jsonl#6",
+        "contentHash": "4029c0852dd2ec7cfcf45948dde520e66164edd86af027148787f91b449f7b40"
+      },
+      {
+        "articleId": "retention-20261104.jsonl#7",
+        "contentHash": "0f4647055a3521eb21f3b215ca6e2962052e23b604e39642591ce1e0e582fa5b"
+      },
+      {
+        "articleId": "retention-20261104.jsonl#8",
+        "contentHash": "e53a1adecff4391b5be2b79dbfb494d64bb9b0042f3bdb39dd8e3167463c436f"
+      },
+      {
+        "articleId": "retention-20261104.jsonl#9",
+        "contentHash": "0f429ee395f7524ec546fc2b42d2c8c2fed5fd2f734f06549ccef5517ecd2f94"
+      }
+    ],
+    "blockCount": 15,
+    "datasetHash": "fdcc3323731ecc31a4139eaf1ca774c4b29b80151c1397e001c3b8d944997a5d",
+    "documentCount": 10,
+    "sequenceLength": 128,
+    "strategy": "concatenate-chunk-v1",
+    "tokenizerHash": "ab4da6b2aa68247e9c0fa9b97fc7fcc796505038d01f7e144522a65ce0dbd2e5",
+    "tokensSeen": 2017
+  },
+  "groups": [
+    {
+      "documents": 2,
+      "group": "https://www.gutenberg.org/files/1342/1342-0.txt",
+      "loss": 9.01954145086177,
+      "tokens": 359
+    },
+    {
+      "documents": 2,
+      "group": "https://www.gutenberg.org/files/84/84-0.txt",
+      "loss": 8.257835313548213,
+      "tokens": 460
+    },
+    {
+      "documents": 2,
+      "group": "https://www.gutenberg.org/files/2701/2701-0.txt",
+      "loss": 8.240417459874454,
+      "tokens": 602
+    },
+    {
+      "documents": 2,
+      "group": "https://www.gutenberg.org/files/1661/1661-0.txt",
+      "loss": 8.21356957976581,
+      "tokens": 342
+    },
+    {
+      "documents": 2,
+      "group": "https://www.gutenberg.org/files/98/98-0.txt",
+      "loss": 10.03082163502851,
+      "tokens": 254
+    }
+  ],
+  "lossSignature": {
+    "applies": false,
+    "loss": 8.494256337483725,
+    "reason": "the ln(V) band applies only to untrained RANDOM initialisations; a trained checkpoint is expected to score below it"
+  },
+  "ok": true,
+  "perDocument": [
+    {
+      "articleId": "retention-20261104.jsonl#0",
+      "group": "https://www.gutenberg.org/files/1342/1342-0.txt",
+      "loss": 10.078324154868644,
+      "tokens": 193
+    },
+    {
+      "articleId": "retention-20261104.jsonl#1",
+      "group": "https://www.gutenberg.org/files/1342/1342-0.txt",
+      "loss": 7.788547102227269,
+      "tokens": 166
+    },
+    {
+      "articleId": "retention-20261104.jsonl#2",
+      "group": "https://www.gutenberg.org/files/84/84-0.txt",
+      "loss": 8.0795917553752,
+      "tokens": 223
+    },
+    {
+      "articleId": "retention-20261104.jsonl#3",
+      "group": "https://www.gutenberg.org/files/84/84-0.txt",
+      "loss": 8.425549716386111,
+      "tokens": 237
+    },
+    {
+      "articleId": "retention-20261104.jsonl#4",
+      "group": "https://www.gutenberg.org/files/2701/2701-0.txt",
+      "loss": 8.089635101267666,
+      "tokens": 301
+    },
+    {
+      "articleId": "retention-20261104.jsonl#5",
+      "group": "https://www.gutenberg.org/files/2701/2701-0.txt",
+      "loss": 8.391199818481242,
+      "tokens": 301
+    },
+    {
+      "articleId": "retention-20261104.jsonl#6",
+      "group": "https://www.gutenberg.org/files/1661/1661-0.txt",
+      "loss": 8.261277632877745,
+      "tokens": 145
+    },
+    {
+      "articleId": "retention-20261104.jsonl#7",
+      "group": "https://www.gutenberg.org/files/1661/1661-0.txt",
+      "loss": 8.17845451529256,
+      "tokens": 197
+    },
+    {
+      "articleId": "retention-20261104.jsonl#8",
+      "group": "https://www.gutenberg.org/files/98/98-0.txt",
+      "loss": 9.760153770446777,
+      "tokens": 74
+    },
+    {
+      "articleId": "retention-20261104.jsonl#9",
+      "group": "https://www.gutenberg.org/files/98/98-0.txt",
+      "loss": 10.142096201578775,
+      "tokens": 180
+    }
+  ],
+  "source": "eval-set",
+  "trainedSteps": 22,
+  "verb": "eval",
+  "version": "v503",
+  "weights": {
+    "actualCount": 76,
+    "derivedReconstructed": true,
+    "derivedTensors": [
+      {
+        "loadedDtype": "float32",
+        "loadedSha256": "053f2582bb2fda4a592773493d243e6c8215a9d7d18920dda1ca1ce41bffc381",
+        "name": "model.rotary_emb.inv_freq",
+        "persistent": false,
+        "reason": "non-persistent buffer: not stored in the checkpoint, recomputed by the loader; reconciles to the manifest digest when cast to the recorded dtype",
+        "reconstructed": true,
+        "recordedDtype": "float32",
+        "recordedSha256": "053f2582bb2fda4a592773493d243e6c8215a9d7d18920dda1ca1ce41bffc381"
+      },
+      {
+        "loadedDtype": "float32",
+        "loadedSha256": "053f2582bb2fda4a592773493d243e6c8215a9d7d18920dda1ca1ce41bffc381",
+        "name": "model.rotary_emb.original_inv_freq",
+        "persistent": false,
+        "reason": "non-persistent buffer: not stored in the checkpoint, recomputed by the loader; reconciles to the manifest digest when cast to the recorded dtype",
+        "reconstructed": true,
+        "recordedDtype": "float32",
+        "recordedSha256": "053f2582bb2fda4a592773493d243e6c8215a9d7d18920dda1ca1ce41bffc381"
+      }
+    ],
+    "matched": 74,
+    "mismatched": [],
+    "missing": [],
+    "parameterUniqueByStorage": 61839744,
+    "persistedCount": 74,
+    "recordedCount": 76,
+    "unexpected": [],
+    "verified": true,
+    "verifiedAll": true
+  }
+}

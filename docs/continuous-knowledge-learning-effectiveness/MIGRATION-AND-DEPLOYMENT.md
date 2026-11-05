@@ -205,3 +205,19 @@ No step in this document was executed against production. The branch is ready fo
 - Start a new working lineage from the stable checkpoint under the corrected optimiser.
 - Do not claim cumulative learning until that new lineage improves on the sealed prospective and retention cohorts.
 - Do not enable the 596 safe-short replay records without a separate controlled replay experiment.
+
+---
+
+## 11. Milestone 3 execution record (2026-11-05)
+
+This procedure was executed under the Milestone 3 authorisation.
+
+- Final deployed commit: `c4fa71261341a6d9cd82903f87ce88e19178b296`.
+- Full backup: `/var/lib/simpleminds/backups/milestone3-20261104T223215Z` (`store-and-data.tar`, SHA-256 `04d278f7c06efa5118856270b036af52f2ecd886478779a7784be4cb02bb12f2`).
+- Code backups: `deploy-20261104T223445Z`, `deploy-20261104T225948Z`, `deploy-20261104T232531Z`, `deploy-20261105T005952Z`.
+- Licence backfill applied: 25,887/25,888 resolved; no non-licence state changed.
+- Fresh working lineage: `v493 → v501 → v503`; `v504` rolled back to `v503`.
+- Stable active remained `v493`.
+- Original frontier preserved at `/var/lib/simpleminds/data/frontier`; the trial used `/var/lib/simpleminds/data/frontier-milestone3`.
+- Sealed prospective/retention results did not demonstrate improvement; see `MILESTONE-3-REPORT.md`.
+- Replay trim remains an open production defect (measured 27.8–44.8% vs 20% target).

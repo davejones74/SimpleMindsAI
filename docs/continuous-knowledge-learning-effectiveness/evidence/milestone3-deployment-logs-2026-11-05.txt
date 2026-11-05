@@ -1,0 +1,60 @@
+=== deploy 1 (0300399) ===
+SimpleMindsAI deployment
+  source:       /home/dave/Repositories/SimpleMindsAI
+  destination:  /opt/simpleminds
+  service:      simpleminds
+  env file:     /etc/simpleminds/simpleminds.env (will NOT be modified)
+  backup:       /opt/simpleminds/.deploy-backup/deploy-20261104T223445Z
+  restart:      none
+  dry run:      no
+npm install skipped (lock unchanged and node_modules present).
+Verifying deployed Python CLI contract...
+Deployed file hash manifest: /opt/simpleminds/.deploy-backup/deploy-20261104T223445Z/DEPLOYED.sha256
+Deployment complete. Secrets env file unchanged: d666fbe492b8e2a678fbd56bff4c003f5c773d049db581fcfd4e8012ae33aca1
+Rollback backup: /opt/simpleminds/.deploy-backup/deploy-20261104T223445Z
+No service restart requested. Restart manually when ready.
+=== deploy 2 (70c7beb) ===
+SimpleMindsAI deployment
+  source:       /home/dave/Repositories/SimpleMindsAI
+  destination:  /opt/simpleminds
+  service:      simpleminds
+  env file:     /etc/simpleminds/simpleminds.env (will NOT be modified)
+  backup:       /opt/simpleminds/.deploy-backup/deploy-20261104T225948Z
+  restart:      none
+  dry run:      no
+npm install skipped (lock unchanged and node_modules present).
+Verifying deployed Python CLI contract...
+Deployed file hash manifest: /opt/simpleminds/.deploy-backup/deploy-20261104T225948Z/DEPLOYED.sha256
+Deployment complete. Secrets env file unchanged: e2bc40967adbec0c9d5ce1e460a6d01aad0d5a05db1d910c7094efa12f3a8ef6
+Rollback backup: /opt/simpleminds/.deploy-backup/deploy-20261104T225948Z
+No service restart requested. Restart manually when ready.
+=== deploy 3 (5ac4fde) ===
+SimpleMindsAI deployment
+  source:       /home/dave/Repositories/SimpleMindsAI
+  destination:  /opt/simpleminds
+  service:      simpleminds
+  env file:     /etc/simpleminds/simpleminds.env (will NOT be modified)
+  backup:       /opt/simpleminds/.deploy-backup/deploy-20261104T232531Z
+  restart:      none
+  dry run:      no
+npm install skipped (lock unchanged and node_modules present).
+Verifying deployed Python CLI contract...
+Deployed file hash manifest: /opt/simpleminds/.deploy-backup/deploy-20261104T232531Z/DEPLOYED.sha256
+Deployment complete. Secrets env file unchanged: 1ab63f1808f3cc8a35f336994aa7ac3095bfd5f4b2f0813c678b38ff690ee475
+Rollback backup: /opt/simpleminds/.deploy-backup/deploy-20261104T232531Z
+No service restart requested. Restart manually when ready.
+=== deploy 4 (c4fa712) ===
+SimpleMindsAI deployment
+  source:       /home/dave/Repositories/SimpleMindsAI
+  destination:  /opt/simpleminds
+  service:      simpleminds
+  env file:     /etc/simpleminds/simpleminds.env (will NOT be modified)
+  backup:       /opt/simpleminds/.deploy-backup/deploy-20261105T005952Z
+  restart:      none
+  dry run:      no
+npm install skipped (lock unchanged and node_modules present).
+Verifying deployed Python CLI contract...
+Deployed file hash manifest: /opt/simpleminds/.deploy-backup/deploy-20261105T005952Z/DEPLOYED.sha256
+Deployment complete. Secrets env file unchanged: f75d6845be1d6080f64a98ae7cc7af5aeb3079d9809f8770d7dd2fe4dab42046
+Rollback backup: /opt/simpleminds/.deploy-backup/deploy-20261105T005952Z
+No service restart requested. Restart manually when ready.

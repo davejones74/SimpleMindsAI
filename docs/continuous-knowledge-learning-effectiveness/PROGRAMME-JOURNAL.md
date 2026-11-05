@@ -356,3 +356,27 @@ Evidence: `evidence/optimizer-integrated-verification-2026-11-04.json`, `evidenc
 ## Final milestone-2 recommendation
 
 The data pipeline changes demonstrably increase useful trainable tokens and, under controlled conditions, produce more learning on genuinely unseen knowledge. The existing production working lineage does not demonstrate cumulative improvement. Deploy the release candidate only under the prepared procedure and start a new working lineage; do not claim cumulative learning until that new lineage improves on the sealed prospective and retention cohorts.
+
+---
+
+## Milestone 3 — controlled release and fresh-lineage trial
+
+### Deployed
+
+- Final deployed commit `c4fa712`; full backup and code backups recorded.
+- Licence backfill applied to 25,887/25,888 records; no non-licence state changed.
+- Effective config: segmented curation, cross-domain merge, source fallback, licence shadow, URL quality enforce, language prior reject, prefilter shadow, fragment corpus mode, corrected optimizer carry.
+- Stable `v493` remained serving.
+
+### Trial
+
+- Fresh lineage reset to `v493`; runs `run-426` (v501), `run-428` (v503), `run-429` (v504).
+- Optimizer carried correctly; weight decay `[0.01, 0.0]`; step counters 7→15→37→44.
+- Real segmented/fallback curation processed production material.
+- Replay trim remained defective: measured shares 40.8%, 27.8%, 44.8%.
+- Sealed prospective/retention results: no checkpoint beat `v493`; `v504` regressed significantly and was rolled back to `v503`.
+- Short-prose candidate experiment: treatment reduced prospective/validation improvement in both seeds; not recommended for general replay.
+
+### Outcome
+
+Operational deployment succeeded; cumulative learning was **not demonstrated**. Stable serving unchanged. See `MILESTONE-3-REPORT.md` for the full evidence and recommendation.

@@ -1,0 +1,82 @@
+{
+  "schema": "sma/milestone3-lineage-optimizer@1",
+  "at": "2026-11-05T01:29:21.748833+00:00",
+  "versions": {
+    "v493": {
+      "file": "/var/lib/simpleminds/store/_runs/v493.train-state.pt",
+      "bytes": 494800519,
+      "groupSizes": [
+        57,
+        17
+      ],
+      "weightDecay": [
+        0.01,
+        0.0
+      ],
+      "stepsUnique": [
+        7
+      ],
+      "stateEntries": 74,
+      "stepsCompleted": 7,
+      "carryOptimizerFrom": null,
+      "optimizerMode": null
+    },
+    "v501": {
+      "file": "/var/lib/simpleminds/store/_runs/v501.train-state.pt",
+      "bytes": 494800519,
+      "groupSizes": [
+        57,
+        17
+      ],
+      "weightDecay": [
+        0.01,
+        0.0
+      ],
+      "stepsUnique": [
+        15
+      ],
+      "stateEntries": 74,
+      "stepsCompleted": 8,
+      "carryOptimizerFrom": null,
+      "optimizerMode": null
+    },
+    "v503": {
+      "file": "/var/lib/simpleminds/store/_runs/v503.train-state.pt",
+      "bytes": 494800775,
+      "groupSizes": [
+        57,
+        17
+      ],
+      "weightDecay": [
+        0.01,
+        0.0
+      ],
+      "stepsUnique": [
+        37
+      ],
+      "stateEntries": 74,
+      "stepsCompleted": 22,
+      "carryOptimizerFrom": null,
+      "optimizerMode": null
+    },
+    "v504": {
+      "file": "/var/lib/simpleminds/store/_runs/v504.train-state.pt",
+      "bytes": 494800519,
+      "groupSizes": [
+        57,
+        17
+      ],
+      "weightDecay": [
+        0.01,
+        0.0
+      ],
+      "stepsUnique": [
+        44
+      ],
+      "stateEntries": 74,
+      "stepsCompleted": 7,
+      "carryOptimizerFrom": null,
+      "optimizerMode": null
+    }
+  }
+}
