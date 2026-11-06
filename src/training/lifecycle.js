@@ -113,6 +113,7 @@ export async function executeFullRun({
     setActive = setActiveVersion,       // move the serving pointer (injectable)
     worker = null,         // student worker to reload after a promotion
     measureGenerationQuality = evaluateGenerationQuality, // repetition check (injectable)
+    measureDocuments: measure = measureDocuments, // tokenizer measurement (injectable for tests)
   } = deps;
 
   const commitConsumption =
@@ -252,6 +253,9 @@ export async function executeFullRun({
     // NEW material. Corpus-only retraining is a separate, explicit workflow;
     // ordinary lifecycle calls keep the fresh-delta guard unchanged.
     if (!freshArticleIds.length && !corpusOnly) throw noEligibleMaterial();
+    // Preserve the original fresh delta for any validation re-partition. The
+    // working `freshArticleIds` is later filtered to remove validation rows.
+    const freshForPartition = new Set(freshArticleIds);
 
     let partition = null;
     if (pythonMode && validationPolicy === "document-source-disjoint") {
@@ -367,7 +371,7 @@ export async function executeFullRun({
       }
       const freshRows = snapshot.rows.filter((row) => row.corpusRole !== "replay" && row.corpusRole !== "validation");
       const replayRows = snapshot.rows.filter((row) => row.corpusRole === "replay");
-      const measured = await measureDocuments(
+      const measured = await measure(
         [...freshRows, ...replayRows].map((row) => ({ itemId: row.articleId, text: row.text })),
         { tokenizerPath, seqLen: config.trainSeqLen },
       );
@@ -426,6 +430,121 @@ export async function executeFullRun({
           `[lifecycle] tokenizer replay budget removed ${selected.removedRows} replay row(s): ` +
             `${(check.share * 100).toFixed(2)}% -> ${(selected.replayShare * 100).toFixed(2)}%`,
         );
+      }
+    }
+
+    // ---- tokenizer-authoritative validation capacity ----
+    // The partition target is only an estimate. Measure the actual holdout with
+    // the student tokenizer and, when it cannot form the requested blocks,
+    // expand the prospective validation cohort before any run is created. If
+    // capacity still cannot be met, the authoritative preflight below fails
+    // closed; continuous jobs then wait for more material.
+    if (
+      pythonMode &&
+      validationPolicy === "document-source-disjoint" &&
+      typeof t.preflight === "function" &&
+      partition
+    ) {
+      const tokenizerPath = resolveTokenizerPath();
+      if (tokenizerPath) {
+        const requestedBlocks = Math.max(1, Number(config.trainValBlocks) || 1);
+        const seqLen = Math.max(1, Number(config.trainSeqLen) || 1);
+        let measured = null;
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+          const validationRows = snapshot.rows.filter((row) => row.corpusRole === "validation");
+          if (!validationRows.length) break;
+          measured = await measure(
+            validationRows.map((row) => ({ itemId: row.articleId, text: row.text })),
+            { tokenizerPath, seqLen },
+          );
+          const actualBlocks = Number(measured.blocksIfConcatenated) || 0;
+          if (actualBlocks >= requestedBlocks) break;
+          if (attempt === 2) break;
+
+          const targetTokens = Math.max(
+            Number(partition.targetTokens) || 0,
+            Number(partition.requestedTargetTokens) || 0,
+            requestedBlocks * seqLen,
+          );
+          const actualTokens = Math.max(0, Number(measured.totalTokens) || 0);
+          const tokenScale = actualTokens > 0 ? targetTokens / actualTokens : 2;
+          const missingTokens = Math.max(0, requestedBlocks * seqLen - actualTokens);
+          const expandedTarget = Math.max(
+            Math.ceil(targetTokens * 2),
+            Math.ceil((targetTokens + missingTokens * tokenScale) * 1.1),
+          );
+          if (expandedTarget <= targetTokens) break;
+
+          const historicalArticleIds = new Set(priorExposed ?? []);
+          for (const row of snapshot.rows) {
+            if (!freshForPartition.has(row.articleId)) historicalArticleIds.add(row.articleId);
+          }
+          const partitionRows = makeEvalGuard(evalSet).filter(snapshot.rows).kept;
+          const nextPartition = buildPartition({
+            rows: partitionRows,
+            splitSeed: config.trainValidationSeed,
+            validationFraction: 0,
+            validationTargetTokens: expandedTarget,
+            minValidationTokens: config.trainMinValidationTokens,
+            minValidationClusters: config.trainMinValidationClusters,
+            historicalArticleIds,
+            requireProspective: requireProspectiveValidation,
+          });
+          const validationIds = new Set(nextPartition.validationArticleIds);
+          const replayIds = new Set(replayArticleIds);
+          const nextRows = snapshot.rows.map((row) => {
+            if (replayIds.has(row.articleId)) return { ...row, corpusRole: "replay" };
+            if (validationIds.has(row.articleId)) return { ...row, corpusRole: "validation" };
+            const next = { ...row };
+            delete next.corpusRole;
+            return next;
+          });
+          const keptIds = new Set(nextRows.map((row) => row.articleId));
+          const nextFreshIds = [...freshForPartition].filter((id) => keptIds.has(id) && !validationIds.has(id));
+          if (!nextFreshIds.length && !corpusOnly) throw noEligibleMaterial();
+          const validationCount = nextRows.filter((row) => row.corpusRole === "validation").length;
+          const nextStats = {
+            ...corpusStats,
+            collected: nextRows.length,
+            fresh: nextFreshIds.length,
+            replay: replayArticleIds.length,
+            validation: validationCount,
+            retained: replayArticleIds.length + validationCount,
+          };
+          logger?.warn?.(
+            `[lifecycle] validation holdout measured ${Number(measured.blocksIfConcatenated) || 0}/${requestedBlocks} blocks; ` +
+              `expanding target ${targetTokens} -> ${expandedTarget} tokens`,
+          );
+          partition = nextPartition;
+          validationArticleIds = nextPartition.validationArticleIds;
+          freshArticleIds = nextFreshIds;
+          corpusStats = nextStats;
+          snapshot = await buildSnapshot({
+            registry,
+            rowsRaw: nextRows,
+            freshArticleIds,
+            dir: options.paths?.snapshots,
+            evalGuard: makeEvalGuard(evalSet),
+            replayArticleIds,
+            validationArticleIds,
+            partition,
+            corpusMode: config.trainCorpusMode,
+            corpusStats,
+            corpusPolicy,
+          });
+        }
+        const actualBlocks = Number(measured?.blocksIfConcatenated) || 0;
+        if (actualBlocks < requestedBlocks) {
+          const err = new Error(
+            `validation holdout forms ${actualBlocks}/${requestedBlocks} blocks after tokenizer-aware expansion`,
+          );
+          err.code = "INSUFFICIENT_VALIDATION";
+          err.blockCount = actualBlocks;
+          err.validationBlockCount = actualBlocks;
+          err.requestedBlocks = requestedBlocks;
+          err.validationShortfall = requestedBlocks - actualBlocks;
+          throw err;
+        }
       }
     }
 
@@ -546,6 +665,23 @@ export async function executeFullRun({
         throw err;
       }
       corpusPreflight = info ?? null;
+      const requestedValBlocks = Math.max(0, Number(config.trainValBlocks) || 0);
+      const actualValBlocks = Number(info?.validationBlockCount);
+      if (requestedValBlocks > 0 && Number.isFinite(actualValBlocks) && actualValBlocks < requestedValBlocks) {
+        const shortfall = Number.isFinite(Number(info?.validationShortfall))
+          ? Number(info.validationShortfall)
+          : requestedValBlocks - actualValBlocks;
+        const err = new Error(
+          `validation holdout forms ${actualValBlocks}/${requestedValBlocks} blocks ` +
+            `(shortfall ${shortfall}); refusing to create a promotion-eligible run`,
+        );
+        err.code = "INSUFFICIENT_VALIDATION";
+        err.blockCount = actualValBlocks;
+        err.validationBlockCount = actualValBlocks;
+        err.requestedBlocks = requestedValBlocks;
+        err.validationShortfall = shortfall;
+        throw err;
+      }
       minimumData = checkMinimumTrainingData({
         trainTokensSeen: info?.trainTokensSeen,
         minUniqueTokens: config.trainMinUniqueTokens,

@@ -1,6 +1,6 @@
-import { createReadStream, createWriteStream, existsSync, mkdirSync } from "node:fs";
-import readline from "node:readline";
+import { createWriteStream, existsSync, mkdirSync } from "node:fs";
 import path from "node:path";
+import { ensureAppendBoundary, readNdjsonFile } from "../storage/ndjson.js";
 
 /**
  * JobStore — the append-only log for managed lifecycle jobs (learning,
@@ -117,10 +117,13 @@ export class JobStore {
     if (!readOnly) mkdirSync(dir, { recursive: true });
     this.jobs = new Map(); // jobId -> creation record
     this.events = new Map(); // jobId -> [event]
+    this.parseErrors = [];
     this.#streams = {};
     if (!readOnly) {
       for (const name of Object.keys(COLLECTIONS)) {
-        this.#streams[name] = createWriteStream(path.join(dir, COLLECTIONS[name]), { flags: "a" });
+        const file = path.join(dir, COLLECTIONS[name]);
+        ensureAppendBoundary(file);
+        this.#streams[name] = createWriteStream(file, { flags: "a" });
       }
     }
   }
@@ -131,19 +134,9 @@ export class JobStore {
 
   async #loadFromDisk() {
     const lines = async (file) => {
-      const p = path.join(this.dir, file);
-      const out = [];
-      if (!existsSync(p)) return out;
-      const rl = readline.createInterface({ input: createReadStream(p), crlfDelay: Infinity });
-      for await (const raw of rl) {
-        if (!raw.trim()) continue;
-        try {
-          out.push(JSON.parse(raw));
-        } catch {
-          /* skip corrupt tail */
-        }
-      }
-      return out;
+      const { records, errors } = await readNdjsonFile(path.join(this.dir, file));
+      for (const err of errors) this.parseErrors.push({ file, ...err });
+      return records;
     };
     for (const rec of await lines(COLLECTIONS.jobs)) this.jobs.set(rec.jobId, rec);
     for (const rec of await lines(COLLECTIONS.events)) {

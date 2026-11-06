@@ -162,6 +162,12 @@ const frontier = new Frontier({ dir: config.paths.frontier });
     domainRegistry,
   });
   await supervisor.init({ reconcile: true });
+  try {
+    const recoveredRuns = await registry.recoverStaleRuns(10 * 60 * 1000, { manifestDir: config.paths.snapshots });
+    if (recoveredRuns.length) console.log(`[registry] recovered stale run(s): ${recoveredRuns.join(", ")}`);
+  } catch (err) {
+    console.error("[registry] stale-run recovery failed:", err?.message ?? err);
+  }
 
 attachAdmin({
   app,
@@ -181,10 +187,52 @@ const httpServer = app.listen(config.port, config.host, () =>
   console.log(`GraphQL -> http://${config.host}:${config.port}/graphql   portal -> http://${config.host}:${config.port}/admin`),
 );
 
-for (const signal of ["SIGINT", "SIGTERM"]) {
-  process.on(signal, async () => {
-    await supervisor.close().catch(() => {});
-    admissionManager?.close?.();
-    httpServer.close(() => process.exit(0));
+let shuttingDown = false;
+async function shutdown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`[shutdown] received ${signal}`);
+  const hardExit = setTimeout(() => {
+    console.error("[shutdown] hard deadline reached; exiting");
+    process.exit(1);
+  }, Math.min(15_000, config.jobs.stopGraceMs + 8_000));
+  hardExit.unref?.();
+
+  try {
+    await supervisor.close({ graceMs: Math.min(config.jobs.stopGraceMs, 10_000) });
+  } catch (err) {
+    console.error("[shutdown] supervisor close failed:", err?.message ?? err);
+  }
+
+  await new Promise((resolve) => {
+    let settled = false;
+    const done = () => {
+      if (settled) return;
+      settled = true;
+      resolve();
+    };
+    httpServer.close(done);
+    httpServer.closeIdleConnections?.();
+    const force = setTimeout(() => {
+      httpServer.closeAllConnections?.();
+      done();
+    }, 2_000);
+    force.unref?.();
   });
+
+  await Promise.allSettled([
+    Promise.resolve().then(() => admissionManager?.close?.()),
+    Promise.resolve().then(() => chat?.close?.()),
+    Promise.resolve().then(() => conversations?.close?.()),
+    Promise.resolve().then(() => governance?.close?.()),
+    Promise.resolve().then(() => store?.close?.()),
+    Promise.resolve().then(() => registry?.close?.()),
+  ]);
+
+  clearTimeout(hardExit);
+  process.exit(0);
+}
+
+for (const signal of ["SIGINT", "SIGTERM"]) {
+  process.on(signal, () => { void shutdown(signal); });
 }

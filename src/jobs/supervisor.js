@@ -147,7 +147,8 @@ export class JobSupervisor {
     });
 
     this.jobStore = null;
-    this.controls = new Map(); // jobId -> { controller, shouldStop, shouldPause, promise }
+    this.closing = false;
+    this.controls = new Map(); // jobId -> { controller, shouldStop, shouldPause, shutdown, promise }
     this.lastProgressAt = new Map();
   }
 
@@ -360,6 +361,7 @@ export class JobSupervisor {
 
   async #start(kind, { mode, params }) {
     if (!this.jobStore) throw new Error("JobSupervisor.init() was not called");
+    if (this.closing) throw new Error("JobSupervisor is shutting down");
     const existing = this.activeJobOfKind(kind);
     if (existing) {
       throw new JobConflictError(`a ${kind} job is already active (${existing.jobId}, ${existing.status})`);
@@ -369,7 +371,7 @@ export class JobSupervisor {
       this.telemetry.beginJob({ jobId: job.jobId, mode, at: this.clock() });
     }
     const controller = new AbortController();
-    const control = { controller, shouldStop: false, shouldPause: false, networkPaused: false, promise: null };
+    const control = { controller, shouldStop: false, shouldPause: false, networkPaused: false, shutdown: false, promise: null };
     this.controls.set(job.jobId, control);
     control.promise = this.#run(job, params, control).finally(() => this.controls.delete(job.jobId));
     this.changeFeed?.emit("job.started", { jobId: job.jobId, kind, mode });
@@ -404,7 +406,10 @@ export class JobSupervisor {
         result: { resolvedConfig: this.snapshotResolvedConfig() },
       });
       const result = await this.#dispatch(job, params, control, { log, onPhase, onProgress });
-      if (result.outcome === "paused") {
+      if (control.shutdown) {
+        // Graceful shutdown leaves the durable job non-terminal so startup
+        // reconcile can resume it. It is not an operator stop.
+      } else if (result.outcome === "paused") {
         await this.#event(jobId, { status: JOB_STATUS.PAUSED, note: "paused by operator", result, meta: { pauseReason: "operator" } });
       } else if (this.#shouldStop(jobId)) {
         await this.#event(jobId, { status: JOB_STATUS.STOPPED, note: "stopped by operator", result });
@@ -413,7 +418,9 @@ export class JobSupervisor {
       }
     } catch (err) {
       const job = this.getJob(jobId);
-      if (isAbort(err) || this.#shouldStop(jobId)) {
+      if (control.shutdown) {
+        log("err", `shutdown interrupted in-flight work: ${err?.message ?? String(err)}`);
+      } else if (isAbort(err) || this.#shouldStop(jobId)) {
         if (!validateTransition(job.status, JOB_STATUS.STOPPED)) {
           throw new Error(`illegal status transition: ${job.status} -> ${JOB_STATUS.STOPPED}`);
         }
@@ -1327,11 +1334,13 @@ export class JobSupervisor {
    * poll intervals gate the next unit of work.
    */
   #respawnContinuous(job) {
+    if (this.closing) return;
     const control = {
       controller: new AbortController(),
       shouldStop: false,
       shouldPause: false,
       networkPaused: false,
+      shutdown: false,
       promise: null,
     };
     this.controls.set(job.jobId, control);
@@ -1412,9 +1421,36 @@ export class JobSupervisor {
     return { outcome: JOB_STATUS.INTERRUPTED, note: `fresh brain ${version} did not commit before restart`, result: { version } };
   }
 
-  async close() {
+  async close({ graceMs = config.jobs.stopGraceMs, abortGraceMs = 2_000 } = {}) {
+    if (this.closing) return;
+    this.closing = true;
+
+    const controls = [...this.controls.values()];
+    for (const control of controls) {
+      control.shutdown = true;
+      control.shouldStop = true;
+    }
+
+    const wait = (ms) => new Promise((resolve) => {
+      const timer = setTimeout(resolve, Math.max(0, ms));
+      timer.unref?.();
+    });
+    const pending = () => [...this.controls.values()].map((c) => c.promise).filter(Boolean);
+    const initial = pending();
+    if (initial.length) await Promise.race([Promise.allSettled(initial), wait(graceMs)]);
+
+    if (this.controls.size) {
+      for (const control of this.controls.values()) {
+        control.shutdown = true;
+        control.shouldStop = true;
+        control.controller.abort();
+      }
+      const forced = pending();
+      if (forced.length) await Promise.race([Promise.allSettled(forced), wait(abortGraceMs)]);
+    }
+
     this.telemetry.dispose();
-    if (this.jobStore) await this.jobStore.close();
+    if (this.jobStore) await this.jobStore.close().catch(() => {});
   }
 }
 

@@ -1,8 +1,8 @@
-import { createWriteStream, createReadStream, existsSync, mkdirSync, writeFileSync, unlinkSync, renameSync, readFileSync, appendFileSync } from "node:fs";
+import { createWriteStream, existsSync, mkdirSync, writeFileSync, unlinkSync, renameSync, readFileSync, appendFileSync, readdirSync } from "node:fs";
 import { createHash, randomUUID } from "node:crypto";
-import readline from "node:readline";
 import os from "node:os";
 import path from "node:path";
+import { ensureAppendBoundary, readNdjsonFile } from "./ndjson.js";
 
 /**
  * RegistryStore — the DURABLE side of the system. Everything here is
@@ -57,11 +57,14 @@ export class RegistryStore {
     this.runs = new Map();
     this.runEvents = new Map();
     this.evaluations = [];
+    this.parseErrors = [];
 
     this.#streams = {};
     if (!readOnly) {
       for (const name of Object.keys(COLLECTIONS)) {
-        this.#streams[name] = createWriteStream(path.join(dir, COLLECTIONS[name]), { flags: "a" });
+        const file = path.join(dir, COLLECTIONS[name]);
+        ensureAppendBoundary(file);
+        this.#streams[name] = createWriteStream(file, { flags: "a" });
       }
     }
   }
@@ -72,15 +75,9 @@ export class RegistryStore {
 
   async #loadFromDisk() {
     const lines = async (file) => {
-      const p = path.join(this.dir, file);
-      const out = [];
-      if (!existsSync(p)) return out;
-      const rl = readline.createInterface({ input: createReadStream(p), crlfDelay: Infinity });
-      for await (const raw of rl) {
-        if (!raw.trim()) continue;
-        try { out.push(JSON.parse(raw)); } catch {}
-      }
-      return out;
+      const { records, errors } = await readNdjsonFile(path.join(this.dir, file));
+      for (const err of errors) this.parseErrors.push({ file, ...err });
+      return records;
     };
     for (const rec of await lines(COLLECTIONS.snapshots)) this.snapshots.push(rec);
     for (const rec of await lines(COLLECTIONS.models)) this.models.set(rec.modelId, rec);
@@ -237,17 +234,40 @@ export class RegistryStore {
    * completion within `graceMs` is marked failed (interrupted). This is a status
    * transition, not a rewrite — the historical creation line stays intact.
    */
-  async recoverStaleRuns(graceMs = 10 * 60 * 1000) {
+  async recoverStaleRuns(graceMs = 10 * 60 * 1000, { manifestDir = null, protectedRunIds = null } = {}) {
     this.#assertWritable();
+    // A live lock owner means an active trainer may still complete its run.
+    // Never convert its in-flight state into a failure during startup.
+    const lock = this.runLockInfo();
+    if (lock?.held && lock.ownerAlive) return [];
+
     const now = Date.now();
+    const terminal = new Set(["promoted", "rejected", "inconclusive", "interrupted", "failed"]);
+    const protectedIds = new Set(protectedRunIds ?? []);
+    if (manifestDir && existsSync(manifestDir)) {
+      for (const file of readdirSync(manifestDir)) {
+        if (!file.endsWith("-manifest.json")) continue;
+        try {
+          const m = JSON.parse(readFileSync(path.join(manifestDir, file), "utf8"));
+          if (!m?.runId) continue;
+          const recoverableDecision = m.decision === "promoted" || m.decision === "rejected" || m.decision === "inconclusive";
+          if (recoverableDecision && m.consumed !== true && m.settled !== true) protectedIds.add(m.runId);
+        } catch { /* unreadable manifest is not silently promoted */ }
+      }
+    }
+
     const staleIds = [];
     for (const run of this.listRuns()) {
-      if (run.status === "promoted" || run.status === "rejected" || run.status === "failed") continue;
+      if (terminal.has(run.status)) continue;
+      if (protectedIds.has(run.runId)) continue;
       const started = new Date(run.startedAt).getTime();
       if (now - started > graceMs) staleIds.push(run.runId);
     }
     for (const id of staleIds) {
-      await this.runEvent(id, { status: "failed", note: "interrupted (no completion within grace) — recovered on restart" });
+      await this.runEvent(id, {
+        status: "failed",
+        note: "interrupted (no completion within grace) — recovered on restart",
+      });
     }
     return staleIds;
   }
