@@ -54,13 +54,17 @@ function isNetworkError(err) {
 }
 
 /**
- * Errors that mean "there is not enough trainable material right now" rather
- * than "training is broken". A CONTINUOUS training job waits and retries these;
- * a one-shot job surfaces them as a clear terminal failure. `INSUFFICIENT_CORPUS`
- * is raised by the Python corpus preflight (the snapshot is shorter than one
- * block), `INSUFFICIENT_VALIDATION` by the disjoint-validation holdout, and
+ * Errors that mean "there is not enough (or not the right composition of)
+ * trainable material right now" rather than "training is broken". A CONTINUOUS
+ * training job waits and retries these indefinitely; a one-shot job surfaces
+ * them as a clear terminal failure. `INSUFFICIENT_CORPUS` is raised by the
+ * Python corpus preflight (the snapshot is shorter than one block),
+ * `INSUFFICIENT_VALIDATION` by the disjoint-validation holdout, and
  * `NO_ELIGIBLE_MATERIAL` by the empty snapshot guard; `INSUFFICIENT_ELIGIBLE`
- * comes from the run-level eligibility gate.
+ * comes from the run-level eligibility gate. `REPLAY_SHARE_EXCEEDED` and
+ * `INSUFFICIENT_TRAINING_STEPS` are composition/size shortfalls that new fresh
+ * material resolves (a larger fresh delta dilutes replay and raises the step
+ * count), so a continuous job waits for more instead of dying.
  */
 const NO_MATERIAL_CODES = new Set([
   "INSUFFICIENT_CORPUS",
@@ -68,6 +72,8 @@ const NO_MATERIAL_CODES = new Set([
   "INSUFFICIENT_VALIDATION",
   "NO_ELIGIBLE_MATERIAL",
   "INSUFFICIENT_ELIGIBLE",
+  "REPLAY_SHARE_EXCEEDED",
+  "INSUFFICIENT_TRAINING_STEPS",
 ]);
 
 const MATERIAL_WAIT = {
@@ -76,6 +82,8 @@ const MATERIAL_WAIT = {
   INSUFFICIENT_VALIDATION: { phase: "waiting-for-validation", reason: "insufficient-validation-material" },
   INSUFFICIENT_ELIGIBLE: { phase: "waiting-for-eligible", reason: "insufficient-eligible-material" },
   NO_ELIGIBLE_MATERIAL: { phase: "waiting-for-eligible", reason: "insufficient-eligible-material" },
+  REPLAY_SHARE_EXCEEDED: { phase: "waiting-for-fresh-material", reason: "replay-share-exceeded" },
+  INSUFFICIENT_TRAINING_STEPS: { phase: "waiting-for-training-steps", reason: "insufficient-training-steps" },
 };
 
 /**
@@ -854,10 +862,12 @@ export class JobSupervisor {
         });
       } catch (err) {
         // Insufficient material — too few eligible articles, a corpus too small
-        // to form one block, or a snapshot the guards emptied — is an operator
-        // condition, not a training fault: a continuous job waits for more
-        // reviewed material (the articles stay unconsumed), while a one-shot job
-        // fails with the clear message instead of a Python traceback.
+        // to form one block, a snapshot the guards emptied, a replay share that
+        // only more fresh material can dilute, or too few training steps from a
+        // thin corpus — is an operator condition, not a training fault: a
+        // continuous job waits for more reviewed material (the articles stay
+        // unconsumed), while a one-shot job fails with the clear message instead
+        // of a Python traceback.
         if (NO_MATERIAL_CODES.has(err?.code)) {
           if (job.mode === "one-shot") throw err;
           const wait = MATERIAL_WAIT[err.code] ?? MATERIAL_WAIT.INSUFFICIENT_ELIGIBLE;
@@ -876,6 +886,7 @@ export class JobSupervisor {
               tokens: err.tokens ?? null,
               minUniqueTokens: err.minUniqueTokens ?? null,
               blockCount: err.blockCount ?? null,
+              replayShare: err.replayShare ?? null,
             },
           });
           await this.#gate(jobId, config.jobs.pollIntervalMs);

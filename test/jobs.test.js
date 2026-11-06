@@ -85,6 +85,24 @@ test("JobStore: read-only instances refuse writes", async () => {
   await ro.close();
 });
 
+test("JobStore: a non-waiting status clears a stale waiting reason", async () => {
+  const s = await JobStore.open(tmp());
+  const job = await s.createJob({ kind: "training", mode: "continuous" });
+  await s.jobEvent(job.jobId, {
+    status: JOB_STATUS.WAITING,
+    phase: "waiting-for-validation",
+    meta: { waitingReason: "insufficient-validation-material", blockCount: 12 },
+  });
+  assert.equal(s.getJob(job.jobId).meta.waitingReason, "insufficient-validation-material");
+
+  await s.jobEvent(job.jobId, { status: JOB_STATUS.FAILED, error: "boom" });
+  const failed = s.getJob(job.jobId);
+  assert.equal(failed.status, JOB_STATUS.FAILED);
+  assert.equal(failed.meta.waitingReason, null, "the stale waiting reason must not survive a failure");
+  assert.equal(failed.meta.blockCount, 12, "unrelated diagnostics are preserved");
+  await s.close();
+});
+
 // ------------------------------------------------------------ learning cycle
 
 function fakeHarvest() {
@@ -752,6 +770,132 @@ test("supervisor: continuous training waits for validation material instead of f
 
   await sup.stop(job.jobId);
   await waitTerminal(sup, job.jobId);
+
+  await sup.close();
+  await store.close();
+  await registry.close();
+});
+
+test("supervisor: continuous training waits on replay-share-exceeded instead of failing", async () => {
+  const store = await seededStore(4);
+  const registry = await RegistryStore.open(tmp());
+  const trainer = {
+    kind: "python",
+    version: "test",
+    resolveBaseline: async () => ({ version: "v001", path: "x/v001" }),
+    resolveVersion: async (v) => ({ version: v, path: `x/${v}` }),
+    preflight: async () => ({
+      ok: false,
+      code: "REPLAY_SHARE_EXCEEDED",
+      error: "replay composition 24.61% exceeds 20% (+2 points) in the final trainer preflight",
+    }),
+    train: async () => {
+      throw new Error("train must not be reached when replay composition is over budget");
+    },
+  };
+  const sup = new JobSupervisor({
+    store,
+    registry,
+    dir: tmp(),
+    trainerFactory: () => trainer,
+    trainingDeps: { paths: { snapshots: tmp(), models: tmp(), plans: tmp(), evaluation: tmp() } },
+  });
+  await sup.init({ reconcile: false });
+
+  const job = await sup.startTraining({ mode: "continuous", minEligible: 1 });
+  for (let i = 0; i < 200 && sup.getJob(job.jobId).phase !== "waiting-for-fresh-material"; i++) {
+    await new Promise((r) => setTimeout(r, 10));
+  }
+  const waiting = sup.getJob(job.jobId);
+  assert.equal(waiting.status, JOB_STATUS.WAITING);
+  assert.equal(waiting.phase, "waiting-for-fresh-material");
+  assert.equal(waiting.meta.waitingReason, "replay-share-exceeded");
+  assert.equal(waiting.terminal, false, "a continuous job must wait for fresh material, not fail");
+  assert.equal(registry.listRuns().length, 0);
+
+  await sup.stop(job.jobId);
+  await waitTerminal(sup, job.jobId);
+
+  await sup.close();
+  await store.close();
+  await registry.close();
+});
+
+test("supervisor: continuous training waits on insufficient-training-steps instead of failing", async () => {
+  const store = await seededStore(4);
+  const registry = await RegistryStore.open(tmp());
+  const trainer = {
+    kind: "python",
+    version: "test",
+    resolveBaseline: async () => ({ version: "v001", path: "x/v001" }),
+    resolveVersion: async (v) => ({ version: v, path: `x/${v}` }),
+    preflight: async () => ({
+      ok: false,
+      code: "INSUFFICIENT_TRAINING_STEPS",
+      error: "training budget 4 steps is below the minimum of 10",
+    }),
+    train: async () => {
+      throw new Error("train must not be reached when the corpus cannot produce enough steps");
+    },
+  };
+  const sup = new JobSupervisor({
+    store,
+    registry,
+    dir: tmp(),
+    trainerFactory: () => trainer,
+    trainingDeps: { paths: { snapshots: tmp(), models: tmp(), plans: tmp(), evaluation: tmp() } },
+  });
+  await sup.init({ reconcile: false });
+
+  const job = await sup.startTraining({ mode: "continuous", minEligible: 1 });
+  for (let i = 0; i < 200 && sup.getJob(job.jobId).phase !== "waiting-for-training-steps"; i++) {
+    await new Promise((r) => setTimeout(r, 10));
+  }
+  const waiting = sup.getJob(job.jobId);
+  assert.equal(waiting.status, JOB_STATUS.WAITING);
+  assert.equal(waiting.phase, "waiting-for-training-steps");
+  assert.equal(waiting.meta.waitingReason, "insufficient-training-steps");
+  assert.equal(waiting.terminal, false, "a continuous job must wait for more material, not fail");
+  assert.equal(registry.listRuns().length, 0);
+
+  await sup.stop(job.jobId);
+  await waitTerminal(sup, job.jobId);
+
+  await sup.close();
+  await store.close();
+  await registry.close();
+});
+
+test("supervisor: one-shot training still fails clearly on replay-share-exceeded", async () => {
+  const store = await seededStore(4);
+  const registry = await RegistryStore.open(tmp());
+  const trainer = {
+    kind: "python",
+    version: "test",
+    resolveBaseline: async () => ({ version: "v001", path: "x/v001" }),
+    resolveVersion: async (v) => ({ version: v, path: `x/${v}` }),
+    preflight: async () => ({
+      ok: false,
+      code: "REPLAY_SHARE_EXCEEDED",
+      error: "replay composition 24.61% exceeds 20% (+2 points) in the final trainer preflight",
+    }),
+    train: async () => {
+      throw new Error("train must not be reached when replay composition is over budget");
+    },
+  };
+  const sup = new JobSupervisor({
+    store,
+    registry,
+    dir: tmp(),
+    trainerFactory: () => trainer,
+    trainingDeps: { paths: { snapshots: tmp(), models: tmp(), plans: tmp(), evaluation: tmp() } },
+  });
+  await sup.init({ reconcile: false });
+
+  const job = await sup.startTraining({ mode: "one-shot", minEligible: 1 });
+  const done = await waitTerminal(sup, job.jobId);
+  assert.equal(done.status, JOB_STATUS.FAILED);
+  assert.match(done.error, /replay composition/);
 
   await sup.close();
   await store.close();

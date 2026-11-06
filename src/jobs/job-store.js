@@ -246,7 +246,19 @@ export class JobStore {
       if (e.note !== undefined) note = e.note;
       if (e.result !== undefined) result = e.result;
       if (e.error !== undefined) error = e.error;
-      if (e.meta !== undefined) meta = e.meta;
+      if (e.meta !== undefined) {
+        meta = e.meta;
+      } else if (
+        e.status &&
+        e.status !== JOB_STATUS.WAITING &&
+        e.status !== JOB_STATUS.WAITING_FOR_ELIGIBLE &&
+        meta?.waitingReason
+      ) {
+        // A status change away from waiting (running again, failed, completed,
+        // stopped, ...) makes the previous waiting reason stale. Drop only that
+        // field so other diagnostics (e.g. pauseReason) survive.
+        meta = { ...meta, waitingReason: null };
+      }
       updatedAt = e.at;
     }
     return { ...base, status, phase, progress, note, result, error, meta, updatedAt, terminal: isTerminal(status) };
