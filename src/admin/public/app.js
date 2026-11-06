@@ -2094,7 +2094,12 @@ function connectSSE() {
   const schedule = () => { clearTimeout(debounce); debounce = setTimeout(() => refresh(), 350); };
   es.addEventListener("hello", (e) => {
     state.live = true; updatePills();
-    try { const d = JSON.parse(e.data); if (d.gap) refresh(); state.seq = Math.max(state.seq, d.currentSeq ?? 0); } catch {}
+    try {
+      const d = JSON.parse(e.data);
+      const restarted = Number.isFinite(d.currentSeq) && d.currentSeq < state.seq;
+      if (d.gap || restarted) refresh();
+      if (Number.isFinite(d.currentSeq)) state.seq = d.currentSeq;
+    } catch {}
   });
   es.addEventListener("change", (e) => {
     try { const d = JSON.parse(e.data); state.seq = Math.max(state.seq, d.seq ?? 0); } catch {}

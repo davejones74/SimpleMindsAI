@@ -21,6 +21,13 @@ test("portal public assets are parseable modules", async () => {
   new vm.Script(app, { filename: "app.js" });
 });
 
+test("portal refreshes jobs when an application restart resets the SSE sequence", async () => {
+  const app = await readFile(path.join(PUBLIC, "app.js"), "utf8");
+  assert.match(app, /currentSeq\s*<\s*state\.seq/, "reconnect must detect a backwards sequence after restart");
+  assert.match(app, /d\.gap\s*\|\|\s*restarted/, "restart detection must trigger a refresh");
+  assert.match(app, /state\.seq\s*=\s*d\.currentSeq/, "client must re-align to the new process sequence");
+});
+
 test("the brain visualiser is a separate page with locally served Three.js modules", async () => {
   const html = await readFile(path.join(PUBLIC, "brain", "index.html"), "utf8");
   const css = await readFile(path.join(PUBLIC, "brain", "brain.css"), "utf8");
