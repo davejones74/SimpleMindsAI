@@ -2,9 +2,9 @@
  * Review-time quality gates — deterministic, dependency-free.
  *
  * These run in the review lifecycle BEFORE the LLM critic, because the critic is
- * language-blind: it can score a French article or encoding-corrupted text as
- * "useful" on content alone. The gates separate the three concerns the operator
- * asked for, and only two of them can reject:
+ * language-blind: it can score a French article, encoding-corrupted text, or a
+ * catalogue/navigation shell as "useful" on content alone. The gates separate
+ * the concerns the operator asked for:
  *
  *   - LANGUAGE (a decision, may reject): judged on the ACTUAL training text via
  *     the shared detector, with `<html lang>` / multilingual-host declarations as
@@ -12,6 +12,9 @@
  *     English text and passes — provenance alone is never a rejection rule.
  *   - QUALITY (a decision, may reject): encoding corruption (mojibake) and
  *     degenerate repetition that survived cleaning.
+ *   - PAGE CHROME (a decision, may reject): a high-confidence navigation /
+ *     catalogue shell (especially archive.org details pages) that contains
+ *     enough words to look like prose.
  *   - MISSION: NOT here — relevance is advisory only and must never reject an
  *     otherwise valid article. It belongs to selection, not to this gate.
  *
