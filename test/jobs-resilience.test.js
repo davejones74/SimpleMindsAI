@@ -623,3 +623,164 @@ test("reconcile: an orphaned in-flight training run is marked interrupted while 
   await store.close();
   await registry.close();
 });
+
+test("continuous learning logs and continues through network-only harvest failures", async () => {
+  const prevPoll = config.jobs.pollIntervalMs;
+  config.jobs.pollIntervalMs = 5;
+  try {
+    const store = await ArticleStore.open(tmp());
+    const registry = await RegistryStore.open(tmp());
+    const jobDir = tmp();
+    let calls = 0;
+    const sup = new JobSupervisor({
+      store,
+      registry,
+      dir: jobDir,
+      learningDeps: {
+        collectDocuments: async () => {
+          calls += 1;
+          return {
+            mode: "real",
+            capability: "configured-fetch",
+            documents: [],
+            failures: [{ url: `https://example.test/article-${calls}`, ok: false, reason: "FETCH_TIMEOUT" }],
+          };
+        },
+      },
+    });
+    await sup.init({ reconcile: false });
+
+    const job = await sup.startLearning({ mode: "continuous", targetArticles: 5 });
+    await waitFor(() => calls >= 3, 5000);
+    const live = sup.getJob(job.jobId);
+    assert.equal(live.terminal, false, "network failures must never terminate continuous learning");
+    assert.equal(live.status, JOB_STATUS.RUNNING, "network failures must not pause continuous learning");
+
+    await sup.stop(job.jobId);
+    await waitTerminal(sup, job.jobId);
+    await sup.close();
+    await store.close();
+    await registry.close();
+
+    const events = readFileSync(path.join(jobDir, "job-events.ndjson"), "utf8")
+      .split(/\r?\n/)
+      .filter(Boolean)
+      .map((l) => JSON.parse(l));
+    assert.ok(events.some((e) => e.phase === "network-retry"), "the retry must be visible as a RUNNING phase");
+    assert.equal(events.some((e) => e.status === JOB_STATUS.PAUSED), false, "a network failure must not emit PAUSED");
+
+    const logs = readFileSync(path.join(jobDir, "job-log.ndjson"), "utf8");
+    assert.match(logs, /network failure \(FETCH_TIMEOUT\)/, "the network failure must be logged with its reason");
+  } finally {
+    config.jobs.pollIntervalMs = prevPoll;
+  }
+});
+
+test("continuous learning continues when a harvest throws a transient network error", async () => {
+  const prevPoll = config.jobs.pollIntervalMs;
+  config.jobs.pollIntervalMs = 5;
+  try {
+    const store = await ArticleStore.open(tmp());
+    const registry = await RegistryStore.open(tmp());
+    const jobDir = tmp();
+    let calls = 0;
+    const sup = new JobSupervisor({
+      store,
+      registry,
+      dir: jobDir,
+      learningDeps: {
+        collectDocuments: async () => {
+          calls += 1;
+          if (calls === 1) {
+            const err = new Error("timed out after 15000ms");
+            err.code = "FETCH_TIMEOUT";
+            throw err;
+          }
+          return { mode: "real", capability: "configured-fetch", documents: [], failures: [] };
+        },
+      },
+    });
+    await sup.init({ reconcile: false });
+
+    const job = await sup.startLearning({ mode: "continuous", targetArticles: 5 });
+    await waitFor(() => calls >= 2, 5000);
+    const live = sup.getJob(job.jobId);
+    assert.equal(live.terminal, false);
+    assert.notEqual(live.status, JOB_STATUS.PAUSED, "a thrown network error must not pause continuous learning");
+
+    await sup.stop(job.jobId);
+    await waitTerminal(sup, job.jobId);
+    await sup.close();
+    await store.close();
+    await registry.close();
+
+    const events = readFileSync(path.join(jobDir, "job-events.ndjson"), "utf8")
+      .split(/\r?\n/)
+      .filter(Boolean)
+      .map((l) => JSON.parse(l));
+    assert.ok(events.some((e) => e.phase === "network-retry"));
+    const logs = readFileSync(path.join(jobDir, "job-log.ndjson"), "utf8");
+    assert.match(logs, /network error during learning cycle \(FETCH_TIMEOUT\)/);
+  } finally {
+    config.jobs.pollIntervalMs = prevPoll;
+  }
+});
+
+test("continuous training continues through a transient network error", async () => {
+  const prevPoll = config.jobs.pollIntervalMs;
+  config.jobs.pollIntervalMs = 5;
+  try {
+    const store = reusableStore(await seededStore(3), 3);
+    const registry = await RegistryStore.open(tmp());
+    const jobDir = tmp();
+    let attempts = 0;
+    const sup = new JobSupervisor({
+      store,
+      registry,
+      dir: jobDir,
+      trainerFactory: () => ({
+        kind: "python",
+        version: "py-1",
+        resolveBaseline: async () => {
+          attempts += 1;
+          const err = new Error("timed out after 15000ms");
+          err.code = "FETCH_TIMEOUT";
+          throw err;
+        },
+        resolveVersion: async (v) => ({ version: v, path: `x/${v}` }),
+        train: async () => {
+          throw new Error("train must not be reached after a transient baseline failure");
+        },
+      }),
+      trainingDeps: {
+        paths: { snapshots: tmp(), models: tmp(), plans: tmp(), evaluation: tmp() },
+        evalSeed: async () => EVAL_SEED,
+        evaluateLoss: rejectingEval,
+        setActive: async () => ({}),
+      },
+    });
+    await sup.init({ reconcile: false });
+
+    const job = await sup.startTraining({ mode: "continuous", minEligible: 1 });
+    await waitFor(() => attempts >= 2, 5000);
+    const live = sup.getJob(job.jobId);
+    assert.equal(live.terminal, false, "network failures must never terminate continuous training");
+    assert.notEqual(live.status, JOB_STATUS.PAUSED, "network failures must not pause continuous training");
+
+    await sup.stop(job.jobId);
+    await waitTerminal(sup, job.jobId);
+    await sup.close();
+    await store.close();
+    await registry.close();
+
+    const events = readFileSync(path.join(jobDir, "job-events.ndjson"), "utf8")
+      .split(/\r?\n/)
+      .filter(Boolean)
+      .map((l) => JSON.parse(l));
+    assert.ok(events.some((e) => e.phase === "network-retry"));
+    const logs = readFileSync(path.join(jobDir, "job-log.ndjson"), "utf8");
+    assert.match(logs, /network error during training \(FETCH_TIMEOUT\)/);
+  } finally {
+    config.jobs.pollIntervalMs = prevPoll;
+  }
+});

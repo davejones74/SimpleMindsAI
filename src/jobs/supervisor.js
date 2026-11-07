@@ -32,11 +32,13 @@ const KIND_TITLES = { learning: "Learning", training: "Training", "fresh-brain":
 
 /**
  * Connectivity failures — a loss of internet, an unreachable teacher or source,
- * or a timeout. These are TRANSIENT, so a learning job pauses and retries on
- * resume instead of recording "source exhausted" (which would be a lie: the
- * sources are fine, we simply could not reach them). HTTP status errors
- * (FETCH_STATUS: 404/500) and content-type refusals are NOT transient and keep
- * their existing fail-closed behaviour.
+ * or a timeout. These are TRANSIENT. A CONTINUOUS learning/training job logs the
+ * failure and keeps running (retrying on the normal poll interval) instead of
+ * pausing or recording "source exhausted" (which would be a lie: the sources are
+ * fine, we simply could not reach them). A one-shot job keeps the historical
+ * pause-and-retry-on-resume behaviour. HTTP status errors (FETCH_STATUS:
+ * 404/500) and content-type refusals are NOT transient and keep their existing
+ * fail-closed behaviour.
  */
 const NETWORK_FAILURE_RE =
   /^(fetch_network|fetch_timeout|fetch_dns|econnrefused|econnreset|enotfound|eai_again|etimedout|ehostunreach|enetunreach|epipe|und_err_connect_timeout|und_err_headers_timeout|und_err_socket)$/i;
@@ -490,6 +492,7 @@ export class JobSupervisor {
     let acquisitionWaitAttempt = 0;
     let lastWaitReason = null;
     let lastCapNote = null;
+    let lastNetworkReason = null;
     const startedAt = this.clock();
     const continuous = job.mode === "continuous";
     // A recovered WAITING job resumes at its persisted deadline: the deadline is
@@ -535,9 +538,27 @@ export class JobSupervisor {
         last = await runLearningCycle(ctx);
       } catch (err) {
         if (isNetworkError(err)) {
-          await this.#networkPause(jobId, err.message);
+          const reason = String(err?.code ?? err?.message ?? "network error");
+          if (continuous) {
+            // A transient network error is an expected condition for a perpetual
+            // learner: log it, keep the job RUNNING, and retry on the normal poll
+            // interval. Never convert it into an operator-visible PAUSED state.
+            base.log("err", `network error during learning cycle (${reason}); continuing without pause`);
+            if (reason !== lastNetworkReason) {
+              lastNetworkReason = reason;
+              await this.#safeEvent(jobId, {
+                status: JOB_STATUS.RUNNING,
+                phase: "network-retry",
+                note: `network error (${reason}); continuing to retry`,
+                meta: { networkFailure: true, reason },
+              });
+            }
+            await this.#gate(jobId, Math.max(1000, config.jobs.pollIntervalMs));
+            continue;
+          }
+          await this.#networkPause(jobId, reason);
           if (this.#shouldStop(jobId)) { outcome = "stopped"; break; }
-          cycle--; // retry the same cycle once connectivity is restored
+          cycle--; // one-shot: retry the same cycle once connectivity is restored
           continue;
         }
         throw err;
@@ -605,19 +626,46 @@ export class JobSupervisor {
       }
       lastCapNote = null;
 
-      // Automatic network pause: a whole pass fetched nothing and every failure
-      // was a connectivity error. Hold and retry on resume instead of falsely
-      // declaring "source exhausted" — the sources are fine, they were unreachable.
-      if (
+      // A whole pass fetched nothing and every failure was a connectivity error.
+      // For a CONTINUOUS job this is transient: log it and continue to the next
+      // source/poll. It must never pause or stop the perpetual learner. A
+      // one-shot job keeps the historical pause-and-retry-on-resume behaviour.
+      const failures = Array.isArray(last?.failures) ? last.failures : [];
+      const networkFailures = failures.filter(isNetworkFailure);
+      const allFailuresNetwork =
         (last?.rawDocs ?? 0) === 0 &&
-        (last?.failures?.length ?? 0) > 0 &&
-        last.failures.every(isNetworkFailure)
-      ) {
-        await this.#networkPause(jobId, String(last.failures[0]?.reason ?? "network unavailable"));
+        networkFailures.length > 0 &&
+        networkFailures.length === failures.length;
+      if (allFailuresNetwork) {
+        const reason = String(networkFailures[0]?.reason ?? "network unavailable");
+        const urls = networkFailures
+          .slice(0, 3)
+          .map((f) => f?.url)
+          .filter(Boolean)
+          .join(", ");
+        base.log(
+          "err",
+          `network failure (${reason}) fetching ${networkFailures.length} source(s)${urls ? `: ${urls}` : ""}; continuing`,
+        );
+        if (continuous) {
+          if (reason !== lastNetworkReason) {
+            lastNetworkReason = reason;
+            await this.#safeEvent(jobId, {
+              status: JOB_STATUS.RUNNING,
+              phase: "network-retry",
+              note: `network error (${reason}) fetching ${networkFailures.length} source(s); continuing to retry`,
+              meta: { networkFailure: true, reason, failureCount: networkFailures.length },
+            });
+          }
+          await this.#gate(jobId, Math.max(1000, config.jobs.pollIntervalMs));
+          continue;
+        }
+        await this.#networkPause(jobId, reason);
         if (this.#shouldStop(jobId)) { outcome = "stopped"; break; }
-        cycle--; // retry the same cycle once connectivity is restored
+        cycle--; // one-shot: retry the same cycle once connectivity is restored
         continue;
       }
+      lastNetworkReason = null;
       // The target is a BOUNDED notion. A continuous learning job never stops on
       // it — reaching it is reported once as a milestone, then acquisition keeps
       // running until the operator stops it, the sources are exhausted, or it
@@ -755,6 +803,7 @@ export class JobSupervisor {
     let consecutiveRejections = 0;
     let lastLockNote = null;
     let lastMaterialWaitKey = null;
+    let lastNetworkReason = null;
     const startedAt = this.clock();
     for (;;) {
       if (this.#shouldStop(jobId)) break;
@@ -907,12 +956,28 @@ export class JobSupervisor {
           await this.#gate(jobId, config.jobs.pollIntervalMs);
           continue;
         }
+        if (isNetworkError(err) && job.mode !== "one-shot") {
+          const reason = String(err?.code ?? err?.message ?? "network error");
+          base.log("err", `network error during training (${reason}); continuing without pause`);
+          if (reason !== lastNetworkReason) {
+            lastNetworkReason = reason;
+            await this.#safeEvent(jobId, {
+              status: JOB_STATUS.RUNNING,
+              phase: "network-retry",
+              note: `network error (${reason}); continuing to retry training`,
+              meta: { networkFailure: true, reason },
+            });
+          }
+          await this.#gate(jobId, config.jobs.pollIntervalMs);
+          continue;
+        }
         throw err;
       }
       runs++;
       last = summarizeRun(out, this.registry);
       lastLockNote = null; // a successful run clears the wait-dedupe
       lastMaterialWaitKey = null;
+      lastNetworkReason = null;
       // A promoted run proves forward progress; a rejected (or unevaluated) run
       // does not. Count streaks so continuous training cannot silently retrain
       // the same corpus forever (run-46..run-52 all staged v035 and were
@@ -1148,7 +1213,7 @@ export class JobSupervisor {
     await this.#holdGate(jobId);
   }
 
-  /** Connectivity pause: flag the transient condition, report PAUSED, then hold. */
+  /** One-shot connectivity pause: flag the transient condition, report PAUSED, then hold. */
   async #networkPause(jobId, reason) {
     const c = this.controls.get(jobId);
     if (c) c.networkPaused = true;
