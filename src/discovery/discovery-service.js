@@ -1,3 +1,4 @@
+import path from "node:path";
 import { Frontier } from "../frontier.js";
 import { config } from "../config.js";
 import { CAPABILITY, runCrawlBatches, seedFrontierFromConfig } from "../harness/crawler.js";
@@ -7,6 +8,7 @@ import { buildAdapters, createAdapterFetchText } from "./adapters/index.js";
 import { createDiscoveryOperationGovernor, createGovernedFetchText } from "./discovery-operations.js";
 import { resolveSearchQueries } from "./mission-queries.js";
 import { classifyDiscoveryLanguage, DISCOVERY_LANGUAGE_PRIORS } from "./language-prior.js";
+import { createArchiveOrgResolver } from "./source-resolver.js";
 
 /**
  * Round-robin window over a root pool. When there are more roots than the
@@ -77,6 +79,8 @@ export class DiscoveryService {
     fetchImpl = undefined,
     discoveryDir = config.paths.discovery,
     discoveryOperations = null,
+    sourceResolutionOperations = null,
+    sourceResolver = null,
   } = {}) {
     this.frontier = frontier ?? new Frontier({ dir: config.paths.frontier });
     this.seeds = (seeds ?? []).filter(Boolean);
@@ -129,6 +133,7 @@ export class DiscoveryService {
       // search-operation path exist. Sitemap/feed are the D1 restoration.
       .filter((name) => !admissionGateway || name === "sitemap" || name === "feed");
     const explicitEmptyAdapters = Array.isArray(adapters) && adapters.length === 0;
+    const resolverEnabled = config.archiveOrgResolverEnabled !== false && operationsEnabled;
     if (
       admissionGateway &&
       !explicitEmptyAdapters &&
@@ -152,6 +157,37 @@ export class DiscoveryService {
     const adapterFetchText = this.discoveryOperations
       ? createGovernedFetchText({ fetchText: this.fetchText, governor: this.discoveryOperations })
       : this.fetchText;
+    // Source resolution is discovery-side I/O, but it gets its OWN durable
+    // ledger. A busy archive.org adapter window must not starve the resolver (and
+    // vice versa): archive.org can legitimately hit the per-domain adapter cap
+    // while the crawler still needs to classify individual item pages.
+    this.sourceResolutionOperations =
+      sourceResolutionOperations ??
+      (admissionGateway && operationsEnabled && resolverEnabled && !sourceResolver
+        ? createDiscoveryOperationGovernor({
+            dir: path.join(discoveryDir, "source-resolution"),
+            ...config.discoveryOperations,
+            limits: {
+              timeoutMs: config.crawlTimeoutMs,
+              maxBytes: config.archiveOrgMetadataMaxBytes,
+              maxRedirects: config.crawlMaxRedirects,
+            },
+            logger: this.log,
+          })
+        : null);
+    const resolverFetchText = this.sourceResolutionOperations
+      ? createGovernedFetchText({ fetchText: this.fetchText, governor: this.sourceResolutionOperations })
+      : this.fetchText;
+    // In gateway mode resolution fails closed unless it has a governor. An
+    // explicitly injected resolver is trusted (tests/local callers).
+    this.sourceResolver =
+      sourceResolver ??
+      (resolverEnabled && (!admissionGateway || this.sourceResolutionOperations)
+        ? createArchiveOrgResolver({
+            fetchText: resolverFetchText,
+            maxMetadataBytes: config.archiveOrgMetadataMaxBytes,
+          })
+        : null);
     // Mission-driven acquisition (P4): when enabled, deterministic queries derived
     // from the mission(s) are appended to the configured search queries. They are
     // only candidates — the search adapter proposes them and this service still
@@ -200,7 +236,9 @@ export class DiscoveryService {
       missionQueriesEnabled: this.missionQueriesEnabled,
       corpusQueriesEnabled: this.corpusQueriesEnabled,
       languagePrior: this.languagePrior,
+      sourceResolver: this.sourceResolver ? "archive.org" : null,
       discoveryOperations: this.discoveryOperations?.status() ?? null,
+      sourceResolutionOperations: this.sourceResolutionOperations?.status() ?? null,
     };
   }
 
@@ -426,6 +464,7 @@ export class DiscoveryService {
       // adapter candidates, so foreign hosts never enter the frontier.
       discoveryLanguagePrior: this.languagePrior,
       admissionGateway: this.admissionGateway,
+      sourceResolver: this.sourceResolver,
       fetchImpl: this.fetchImpl,
     });
 
@@ -472,6 +511,13 @@ export class DiscoveryService {
       quotaLimit: result.quotaLimit ?? null,
       quotaRetryAfterMs: result.quotaRetryAfterMs ?? null,
       quotaPolicyVersion: result.quotaPolicyVersion ?? null,
+      archiveResolved: result.archiveResolved ?? 0,
+      archiveNonEnglish: result.archiveNonEnglish ?? 0,
+      archiveNoFullText: result.archiveNoFullText ?? 0,
+      archiveRestricted: result.archiveRestricted ?? 0,
+      archiveUnverifiedLanguage: result.archiveUnverifiedLanguage ?? 0,
+      archiveResolutionRetries: result.archiveResolutionRetries ?? 0,
+      sourceRejections: result.sourceRejections ?? [],
       frontier: frontierAfter,
       policy: this.policy.mode,
       discovery: {
@@ -481,6 +527,7 @@ export class DiscoveryService {
         providerAvailable,
         bootstrap,
         discoveryOperations: this.discoveryOperations?.status() ?? null,
+        sourceResolutionOperations: this.sourceResolutionOperations?.status() ?? null,
       },
     };
   }

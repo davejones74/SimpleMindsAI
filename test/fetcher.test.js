@@ -26,6 +26,9 @@ before(async () => {
     } else if (url.pathname === "/big") {
       res.writeHead(200, { "content-type": "text/plain" });
       res.end("x".repeat(10_000));
+    } else if (url.pathname === "/json") {
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end('{"metadata":{"language":"eng"},"text":"two  spaces"}');
     } else if (url.pathname === "/binary") {
       res.writeHead(200, { "content-type": "application/octet-stream" });
       res.end(Buffer.from([0, 1, 2, 3]));
@@ -79,6 +82,14 @@ test("fetchDocument: enforces byte cap, content-type, and timeout", async () => 
   await assert.rejects(() => fetchDocument(`${base}/big`, { allowPrivate: true, maxBytes: 100 }), (e) => e.code === "FETCH_TOO_LARGE");
   await assert.rejects(() => fetchDocument(`${base}/binary`, { allowPrivate: true }), (e) => e.code === "FETCH_BAD_CONTENT_TYPE");
   await assert.rejects(() => fetchDocument(`${base}/slow`, { allowPrivate: true, timeoutMs: 50 }), (e) => e.code === "FETCH_TIMEOUT");
+});
+
+test("fetchDocument: JSON is rejected by default and preserved byte-for-byte only when opted in", async () => {
+  await assert.rejects(async () => fetchDocument(`${base}/json`, { allowPrivate: true }), (e) => e.code === "FETCH_BAD_CONTENT_TYPE");
+  const doc = await fetchDocument(`${base}/json`, { allowPrivate: true, allowJson: true });
+  assert.equal(doc.extraction.mode, "json");
+  assert.equal(doc.text, '{"metadata":{"language":"eng"},"text":"two  spaces"}');
+  assert.deepEqual(JSON.parse(doc.text).metadata, { language: "eng" });
 });
 
 test("robots: parse + longest-match allow/disallow", () => {

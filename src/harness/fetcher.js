@@ -28,6 +28,9 @@ const TEXT_TYPE = /^text\/[a-z0-9.+-]+\b/i;
 // this same bounded, SSRF-checked path, so the allow-list must admit them as
 // text — but they are NOT HTML, so link-extraction must not be run on them.
 const XML_TYPE = /^(application|text)\/(xml|atom\+xml|rss\+xml)\b/i;
+// JSON is NEVER allowed for article acquisition. It is opt-in for bounded
+// metadata/source-resolution calls, which must parse the exact bytes.
+const JSON_TYPE = /^application\/(?:[a-z0-9.+-]*\+)?json\b/i;
 
 /** Canonical content hash — MUST equal domain/article.js contentHash (sha256 utf8). */
 export function contentHashFor(text) {
@@ -227,6 +230,9 @@ export async function fetchDocument(url, {
   // { notModified: true } instead of re-delivering the body (no duplicate doc).
   etag = null,
   lastModified = null,
+  // Opt-in only. Article acquisition leaves this false, so a JSON document can
+  // never silently become an article. Source resolvers set it to read metadata.
+  allowJson = false,
   fetchImpl = globalThis.fetch,
 } = {}) {
   if (typeof fetchImpl !== "function") throw new FetchError("FETCH_UNAVAILABLE", "global fetch is unavailable");
@@ -281,7 +287,13 @@ export async function fetchDocument(url, {
       }
       if (!res.ok) throw new FetchError("FETCH_STATUS", `HTTP ${res.status}`, { url: current, status: res.status });
       const contentType = res.headers.get("content-type") ?? "";
-      if (!HTML_TYPE.test(contentType) && !TEXT_TYPE.test(contentType) && !XML_TYPE.test(contentType)) {
+      const isJson = allowJson && JSON_TYPE.test(contentType);
+      if (
+        !HTML_TYPE.test(contentType) &&
+        !TEXT_TYPE.test(contentType) &&
+        !XML_TYPE.test(contentType) &&
+        !isJson
+      ) {
         throw new FetchError("FETCH_BAD_CONTENT_TYPE", `unsupported content-type "${contentType}"`, { url: current });
       }
       const buf = await readCapped(res.body, maxBytes);
@@ -289,7 +301,11 @@ export async function fetchDocument(url, {
       const isHtml = HTML_TYPE.test(contentType);
       const extracted = isHtml
         ? await extractDocument(raw, { mode: config.extractionMode })
-        : { title: null, text: collapse(raw), mode: "text", fallback: false, readableChars: null };
+        : isJson
+          // JSON must remain byte-for-byte parseable: do NOT run the whitespace
+          // collapse used for prose/text documents.
+          ? { title: null, text: raw, mode: "json", fallback: false, readableChars: raw.length }
+          : { title: null, text: collapse(raw), mode: "text", fallback: false, readableChars: null };
       const { title, text } = extracted;
       return {
         url: current,

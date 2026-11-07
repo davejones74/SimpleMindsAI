@@ -145,7 +145,10 @@ export async function runLearningCycle(ctx) {
         source: doc.source ?? "harvest",
         model: ollama.model,
         rawText: doc.text,
-        sourceUrl: doc.url ?? null,
+        // The requested source page (discovery) is authoritative provenance;
+        // the fetched URL is the resolved download when a resolver ran.
+        sourceUrl: doc.requestedUrl ?? doc.url ?? null,
+        fetchedUrl: doc.fetchedUrl ?? doc.url ?? null,
         fetchedContentHash: doc.contentHash ?? null,
         fetchedAt: doc.fetchedAt ?? null,
         htmlLang: doc.htmlLang ?? null,
@@ -174,7 +177,8 @@ export async function runLearningCycle(ctx) {
     if (doc.contentHash && chunkErrors === 0) {
       await store.recordRawSource({
         fetchedContentHash: doc.contentHash,
-        sourceUrl: doc.url ?? null,
+        sourceUrl: doc.requestedUrl ?? doc.url ?? null,
+        fetchedUrl: doc.fetchedUrl ?? doc.url ?? null,
         articleIds: newArticleIds,
       });
     } else if (chunkErrors > 0) {
@@ -297,6 +301,13 @@ export async function runLearningCycle(ctx) {
     progress,
     skippedUnchanged,
     languageSkipped,
+    archiveResolved: result.archiveResolved ?? 0,
+    archiveNonEnglish: result.archiveNonEnglish ?? 0,
+    archiveNoFullText: result.archiveNoFullText ?? 0,
+    archiveRestricted: result.archiveRestricted ?? 0,
+    archiveUnverifiedLanguage: result.archiveUnverifiedLanguage ?? 0,
+    archiveResolutionRetries: result.archiveResolutionRetries ?? 0,
+    sourceRejections: result.sourceRejections ?? [],
     // Pass the discovery report through so the supervisor can tell an empty
     // queue from a genuinely unconfigured discovery source.
     discovery: result.discovery ?? null,

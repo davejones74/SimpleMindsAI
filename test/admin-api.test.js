@@ -300,6 +300,29 @@ test("observability: /overview exposes the live frontier summary", async () => {
   }
 });
 
+test("admin API: /frontier/requeue revives visited work explicitly", async () => {
+  const h = await harness();
+  try {
+    const url = "https://archive.org/details/book";
+    const canonical = await h.frontier.enqueue(url, { depth: 0 });
+    await h.frontier.markVisited(canonical, { contentHash: "old" });
+
+    const res = await jpost(`${h.base}/api/admin/frontier/requeue`, { url, reason: "remediation" });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.requeued, true);
+    assert.equal(res.body.record.state, "queued");
+    assert.equal(res.body.record.requeues.length, 1);
+
+    const missing = await jpost(`${h.base}/api/admin/frontier/requeue`, { url: "https://example.com/missing" });
+    assert.equal(missing.status, 409);
+
+    const invalid = await jpost(`${h.base}/api/admin/frontier/requeue`, {});
+    assert.equal(invalid.status, 400);
+  } finally {
+    await h.close();
+  }
+});
+
 test("observability: a WAITING transition is emitted over the change feed with its reason", async () => {
   const h = await harness();
   try {

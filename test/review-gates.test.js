@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { preScreen, assessCompleteness, mojibakeRatio, heuristicPenalty, GATE } from "../src/domain/review-gates.js";
+import { preScreen, assessCompleteness, assessPageChrome, mojibakeRatio, heuristicPenalty, GATE } from "../src/domain/review-gates.js";
 
 /**
  * P3 — review-time quality gates (deterministic, dependency-free).
@@ -177,4 +177,63 @@ test("completeness: enforce mode rejects non-prose before the critic", () => {
   });
   assert.equal(r.decision, "reject");
   assert.equal(r.gate, "completeness");
+});
+
+// ------------------------------------------------------ page-chrome gate
+// A catalogue/details page can contain enough words and sentence-like lines to
+// look like prose. This gate catches the high-confidence navigation/metadata
+// signature without rejecting a real article that happens to mention "Home" or
+// "Privacy" once.
+
+const ARCHIVE_DETAILS = `Uploaded by
+Digitizing sponsor
+Boston Public Library
+View in
+Download options
+Borrow this item
+Read in Browser
+Full text
+Identifier
+nicolaicopernici00cope_1
+Metadata
+Collection
+Possible copyright status
+Pages
+Table of Contents
+About
+Contact
+Privacy
+Terms
+https://archive.org/details/nicolaicopernici00cope_1`;
+
+test("page-chrome: archive.org details/catalogue shell is rejected", () => {
+  const r = preScreen(ARCHIVE_DETAILS, {
+    sourceUrl: "https://archive.org/details/nicolaicopernici00cope_1",
+    languageFilter: { enabled: false },
+    quality: { enabled: false },
+    completeness: { mode: "shadow" },
+  });
+  assert.equal(r.decision, "reject");
+  assert.equal(r.gate, GATE.PAGE_CHROME);
+  assert.ok(assessPageChrome(ARCHIVE_DETAILS, { sourceUrl: "https://archive.org/details/x" }).metrics.archiveHits.length >= 3);
+});
+
+test("page-chrome: real prose mentioning navigation words is not rejected", () => {
+  const text = `${EN}\nThe project homepage explains how to contact the authors.`;
+  const r = preScreen(text, {
+    sourceUrl: "https://archive.org/details/example",
+    languageFilter: { enabled: false },
+    quality: { enabled: false },
+  });
+  assert.equal(r.decision, "proceed", JSON.stringify(r));
+});
+
+test("page-chrome can be disabled (reversible)", () => {
+  const r = preScreen(ARCHIVE_DETAILS, {
+    sourceUrl: "https://archive.org/details/nicolaicopernici00cope_1",
+    languageFilter: { enabled: false },
+    quality: { enabled: false },
+    pageChrome: { enabled: false },
+  });
+  assert.equal(r.decision, "proceed");
 });

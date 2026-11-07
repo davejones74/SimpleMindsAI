@@ -37,7 +37,12 @@ export function createAdapterFetchText({
     }
   }
 
-  return async function fetchText(url, { isRobots = false } = {}) {
+  return async function fetchText(url, {
+    isRobots = false,
+    allowJson = false,
+    maxBytes: callMaxBytes = maxBytes,
+    maxRedirects: callMaxRedirects = maxRedirects,
+  } = {}) {
     await assertUrlAllowed(url, { allowPrivate });
     if (respectRobots && !isRobots) {
       const u = new URL(url);
@@ -48,7 +53,15 @@ export function createAdapterFetchText({
         throw err;
       }
     }
-    const doc = await fetchDocument(url, { timeoutMs, maxBytes, maxRedirects, allowPrivate, userAgent, fetchImpl });
+    const doc = await fetchDocument(url, {
+      timeoutMs,
+      maxBytes: callMaxBytes,
+      maxRedirects: callMaxRedirects,
+      allowPrivate,
+      userAgent,
+      allowJson,
+      fetchImpl,
+    });
     return doc.text;
   };
 }

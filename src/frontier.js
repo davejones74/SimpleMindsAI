@@ -70,6 +70,13 @@ function makeFrontierRecord(url, state, depth, parent, seed, metadata = {}) {
     generation: metadata.generation ?? 0,
     requestId: metadata.requestId ?? null,
     payloadDigest: metadata.payloadDigest ?? null,
+    // Source resolution (archive.org details -> real full-text download). The
+    // resolved URL is reused across retries so the admission identity cannot
+    // drift if item metadata changes between attempts.
+    resolvedUrl: metadata.resolvedUrl ?? null,
+    lastResolvedUrl: metadata.lastResolvedUrl ?? null,
+    resolution: metadata.resolution ?? null,
+    requeues: metadata.requeues ?? [],
   };
 }
 
@@ -146,6 +153,8 @@ export class Frontier {
       generation: existing?.generation ?? 0,
       requestId: existing?.requestId ?? null,
       payloadDigest: existing?.payloadDigest ?? null,
+      lastResolvedUrl: existing?.lastResolvedUrl ?? null,
+      requeues: Array.isArray(existing?.requeues) ? existing.requeues : [],
     });
     this.state.set(canonical, record);
     await this.persist();
@@ -156,6 +165,12 @@ export class Frontier {
   has(url) {
     const canonical = canonicalURL(url);
     return canonical ? this.state.has(canonical) : false;
+  }
+
+  /** Read a frontier record by URL (any state), or null. */
+  get(url) {
+    const canonical = canonicalURL(url);
+    return canonical ? this.state.get(canonical) ?? null : null;
   }
 
   // Claim next URL: mark in-progress, return the record, advance state.
@@ -209,6 +224,89 @@ export class Frontier {
     if (!record) return false;
     if (typeof requestId === "string") record.requestId = requestId;
     if (typeof payloadDigest === "string") record.payloadDigest = payloadDigest;
+    await this.persist();
+    return true;
+  }
+
+  /**
+   * Persist the source-resolution decision on an in-progress record. The
+   * resolved URL is the actual acquisition target; the original details URL
+   * remains `record.url` for provenance.
+   */
+  async recordResolution(canonical, {
+    resolvedUrl = null,
+    itemId = null,
+    languages = null,
+    textFile = null,
+    cleanText = false,
+    status = null,
+    at = null,
+  } = {}) {
+    const record = this.state.get(canonical);
+    if (!record) return false;
+    const now = at ?? new Date().toISOString();
+    record.resolvedUrl = resolvedUrl ?? null;
+    record.resolution = {
+      status: status ?? (resolvedUrl ? "resolved" : null),
+      itemId,
+      resolvedUrl: resolvedUrl ?? null,
+      languages: languages ?? null,
+      textFile: textFile ?? null,
+      cleanText: Boolean(cleanText),
+      at: now,
+    };
+    await this.persist();
+    return true;
+  }
+
+  /**
+   * Explicitly re-queue a VISITED/FAILED URL for a fresh acquisition attempt.
+   *
+   * This is deliberately NOT part of idempotent enqueue: normal discovery must
+   * never revive completed work. An operator uses it for remediation after a bad
+   * extraction, and the transition is recorded on the record for audit.
+   */
+  async requeueVisited(canonicalOrUrl, { reason = null, actor = "operator", at = null } = {}) {
+    if (!this.initialized) await this.init();
+    const canonical = canonicalURL(canonicalOrUrl) ?? canonicalOrUrl;
+    const record = this.state.get(canonical);
+    if (!record) return false;
+    if (record.state === URL_STATE.REJECTED || record.state === URL_STATE.QUARANTINED) return false;
+    if (record.state === URL_STATE.QUEUED || record.state === URL_STATE.IN_PROGRESS) return true;
+    if (record.state !== URL_STATE.VISITED && record.state !== URL_STATE.FAILED) return false;
+
+    const now = at ?? new Date().toISOString();
+    const entry = {
+      type: "requeue",
+      at: now,
+      actor,
+      reason,
+      previousState: record.state,
+      previousCompletedAt: record.completedAt ?? null,
+      previousLastError: record.lastError ?? null,
+      previousContentHash: record.contentHash ?? null,
+      previousResolvedUrl: record.resolvedUrl ?? null,
+    };
+    record.requeues = Array.isArray(record.requeues) ? record.requeues : [];
+    record.requeues.push(entry);
+    record.state = URL_STATE.QUEUED;
+    record.completedAt = null;
+    record.claimedAt = null;
+    record.nextCrawlAt = null;
+    record.nextAttemptAt = null;
+    record.rediscovery = false;
+    record.retries = 0;
+    record.lastError = "operator-requeue";
+    record.lastErrorAt = now;
+    // The prior fetch's validators/hash describe the OLD target. They must never
+    // make a conditional request for the new one.
+    record.etag = null;
+    record.lastModified = null;
+    record.contentHash = null;
+    record.resolvedUrl = null;
+    record.resolution = null;
+    record.requestId = null;
+    record.payloadDigest = null;
     await this.persist();
     return true;
   }
@@ -458,6 +556,10 @@ export class Frontier {
     record.nextAttemptAt = null;
     record.claimedAt = null;
     record.rediscovery = false;
+    // Preserve the resolved target as audit, but clear the in-flight field so a
+    // later rediscovery resolves fresh metadata instead of reusing a stale URL.
+    if (record.resolvedUrl) record.lastResolvedUrl = record.resolvedUrl;
+    record.resolvedUrl = null;
     if (advanceGeneration) {
       record.generation = (record.generation ?? 0) + 1;
       record.requestId = null;
@@ -563,6 +665,10 @@ export class Frontier {
         generation: record.generation ?? 0,
         requestId: record.requestId ?? null,
         payloadDigest: record.payloadDigest ?? null,
+        resolvedUrl: record.resolvedUrl ?? null,
+        lastResolvedUrl: record.lastResolvedUrl ?? null,
+        resolution: record.resolution ?? null,
+        ...(Array.isArray(record.requeues) && record.requeues.length ? { requeues: record.requeues } : {}),
         ...(Array.isArray(record.recoveryHistory) && record.recoveryHistory.length
           ? { recoveryHistory: record.recoveryHistory }
           : {}),

@@ -21,7 +21,7 @@
 
 import { assess, detectLanguage } from "./language.js";
 
-export const GATE = Object.freeze({ LANGUAGE: "language", QUALITY: "quality" });
+export const GATE = Object.freeze({ LANGUAGE: "language", QUALITY: "quality", PAGE_CHROME: "page-chrome" });
 
 // Heuristic starting values — NOT calibrated guarantees.
 const DEFAULT_MIN_BIGRAM_RATIO = 0.15; // unique-bigram ratio below => degenerate
@@ -153,7 +153,115 @@ export function assessCompleteness(text) {
   return { decision: "proceed", reason: null, metrics };
 }
 
-export function preScreen(text, { sourceUrl = null, htmlLang = null, languageFilter = null, quality = null, completeness = null } = {}) {
+/**
+ * High-confidence catalogue/navigation-shell detection.
+ *
+ * A details page can contain hundreds of words, sentence-like metadata lines and
+ * a healthy bigram ratio, so the prose completeness gate alone cannot reject it.
+ * This gate only fires on a STRONG cluster of page-chrome markers, never on one
+ * incidental word. It is therefore safe to enforce while completeness remains
+ * shadow-calibrated.
+ */
+const ARCHIVE_CHROME_MARKERS = [
+  "uploaded by",
+  "digitizing sponsor",
+  "download options",
+  "read in browser",
+  "borrow this item",
+  "possible copyright status",
+  "access-restricted-item",
+  "full text",
+  "scanner",
+  "identifier",
+  "view in",
+  "page numbers",
+  "contributor",
+];
+const ARCHIVE_SPECIFIC_MARKERS = new Set([
+  "uploaded by",
+  "digitizing sponsor",
+  "download options",
+  "read in browser",
+  "borrow this item",
+  "possible copyright status",
+  "access-restricted-item",
+]);
+
+function sourceHost(sourceUrl) {
+  try {
+    return new URL(String(sourceUrl)).hostname.toLowerCase().replace(/^www\./, "");
+  } catch {
+    return null;
+  }
+}
+
+export function assessPageChrome(text, { sourceUrl = null } = {}) {
+  const s = String(text ?? "");
+  const trimmed = s.trim();
+  const lines = trimmed.split(/\r?\n/).filter((l) => l.trim());
+  const lower = trimmed.toLowerCase();
+  const archiveHits = ARCHIVE_CHROME_MARKERS.filter((marker) => lower.includes(marker));
+  const archiveSpecificHits = archiveHits.filter((marker) => ARCHIVE_SPECIFIC_MARKERS.has(marker)).length;
+  const navLines = (trimmed.match(NAV_MARKERS) ?? []).length;
+  const urls = (trimmed.match(/\bhttps?:\/\//gi) ?? []).length;
+  const words = wordCount(trimmed);
+  const navDensity = lines.length ? navLines / lines.length : 0;
+  const urlDensity = words ? urls / words : 0;
+  const shortLines = lines.filter((l) => l.trim().length <= 48).length;
+  const shortLineRatio = lines.length ? shortLines / lines.length : 0;
+  const host = sourceHost(sourceUrl);
+  const metrics = {
+    lines: lines.length,
+    words,
+    navLines,
+    navDensity,
+    urls,
+    urlDensity,
+    shortLineRatio,
+    archiveHits,
+    archiveSpecificHits,
+  };
+
+  const archiveHost = host === "archive.org";
+  if (archiveHost && archiveSpecificHits >= 2 && archiveHits.length >= 3) {
+    return {
+      decision: "reject",
+      reason: `archive.org details/catalogue chrome (${archiveHits.length} markers)`,
+      metrics,
+    };
+  }
+  if (archiveHost && archiveHits.length >= 2 && urlDensity >= 0.02 && words < 2000) {
+    return {
+      decision: "reject",
+      reason: "archive.org download/metadata chrome",
+      metrics,
+    };
+  }
+  if (navDensity >= 0.35 && urlDensity >= 0.15 && lines.length >= 8) {
+    return {
+      decision: "reject",
+      reason: "navigation/link shell without substantive prose",
+      metrics,
+    };
+  }
+  if (shortLineRatio >= 0.8 && urlDensity >= 0.1 && navDensity >= 0.15 && words < 600) {
+    return {
+      decision: "reject",
+      reason: "short-line navigation/catalogue block",
+      metrics,
+    };
+  }
+  return { decision: "proceed", reason: null, metrics };
+}
+
+export function preScreen(text, {
+  sourceUrl = null,
+  htmlLang = null,
+  languageFilter = null,
+  quality = null,
+  completeness = null,
+  pageChrome = null,
+} = {}) {
   const body = String(text ?? "");
   const completenessResult = assessCompleteness(body);
   const completenessMode = String(completeness?.mode ?? "shadow").toLowerCase();
@@ -167,6 +275,19 @@ export function preScreen(text, { sourceUrl = null, htmlLang = null, languageFil
       metrics: completenessResult.metrics,
       completeness: completenessResult,
     };
+  }
+
+  if (pageChrome?.enabled !== false) {
+    const chromeResult = assessPageChrome(body, { sourceUrl });
+    if (chromeResult.decision === "reject") {
+      return {
+        decision: "reject",
+        gate: GATE.PAGE_CHROME,
+        reason: `review gate: ${chromeResult.reason}`,
+        metrics: chromeResult.metrics,
+        completeness: completenessResult,
+      };
+    }
   }
 
   if (languageFilter?.enabled && !languageFilter.shadow) {

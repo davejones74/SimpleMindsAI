@@ -189,6 +189,7 @@ export class ArticleStore {
     for (const rec of await lines(COLLECTIONS.rawSources)) {
       this.rawSources.set(rec.fetchedContentHash, {
         sourceUrl: rec.sourceUrl,
+        ...(rec.fetchedUrl ? { fetchedUrl: rec.fetchedUrl } : {}),
         firstSeenAt: rec.firstSeenAt,
         curatedAt: rec.curatedAt,
         articleIds: rec.articleIds ?? [],
@@ -298,12 +299,13 @@ export class ArticleStore {
   }
 
   /** Record that fetchedContentHash was curated, noting its source and which articleIds it produced. */
-  recordRawSource({ fetchedContentHash, sourceUrl, articleIds = [] }) {
+  recordRawSource({ fetchedContentHash, sourceUrl, fetchedUrl = null, articleIds = [] }) {
     if (!fetchedContentHash) return;
     const now = new Date().toISOString();
     const entry = {
       fetchedContentHash,
       sourceUrl,
+      ...(fetchedUrl ? { fetchedUrl } : {}),
       firstSeenAt: now,
       curatedAt: now,
       articleIds: articleIds ?? [],
@@ -313,6 +315,7 @@ export class ArticleStore {
     // In-memory cache
     this.rawSources.set(fetchedContentHash, {
       sourceUrl,
+      ...(fetchedUrl ? { fetchedUrl } : {}),
       firstSeenAt: now,
       curatedAt: now,
       articleIds: articleIds ?? [],
@@ -333,6 +336,9 @@ export class ArticleStore {
     // Source→curated provenance: the original fetched identity is kept
     // independently of `text`, which the curator may have transformed.
     sourceUrl = null,
+    // When a source resolver fetched a different URL than the one discovery
+    // found (archive.org details -> OCR download), keep both for audit.
+    fetchedUrl = null,
     fetchedContentHash = null,
     fetchedAt = null,
     htmlLang = null,
@@ -472,6 +478,7 @@ const rec = {
       // Only present when the caller supplied them, so records from the
       // GraphQL/curator path (and every existing test) stay byte-identical.
       ...(sourceUrl ? { sourceUrl } : {}),
+      ...(fetchedUrl ? { fetchedUrl } : {}),
       ...(htmlLang ? { htmlLang } : {}),
       ...(fetchedContentHash ? { fetchedContentHash } : {}),
       ...(fetchedAt ? { fetchedAt } : {}),

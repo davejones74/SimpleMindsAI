@@ -190,6 +190,7 @@ export async function reviewPendingArticles(store, scorer, opts = {}) {
               maxMojibakeRatio: review.qualityMaxMojibakeRatio,
             },
             completeness: { mode: review.completenessMode ?? "shadow" },
+            pageChrome: { enabled: review.gatePageChrome !== false },
           });
           if (gate.decision === "reject") {
             try {

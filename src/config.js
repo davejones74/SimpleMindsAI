@@ -277,6 +277,12 @@ export const config = {
     // changes a verdict (calibration default); `enforce` rejects non-prose
     // before the critic. Enforcement must only follow a labelled-fixture pass.
     completenessMode: oneOf("REVIEW_COMPLETENESS_MODE", "shadow", ["shadow", "enforce"]),
+    // High-confidence page-chrome detector. This is narrower than the
+    // completeness gate: it catches navigation/catalogue shells (especially
+    // archive.org details pages) that contain enough words to look like prose.
+    // On by default because the false-positive surface is deliberately small;
+    // disabling restores the prior review behaviour exactly.
+    gatePageChrome: bool("REVIEW_GATE_PAGE_CHROME", true),
     // Fraction of characters that may be encoding-corruption indicators before
     // the text is judged mojibake, and the minimum unique-bigram ratio for text
     // to be considered non-degenerate. Heuristic starting values, not guarantees.
@@ -586,6 +592,11 @@ export const config = {
   // Reversible: readability falls back to legacy on any load/parse failure, and
   // unset reverts to legacy exactly.
   extractionMode: oneOf("EXTRACTION_MODE", "legacy", ["legacy", "readability"]),
+  // Resolve archive.org /details/ pages to their real OCR/full text before
+  // article admission. English-only by design: non-English full text is rejected
+  // at resolution rather than downloaded and discarded by the language gate.
+  archiveOrgResolverEnabled: bool("ARCHIVE_ORG_RESOLVER_ENABLED", true),
+  archiveOrgMetadataMaxBytes: num("ARCHIVE_ORG_METADATA_MAX_BYTES", 1_000_000),
 
   // ---- Curator source segmentation ----
   //   legacy    : historical single `rawText.slice(0, 14000)` teacher call.

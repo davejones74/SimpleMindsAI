@@ -7,6 +7,7 @@ import { fetchDocument, parseRobots, robotsAllows, assertUrlAllowed, contentHash
 import { canonicalDomain, createDomainRegistry } from "../storage/domain-registry.js";
 import { assess } from "../domain/language.js";
 import { classifyDiscoveryLanguage } from "../discovery/language-prior.js";
+import { RESOLUTION_STATUS, cleanArchiveOrgText } from "../discovery/source-resolver.js";
 import { COMPLIANCE, DECISION, OUTCOME } from "../gateway/admission-store.js";
 import { AdmissionPolicyManager } from "../gateway/admission-policy.js";
 import { AcquisitionGateway } from "../gateway/acquisition-gateway.js";
@@ -204,12 +205,27 @@ function hostOfUrl(urlString) {
 }
 
 /** Normalise a fetched document into the raw-doc shape the ledger expects. */
-function normalizeRawDoc(doc, record = {}) {
+function normalizeRawDoc(doc, record = {}, resolution = null) {
+  const requestedUrl = resolution?.requestedUrl ?? record.url ?? doc.url ?? null;
   return {
     text: doc.text,
     domain: "general",
     source: hostOfUrl(doc.url) ?? "harvest",
+    // `url` is the URL actually fetched (the resolved full-text download when a
+    // resolver ran). `requestedUrl` is the source page discovery found, and is
+    // the article's authoritative source provenance.
     url: doc.url,
+    fetchedUrl: doc.url,
+    requestedUrl,
+    resolvedFrom: resolution?.requestedUrl ?? null,
+    sourceResolution: resolution
+      ? {
+          status: resolution.status ?? null,
+          itemId: resolution.itemId ?? null,
+          textFile: resolution.textFile ?? null,
+          languages: resolution.languages ?? null,
+        }
+      : null,
     // The declared <html lang> is part of the document's provenance: the
     // deterministic language backstop reads it, and the ledger must be able to
     // audit why a document was or was not admitted.
@@ -258,6 +274,7 @@ export async function runCrawlCycle(ctx = {}) {
     rediscoveryEnabled = config.rediscoveryEnabled,
     rediscoveryTtlMs = config.rediscoveryTtlMs,
     admissionGateway = null,
+    sourceResolver = null,
     fetchImpl,
     accept,
     claimNow,
@@ -291,6 +308,13 @@ export async function runCrawlCycle(ctx = {}) {
     quotaRetryAfterMs: null,
     quotaPolicyVersion: null,
     errors: 0,
+    archiveResolved: 0,
+    archiveNonEnglish: 0,
+    archiveNoFullText: 0,
+    archiveRestricted: 0,
+    archiveUnverifiedLanguage: 0,
+    archiveResolutionRetries: 0,
+    sourceRejections: [],
     documents: [],
     failures: [],
     discovered: [],
@@ -397,11 +421,108 @@ export async function runCrawlCycle(ctx = {}) {
     }
   }
 
+  // Source resolution happens BEFORE admission: a details/catalogue page is
+  // never the article target. The resolved URL is persisted so retries cannot
+  // drift to a different object if metadata changes mid-flight.
+  let targetUrl = record.url;
+  let sourceResolution = null;
+  if (sourceResolver) {
+    if (record.resolvedUrl) {
+      targetUrl = record.resolvedUrl;
+      sourceResolution = {
+        status: RESOLUTION_STATUS.RESOLVED,
+        requestedUrl: record.url,
+        resolvedUrl: record.resolvedUrl,
+        itemId: record.resolution?.itemId ?? null,
+        languages: record.resolution?.languages ?? null,
+        textFile: record.resolution?.textFile ?? null,
+        cleanText: record.resolution?.cleanText === true,
+      };
+    } else {
+      let resolution;
+      try {
+        resolution = await sourceResolver(record.url);
+      } catch (err) {
+        resolution = {
+          status: RESOLUTION_STATUS.RETRY,
+          requestedUrl: record.url,
+          reason: err?.code ?? "source-resolution-failed",
+          error: String(err?.message ?? err),
+        };
+      }
+
+      if (resolution?.status === RESOLUTION_STATUS.RESOLVED && resolution.resolvedUrl) {
+        targetUrl = resolution.resolvedUrl;
+        sourceResolution = resolution;
+        summary.archiveResolved++;
+        await frontier.recordResolution(canonical, {
+          resolvedUrl: resolution.resolvedUrl,
+          itemId: resolution.itemId ?? null,
+          languages: resolution.languages ?? null,
+          textFile: resolution.textFile ?? null,
+          cleanText: resolution.cleanText === true,
+          status: resolution.status,
+        });
+      } else if (resolution?.status === RESOLUTION_STATUS.NOT_APPLICABLE) {
+        targetUrl = record.url;
+      } else if (resolution?.status === RESOLUTION_STATUS.RETRY) {
+        const maxRetries = Number.isFinite(config.crawlRetryLimit) ? config.crawlRetryLimit : 2;
+        const retryReason = `source-resolution:${resolution.reason ?? "retry"}`;
+        await frontier.markFailed(canonical, {
+          reason: retryReason,
+          error: resolution.error ? `${retryReason}: ${resolution.error}` : retryReason,
+          maxRetries,
+          backoffBaseMs: config.frontierRetryBackoffBaseMs,
+          backoffMaxMs: config.frontierRetryBackoffMaxMs,
+        });
+        summary.archiveResolutionRetries++;
+        summary.failures.push({
+          url: record.url,
+          ok: false,
+          reason: resolution.reason ?? "source-resolution-retry",
+        });
+        if ((record.retries ?? 0) >= maxRetries) {
+          await frontier.markRejected(canonical, { reason: "source-resolution-unresolved" });
+          summary.sourceRejections.push({
+            url: record.url,
+            status: resolution.status,
+            reason: "source-resolution-unresolved",
+            itemId: resolution.itemId ?? null,
+          });
+        }
+        return summary;
+      } else {
+        const status = resolution?.status ?? RESOLUTION_STATUS.NO_FULLTEXT;
+        const reason =
+          status === RESOLUTION_STATUS.NON_ENGLISH
+            ? "non-english-fulltext"
+            : status === RESOLUTION_STATUS.RESTRICTED
+              ? "non-content-restricted"
+              : status === RESOLUTION_STATUS.UNVERIFIED_LANGUAGE
+                ? "unverified-language"
+                : "non-content-no-fulltext";
+        await frontier.markRejected(canonical, { reason });
+        if (status === RESOLUTION_STATUS.NON_ENGLISH) summary.archiveNonEnglish++;
+        else if (status === RESOLUTION_STATUS.RESTRICTED) summary.archiveRestricted++;
+        else if (status === RESOLUTION_STATUS.UNVERIFIED_LANGUAGE) summary.archiveUnverifiedLanguage++;
+        else summary.archiveNoFullText++;
+        summary.sourceRejections.push({
+          url: record.url,
+          status,
+          reason,
+          itemId: resolution?.itemId ?? null,
+          languages: resolution?.languages ?? null,
+        });
+        return summary;
+      }
+    }
+  }
+
   // Admission is the durable gate for the whole target operation: the robots
   // prerequisite, the target request, and its bounded redirect chain.
   if (admissionGateway) {
     const admitted = await admissionGateway.authorize({
-      url: canonical,
+      url: targetUrl,
       generation: record.generation ?? 0,
       etag: record.etag ?? null,
       lastModified: record.lastModified ?? null,
@@ -479,12 +600,30 @@ export async function runCrawlCycle(ctx = {}) {
     }
   }
 
-  // Fetch the URL, conditionally when we hold validators from a prior visit.
-  const fetchResult = await tryFetch(record.url, { etag: record.etag, lastModified: record.lastModified });
+  // Fetch the resolved target (or the original URL when no resolver applies),
+  // conditionally when we hold validators from a prior attempt.
+  const fetchDomain = canonicalDomain(targetUrl) ?? domain;
+  const fetchResult = await tryFetch(targetUrl, { etag: record.etag, lastModified: record.lastModified });
   summary.pagesFetched = 1;
 
   if (fetchResult.ok) {
     const doc = fetchResult.doc;
+
+    // archive.org's OCR text begins with its own digitisation notice. Remove
+    // only that downloader chrome; the book's front matter is source content.
+    if (sourceResolution?.cleanText && doc.text) {
+      const cleaned = cleanArchiveOrgText(doc.text);
+      if (cleaned !== doc.text) {
+        doc.text = cleaned;
+        doc.contentHash = contentHashFor(cleaned);
+        doc.extraction = {
+          ...(doc.extraction ?? {}),
+          mode: doc.extraction?.mode ?? "text",
+          cleaned: "archive-org",
+          textChars: cleaned.length,
+        };
+      }
+    }
 
     // 304 Not Modified — the content is unchanged. Do not re-emit the document
     // (no duplicate article), do not re-extract links; just refresh validators
@@ -499,8 +638,8 @@ export async function runCrawlCycle(ctx = {}) {
         rediscovery: Boolean(record.rediscovery),
         advanceGeneration: Boolean(admissionGateway),
       });
-      if (domainRegistry && domain) {
-        domainRegistry.recordFetchSuccess(domain, { url: record.url, contentHash: record.contentHash ?? undefined });
+      if (domainRegistry && fetchDomain) {
+        domainRegistry.recordFetchSuccess(fetchDomain, { url: targetUrl, contentHash: record.contentHash ?? undefined });
       }
       return summary;
     }
@@ -518,8 +657,8 @@ export async function runCrawlCycle(ctx = {}) {
     });
 
     // Register domain in registry if provided
-    if (domainRegistry && domain) {
-      domainRegistry.recordFetchSuccess(domain, { url: record.url, contentHash: doc?.contentHash });
+    if (domainRegistry && fetchDomain) {
+      domainRegistry.recordFetchSuccess(fetchDomain, { url: targetUrl, contentHash: doc?.contentHash });
     }
 
     // Extract links from the RAW HTML — ALWAYS, before the language check.
@@ -594,17 +733,17 @@ export async function runCrawlCycle(ctx = {}) {
 
     // Language filter — AFTER link extraction so discovery continues.
     if (languageFilter) {
-      const filterResult = applyLanguageFilter(doc, languageFilter, summary, record.url);
+      const filterResult = applyLanguageFilter(doc, languageFilter, summary, targetUrl);
       if (filterResult === "skip") {
         return summary;
       }
     }
 
-    summary.documents.push(normalizeRawDoc(doc, record));
+    summary.documents.push(normalizeRawDoc(doc, record, sourceResolution));
   } else {
     // Fetch failed
-    if (domainRegistry && domain) {
-      domainRegistry.recordFetchFailure(domain, { url: record.url, error: fetchResult.error });
+    if (domainRegistry && fetchDomain) {
+      domainRegistry.recordFetchFailure(fetchDomain, { url: targetUrl, error: fetchResult.error });
     }
     await frontier.markFailed(canonical, {
       reason: fetchResult.reason ?? "fetch-failed",
@@ -642,6 +781,7 @@ export async function runCrawlBatches({
   rediscoveryEnabled = config.rediscoveryEnabled,
   rediscoveryTtlMs = config.rediscoveryTtlMs,
   admissionGateway = null,
+  sourceResolver = null,
   fetchImpl,
   accept,
   onCycle = async (ctx) => ({ pagesFetched: 0, linksDiscovered: 0, urlsEnqueued: 0 }),
@@ -673,6 +813,13 @@ let totalPagesFetched = 0;
   let quotaPolicyVersion = null;
   let capExhausted = false;
   let capEpoch = null;
+  let archiveResolved = 0;
+  let archiveNonEnglish = 0;
+  let archiveNoFullText = 0;
+  let archiveRestricted = 0;
+  let archiveUnverifiedLanguage = 0;
+  let archiveResolutionRetries = 0;
+  const sourceRejections = [];
   const skipped = [];
   const shadowRejected = [];
 
@@ -699,6 +846,7 @@ let totalPagesFetched = 0;
       rediscoveryEnabled,
       rediscoveryTtlMs,
       admissionGateway,
+      sourceResolver,
       fetchImpl,
       accept,
       totalBudget: config.crawlTotalBudget - totalPagesFetched,
@@ -722,6 +870,13 @@ let totalPagesFetched = 0;
     admissionDeferred += cycleResult.admissionDeferred ?? 0;
     admissionQuotaDeferred += cycleResult.admissionQuotaDeferred ?? 0;
     admissionQuarantined += cycleResult.admissionQuarantined ?? 0;
+    archiveResolved += cycleResult.archiveResolved ?? 0;
+    archiveNonEnglish += cycleResult.archiveNonEnglish ?? 0;
+    archiveNoFullText += cycleResult.archiveNoFullText ?? 0;
+    archiveRestricted += cycleResult.archiveRestricted ?? 0;
+    archiveUnverifiedLanguage += cycleResult.archiveUnverifiedLanguage ?? 0;
+    archiveResolutionRetries += cycleResult.archiveResolutionRetries ?? 0;
+    if (cycleResult.sourceRejections?.length) sourceRejections.push(...cycleResult.sourceRejections);
     if (cycleResult.capExhausted) {
       capExhausted = true;
       capEpoch = cycleResult.capEpoch ?? capEpoch;
@@ -779,6 +934,13 @@ let totalPagesFetched = 0;
     quotaLimit,
     quotaRetryAfterMs,
     quotaPolicyVersion,
+    archiveResolved,
+    archiveNonEnglish,
+    archiveNoFullText,
+    archiveRestricted,
+    archiveUnverifiedLanguage,
+    archiveResolutionRetries,
+    sourceRejections,
     skipped,
     shadowRejected,
     budgetRemaining: config.crawlTotalBudget - totalPagesFetched,
@@ -899,6 +1061,7 @@ export async function harvest({
   domainRegistry = null,
   languageFilter = null,
   admissionGateway = null,
+  sourceResolver = null,
 } = {}) {
   const decided = classifyCrawlMode({ mode, urls });
   if (decided.mode === "real") {
@@ -940,6 +1103,7 @@ export async function harvest({
       userAgent,
       languageFilter,
       admissionGateway,
+      sourceResolver,
       fetchImpl,
     });
 
@@ -974,6 +1138,13 @@ export async function harvest({
       quotaLimit: result.quotaLimit ?? null,
       quotaRetryAfterMs: result.quotaRetryAfterMs ?? null,
       quotaPolicyVersion: result.quotaPolicyVersion ?? null,
+      archiveResolved: result.archiveResolved ?? 0,
+      archiveNonEnglish: result.archiveNonEnglish ?? 0,
+      archiveNoFullText: result.archiveNoFullText ?? 0,
+      archiveRestricted: result.archiveRestricted ?? 0,
+      archiveUnverifiedLanguage: result.archiveUnverifiedLanguage ?? 0,
+      archiveResolutionRetries: result.archiveResolutionRetries ?? 0,
+      sourceRejections: result.sourceRejections ?? [],
       file: filePath,
       failuresFile: failuresPath,
     };

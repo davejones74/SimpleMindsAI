@@ -71,3 +71,53 @@ test("has() reports whether a URL is already tracked (any state)", async () => {
   assert.equal(f.has("https://EN.Wikipedia.org/wiki/Example"), true);
   assert.equal(f.has("https://en.wikipedia.org/wiki/Other"), false);
 });
+
+test("requeueVisited explicitly revives VISITED work with an audit trail", async () => {
+  const f = new Frontier({ dir: tmp() });
+  await f.init();
+  const url = "https://archive.org/details/book";
+  const canonical = await f.enqueue(url, { depth: 0 });
+  await f.recordResolution(canonical, {
+    resolvedUrl: "https://archive.org/download/book/book_djvu.txt",
+    itemId: "book",
+    languages: ["eng"],
+    cleanText: true,
+  });
+  await f.markVisited(canonical, {
+    contentHash: "old-hash",
+    etag: "\"old\"",
+    lastModified: "yesterday",
+    advanceGeneration: true,
+  });
+  assert.equal(f.get(url).state, "visited");
+  assert.equal(f.get(url).lastResolvedUrl, "https://archive.org/download/book/book_djvu.txt");
+
+  assert.equal(await f.requeueVisited(url, { reason: "remediation" }), true);
+  const record = f.get(url);
+  assert.equal(record.state, "queued");
+  assert.equal(record.completedAt, null);
+  assert.equal(record.nextCrawlAt, null);
+  assert.equal(record.contentHash, null);
+  assert.equal(record.etag, null);
+  assert.equal(record.lastModified, null);
+  assert.equal(record.resolvedUrl, null);
+  assert.equal(record.resolution, null);
+  assert.equal(record.requeues.length, 1);
+  assert.equal(record.requeues[0].reason, "remediation");
+  assert.equal(record.requeues[0].previousState, "visited");
+  assert.equal(record.generation, 1, "the prior successful generation is preserved");
+  assert.ok(await f.claimNext(), "the re-queued URL is claimable");
+});
+
+test("requeueVisited refuses terminal records and is idempotent for queued work", async () => {
+  const f = new Frontier({ dir: tmp() });
+  await f.init();
+  const rejected = await f.enqueue("https://example.com/rejected", { depth: 0 });
+  await f.markRejected(rejected, { reason: "non-content" });
+  assert.equal(await f.requeueVisited("https://example.com/rejected", { reason: "x" }), false);
+
+  const queued = await f.enqueue("https://example.com/queued", { depth: 0 });
+  assert.equal(await f.requeueVisited("https://example.com/queued", { reason: "x" }), true);
+  assert.equal(f.state.get(queued).state, "queued");
+  assert.equal((f.state.get(queued).requeues ?? []).length, 0);
+});

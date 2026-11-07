@@ -685,6 +685,20 @@ export function attachAdmin({ app, store, registry, governance, chat, conversati
     ok(res, { job });
   }));
 
+  // Explicit operator re-fetch of completed frontier work (e.g. after a bad
+  // extraction). Normal enqueue remains idempotent and never revives VISITED.
+  router.post("/frontier/requeue", blockWrites, asyncRoute(async (req, res) => {
+    if (!frontier) return fail(res, new Error("frontier is unavailable"), 503);
+    const url = String(req.body?.url ?? "").trim();
+    if (!url) return fail(res, new Error("url is required"), 400);
+    const reason = req.body?.reason ?? null;
+    const requeued = await frontier.requeueVisited(url, { reason, actor: "operator" });
+    if (!requeued) return fail(res, new Error("url is not a re-queueable frontier record"), 409);
+    const record = frontier.get(url);
+    emit("frontier.requeued", { url, reason });
+    ok(res, { requeued: true, record });
+  }));
+
   router.post("/learning/start", blockWrites, asyncRoute(async (req, res) => {
     const sup = requireSupervisor(res);
     if (!sup) return;
