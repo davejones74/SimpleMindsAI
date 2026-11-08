@@ -200,20 +200,25 @@ export function leakNgrams(text, size = LEAK_NGRAM_SIZE) {
  * near-duplicates introduced by raw-text cleaning, alternate URLs, or replay.
  * Any overlap is excluded; the guard reports which mechanism fired.
  */
-export function makeEvalGuard(evalSet) {
-  const hashOf = (row) => (row && typeof row.contentHash === "string" ? row.contentHash : contentHash(evalText(row)));
+export function makeEvalGuard(evalSetOrSets) {
+  const sets = Array.isArray(evalSetOrSets) ? evalSetOrSets.filter(Boolean) : [evalSetOrSets].filter(Boolean);
+  const exactHashes = new Set();
   const normalizedHashes = new Set();
   const evalNgrams = new Set();
-  for (const item of evalSet.items ?? []) {
-    const text = evalText(item);
-    normalizedHashes.add(contentHash(normalizeLeakText(text)));
-    for (const ngram of leakNgrams(text)) evalNgrams.add(ngram);
+  for (const evalSet of sets) {
+    for (const hash of evalSet.hashes ?? []) exactHashes.add(hash);
+    for (const item of evalSet.items ?? []) {
+      const text = evalText(item);
+      normalizedHashes.add(contentHash(normalizeLeakText(text)));
+      for (const ngram of leakNgrams(text)) evalNgrams.add(ngram);
+    }
   }
-  const stats = { exactHashes: evalSet.hashes?.size ?? 0, normalizedHashes: normalizedHashes.size, ngrams: evalNgrams.size, checks: 0, exactMatches: 0, normalizedMatches: 0, ngramMatches: 0 };
+  const stats = { exactHashes: exactHashes.size, normalizedHashes: normalizedHashes.size, ngrams: evalNgrams.size, checks: 0, exactMatches: 0, normalizedMatches: 0, ngramMatches: 0 };
+  const hashOf = (row) => (row && typeof row.contentHash === "string" ? row.contentHash : contentHash(evalText(row)));
   return {
     contains(row) {
       stats.checks += 1;
-      if (evalSet.hashes.has(hashOf(row))) {
+      if (exactHashes.has(hashOf(row))) {
         stats.exactMatches += 1;
         return true;
       }

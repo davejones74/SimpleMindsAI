@@ -9,8 +9,13 @@ import { JobStore, JOB_STATUS } from "../src/jobs/job-store.js";
 import { JobSupervisor, JobConflictError } from "../src/jobs/supervisor.js";
 import { runLearningCycle } from "../src/jobs/learning.js";
 import { probeTeacher } from "../src/admin/teacher.js";
+import { config } from "../src/config.js";
 
 const tmp = () => path.join(mkdtempSync(path.join(tmpdir(), "sma-jobs-")));
+
+// These fixture rows are intentionally short; content-quality is covered by the
+// dedicated review-gate tests.
+config.review.gateContent = false;
 
 // The supervisor's pause/wait gates (src/jobs/supervisor.js #holdGate/#gate)
 // schedule with `unref()`'d timers, so a test that awaits a paused boundary can

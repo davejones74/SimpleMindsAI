@@ -29,7 +29,7 @@ test("shadow prefilter does not change the review outcome", async () => {
   let calls = 0;
   const scorer = { scoreOffline: async () => { calls += 1; return { verdict: "approve", score: 9, rationale: "ok" }; } };
   const out = await reviewPendingArticles(store, scorer, {
-    config: cfg({ prefilterMode: "shadow" }),
+    config: cfg({ prefilterMode: "shadow", gateContent: false }),
     select: false,
   });
   assert.equal(calls, 1, "shadow mode still sends the article to the critic");

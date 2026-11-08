@@ -52,6 +52,9 @@ export function rowForArticle(article, { corpusRole = "train" } = {}) {
     // hash) and the teacher that transformed it. Absent fields are omitted so
     // rows written before this existed serialise identically.
     ...(article.sourceUrl ? { sourceUrl: article.sourceUrl } : {}),
+    // Stable source/publisher identities used by corpus diversity caps.
+    sourceId: article.fetchedContentHash ?? normalizeSourceUrl(article.sourceUrl) ?? article.articleId,
+    publisherId: article.sourceDomain ?? article.source ?? "unknown",
     ...(article.fetchedContentHash ? { fetchedContentHash: article.fetchedContentHash } : {}),
     ...(article.model ? { teacherModel: article.model } : {}),
     ...licenceSnapshotFields(article.licence),
@@ -85,6 +88,14 @@ export function reuseEligible(article) {
       maxMojibakeRatio: config.review.qualityMaxMojibakeRatio,
     },
     completeness: { mode: config.review.completenessMode ?? "shadow" },
+    pageChrome: { enabled: config.review.gatePageChrome !== false },
+    content: {
+      enabled: config.review.gateContent !== false,
+      minWords: config.review.contentMinWords,
+      referenceLineRatio: config.review.contentReferenceLineRatio,
+      listLineRatio: config.review.contentListLineRatio,
+      navDensity: config.review.contentNavDensity,
+    },
   });
   return gate.decision !== "reject";
 }
@@ -233,7 +244,7 @@ export function collectRowsFromArticles(
       historicalArticleIds: historicallyExposed,
     });
   }
-  const rows = [];
+  let rows = [];
   const freshArticleIds = [];
   let fresh = 0;
   let retained = 0;
@@ -346,6 +357,39 @@ export function collectRowsFromArticles(
     retained += 1;
   }
 
+  // Source-level diversity is a training invariant, not an advisory metric.
+  // Without this a single Wikipedia page can supply every fresh row in a run.
+  const freshSourceTokens = new Map();
+  for (const a of chosenFresh) {
+    const key = a.fetchedContentHash || normalizeSourceUrl(a.sourceUrl) || a.articleId;
+    freshSourceTokens.set(key, (freshSourceTokens.get(key) ?? 0) + estimateTokenCount(a.text));
+  }
+  const freshDistinctSources = freshSourceTokens.size;
+  const freshTotalTokens = [...freshSourceTokens.values()].reduce((n, v) => n + v, 0);
+  const freshTopSourceShare = freshTotalTokens
+    ? Math.max(...freshSourceTokens.values()) / freshTotalTokens
+    : 0;
+  const capped = applyDiversityCaps(rows, {
+    maxFallbackTokenShare: config.trainCorpusMaxFallbackTokenShare,
+    maxSourceTokenShare: config.trainMaxSourceTokenShare,
+    maxPublisherTokenShare: config.trainMaxPublisherTokenShare,
+  });
+  if (capped.removed.length) {
+    rows = capped.kept;
+    const keptIds = new Set(rows.map((row) => row.articleId));
+    for (const list of [freshArticleIds]) {
+      for (let i = list.length - 1; i >= 0; i -= 1) if (!keptIds.has(list[i])) list.splice(i, 1);
+    }
+    for (let i = replayRows.length - 1; i >= 0; i -= 1) {
+      if (!keptIds.has(replayRows[i].articleId)) replayRows.splice(i, 1);
+    }
+    for (let i = validationRows.length - 1; i >= 0; i -= 1) {
+      if (!keptIds.has(validationRows[i].articleId)) validationRows.splice(i, 1);
+    }
+    fresh = freshArticleIds.length;
+    retained = rows.filter((row) => row.corpusRole !== "train").length;
+  }
+
   return {
     rows,
     freshArticleIds,
@@ -364,6 +408,9 @@ export function collectRowsFromArticles(
           ? replayRows.reduce((n, r) => n + estimateTokenCount(r.text), 0) / total
           : 0;
       })(),
+      freshDistinctSources,
+      freshTopSourceShare,
+      sourceCapRemoved: capped.removed.length,
     },
   };
 }

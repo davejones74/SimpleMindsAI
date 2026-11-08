@@ -135,13 +135,16 @@ export class OllamaClient {
         {
           role: "system",
           content: [
-            "You are a text curation pipeline stage.",
-            "Clean, filter and structure the user's raw scraped text into JSON.",
+            "You are a strict text-extraction pipeline stage, NOT a summariser.",
+            "Extract only source prose that is actually present in the input.",
             "Rules:",
             '  - Return ONLY a JSON array of ARTICLE UNITS: [{ "text": string, "domain": string }]',
-            "  - Each unit is ONE self-contained, continuous prose passage worth learning from.",
-            "  - Drop boilerplate, nav menus, ads, markup, and anything unsafe/PII.",
-            "  - If the text is unusable (junk/garbage), return [].",
+            "  - Preserve the source wording VERBATIM. Do not paraphrase, summarise, rewrite, or invent.",
+            "  - Each unit must be a complete, self-contained article passage with at least 3 full sentences and ~80 words.",
+            "  - Drop navigation, menus, search/login/cookie/legal chrome, tables, infoboxes, captions, metadata, page headers/footers, and URLs.",
+            "  - Drop reference lists, bibliographies, citation lists, 'See also', 'External links', 'Further reading', and category lists.",
+            "  - Drop dictionary entries, glossary entries, project/Village-pump discussions, and fragmentary sentences with missing context.",
+            "  - If the input has no usable article prose, return [].",
             "  - domain = one of: science, tech, history, general, fiction, howto.",
           ].join("\n"),
         },
@@ -215,13 +218,24 @@ export class OllamaClient {
       /harsh but fair teacher/i.test(systemText) ||
       /suggestedImportance/i.test(systemText) ||
       /reviewing a single ARTICLE/i.test(systemText);
-    const isCurator = /curation pipeline/i.test(systemText);
+    const isCurator = /(curation|text-extraction) pipeline/i.test(systemText);
 
     // Critic fixture: return the EXACT strict-JSON shape the critic prompt asks
     // for, so `score` is always present and parseable.
     if (isCritic) {
+      let article = "";
+      try {
+        const parsed = JSON.parse(raw);
+        article = String(parsed?.article ?? parsed?.text ?? "");
+      } catch {
+        article = raw;
+      }
+      const quotes = (article.match(/[^.!?]{8,120}[.!?]/g) ?? []).map((x) => x.trim()).slice(0, 2);
       return JSON.stringify({
         score: 6.5,
+        contentType: "article_prose",
+        isSelfContained: true,
+        evidence: quotes,
         rationale: "fixture critic: plausible, low repetition",
         suggestedImportance: "Normal",
       });

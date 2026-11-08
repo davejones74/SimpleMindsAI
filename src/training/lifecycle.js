@@ -207,11 +207,16 @@ export async function executeFullRun({
   // Hoisted so the crash-recovery path can re-drive the idempotent commit
   // sequence from the persisted manifest without re-running training.
   let evalSet = null;
+  let broadEvalSet = null;
+  let evalGuard = null;
   let snapshot = null;
   let trainingResult = null;
   let baselineResult = null;
   let workingParentResult = null;
   let candidateResult = null;
+  let broadBaselineResult = null;
+  let broadCandidateResult = null;
+  let broadDecision = null;
   let decision = null;
   let manifest = null;
   let manifestPath = null;
@@ -223,6 +228,18 @@ export async function executeFullRun({
       dir: options.paths?.evaluation,
       seed: evalSeed,
     });
+    if (config.promoteBroadEvalSet) {
+      broadEvalSet = await loadEvaluationSet({
+        datasetId: options.broadEvalDatasetId ?? config.broadEvalDatasetId,
+        dir: options.paths?.evaluation,
+        seed: null,
+      });
+      if (!broadEvalSet.items?.length) {
+        logger?.warn?.(`[lifecycle] broad evaluation set '${config.broadEvalDatasetId}' is empty; broad gate disabled`);
+        broadEvalSet = null;
+      }
+    }
+    evalGuard = makeEvalGuard([evalSet, broadEvalSet].filter(Boolean));
 
     // ---- immutable, capped, leak-guarded snapshot ----
     // Prospective validation requires an unexposed holdout. Compute exposure
@@ -253,6 +270,19 @@ export async function executeFullRun({
     // NEW material. Corpus-only retraining is a separate, explicit workflow;
     // ordinary lifecycle calls keep the fresh-delta guard unchanged.
     if (!freshArticleIds.length && !corpusOnly) throw noEligibleMaterial();
+    const freshDistinctSources = Number(
+      collected.stats?.freshDistinctSources ??
+        new Set(rows.filter((r) => freshArticleIds.includes(r.articleId)).map((r) => r.sourceId ?? r.articleId)).size,
+    );
+    if (config.trainMinDistinctSources > 0 && freshDistinctSources < config.trainMinDistinctSources) {
+      const err = new Error(
+        `fresh delta has ${freshDistinctSources} distinct source page(s), below the minimum of ${config.trainMinDistinctSources}`,
+      );
+      err.code = "INSUFFICIENT_SOURCE_DIVERSITY";
+      err.sourceCount = freshDistinctSources;
+      err.requiredSources = config.trainMinDistinctSources;
+      throw err;
+    }
     // Preserve the original fresh delta for any validation re-partition. The
     // working `freshArticleIds` is later filtered to remove validation rows.
     const freshForPartition = new Set(freshArticleIds);
@@ -276,7 +306,7 @@ export async function executeFullRun({
       // the partition picked a validation cluster that the guard later deletes,
       // the snapshot can end up with a training corpus but no validation rows.
       // Partition from the same leak-safe cohort the snapshot will keep.
-      const partitionRows = makeEvalGuard(evalSet).filter(rows).kept;
+      const partitionRows = evalGuard.filter(rows).kept;
       partition = buildPartition({
         rows: partitionRows,
         splitSeed: config.trainValidationSeed,
@@ -325,7 +355,7 @@ export async function executeFullRun({
       rowsRaw: rows,
       freshArticleIds,
       dir: options.paths?.snapshots,
-      evalGuard: makeEvalGuard(evalSet),
+      evalGuard,
       replayArticleIds,
       validationArticleIds,
       partition,
@@ -417,7 +447,7 @@ export async function executeFullRun({
           rowsRaw: trimmedRows,
           freshArticleIds,
           dir: options.paths?.snapshots,
-          evalGuard: makeEvalGuard(evalSet),
+          evalGuard,
           replayArticleIds,
           validationArticleIds,
           partition,
@@ -479,7 +509,7 @@ export async function executeFullRun({
           for (const row of snapshot.rows) {
             if (!freshForPartition.has(row.articleId)) historicalArticleIds.add(row.articleId);
           }
-          const partitionRows = makeEvalGuard(evalSet).filter(snapshot.rows).kept;
+          const partitionRows = evalGuard.filter(snapshot.rows).kept;
           const nextPartition = buildPartition({
             rows: partitionRows,
             splitSeed: config.trainValidationSeed,
@@ -524,7 +554,7 @@ export async function executeFullRun({
             rowsRaw: nextRows,
             freshArticleIds,
             dir: options.paths?.snapshots,
-            evalGuard: makeEvalGuard(evalSet),
+            evalGuard,
             replayArticleIds,
             validationArticleIds,
             partition,
@@ -665,6 +695,16 @@ export async function executeFullRun({
         throw err;
       }
       corpusPreflight = info ?? null;
+      const freshTokens = Number(info?.freshTokensSeen ?? 0);
+      if (config.trainMinFreshTokens > 0 && Number.isFinite(freshTokens) && freshTokens < config.trainMinFreshTokens) {
+        const err = new Error(
+          `fresh training delta has ${freshTokens} token(s), below the minimum of ${config.trainMinFreshTokens}`,
+        );
+        err.code = "INSUFFICIENT_FRESH_DATA";
+        err.tokens = freshTokens;
+        err.minFreshTokens = config.trainMinFreshTokens;
+        throw err;
+      }
       const requestedValBlocks = Math.max(0, Number(config.trainValBlocks) || 0);
       const actualValBlocks = Number(info?.validationBlockCount);
       if (requestedValBlocks > 0 && Number.isFinite(actualValBlocks) && actualValBlocks < requestedValBlocks) {
@@ -1046,6 +1086,64 @@ export async function executeFullRun({
         });
     // ---- deterministic promote/reject ----
     decision = pythonMode ? decidePromotionByLoss(baselineResult, candidateResult, {}) : decidePromotion(baselineResult, candidateResult, config);
+
+    // Optional SECOND frozen evaluation. A candidate may only replace the
+    // stable model if it improves BOTH the historical eval-002 ladder and the
+    // broad, current-corpus set. The broad set prevents a narrow one-page batch
+    // from looking good while forgetting the rest of the corpus.
+    if (pythonMode && broadEvalSet && decision.decision === "promoted") {
+      broadBaselineResult = await evaluateLoss({
+        version: stableBaseline.version,
+        evalSetFile: broadEvalSet.file,
+        store: config.pythonStore ?? undefined,
+        bin: config.pythonBin ?? undefined,
+        device: config.studentDevice,
+      });
+      broadCandidateResult = await evaluateLoss({
+        version: trainingResult.version,
+        evalSetFile: broadEvalSet.file,
+        staged: trainingResult.staged === true,
+        store: config.pythonStore ?? undefined,
+        bin: config.pythonBin ?? undefined,
+        device: config.studentDevice,
+      });
+      broadDecision = decidePromotionByLoss(broadBaselineResult, broadCandidateResult, {});
+      await recordPythonEvaluation(registry, {
+        runId,
+        kind: "baseline-broad",
+        version: stableBaseline.version,
+        modelId: stableModel.modelId,
+        result: broadBaselineResult,
+        evalSet: broadEvalSet,
+        identity: options.candidateIdentity ?? null,
+      });
+      await recordPythonEvaluation(registry, {
+        runId,
+        kind: "candidate-broad",
+        version: trainingResult.version,
+        modelId: candidate.modelId,
+        result: broadCandidateResult,
+        evalSet: broadEvalSet,
+        identity: options.candidateIdentity ?? null,
+        baselineResult: broadBaselineResult,
+        decision: broadDecision,
+        trainingResult,
+      });
+      const primaryDecision = decision;
+      decision = broadDecision.decision === "promoted"
+        ? {
+            ...primaryDecision,
+            reason: `primary + broad eval improved: ${primaryDecision.reason}; ${broadDecision.reason}`,
+            primaryDecision,
+            broadDecision,
+          }
+        : {
+            ...broadDecision,
+            reason: `broad evaluation blocked promotion: ${broadDecision.reason}; primary: ${primaryDecision.reason}`,
+            primaryDecision,
+            broadDecision,
+          };
+    }
     let workingDecision = null;
     if (pythonMode && workingSupported) {
       if (decision.decision === "promoted") {
@@ -1094,6 +1192,10 @@ export async function executeFullRun({
         baselineLoss: baselineResult.loss,
         candidateLoss: candidateResult.loss,
         decision: decision.decision,
+        broadEvaluationSetHash: broadEvalSet ? computeFileHash(broadEvalSet.file) : null,
+        broadBaselineLoss: broadBaselineResult?.loss ?? null,
+        broadCandidateLoss: broadCandidateResult?.loss ?? null,
+        broadDecision: broadDecision?.decision ?? null,
         workingDecision: workingDecision?.decision ?? null,
         workingGuard: workingDecision ?? null,
         stableBaselineVersion: stableBaseline?.version ?? null,
@@ -1370,7 +1472,17 @@ export async function executeFullRun({
             lossStdErr: estimatedLossStdErr(candidateResult.evaluationSet?.tokensSeen),
           }
         : { evalRunId: candidateResult.evalRunId, score: candidateResult.score, score100: candidateResult.score100 },
-      evaluationDelta: pythonMode ? decision.improvement : decision.delta,
+      evaluationDelta: pythonMode ? (decision.primaryDecision?.improvement ?? decision.improvement) : decision.delta,
+      broadEvaluation: broadEvalSet
+        ? {
+            datasetId: broadEvalSet.datasetId,
+            datasetVersion: broadEvalSet.datasetVersion,
+            baselineLoss: broadBaselineResult?.loss ?? null,
+            candidateLoss: broadCandidateResult?.loss ?? null,
+            decision: broadDecision?.decision ?? null,
+            reason: broadDecision?.reason ?? null,
+          }
+        : null,
       // A conservative 95% band for the loss DIFFERENCE (independent estimates):
       // ~1.96 * sqrt(SE_base^2 + SE_cand^2). Reported only; the gate ignores it.
       promotionNoiseBand: pythonMode

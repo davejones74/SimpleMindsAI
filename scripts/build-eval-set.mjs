@@ -29,6 +29,16 @@ const USER_AGENT = "SimpleMindsAI-eval-builder/1.0 (frozen evaluation corpus; lo
 
 // Domain-stratified, stable educational titles. Kept deliberately narrow to
 // long-lived articles so the corpus is reproducible across rebuilds.
+const BROAD_DOMAINS = {
+  history: ["Nubia", "Mughal Empire", "Meiji Restoration", "Spanish Empire", "Aztecs", "Inca Empire", "Mesopotamia", "Indus Valley Civilisation", "Han dynasty", "Tang dynasty"],
+  science: ["Thermodynamics", "Genetics", "Ecology", "Neuroscience", "Plate tectonics", "Organic chemistry", "Electromagnetism", "Quantum mechanics"],
+  technology: ["Machine learning", "Programming language", "Linux", "Data warehouse", "Internet protocol suite", "Public-key cryptography", "Mechatronics", "Numerical control"],
+  geography: ["Amazon rainforest", "Gobi Desert", "Caspian Sea", "Mississippi River", "Rocky Mountains", "Great Rift Valley", "Antarctica", "Arctic"],
+  arts: ["Baroque", "Cubism", "Opera", "Poetry", "Novel", "Film", "Dance", "Theatre"],
+  life: ["Nutrition", "Circulatory system", "Nervous system", "Endocrine system", "Plant", "Animal", "Bacteria", "Virus"],
+  society: ["Law", "Psychology", "Sociology", "Anthropology", "Political science", "International relations", "Philosophy", "Pedagogy"],
+};
+
 const DOMAINS = {
   history: ["Steam engine", "Industrial Revolution", "Roman Empire", "Silk Road", "Age of Enlightenment", "Printing press", "Byzantine Empire", "Magna Carta"],
   science: ["Photosynthesis", "Cell (biology)", "DNA", "Evolution", "Periodic table", "Atom", "Gravity", "Quantum mechanics"],
@@ -41,13 +51,14 @@ const DOMAINS = {
 };
 
 function parseArgs(argv) {
-  const out = { out: "data/evaluation/eval-002.jsonl", maxChars: 4000, minChars: 1500, dataset: "eval-002" };
+  const out = { out: "data/evaluation/eval-002.jsonl", maxChars: 4000, minChars: 1500, dataset: "eval-002", preset: "default" };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === "--out") out.out = argv[++i];
     else if (a === "--max-chars") out.maxChars = Number(argv[++i]);
     else if (a === "--min-chars") out.minChars = Number(argv[++i]);
     else if (a === "--dataset") out.dataset = argv[++i];
+    else if (a === "--preset") out.preset = argv[++i];
     else {
       console.error(`unknown arg: ${a}`);
       process.exit(2);
@@ -112,8 +123,9 @@ async function main() {
   // whole file in the canonical DOCDOMAIN order after every document so a
   // rate-limit kill never loses progress and rebuilds stay byte-identical.
   const order = new Map();
+  const domains = args.preset === "broad" ? BROAD_DOMAINS : DOMAINS;
   let rank = 0;
-  for (const titles of Object.values(DOMAINS)) for (const t of titles) order.set(t, rank++);
+  for (const titles of Object.values(domains)) for (const t of titles) order.set(t, rank++);
   const rows = new Map();
   if (existsSync(file)) {
     for (const line of (await readFile(file, "utf8")).split("\n")) {
@@ -140,7 +152,7 @@ async function main() {
 
   let fetched = 0;
   let skipped = 0;
-  for (const [domain, titles] of Object.entries(DOMAINS)) {
+  for (const [domain, titles] of Object.entries(domains)) {
     for (const title of titles) {
       if (rows.has(idFor(title))) continue;
       let page;

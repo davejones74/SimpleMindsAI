@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { preScreen, assessCompleteness, assessPageChrome, mojibakeRatio, heuristicPenalty, GATE } from "../src/domain/review-gates.js";
+import { preScreen, assessCompleteness, assessPageChrome, assessContentQuality, mojibakeRatio, heuristicPenalty, GATE } from "../src/domain/review-gates.js";
 
 /**
  * P3 — review-time quality gates (deterministic, dependency-free).
@@ -89,8 +89,8 @@ test("language gate: declared-language mismatch with non-English text is rejecte
 });
 
 test("language gate: disabled or shadow mode never rejects", () => {
-  assert.equal(preScreen(FR, { languageFilter: { enabled: false } }).decision, "proceed");
-  assert.equal(preScreen(FR, { languageFilter: { ...LF_ON, shadow: true } }).decision, "proceed");
+  assert.equal(preScreen(FR, { languageFilter: { enabled: false }, content: { enabled: false } }).decision, "proceed");
+  assert.equal(preScreen(FR, { languageFilter: { ...LF_ON, shadow: true }, content: { enabled: false } }).decision, "proceed");
 });
 
 test("quality gate: encoding corruption (mojibake) is rejected", () => {
@@ -164,6 +164,7 @@ test("completeness: shadow mode records signals but never changes the verdict", 
     languageFilter: { enabled: false },
     quality: { enabled: false },
     completeness: { mode: "shadow" },
+    content: { enabled: false },
   });
   assert.equal(r.decision, "proceed");
   assert.equal(r.completeness.decision, "reject");
@@ -228,12 +229,32 @@ test("page-chrome: real prose mentioning navigation words is not rejected", () =
   assert.equal(r.decision, "proceed", JSON.stringify(r));
 });
 
+test("content gate: reference lists, tiny citations, nav and list shells are rejected", () => {
+  const refs = `Mathiez 1910, p. 1.\nBuonarroti, Philippe (1836). History of Babeuf's conspiracy. London: H. Hetherington.\nPhillips, Walter Alison (1911). "Jacobins". Encyclopaedia Britannica. Vol. 15. p. 119. ISBN 978-0-679-64536-8.\nCunningham, Noble E. (1957). The Jeffersonian Republicans. University of North Carolina Press. p. 217. ISBN 978-0-835-73909-2.`;
+  const nav = `Jump to content\nMain menu\nNavigation\nMain page\nContents\nCurrent events\nRandom article\nAbout Wikipedia\nContact us\nDonate\nCreate account\nLog in\nSearch\nPrivacy policy\nTerms of Use`;
+  const tiny = "Yves-Marie ROBIN (4 octobre 2020). VIDéO. Que retenir du deuxième référendum sur l’indépendance.";
+  const list = "Italy: Democratic Party\nJapan: Constitutional Democratic Party\nKosovo: Democratic Party\nLatvia: Development/For!\nLuxembourg: Democratic Party\nMalaysia: Democratic Action Party";
+  for (const text of [refs, nav, tiny, list]) {
+    const r = assessContentQuality(text);
+    assert.equal(r.decision, "reject", text.slice(0, 40));
+  }
+  assert.equal(assessContentQuality(EN).decision, "proceed");
+});
+
+test("content gate is enforced through preScreen", () => {
+  const refs = `Mathiez 1910, p. 1.\nBuonarroti, Philippe (1836). History of Babeuf's conspiracy. London: H. Hetherington.\nPhillips, Walter Alison (1911). "Jacobins". Encyclopaedia Britannica. Vol. 15. p. 119. ISBN 978-0-679-64536-8.`;
+  const r = preScreen(refs, { languageFilter: { enabled: false }, quality: { enabled: false }, content: { enabled: true } });
+  assert.equal(r.decision, "reject");
+  assert.equal(r.gate, GATE.CONTENT);
+});
+
 test("page-chrome can be disabled (reversible)", () => {
   const r = preScreen(ARCHIVE_DETAILS, {
     sourceUrl: "https://archive.org/details/nicolaicopernici00cope_1",
     languageFilter: { enabled: false },
     quality: { enabled: false },
     pageChrome: { enabled: false },
+    content: { enabled: false },
   });
   assert.equal(r.decision, "proceed");
 });

@@ -78,7 +78,12 @@ export async function reviewPendingArticles(store, scorer, opts = {}) {
   // no shared location to coordinate through (and nothing to race), so it runs
   // without a lock rather than failing on a missing path.
   const lockDir = typeof store.dir === "string" && store.dir ? store.dir : null;
-  const lock = lockDir ? acquireReviewLock(lockDir, { staleMs: Number(review.lockStaleMs) || 600_000 }) : { token: null, release() {} };
+  const lock = lockDir
+    ? acquireReviewLock(lockDir, {
+        staleMs: Number(review.lockStaleMs) || 600_000,
+        owner: opts.lockOwner ?? null,
+      })
+    : { token: null, release() {} };
   if (!lock) {
     return { ...EMPTY, locked: true, reason: "review-lock-held" };
   }
@@ -191,6 +196,13 @@ export async function reviewPendingArticles(store, scorer, opts = {}) {
             },
             completeness: { mode: review.completenessMode ?? "shadow" },
             pageChrome: { enabled: review.gatePageChrome !== false },
+            content: {
+              enabled: review.gateContent === true,
+              minWords: review.contentMinWords,
+              referenceLineRatio: review.contentReferenceLineRatio,
+              listLineRatio: review.contentListLineRatio,
+              navDensity: review.contentNavDensity,
+            },
           });
           if (gate.decision === "reject") {
             try {

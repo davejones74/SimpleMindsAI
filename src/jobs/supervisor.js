@@ -76,6 +76,8 @@ const NO_MATERIAL_CODES = new Set([
   "INSUFFICIENT_ELIGIBLE",
   "REPLAY_SHARE_EXCEEDED",
   "INSUFFICIENT_TRAINING_STEPS",
+  "INSUFFICIENT_SOURCE_DIVERSITY",
+  "INSUFFICIENT_FRESH_DATA",
 ]);
 
 const MATERIAL_WAIT = {
@@ -86,6 +88,8 @@ const MATERIAL_WAIT = {
   NO_ELIGIBLE_MATERIAL: { phase: "waiting-for-eligible", reason: "insufficient-eligible-material" },
   REPLAY_SHARE_EXCEEDED: { phase: "waiting-for-fresh-material", reason: "replay-share-exceeded" },
   INSUFFICIENT_TRAINING_STEPS: { phase: "waiting-for-training-steps", reason: "insufficient-training-steps" },
+  INSUFFICIENT_SOURCE_DIVERSITY: { phase: "waiting-for-diverse-material", reason: "insufficient-source-diversity" },
+  INSUFFICIENT_FRESH_DATA: { phase: "waiting-for-fresh-data", reason: "insufficient-fresh-tokens" },
 };
 
 /**
@@ -473,6 +477,7 @@ export class JobSupervisor {
       : config.jobs.learning.targetArticles;
     const ctx = {
       ...base,
+      jobId,
       ollama: this.ollama,
       scorer: this.scorer,
       crawl: this.crawl,
@@ -520,6 +525,22 @@ export class JobSupervisor {
       if (this.#shouldPause(jobId)) {
         await this.#holdPause(jobId);
         if (this.#shouldStop(jobId)) { outcome = "stopped"; break; }
+        continue;
+      }
+      const pendingReview = Number(this.store?.getStats?.().pendingReview ?? 0);
+      const maxPendingReview = Number(config.jobs.learning.maxPendingReview) || 0;
+      if (maxPendingReview > 0 && pendingReview > maxPendingReview) {
+        const note = `waiting: ${pendingReview} pending review(s) exceed the ingestion throttle of ${maxPendingReview}`;
+        if (note !== lastWaitReason) {
+          lastWaitReason = note;
+          await this.#safeEvent(jobId, {
+            status: JOB_STATUS.WAITING,
+            phase: "waiting-for-review-backlog",
+            note,
+            meta: { waitingReason: "review-backlog", pendingReview, maxPendingReview },
+          });
+        }
+        await this.#gate(jobId, config.jobs.pollIntervalMs);
         continue;
       }
       const job = this.getJob(jobId);
@@ -1046,11 +1067,22 @@ export class JobSupervisor {
         continue;
       }
       passes++;
+      // A previous pass may have reported WAITING because another worker held
+      // REVIEW.lock. Once we start the next pass (and especially after we later
+      // acquire the lock) the job IS running again. Not emitting this transition
+      // left job-94 visibly "waiting" for hours while it was actively reviewing.
+      lastWaitNote = null;
+      await this.#safeEvent(jobId, {
+        status: JOB_STATUS.RUNNING,
+        phase: "review",
+        note: `review pass ${passes}`,
+      });
       const result = await reviewPendingArticles(this.store, this.scorer, {
         config,
         log: base.log,
         signal: base.signal,
         limit: params.limit,
+        lockOwner: { jobId, kind: "review" },
         onProgress: (p) => this.#progress(jobId, { pass: passes, ...total, ...p }, { force: true }),
       });
       for (const k of Object.keys(total)) total[k] += result[k] ?? 0;

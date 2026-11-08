@@ -1,12 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { ArticleStore } from "../src/storage/article-store.js";
 import { STATUS } from "../src/domain/article.js";
 import { reviewPendingArticles } from "../src/jobs/review-pass.js";
 import { acquireReviewLock } from "../src/jobs/review-lock.js";
+import { writeFileSync } from "node:fs";
 
 /**
  * Bounded autonomous review. The production defect was a 331-article
@@ -183,8 +184,11 @@ test("review pass: yields cleanly when another worker holds REVIEW.lock", async 
   const store = await ArticleStore.open(dir);
   await pending(store, "An article that another worker is already reviewing.");
 
-  const lock = acquireReviewLock(dir, { staleMs: 600_000 });
+  const lock = acquireReviewLock(dir, { staleMs: 600_000, owner: { jobId: "job-test", kind: "review" } });
   assert.ok(lock, "the test must hold the lock");
+  const held = JSON.parse(readFileSync(dir + "/REVIEW.lock", "utf8"));
+  assert.equal(held.jobId, "job-test");
+  assert.equal(held.kind, "review");
   try {
     const result = await reviewPendingArticles(store, approveScorer, { config: cfg(), select: false });
     assert.equal(result.locked, true);
@@ -193,5 +197,23 @@ test("review pass: yields cleanly when another worker holds REVIEW.lock", async 
     lock.release();
   }
 
+  await store.close();
+});
+
+
+test("a dead owner's fresh-heartbeat lock is reclaimed immediately after restart", async () => {
+  const dir = tmp();
+  const store = await ArticleStore.open(dir);
+  writeFileSync(path.join(dir, "REVIEW.lock"), JSON.stringify({
+    pid: 999999,
+    host: (await import("node:os")).hostname(),
+    token: "dead-owner",
+    acquiredAt: new Date().toISOString(),
+    heartbeatAt: new Date().toISOString(),
+  }));
+  const lock = acquireReviewLock(dir, { staleMs: 600_000, owner: { jobId: "job-new", kind: "review" } });
+  assert.ok(lock, "a dead owner must not block the new process for the full stale window");
+  assert.equal(JSON.parse(readFileSync(path.join(dir, "REVIEW.lock"), "utf8")).jobId, "job-new");
+  lock.release();
   await store.close();
 });

@@ -5,6 +5,7 @@ import { reviewPendingArticles } from "./review-pass.js";
 import { ACQUISITION_STATE, classifyAcquisition } from "../discovery/acquisition-state.js";
 import { mergeAdjacentUnits, planCuration, segmentationStats } from "../services/curator-segmentation.js";
 import { prefilterReview } from "../domain/review-prefilter.js";
+import { assessContentQuality } from "../domain/review-gates.js";
 import { cleanRawText } from "../dataset/corpus-text.js";
 
 /**
@@ -56,8 +57,13 @@ export async function runLearningCycle(ctx) {
   let languageSkipped = 0;
 
   onPhase("curate");
+  const maxPendingReview = Number(config.jobs.learning.maxPendingReview) || 0;
   for (let i = 0; i < cap; i++) {
     throwIfAborted(signal);
+    if (maxPendingReview > 0 && store.getStats().pendingReview > maxPendingReview) {
+      log("out", `review backlog ${store.getStats().pendingReview} > ${maxPendingReview}; stopping curation for this cycle`);
+      break;
+    }
     const doc = result.documents[i];
     // Skip curation if this source's fetched content hash was already
     // processed — the article ledger records the provenance, and the same
@@ -130,6 +136,21 @@ export async function runLearningCycle(ctx) {
       throwIfAborted(signal);
       const text = unit?.text ?? (unit?.prompt ? `${unit.prompt}\n\n${unit.completion ?? ""}`.trim() : null);
       if (!text) continue;
+      // Drop reference lists, navigation shells, list/table fragments and short
+      // citations at the curation boundary. Otherwise every such unit becomes a
+      // PENDING_REVIEW item and consumes teacher capacity.
+      if (config.review.gateContent !== false) {
+        const content = assessContentQuality(text, {
+          minWords: config.review.contentMinWords,
+          referenceLineRatio: config.review.contentReferenceLineRatio,
+          listLineRatio: config.review.contentListLineRatio,
+          navDensity: config.review.contentNavDensity,
+        });
+        if (content.decision === "reject") {
+          log("out", `skip non-article unit ${doc.url ?? ""}: ${content.reason}`);
+          continue;
+        }
+      }
       // In enforce mode, obvious non-prose is still retained for audit but is
       // not immediately queued for the expensive teacher. Shadow mode (the
       // default) keeps the historical review-all behaviour.
@@ -196,6 +217,7 @@ export async function runLearningCycle(ctx) {
     log,
     onProgress: (p) => onProgress(p),
     signal,
+    lockOwner: ctx.jobId ? { jobId: ctx.jobId, kind: "learning" } : null,
   });
   const reviewed = reviewResult.reviewed;
   const reviewWaiting = reviewResult.locked || reviewResult.waiting;

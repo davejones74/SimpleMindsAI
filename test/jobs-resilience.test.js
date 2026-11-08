@@ -8,6 +8,7 @@ import { RegistryStore } from "../src/storage/registry-store.js";
 import { JobSupervisor } from "../src/jobs/supervisor.js";
 import { JobStore, JOB_STATUS } from "../src/jobs/job-store.js";
 import { config } from "../src/config.js";
+import { acquireReviewLock } from "../src/jobs/review-lock.js";
 
 /**
  * Continuous jobs must surface a stall — a rejection streak, or a learning pass
@@ -19,6 +20,10 @@ import { config } from "../src/config.js";
  */
 
 const tmp = () => path.join(mkdtempSync(path.join(tmpdir(), "sma-resilience-")));
+
+// These tests exercise job lifecycle mechanics with tiny fixtures; content
+// quality is covered by the dedicated review-gate tests.
+config.review.gateContent = false;
 
 const EVAL_SEED = [{ promptId: "q1", prompt: "2+2?", completion: "four" }];
 
@@ -780,6 +785,51 @@ test("continuous training continues through a transient network error", async ()
     assert.ok(events.some((e) => e.phase === "network-retry"));
     const logs = readFileSync(path.join(jobDir, "job-log.ndjson"), "utf8");
     assert.match(logs, /network error during training \(FETCH_TIMEOUT\)/);
+  } finally {
+    config.jobs.pollIntervalMs = prevPoll;
+  }
+});
+
+
+test("review job recovers from a transient REVIEW.lock and clears the waiting status", async () => {
+  const prevPoll = config.jobs.pollIntervalMs;
+  config.jobs.pollIntervalMs = 5;
+  try {
+    const dir = tmp();
+    const store = await ArticleStore.open(dir);
+    const text =
+      "The steam engine converted thermal energy into mechanical work because pressure acted on a piston inside a cylinder. " +
+      "When the valve opened, steam that had been heated in the boiler pushed the piston, and the motion was transferred to a wheel through a connecting rod. " +
+      "Engineers of the era were concerned that the apparatus would waste fuel, but the improvements that followed were remarkable and changed industry. " +
+      "Newcomen built the first practical engine in 1712, and Watt's separate condenser later made the engine dramatically more efficient. " +
+      "The consequences reached far beyond the mine and the mill, reshaping transport, cities, and the economy of the following century.";
+    await store.ingestArticle({ text, domain: "reasoning", reviewRequested: true });
+    const registry = await RegistryStore.open(tmp());
+    const sup = new JobSupervisor({
+      store,
+      registry,
+      dir,
+      scorer: { scoreOffline: async () => ({ verdict: "approve", score: 9, rationale: "fine" }) },
+    });
+    await sup.init({ reconcile: false });
+    const lock = acquireReviewLock(dir, { staleMs: 600_000, owner: { jobId: "external", kind: "review" } });
+    assert.ok(lock);
+    const job = await sup.startReview({ mode: "drain" });
+    await waitFor(() => sup.getJob(job.jobId).phase === "waiting-for-review-lock", 5000);
+    assert.equal(sup.getJob(job.jobId).status, JOB_STATUS.WAITING);
+    lock.release();
+    const done = await waitTerminal(sup, job.jobId, 15000);
+    assert.equal(done.status, JOB_STATUS.COMPLETED);
+    assert.equal(done.result.outcome, "drained");
+    const events = readFileSync(path.join(dir, "job-events.ndjson"), "utf8")
+      .split(/\r?\n/)
+      .filter(Boolean)
+      .map((line) => JSON.parse(line))
+      .filter((e) => e.jobId === job.jobId);
+    assert.ok(events.some((e) => e.phase === "review" && e.status === "running"), "the job must report running after acquiring the lock");
+    await sup.close();
+    await registry.close();
+    await store.close();
   } finally {
     config.jobs.pollIntervalMs = prevPoll;
   }

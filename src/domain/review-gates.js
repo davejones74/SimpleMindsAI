@@ -24,7 +24,7 @@
 
 import { assess, detectLanguage } from "./language.js";
 
-export const GATE = Object.freeze({ LANGUAGE: "language", QUALITY: "quality", PAGE_CHROME: "page-chrome" });
+export const GATE = Object.freeze({ LANGUAGE: "language", QUALITY: "quality", PAGE_CHROME: "page-chrome", CONTENT: "content" });
 
 // Heuristic starting values — NOT calibrated guarantees.
 const DEFAULT_MIN_BIGRAM_RATIO = 0.15; // unique-bigram ratio below => degenerate
@@ -257,6 +257,58 @@ export function assessPageChrome(text, { sourceUrl = null } = {}) {
   return { decision: "proceed", reason: null, metrics };
 }
 
+
+const CONTENT_REFERENCE_LINE = /(retrieved|archived from|isbn|doi:|issn|oclc|\bpp?\.\s*\d|\bvol\.\s*\d|\bpress\b|\bjournal\b|encyclop|bibliography|references?|further reading|external links?|citations?)/i;
+const CONTENT_LIST_LINE = /^\s*(?:[\d↑•*\-–—]+[\.\)]?\s+|[A-Z][a-z]+:\s*)/;
+const CONTENT_NAV_START = /^(jump to content|main menu|navigation|neidio|prif ddewislen|zum inhalt|aller au contenu|menú principal|contenido|ir al contenido|skip to content|navigate)\b/i;
+
+/**
+ * Deterministic content-type gate. The teacher critic is good at judging prose
+ * it is shown, but it cannot know that the "article" is actually a bibliography,
+ * a table of party names, a navigation shell, or a 121-character citation. This
+ * gate rejects those before the critic and before they can become training text.
+ *
+ * It is intentionally conservative: it fires only when the defect dominates the
+ * whole unit, not when a real article contains a reference or a heading.
+ */
+export function assessContentQuality(text, {
+  minWords = 60,
+  referenceLineRatio = 0.5,
+  listLineRatio = 0.6,
+  navDensity = 0.25,
+} = {}) {
+  const s = String(text ?? "");
+  const trimmed = s.trim();
+  const lines = trimmed.split(/\r?\n/).filter((l) => l.trim());
+  const words = wordCount(trimmed);
+  const sentences = sentenceCount(trimmed);
+  const referenceLines = lines.filter((l) => CONTENT_REFERENCE_LINE.test(l)).length;
+  const listLines = lines.filter((l) => CONTENT_LIST_LINE.test(l.trim())).length;
+  const navLines = lines.filter((l) => { NAV_MARKERS.lastIndex = 0; return NAV_MARKERS.test(l); }).length;
+  const refRatio = lines.length ? referenceLines / lines.length : 0;
+  const listRatio = lines.length ? listLines / lines.length : 0;
+  const navRatio = lines.length ? navLines / lines.length : 0;
+  const metrics = { chars: trimmed.length, words, sentences, lines: lines.length, referenceLines, refRatio, listLines, listRatio, navLines, navRatio };
+
+  if (words < Math.max(1, Number(minWords) || 0)) {
+    return { decision: "reject", reason: `content: fragment too short (${words} word(s), need ${minWords})`, metrics };
+  }
+  if (lines.length >= 3 && refRatio >= referenceLineRatio && referenceLines >= 3) {
+    return { decision: "reject", reason: `content: reference/citation list (${referenceLines}/${lines.length} lines)`, metrics };
+  }
+  if (lines.length >= 3 && listRatio >= listLineRatio && sentences <= 3) {
+    return { decision: "reject", reason: `content: list/table without prose (${listLines}/${lines.length} lines)`, metrics };
+  }
+  const firstLine = lines[0]?.trim() ?? "";
+  if ((firstLine.length <= 60 && CONTENT_NAV_START.test(firstLine)) || (lines.length >= 8 && navRatio >= navDensity)) {
+    return { decision: "reject", reason: `content: navigation/page-chrome shell (${navLines}/${lines.length} nav lines)`, metrics };
+  }
+  if (sentences <= 1 && words >= Math.max(1, Number(minWords) || 0)) {
+    return { decision: "reject", reason: "content: no coherent multi-sentence prose", metrics };
+  }
+  return { decision: "proceed", reason: null, metrics };
+}
+
 export function preScreen(text, {
   sourceUrl = null,
   htmlLang = null,
@@ -264,6 +316,7 @@ export function preScreen(text, {
   quality = null,
   completeness = null,
   pageChrome = null,
+  content = null,
 } = {}) {
   const body = String(text ?? "");
   const completenessResult = assessCompleteness(body);
@@ -340,6 +393,24 @@ export function preScreen(text, {
         gate: GATE.QUALITY,
         reason: `review gate: degenerate repetition (bigram ratio ${bigram.toFixed(3)})`,
         metrics: { bigramRatio: bigram },
+      };
+    }
+  }
+
+  if (content?.enabled === true) {
+    const contentResult = assessContentQuality(body, {
+      minWords: content?.minWords,
+      referenceLineRatio: content?.referenceLineRatio,
+      listLineRatio: content?.listLineRatio,
+      navDensity: content?.navDensity,
+    });
+    if (contentResult.decision === "reject") {
+      return {
+        decision: "reject",
+        gate: GATE.CONTENT,
+        reason: `review gate: ${contentResult.reason}`,
+        metrics: contentResult.metrics,
+        completeness: completenessResult,
       };
     }
   }

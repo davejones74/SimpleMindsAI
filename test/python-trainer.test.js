@@ -11,6 +11,9 @@ import { REPO_ROOT } from "../src/brain/python-cli.js";
 import { loadEvalCache, saveEvalCache } from "../src/training/eval-cache.js";
 import { config } from "../src/config.js";
 
+// Fixture rows are intentionally short; content-quality is covered by the dedicated gate tests.
+config.review.gateContent = false;
+
 const tmp = () => path.join(mkdtempSync(path.join(tmpdir(), "sma-py-")));
 
 /** A fake `sma.brain` invoked through the injectable `run` seam (no Python). */

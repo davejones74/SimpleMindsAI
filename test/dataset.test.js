@@ -14,6 +14,12 @@ import { corpusRowForArticle } from "../src/dataset/corpus-text.js";
 
 const tmpDir = () => path.join(mkdtempSync(path.join(tmpdir(), "sma-ds-")));
 
+// These tests use tiny deterministic fixtures to exercise snapshot selection.
+// Content-quality enforcement is covered separately by the review-gate tests;
+// keep it off here so short fixture rows are not filtered as fragments.
+const prevGateContent = config.review.gateContent;
+config.review.gateContent = false;
+
 const articleRow = (i, origin = "curated") => ({
   articleId: `art_${i}`,
   contentHash: `hash_${i}`,
@@ -96,8 +102,38 @@ test("collectRowsFromArticles returns only REVIEWED, unconsumed articles", async
   assert.deepEqual(rows.map((r) => r.articleId).sort(), [...ids].sort());
   // With the default policy every collected row is fresh (the delta).
   assert.deepEqual(freshArticleIds.sort(), [...ids].sort());
-  assert.deepEqual(stats, { collected: 3, fresh: 3, retained: 0, replay: 0, validation: 0, estimatedReplayShare: 0 });
+  assert.deepEqual(stats, { collected: 3, fresh: 3, retained: 0, replay: 0, validation: 0, estimatedReplayShare: 0, freshDistinctSources: 3, freshTopSourceShare: 1 / 3, sourceCapRemoved: 0 });
   await store.close();
+});
+
+test("fragment snapshots report fresh source diversity and cap overrepresented sources", async () => {
+  const prevShare = config.trainMaxSourceTokenShare;
+  config.trainMaxSourceTokenShare = 0.6;
+  try {
+    const store = await ArticleStore.open(tmpDir());
+    for (let i = 0; i < 5; i++) {
+      const a = await store.ingestArticle({
+        text: `Page A fragment ${i} with enough prose to count as a training row. `.repeat(3),
+        domain: "general",
+        sourceUrl: "https://en.wikipedia.org/wiki/Page_A",
+      });
+      await store.recordReview({ articleId: a.articleId, verdict: "approve", authority: "human" });
+    }
+    const b = await store.ingestArticle({
+      text: "Page B is a separate source with independent prose about a different subject. ".repeat(3),
+      domain: "general",
+      sourceUrl: "https://en.wikipedia.org/wiki/Page_B",
+    });
+    await store.recordReview({ articleId: b.articleId, verdict: "approve", authority: "human" });
+    const out = collectRowsFromArticles(store, { limit: 10 });
+    assert.equal(out.stats.freshDistinctSources, 2);
+    assert.ok(out.stats.freshTopSourceShare > 0.6);
+    assert.ok(out.stats.sourceCapRemoved > 0, "source cap must remove some Page A rows");
+    assert.ok(out.rows.length < 6);
+    await store.close();
+  } finally {
+    config.trainMaxSourceTokenShare = prevShare;
+  }
 });
 
 test("corpus backfill adds consumed REVIEWED rows but marks only new rows fresh", async () => {
@@ -121,7 +157,7 @@ test("corpus backfill adds consumed REVIEWED rows but marks only new rows fresh"
   assert.equal(all.rows.length, 4);
   assert.deepEqual(all.rows.map((r) => r.articleId), [ids[3], ids[0], ids[1], ids[2]], "deterministic, fresh first then retained");
   assert.deepEqual(all.freshArticleIds, [ids[3]], "only previously-unconsumed rows are fresh");
-  assert.deepEqual(all.stats, { collected: 4, fresh: 1, retained: 3, replay: 0, validation: 0, estimatedReplayShare: 0 });
+  assert.deepEqual(all.stats, { collected: 4, fresh: 1, retained: 3, replay: 0, validation: 0, estimatedReplayShare: 0, freshDistinctSources: 1, freshTopSourceShare: 1, sourceCapRemoved: 0 });
 
   // The backfill respects the limit: fresh rows always win the budget.
   const capped = collectRowsFromArticles(store, { limit: 2, includeConsumed: true });
@@ -442,6 +478,17 @@ test("reuseEligible: a normal English consumed article passes", () => {
   assert.equal(reuseEligible({ text, sourceUrl: "https://en.wikipedia.org/wiki/Steam_engine" }), true);
 });
 
+test("reuseEligible: a reference-list article is excluded when content gating is on", () => {
+  const prev = config.review.gateContent;
+  config.review.gateContent = true;
+  try {
+    const refs = "Mathiez 1910, p. 1.\nBuonarroti, Philippe (1836). History of Babeuf's conspiracy. London: H. Hetherington.\nPhillips, Walter Alison (1911). \"Jacobins\". Encyclopaedia Britannica. Vol. 15. p. 119. ISBN 978-0-679-64536-8.\nCunningham, Noble E. (1957). The Jeffersonian Republicans. University of North Carolina Press. p. 217. ISBN 978-0-835-73909-2.";
+    assert.equal(reuseEligible({ text: refs, sourceUrl: "https://en.wikipedia.org/wiki/Jacobin_(politics)" }), false);
+  } finally {
+    config.review.gateContent = prev;
+  }
+});
+
 test("reuseEligible: a title-like consumed article is excluded under enforce completeness", () => {
   const prev = config.review.completenessMode;
   config.review.completenessMode = "enforce";
@@ -571,4 +618,16 @@ test("full-corpus collection includes consumed and replay-only REVIEWED material
   assert.equal(out.rows.some((row) => row.articleId === replayOnly.articleId), true);
   assert.equal(store.getArticle(replayOnly.articleId).replayOnly, true);
   await store.close();
+});
+
+
+test("broad evaluation set loads and the combined guard covers both frozen sets", async () => {
+  const primary = await loadEvaluationSet({ datasetId: "eval-002", dir: tmpDir() });
+  const broad = await loadEvaluationSet({ datasetId: "eval-broad-001", dir: tmpDir() });
+  assert.ok(broad.size >= 40, `expected a broad set, got ${broad.size}`);
+  assert.ok(broad.estimatedTokens > 20000);
+  const guard = makeEvalGuard([primary, broad]);
+  assert.equal(guard.contains({ text: primary.items[0].text }), true);
+  assert.equal(guard.contains({ text: broad.items[0].text }), true);
+  assert.equal(guard.contains({ text: "A completely unrelated training sentence about steam engines and pressure." }), false);
 });

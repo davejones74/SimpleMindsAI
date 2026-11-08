@@ -45,8 +45,12 @@ export const CRITIC_PROMPT = [
   "  - A correct ENGLISH TRANSLATION of a foreign-language source IS valid material: judge the English text on its own merits.",
   "  - Penalize padding and low information density: verbose is NOT valuable.",
   "  - Prefer: correct, specific, well-structured, information-dense English prose.",
+  "Judge the ACTUAL ARTICLE TEXT shown to you, not what you infer the source page might be about.",
+  "Reject (score 0) when the text is: navigation/menu chrome, a reference/bibliography/citation list, a table/list without prose, a dictionary/glossary entry, a project/Village-pump discussion, a title/author/boilerplate fragment, or text that starts or ends mid-sentence.",
+  "Require at least 3 complete sentences and roughly 60 words of coherent prose. Do not infer missing context.",
+  "Cite two exact short spans from the ARTICLE as evidence. If you cannot quote two spans, the text is not a usable article: score 0.",
   "You MAY suggest an importance of Normal, Important, or Critical, but the operator decides importance.",
-  'Return strict JSON: { "score": number, "rationale": string, "suggestedImportance": "Normal"|"Important"|"Critical" }',
+  'Return strict JSON: { "score": number, "contentType": "article_prose"|"reference_list"|"navigation"|"table"|"list"|"fragment"|"dictionary_entry"|"other", "isSelfContained": boolean, "evidence": [string, string], "rationale": string, "suggestedImportance": "Normal"|"Important"|"Critical" }',
 ].join("\n");
 
 /**
@@ -175,15 +179,30 @@ export class ReviewScorer {
     // 0 — never a fabricated middling value.
     const parsedScore = Number(llm?.score);
     const criticScoreMissing = !Number.isFinite(parsedScore);
-    const raw = criticScoreMissing ? 0 : Math.max(0, Math.min(10, parsedScore));
+    let raw = criticScoreMissing ? 0 : Math.max(0, Math.min(10, parsedScore));
+    const contentType = typeof llm?.contentType === "string" ? llm.contentType.trim().toLowerCase() : null;
+    const isSelfContained = typeof llm?.isSelfContained === "boolean" ? llm.isSelfContained : null;
+    const evidence = Array.isArray(llm?.evidence) ? llm.evidence.map((x) => String(x ?? "").trim()).filter(Boolean) : [];
+    const normalizedArticle = String(text ?? "").toLowerCase().replace(/\s+/g, " ");
+    const evidenceValid = evidence.length >= 2 && evidence.every((q) => q.length >= 8 && normalizedArticle.includes(q.toLowerCase().replace(/\s+/g, " ")));
+    let contentRejectReason = null;
+    if (contentType && contentType !== "article_prose") contentRejectReason = `critic classified content as ${contentType}`;
+    else if (isSelfContained === false) contentRejectReason = "critic says the text is not self-contained";
+    else if (evidence.length > 0 && !evidenceValid) contentRejectReason = "critic evidence is not present in the article";
+    if (contentRejectReason) raw = 0;
     const final = Math.max(0, Math.min(10, raw * penalty));
     const guardrailResult = {
-      passed: penalty > 0.1,
+      passed: penalty > 0.1 && !contentRejectReason,
       heuristicPenalty: penalty,
-      reason: penalty <= 0.1 ? "heuristic guardrail: degenerate repetition/length" : null,
+      reason: contentRejectReason ?? (penalty <= 0.1 ? "heuristic guardrail: degenerate repetition/length" : null),
+      criticContentType: contentType,
+      criticSelfContained: isSelfContained,
+      criticEvidenceValid: evidence.length ? evidenceValid : null,
+      criticEvidenceMissing: evidence.length < 2,
     };
     const rationaleParts = [];
     if (llm?.rationale) rationaleParts.push(String(llm.rationale));
+    if (contentRejectReason) rationaleParts.push(`[content check: ${contentRejectReason}]`);
     if (criticError) rationaleParts.push(`[${criticError}]`);
     if (criticScoreMissing && !criticError) rationaleParts.push("[critic returned no finite score]");
     rationaleParts.push(`[heuristicPenalty=${penalty.toFixed(2)}]`);
@@ -204,6 +223,10 @@ export class ReviewScorer {
       criticError,
       criticAttempts,
       criticMaxTokens: maxTokens,
+      contentType,
+      isSelfContained,
+      evidence,
+      evidenceValid,
       criticPromptVersion: config.criticPromptVersion,
       criticVersion: this.criticVersion,
       rubricVersion: this.rubricVersion,

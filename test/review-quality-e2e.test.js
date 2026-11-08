@@ -26,6 +26,13 @@ const cfg = (over = {}) => ({
   review: { cooldownMs: 0, maxAttempts: 3, maxTechnicalAttempts: 5, lockStaleMs: 600_000, ...over },
 });
 
+const LONG_EN =
+  "The steam engine converted thermal energy into mechanical work because pressure acted on a piston inside a cylinder. " +
+  "When the valve opened, steam that had been heated in the boiler pushed the piston, and the motion was transferred to a wheel through a connecting rod. " +
+  "Engineers of the era were concerned that the apparatus would waste fuel, but the improvements that followed were remarkable and changed industry. " +
+  "Newcomen built the first practical engine in 1712, and Watt's separate condenser later made the engine dramatically more efficient. " +
+  "The consequences reached far beyond the mine and the mill, reshaping transport, cities, and the economy of the following century.";
+
 // A critic that would approve anything — the gates must not rely on it.
 const approveAll = { scoreOffline: async () => ({ verdict: "approve", score: 9.9, rationale: "looks great" }) };
 
@@ -88,8 +95,7 @@ test("a valid, healthy English article is still approved and trainable", async (
   const store = await openStore();
   const id = await pending(
     store,
-    "The steam engine converted thermal energy into mechanical work because pressure acted on a " +
-      "piston inside a cylinder, and the motion was then transferred to a wheel through a rod.",
+    LONG_EN,
   );
 
   await reviewPendingArticles(store, approveAll, { config: cfg(), select: false });
@@ -103,8 +109,7 @@ test("an English translation from a foreign source URL is approved (provenance i
   const store = await openStore();
   const id = await pending(
     store,
-    "The steam engine converted thermal energy into mechanical work because pressure acted on a " +
-      "piston inside a cylinder, and the motion was then transferred to a wheel through a rod.",
+    LONG_EN,
     { sourceUrl: "https://fr.wikipedia.org/wiki/Machine_%C3%A0_vapeur", htmlLang: "fr" },
   );
 
@@ -118,7 +123,7 @@ test("a critic timeout leaves the article pending and records a TECHNICAL review
   const store = await openStore();
   const id = await pending(
     store,
-    "A perfectly ordinary English paragraph about engines and pressure and pistons and wheels.",
+    LONG_EN,
   );
   const throwing = { scoreOffline: async () => { throw new Error("socket hang up"); } };
 

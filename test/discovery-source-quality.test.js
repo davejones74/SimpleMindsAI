@@ -14,6 +14,10 @@ test("low-value URL shapes are classified with explicit reasons", () => {
     ["https://example.com/login", "non-article-path"],
     ["mailto:someone@example.com", "non-http-scheme"],
     ["https://donate.wikimedia.org/x", "non-content-host"],
+    ["https://commons.wikimedia.org/wiki/Commons:Village_pump", "non-content-host"],
+    ["https://en.wikiquote.org/wiki/Wikiquote:Village_pump", "non-content-host"],
+    ["https://en.wiktionary.org/wiki/Appendix:Glossary", "non-content-host"],
+    ["https://en.wikipedia.org/wiki/Commons:Village_pump", "wiki-namespace:commons"],
   ];
   for (const [url, reason] of cases) {
     const result = classifyUrlQuality(url);

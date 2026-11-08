@@ -51,41 +51,42 @@ function ownerAlive(lock) {
  * live worker holds the lock. Callers treat `null` as a transient condition:
  * skip this review pass and retry later — never as a review failure.
  */
-export function acquireReviewLock(dir, { staleMs = 10 * 60 * 1000 } = {}) {
+export function acquireReviewLock(dir, { staleMs = 10 * 60 * 1000, owner = null } = {}) {
   const p = reviewLockPath(dir);
-  const owner = {
+  const lockOwner = {
     pid: process.pid,
     host: os.hostname(),
     token: randomUUID(),
     acquiredAt: new Date().toISOString(),
     heartbeatAt: new Date().toISOString(),
+    ...(owner && typeof owner === "object" ? owner : {}),
   };
   try {
-    writeFileSync(p, JSON.stringify(owner), { flag: "wx" });
+    writeFileSync(p, JSON.stringify(lockOwner), { flag: "wx" });
   } catch (err) {
     if (err.code !== "EEXIST") throw err;
     const held = readReviewLock(dir);
-    const hb = Date.parse(held?.heartbeatAt ?? held?.acquiredAt ?? "");
-    const age = Number.isFinite(hb) ? Date.now() - hb : Number.POSITIVE_INFINITY;
-    if (age <= staleMs) return null; // fresh enough: an active reviewer holds it
-    if (ownerAlive(held)) return null; // never steal a live owner's lock
+    // A live owner always wins, even with an old heartbeat. A DEAD owner must not
+    // keep us waiting for the full stale window after a service restart: its
+    // heartbeat can be only seconds old when the process is killed.
+    if (ownerAlive(held)) return null;
     try {
       if (existsSync(p)) unlinkSync(p);
     } catch {
       return null;
     }
-    return acquireReviewLock(dir, { staleMs });
+    return acquireReviewLock(dir, { staleMs, owner });
   }
 
   const timer = setInterval(() => {
     try {
       const cur = readReviewLock(dir);
-      if (cur && cur.token && cur.token !== owner.token) {
+      if (cur && cur.token && cur.token !== lockOwner.token) {
         clearInterval(timer); // we no longer own it
         return;
       }
-      owner.heartbeatAt = new Date().toISOString();
-      writeFileSync(p, JSON.stringify(owner));
+      lockOwner.heartbeatAt = new Date().toISOString();
+      writeFileSync(p, JSON.stringify(lockOwner));
     } catch {
       /* heartbeat is best-effort */
     }
@@ -93,13 +94,14 @@ export function acquireReviewLock(dir, { staleMs = 10 * 60 * 1000 } = {}) {
   timer.unref?.();
 
   return {
-    token: owner.token,
+    token: lockOwner.token,
+    owner: lockOwner,
     dir,
     release() {
       clearInterval(timer);
       try {
         const cur = readReviewLock(dir);
-        if (cur && cur.token && cur.token !== owner.token) return; // gone or replaced — leave it
+        if (cur && cur.token && cur.token !== lockOwner.token) return; // gone or replaced — leave it
         if (existsSync(p)) unlinkSync(p);
       } catch {
         /* releasing a lock that is already gone is not a failure */

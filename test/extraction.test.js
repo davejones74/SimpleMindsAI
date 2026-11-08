@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { htmlToText } from "../src/harness/fetcher.js";
-import { extractDocument } from "../src/harness/extract.js";
+import { extractDocument, stripExtractedBoilerplate } from "../src/harness/extract.js";
 
 /**
  * P3 — reversible, feature-gated extraction.
@@ -53,4 +53,22 @@ test("readability falls back to legacy for a near-empty document", async () => {
   const tiny = "<html><body><article><p>Hi.</p></article></body></html>";
   const out = await extractDocument(tiny, { mode: "readability" });
   assert.equal(out.text, htmlToText(tiny).text, "below the readable threshold, legacy output is used");
+});
+
+
+test("stripExtractedBoilerplate removes nav lines and reference tails", () => {
+  const text = `Jump to content
+Main menu
+Navigation
+The steam engine used steam pressure to push a piston inside a cylinder.
+It was improved by James Watt with a separate condenser.
+The change reduced fuel consumption and helped industrial growth.
+
+References
+Smith, John (2001). A History of Engines. Example Press. ISBN 123.
+Archive. Retrieved 1 January 2020.`;
+  const out = stripExtractedBoilerplate(text);
+  assert.match(out, /steam engine used steam pressure/);
+  assert.doesNotMatch(out, /Jump to content|Main menu|Navigation/);
+  assert.doesNotMatch(out, /References|ISBN|Retrieved/);
 });

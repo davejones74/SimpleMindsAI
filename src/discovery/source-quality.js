@@ -14,14 +14,22 @@
 
 export const URL_QUALITY_MODES = Object.freeze(["off", "shadow", "enforce"]);
 
-const WIKI_NAMESPACE = /\/wiki\/(File|Image|Category|Special|Template|Talk|User|User_talk|Help|Portal|Wikipedia|Draft|Module|MediaWiki|TimedText|Book|Education_Program)(?::|%3A)/i;
-const NON_ARTICLE_PATH = /\/(login|log-in|signin|sign-in|signup|sign-up|register|account|cart|checkout|search|searchresults|w\/index\.php|wp-json|feed|rss|api\/)(?:\/|$|\?)/i;
+const WIKI_NAMESPACE = /\/wiki\/(File|Image|Category|Special|Template|Talk|User|User_talk|Help|Portal|Wikipedia|Draft|Module|MediaWiki|TimedText|Book|Education_Program|Commons|Wikiquote|Wiktionary|Appendix|Grants|Research|Stewards|Incubator|Outreach|Village_pump|Glossary)(?::|%3A)/i;
+const NON_ARTICLE_PATH = /\/(login|log-in|signin|sign-in|signup|sign-up|register|account|cart|checkout|search|searchresults|w\/index\.php|wp-json|feed|rss|api\/|village_pump|glossary)(?:\/|$|\?)/i;
 const NON_CONTENT_EXT = /\.(?:jpe?g|png|gif|svg|webp|ico|bmp|tiff?|mp3|mp4|m4a|avi|mov|webm|ogg|wav|zip|gz|tar|7z|rar|css|js|json|xml|woff2?|ttf|eot)(?:\?|$)/i;
 const NON_HTTP_SCHEME = /^(?:mailto|tel|javascript|data|file):/i;
 const KNOWN_NON_CONTENT_HOSTS = [
   "donate.wikimedia.org",
   "foundation.wikimedia.org",
   "wikimediafoundation.org",
+  "commons.wikimedia.org",
+  "wikiquote.org",
+  "wiktionary.org",
+  "meta.wikimedia.org",
+  "species.wikimedia.org",
+  "wikinews.org",
+  "wikiversity.org",
+  "wikivoyage.org",
   "stats.wikimedia.org",
   "phabricator.wikimedia.org",
   "wikitech.wikimedia.org",

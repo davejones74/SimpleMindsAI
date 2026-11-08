@@ -283,6 +283,13 @@ export const config = {
     // On by default because the false-positive surface is deliberately small;
     // disabling restores the prior review behaviour exactly.
     gatePageChrome: bool("REVIEW_GATE_PAGE_CHROME", true),
+    // Deterministic content-type gate: reject reference lists, list/table
+    // shells, navigation chrome and sub-article fragments BEFORE the critic.
+    gateContent: bool("REVIEW_GATE_CONTENT", true),
+    contentMinWords: num("REVIEW_CONTENT_MIN_WORDS", 60),
+    contentReferenceLineRatio: num("REVIEW_CONTENT_REFERENCE_LINE_RATIO", 0.5),
+    contentListLineRatio: num("REVIEW_CONTENT_LIST_LINE_RATIO", 0.6),
+    contentNavDensity: num("REVIEW_CONTENT_NAV_DENSITY", 0.25),
     // Fraction of characters that may be encoding-corruption indicators before
     // the text is judged mojibake, and the minimum unique-bigram ratio for text
     // to be considered non-degenerate. Heuristic starting values, not guarantees.
@@ -325,6 +332,11 @@ export const config = {
   // measured on it is dominated by sampling noise (~3 blocks) and must not gate
   // promotion.
   evalDatasetId: env("EVAL_DATASET_ID", "eval-002"),
+  // Optional SECOND frozen evaluation set. Kept separate from eval-002 so the
+  // historical ladder remains comparable while a broad, representative set
+  // guards against narrow-source overfitting.
+  broadEvalDatasetId: env("EVAL_BROAD_DATASET_ID", "eval-broad-001"),
+  promoteBroadEvalSet: env("PROMOTE_BROAD_EVAL_SET", null),
   // Advisory floors on a frozen evaluation set. A set smaller than the operator
   // expects is recorded and surfaced as a `warnings` entry on the run record and
   // in the Observatory, but promotion is never blocked — the causal-LM loss gate
@@ -451,6 +463,12 @@ export const config = {
   // held-out validation stream). Below this a run is skipped/deferred instead
   // of training on a near-empty batch. 0 disables the gate.
   trainMinUniqueTokens: num("TRAIN_MIN_UNIQUE_TOKENS", 1700),
+  // Minimum distinct source pages in the fresh delta. A batch made of 21 chunks
+  // from one Wikipedia page is not a representative learning batch; wait for
+  // more sources rather than overfitting that page.
+  trainMinDistinctSources: num("TRAIN_MIN_DISTINCT_SOURCES", 0),
+  // Minimum tokenizer-fresh tokens before training. 0 disables (legacy tests).
+  trainMinFreshTokens: num("TRAIN_MIN_FRESH_TOKENS", 0),
   // Replay share of the training corpus by token estimate. 0 disables replay.
   trainReplayPercent: num("TRAIN_REPLAY_PERCENT", 20),
   // Permitted percentage-point overshoot of the replay target, measured on
@@ -835,6 +853,9 @@ export const config = {
       // Existing eligible material is retained for training while it waits.
       // 0 disables the wait/throttle (the job still never terminates on it).
       noProgressCycles: num("LEARNING_NO_PROGRESS_CYCLES", 5),
+      // Backpressure: do not keep ingesting while the review queue is already
+      // large. 0 disables. Resume automatically when it falls below the limit.
+      maxPendingReview: num("LEARNING_MAX_PENDING_REVIEW", 0),
       // Acquisition waiting / backoff. When a continuous job has no claimable or
       // retryable frontier work and no immediately viable provider, it persists a
       // non-terminal WAITING state with `nextAttemptAt` (authoritative) and backs

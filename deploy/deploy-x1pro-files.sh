@@ -176,6 +176,21 @@ run sudo rsync -a --delete --chown="${SERVICE_USER}:${SERVICE_USER}" \
 run sudo rsync -a --chown="${SERVICE_USER}:${SERVICE_USER}" \
   "${REPO_ROOT}/package.json" "${REPO_ROOT}/package-lock.json" "${DEST}/"
 
+# Evaluation corpora are application assets, not mutable operator data. Copy the
+# broad frozen set so a fresh deployment can enable the second promotion gate
+# without a manual step. eval-002 remains the historical frozen ladder.
+if [[ -f "${REPO_ROOT}/data/evaluation/eval-broad-001.jsonl" ]]; then
+  run sudo mkdir -p "${DEST}/data/evaluation"
+  run sudo rsync -a --chown="${SERVICE_USER}:${SERVICE_USER}" \
+    "${REPO_ROOT}/data/evaluation/eval-broad-001.jsonl" \
+    "${DEST}/data/evaluation/eval-broad-001.jsonl"
+  if [[ -f "${REPO_ROOT}/data/evaluation/eval-broad-001.manifest.json" ]]; then
+    run sudo rsync -a --chown="${SERVICE_USER}:${SERVICE_USER}" \
+      "${REPO_ROOT}/data/evaluation/eval-broad-001.manifest.json" \
+      "${DEST}/data/evaluation/eval-broad-001.manifest.json"
+  fi
+fi
+
 for req in requirements.txt requirements-cuda.txt requirements-rocm.txt; do
   if [[ -f "${REPO_ROOT}/python/${req}" ]]; then
     run sudo rsync -a --chown="${SERVICE_USER}:${SERVICE_USER}" \

@@ -9,6 +9,9 @@ import { stubTrainer } from "../src/training/trainer-interface.js";
 import { executeFullRun, estimatedLossStdErr } from "../src/training/lifecycle.js";
 import { config } from "../src/config.js";
 
+// Fixture rows are intentionally short; content-quality is covered by the dedicated gate tests.
+config.review.gateContent = false;
+
 const tmp = () => path.join(mkdtempSync(path.join(tmpdir(), "sma-")));
 
 const EVAL_SEED = [
