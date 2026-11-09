@@ -373,7 +373,7 @@ function renderDashboard() {
       ${statCard("Reviewed", a.reviewed)}
       ${statCard("Rejected", a.rejected)}
       ${statCard("Ingested (unselected)", a.ingested)}
-      ${statCard("Trainable now", a.trainable)}
+      ${statCard("Fresh trainable", a.trainable)}
       ${statCard("Unique consumed", a.uniqueConsumed)}
       ${statCard("Training appearances", a.totalAppearances)}
       ${statCard("Avg review score", a.avgReviewScore)}
@@ -387,7 +387,7 @@ function renderDashboard() {
         <table><tr><th>Status</th><th>Count</th></tr>
           ${Object.entries(s).map(([k, v]) => `<tr><td>${badge(k, k)}</td><td>${fmt(v)}</td></tr>`).join("")}
         </table>
-        <div class="small muted" style="margin-top:8px">Only REVIEWED &amp; unconsumed articles are trainable.</div>
+        <div class="small muted" style="margin-top:8px">Only REVIEWED &amp; unconsumed articles are fresh-trainable. The training snapshot additionally applies source-diversity caps, so its fresh-token batch may be smaller than this article count.</div>
       </div>
       <div class="panel">
         <div class="k">By domain / importance</div>
