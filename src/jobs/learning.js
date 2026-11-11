@@ -3,7 +3,7 @@ import { config } from "../config.js";
 import { throwIfAborted } from "./cancel.js";
 import { reviewPendingArticles } from "./review-pass.js";
 import { ACQUISITION_STATE, classifyAcquisition } from "../discovery/acquisition-state.js";
-import { mergeAdjacentUnits, planCuration, segmentationStats } from "../services/curator-segmentation.js";
+import { mergeAdjacentUnits, planCuration, segmentationStats, capSourceUnits } from "../services/curator-segmentation.js";
 import { prefilterReview } from "../domain/review-prefilter.js";
 import { assessContentQuality } from "../domain/review-gates.js";
 import { cleanRawText } from "../dataset/corpus-text.js";
@@ -88,7 +88,7 @@ export async function runLearningCycle(ctx) {
     for (const chunk of plan) {
       throwIfAborted(signal);
       try {
-        const cleaned = await ollama.clean(chunk.text);
+        const cleaned = await ollama.clean(chunk.text, { focus: ctx.missionFocus ?? null });
         for (const unit of cleaned) units.push({ ...unit, sourceChunk: chunk.index });
       } catch (err) {
         chunkErrors += 1;
@@ -96,6 +96,14 @@ export async function runLearningCycle(ctx) {
       }
     }
     if (!units.length) continue;
+    if (config.curatorMaxUnitsPerSource > 0 && units.length > config.curatorMaxUnitsPerSource) {
+      const before = units.length;
+      units = capSourceUnits(units, {
+        maxUnits: config.curatorMaxUnitsPerSource,
+        maxChars: config.curatorChunkMaxChars,
+      });
+      log("out", `capped source ${doc.url ?? doc.contentHash}: ${before} -> ${units.length} unit(s)`);
+    }
     if (config.curatorMergeUnits) {
       units = mergeAdjacentUnits(units, {
         minChars: config.curatorMergeMinChars,

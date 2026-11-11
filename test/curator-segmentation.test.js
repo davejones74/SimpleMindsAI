@@ -4,7 +4,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import {
+import { capSourceUnits,
   mergeAdjacentUnits,
   planCuration,
   segmentSourceText,
@@ -92,4 +92,18 @@ test("learning cycle curates every chunk of a long source", async () => {
   assert.equal(out.ingested, calls);
   assert.equal(store.getStats().totalArticles, calls);
   await store.close();
+});
+
+
+test("capSourceUnits limits one source to a bounded number of units without dropping the tail", () => {
+  const units = Array.from({ length: 20 }, (_, i) => ({
+    text: `Sentence ${i} explains a distinct part of the article with enough words to be prose. `.repeat(4),
+    domain: "general",
+  }));
+  const out = capSourceUnits(units, { maxUnits: 6, maxChars: 12000 });
+  assert.ok(out.length <= 6);
+  assert.ok(out.length >= 1);
+  const joined = out.map((u) => u.text).join(" ");
+  assert.match(joined, /Sentence 19/);
+  assert.ok(out.some((u) => u.sourceCapped === true));
 });

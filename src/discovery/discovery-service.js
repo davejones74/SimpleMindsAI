@@ -9,6 +9,7 @@ import { createDiscoveryOperationGovernor, createGovernedFetchText } from "./dis
 import { resolveSearchQueries } from "./mission-queries.js";
 import { classifyDiscoveryLanguage, DISCOVERY_LANGUAGE_PRIORS } from "./language-prior.js";
 import { createArchiveOrgResolver } from "./source-resolver.js";
+import { createMissionProfile, gateFocusCandidate } from "./mission-profile.js";
 
 /**
  * Round-robin window over a root pool. When there are more roots than the
@@ -69,6 +70,9 @@ export class DiscoveryService {
     maxRoots = config.crawlDiscoveryMaxRoots,
     missionTexts = [],
     missionQueriesEnabled = config.missionQueriesEnabled,
+    focusMissionTexts = null,
+    strategy = null,
+    missionFocus = null,
     missionQueryMax = config.missionQueryMax,
     corpusTexts = [],
     corpusQueriesEnabled = config.corpusQueriesEnabled,
@@ -194,7 +198,13 @@ export class DiscoveryService {
     // subjects them to the discovery policy and the domain registry. When the flag
     // is off (default) `searchQueries` is exactly CRAWL_SEARCH_QUERIES.
     this.missionTexts = missionTexts;
+    this.focusMissionTexts = (focusMissionTexts ?? missionTexts ?? []).filter(Boolean);
     this.missionQueriesEnabled = Boolean(missionQueriesEnabled);
+    this.missionFocus = missionFocus ?? createMissionProfile({
+      missionTexts: this.focusMissionTexts,
+      strategy,
+      focus: config.missionFocus,
+    });
     // Corpus keyphrase queries (P4 keyphrase generator): mine the REVIEWED corpus
     // for recurring phrases. Advisory, appended after mission queries.
     this.corpusTexts = (corpusTexts ?? []).filter((t) => typeof t === "string" && t.trim());
@@ -236,6 +246,9 @@ export class DiscoveryService {
       missionQueriesEnabled: this.missionQueriesEnabled,
       corpusQueriesEnabled: this.corpusQueriesEnabled,
       languagePrior: this.languagePrior,
+      missionFocus: this.missionFocus
+        ? { mode: this.missionFocus.mode, languageShare: this.missionFocus.languageShare, minScore: this.missionFocus.minScore }
+        : null,
       sourceResolver: this.sourceResolver ? "archive.org" : null,
       discoveryOperations: this.discoveryOperations?.status() ?? null,
       sourceResolutionOperations: this.sourceResolutionOperations?.status() ?? null,
@@ -361,6 +374,7 @@ export class DiscoveryService {
     // run with an empty CRAWL_URLS.
     this.policy.addSeedHosts?.(uniqueRoots.map(hostOf).filter(Boolean));
 
+    const focusCounts = { focus: 0, broad: 0, rejected: 0 };
     for (const adapter of this.adapters) {
       let res;
       try {
@@ -408,6 +422,15 @@ export class DiscoveryService {
           report.rejected++;
           continue;
         }
+        const focusDecision = gateFocusCandidate(this.missionFocus, {
+          url,
+          text: cand.title ?? cand.provenance?.title ?? "",
+          counts: focusCounts,
+        });
+        if (!focusDecision.allow) {
+          report.rejected++;
+          continue;
+        }
         if (dom && this.domainRegistry?.recordDiscovery) {
           await this.domainRegistry.recordDiscovery(dom, {
             url,
@@ -426,6 +449,7 @@ export class DiscoveryService {
       bootstrap.adapters.push(report);
     }
 
+    bootstrap.focus = focusCounts;
     return { bootstrap, uniqueRoots };
   }
 
@@ -463,6 +487,7 @@ export class DiscoveryService {
       // Apply the discovery language prior to EXTRACTED LINKS too, not only to
       // adapter candidates, so foreign hosts never enter the frontier.
       discoveryLanguagePrior: this.languagePrior,
+      missionFocus: this.missionFocus,
       admissionGateway: this.admissionGateway,
       sourceResolver: this.sourceResolver,
       fetchImpl: this.fetchImpl,
@@ -528,6 +553,7 @@ export class DiscoveryService {
         bootstrap,
         discoveryOperations: this.discoveryOperations?.status() ?? null,
         sourceResolutionOperations: this.sourceResolutionOperations?.status() ?? null,
+        focus: bootstrap.focus ?? null,
       },
     };
   }

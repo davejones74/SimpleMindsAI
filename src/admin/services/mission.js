@@ -14,7 +14,7 @@ export const PRIMARY_MISSION_TEXT =
   "To accurately comprehend the nuances of human language, transforming unstructured text into clear, contextual insights that enable seamless and meaningful interaction.";
 
 export const SECONDARY_MISSION_TEXT =
-  "To continually refine its understanding through ethical learning, ensuring all processing remains objective, culturally adaptive, and securely aligned with user intent.";
+  "To continually refine its understanding of language by acquiring and preserving complete, well-formed English prose that demonstrates clear grammar, syntax, punctuation, sentence boundaries, and paragraph structure, while remaining objective and aligned with user intent.";
 
 const id = (p) => `${p}_${randomUUID().slice(0, 12)}`;
 

@@ -470,6 +470,8 @@ export const config = {
   // Minimum tokenizer-fresh tokens before training. 0 disables (legacy tests).
   trainMinFreshTokens: num("TRAIN_MIN_FRESH_TOKENS", 0),
   // Replay share of the training corpus by token estimate. 0 disables replay.
+  // Target replay share by estimated tokens. The tokenizer reports the actual
+  // share; tune this only after the per-run replay diagnostics have been audited.
   trainReplayPercent: num("TRAIN_REPLAY_PERCENT", 20),
   // Permitted percentage-point overshoot of the replay target, measured on
   // actual tokenizer tokens at the final training corpus. Beyond this the run
@@ -634,6 +636,8 @@ export const config = {
   // them with different domains. This is still one source document and avoids
   // leaving the source as a pile of sub-128-token fragments.
   curatorMergeAcrossDomains: bool("CURATOR_MERGE_ACROSS_DOMAINS", true),
+  // One source page must not become an unbounded pile of near-duplicate units.
+  curatorMaxUnitsPerSource: num("CURATOR_MAX_UNITS_PER_SOURCE", 6),
   // If the teacher still returns only sub-block fragments for a long source,
   // fall back to the cleaned source text for that source at curation time.
   curatorFallbackToSource: bool("CURATOR_FALLBACK_TO_SOURCE", true),
@@ -772,6 +776,16 @@ export const config = {
   // exactly like every other adapter candidate, and the search adapter still
   // reports `unavailable` without a configured provider. OFF by default.
   missionQueriesEnabled: bool("MISSION_QUERIES_ENABLED", false),
+  // Mission focus is applied to candidates BEFORE fetch, not to captured
+  // articles. weighted = 80/20 language-mechanics / broad quota by default.
+  missionFocus: {
+    mode: oneOf("MISSION_FOCUS_MODE", "off", ["off", "shadow", "weighted", "enforce"]),
+    languageShare: num("MISSION_FOCUS_LANGUAGE_SHARE", 0.8),
+    broadShare: num("MISSION_FOCUS_BROAD_SHARE", 0.2),
+    minScore: num("MISSION_FOCUS_MIN_SCORE", 0.08),
+    topics: env("MISSION_FOCUS_TOPICS", "").split(",").map((s) => s.trim()).filter(Boolean),
+    phrases: env("MISSION_FOCUS_PHRASES", "").split(",").map((s) => s.trim()).filter(Boolean),
+  },
   missionQueryMax: num("MISSION_QUERY_MAX", 8),
   // Advisory mission relevance (P4): compute a lexical overlap score between an
   // ingested article and the active mission(s) and persist it as an advisory

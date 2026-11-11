@@ -102,7 +102,7 @@ test("collectRowsFromArticles returns only REVIEWED, unconsumed articles", async
   assert.deepEqual(rows.map((r) => r.articleId).sort(), [...ids].sort());
   // With the default policy every collected row is fresh (the delta).
   assert.deepEqual(freshArticleIds.sort(), [...ids].sort());
-  assert.deepEqual(stats, { collected: 3, fresh: 3, retained: 0, replay: 0, validation: 0, estimatedReplayShare: 0, freshDistinctSources: 3, freshTopSourceShare: 1 / 3, sourceCapRemoved: 0 });
+  assert.deepEqual(stats, { collected: 3, fresh: 3, retained: 0, replay: 0, validation: 0, estimatedReplayShare: 0, freshDistinctSources: 3, freshTopSourceShare: 1 / 3, sourceCapRemoved: 0, replayHealth: { targetPercent: 0, eligiblePool: 0, selectedRows: 0, selectedTokens: 0, zeroReason: null, sourceCapRemoved: 0 } });
   await store.close();
 });
 
@@ -157,7 +157,7 @@ test("corpus backfill adds consumed REVIEWED rows but marks only new rows fresh"
   assert.equal(all.rows.length, 4);
   assert.deepEqual(all.rows.map((r) => r.articleId), [ids[3], ids[0], ids[1], ids[2]], "deterministic, fresh first then retained");
   assert.deepEqual(all.freshArticleIds, [ids[3]], "only previously-unconsumed rows are fresh");
-  assert.deepEqual(all.stats, { collected: 4, fresh: 1, retained: 3, replay: 0, validation: 0, estimatedReplayShare: 0, freshDistinctSources: 1, freshTopSourceShare: 1, sourceCapRemoved: 0 });
+  assert.deepEqual(all.stats, { collected: 4, fresh: 1, retained: 3, replay: 0, validation: 0, estimatedReplayShare: 0, freshDistinctSources: 1, freshTopSourceShare: 1, sourceCapRemoved: 0, replayHealth: { targetPercent: 100, eligiblePool: 0, selectedRows: 0, selectedTokens: 0, zeroReason: null, sourceCapRemoved: 0 } });
 
   // The backfill respects the limit: fresh rows always win the budget.
   const capped = collectRowsFromArticles(store, { limit: 2, includeConsumed: true });
@@ -203,6 +203,10 @@ test("replay and validation rows are appended without consuming fresh slots", as
   assert.equal(out.rows.filter((r) => r.corpusRole === "validation").length, out.validationArticleIds.length);
   assert.ok(out.stats.estimatedReplayShare > 0 && out.stats.estimatedReplayShare < 0.5);
   assert.equal(out.stats.validation, out.validationArticleIds.length);
+  assert.equal(out.stats.replayHealth.targetPercent, 20);
+  assert.ok(out.stats.replayHealth.eligiblePool >= out.replayArticleIds.length);
+  assert.equal(out.stats.replayHealth.selectedRows, out.replayArticleIds.length);
+  assert.equal(out.stats.replayHealth.zeroReason, null);
   await store.close();
 });
 

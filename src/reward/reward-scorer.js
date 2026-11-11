@@ -184,7 +184,12 @@ export class ReviewScorer {
     const isSelfContained = typeof llm?.isSelfContained === "boolean" ? llm.isSelfContained : null;
     const evidence = Array.isArray(llm?.evidence) ? llm.evidence.map((x) => String(x ?? "").trim()).filter(Boolean) : [];
     const normalizedArticle = String(text ?? "").toLowerCase().replace(/\s+/g, " ");
-    const evidenceValid = evidence.length >= 2 && evidence.every((q) => q.length >= 8 && normalizedArticle.includes(q.toLowerCase().replace(/\s+/g, " ")));
+    const EVIDENCE_REFERENCE = /(https?:\/\/|isbn\b|doi:|retrieved|archived from|\bpp?\.\s*\d|\bvol\.\s*\d|\bpress\b|\bjournal\b|bibliograph|references?)/i;
+    const evidenceValid = evidence.length >= 2 && evidence.every((q) => {
+      if (q.length < 8 || EVIDENCE_REFERENCE.test(q)) return false;
+      if (q.split(/\s+/).filter(Boolean).length < 6) return false;
+      return normalizedArticle.includes(q.toLowerCase().replace(/\s+/g, " "));
+    });
     let contentRejectReason = null;
     if (contentType && contentType !== "article_prose") contentRejectReason = `critic classified content as ${contentType}`;
     else if (isSelfContained === false) contentRejectReason = "critic says the text is not self-contained";

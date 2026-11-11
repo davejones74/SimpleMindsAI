@@ -172,6 +172,38 @@ export function mergeAdjacentUnits(units, { minChars = 800, maxChars = 6_000, me
   return out;
 }
 
+/**
+ * Cap the number of units one source page can create. Adjacent units are merged
+ * into at most `maxUnits` coherent bins; the source text is preserved rather than
+ * silently dropping the tail.
+ */
+export function capSourceUnits(units, { maxUnits = 6, maxChars = 12_000 } = {}) {
+  const list = (Array.isArray(units) ? units : []).filter((u) => u && typeof u.text === "string" && u.text.trim());
+  const max = Math.max(1, Number(maxUnits) || 6);
+  if (list.length <= max) return list;
+  const text = list.map((u) => String(u.text).trim()).join("\n\n");
+  const chunks = segmentSourceText(text, { maxChars: Math.max(500, Number(maxChars) || 12_000), minChars: 0, targetChars: Math.max(500, Number(maxChars) || 12_000) });
+  const domain = list[0]?.domain ?? "general";
+  if (chunks.length <= max) {
+    return chunks.map((c, i) => ({ text: c.text, domain, sourceCapped: true, capIndex: i }));
+  }
+  const total = chunks.reduce((n, c) => n + c.text.length, 0);
+  const target = Math.ceil(total / max);
+  const bins = [];
+  let current = "";
+  for (const chunk of chunks) {
+    const next = current ? `${current}\n\n${chunk.text}` : chunk.text;
+    if (current && bins.length < max - 1 && next.length > target) {
+      bins.push(current);
+      current = chunk.text;
+    } else {
+      current = next;
+    }
+  }
+  if (current) bins.push(current);
+  return bins.map((t, i) => ({ text: t, domain, sourceCapped: true, capIndex: i }));
+}
+
 export function segmentationStats(plan, rawText) {
   const sourceChars = String(rawText ?? "").length;
   const visibleChars = (plan ?? []).reduce((sum, chunk) => sum + (chunk.chars ?? 0), 0);

@@ -45,6 +45,11 @@ export function stripExtractedBoilerplate(text) {
       continue;
     }
     if (NAV_LINE.test(line)) continue;
+    // Wayback/CounterPunch-style archive and subscription chrome.
+    if (/^The Wayback Machine\b/i.test(line)) continue;
+    if (/^(subscribe now!?|get .* by email|click here to make a donation|remember contributions are tax-deductible|please support this website|if you find our site useful|today's stories)/i.test(line)) continue;
+    if (/^what you.re missing/i.test(line)) continue;
+    if (/^https?:\/\/web\.archive\.org\/web\//i.test(line)) continue;
     if (REFERENCE_HEADING.test(line.replace(/\[\s*edit\s*\]/gi, "").trim())) {
       // Reference tails are overwhelmingly at the end; do not truncate a real
       // article merely because it mentions "References" mid-prose.

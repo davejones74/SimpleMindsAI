@@ -246,6 +246,9 @@ export function collectRowsFromArticles(
   }
   let rows = [];
   const freshArticleIds = [];
+  let replayPoolSize = 0;
+  let replayZeroReason = null;
+  let replayCapRemoved = 0;
   let fresh = 0;
   let retained = 0;
 
@@ -328,6 +331,7 @@ export function collectRowsFromArticles(
       // a historical non-English or corrupted article must not bypass the policy
       // merely because it was consumed (or deferred) before the gate existed.
       const pool = drainReplayPool(store, { target: poolLimit }).filter(reuseEligible);
+      replayPoolSize = pool.length;
       if (needReplay) {
         replayRows = selectReplayRows(chosenFresh.map(rowForArticle), pool, {
           replayPercent: pct,
@@ -336,6 +340,9 @@ export function collectRowsFromArticles(
         // Fresh wins the row budget; replay is trimmed to the remaining slots
         // so the snapshot never exceeds `limit` training rows.
         replayRows = replayRows.slice(0, Math.max(0, limit - rows.length));
+      }
+      if (needReplay && replayRows.length === 0) {
+        replayZeroReason = pool.length ? "replay-selection-empty" : "no-eligible-replay-candidates";
       }
       const replayIds = new Set(replayRows.map((r) => r.articleId));
       for (const a of replayRows) {
@@ -377,12 +384,14 @@ export function collectRowsFromArticles(
   if (capped.removed.length) {
     rows = capped.kept;
     const keptIds = new Set(rows.map((row) => row.articleId));
+    const replayBeforeCap = replayRows.length;
     for (const list of [freshArticleIds]) {
       for (let i = list.length - 1; i >= 0; i -= 1) if (!keptIds.has(list[i])) list.splice(i, 1);
     }
     for (let i = replayRows.length - 1; i >= 0; i -= 1) {
       if (!keptIds.has(replayRows[i].articleId)) replayRows.splice(i, 1);
     }
+    replayCapRemoved = replayBeforeCap - replayRows.length;
     for (let i = validationRows.length - 1; i >= 0; i -= 1) {
       if (!keptIds.has(validationRows[i].articleId)) validationRows.splice(i, 1);
     }
@@ -411,6 +420,14 @@ export function collectRowsFromArticles(
       freshDistinctSources,
       freshTopSourceShare,
       sourceCapRemoved: capped.removed.length,
+      replayHealth: {
+        targetPercent: pct,
+        eligiblePool: replayPoolSize,
+        selectedRows: replayRows.length,
+        selectedTokens: replayRows.reduce((n, r) => n + estimateTokenCount(r.text), 0),
+        zeroReason: replayZeroReason,
+        sourceCapRemoved: replayCapRemoved,
+      },
     },
   };
 }

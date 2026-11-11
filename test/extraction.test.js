@@ -72,3 +72,16 @@ Archive. Retrieved 1 January 2020.`;
   assert.doesNotMatch(out, /Jump to content|Main menu|Navigation/);
   assert.doesNotMatch(out, /References|ISBN|Retrieved/);
 });
+
+
+test("stripExtractedBoilerplate removes Wayback/CounterPunch subscription chrome", () => {
+  const text = `The Wayback Machine - https://web.archive.org/web/2007/http://www.counterpunch.com/x
+What You're Missing in Our Subscriber-only CounterPunch Newsletter
+Get CounterPunch By Email for Only $35 a Year
+Click here to make a donation.
+Remember contributions are tax-deductible.
+The article itself begins here with a complete sentence about the subject.`;
+  const out = stripExtractedBoilerplate(text);
+  assert.match(out, /article itself begins/);
+  assert.doesNotMatch(out, /Wayback Machine|Subscriber-only|make a donation|tax-deductible|\$35/);
+});

@@ -97,16 +97,16 @@ const frontier = new Frontier({ dir: config.paths.frontier });
   // derivation when MISSION_QUERIES_ENABLED. Read defensively: on a virgin store
   // the missions may not be seeded yet, in which case derived queries are simply
   // absent — never an error.
-  const activeMissionTexts = ["primary", "secondary"]
-    .map((kind) => {
-      try {
-        const versions = governance.list("missions").filter((m) => m.kind === kind);
-        return versions.length ? versions[versions.length - 1].text : null;
-      } catch {
-        return null;
-      }
-    })
-    .filter(Boolean);
+  const missionText = (kind) => {
+    try {
+      const versions = governance.list("missions").filter((m) => m.kind === kind);
+      return versions.length ? versions[versions.length - 1].text : null;
+    } catch {
+      return null;
+    }
+  };
+  const activeMissionTexts = ["primary", "secondary"].map(missionText).filter(Boolean);
+  const secondaryMissionText = missionText("secondary");
   // Advisory mission relevance: feed the active mission(s) to the store so
   // ingested articles get a lexical relevance score when MISSION_RELEVANCE_ENABLED.
   store.setMissionContext({ missionTexts: activeMissionTexts });
@@ -141,11 +141,20 @@ const frontier = new Frontier({ dir: config.paths.frontier });
       `[admission] source=${admissionManager.source} policy=${admissionManager.policyId ?? "legacy"} epoch=${admissionManager.epoch ?? "none"} cap=${admissionManager.capLimit ?? "?"} capUsed=${admissionManager.capUsage()}`,
     );
   }
+  let activeStrategy = null;
+  try {
+    const versions = governance.list("strategies");
+    activeStrategy = versions.length ? versions[versions.length - 1] : null;
+  } catch {
+    activeStrategy = null;
+  }
   const discovery =
     config.crawlMode === "real"
       ? new DiscoveryService({
           frontier,
           missionTexts: activeMissionTexts,
+          focusMissionTexts: secondaryMissionText ? [secondaryMissionText] : activeMissionTexts,
+          strategy: activeStrategy,
           corpusTexts: reviewedCorpusTexts,
           admissionGateway,
         })

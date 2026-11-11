@@ -481,6 +481,10 @@ export class JobSupervisor {
       ollama: this.ollama,
       scorer: this.scorer,
       crawl: this.crawl,
+      // Mission focus is resolved once from the active mission/strategy and
+      // applied to acquisition AND the curator prompt (never as a post-hoc
+      // article filter).
+      missionFocus: this.discovery?.missionFocus ?? null,
       // When a discovery service is wired, acquisition follows the persistent
       // frontier (seeds + policy-approved links) instead of a static URL list.
       collectDocuments: this.discovery ? (c) => this.discovery.collect(c) : undefined,

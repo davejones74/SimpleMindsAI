@@ -126,7 +126,7 @@ export class OllamaClient {
    * is normalised to `{ text, domain }` so the whole pipeline sees one schema
    * (defect D11).
    */
-  async clean(rawText, { maxTokens = 4096 } = {}) {
+  async clean(rawText, { maxTokens = 4096, focus = null } = {}) {
     const { text } = await this.chat({
       format: "json",
       temperature: 0.2, // cleaning should be deterministic, not creative
@@ -146,6 +146,7 @@ export class OllamaClient {
             "  - Drop dictionary entries, glossary entries, project/Village-pump discussions, and fragmentary sentences with missing context.",
             "  - If the input has no usable article prose, return [].",
             "  - domain = one of: science, tech, history, general, fiction, howto.",
+            ...(focus?.prompt ? [focus.prompt] : []),
           ].join("\n"),
         },
         { role: "user", content: rawText.slice(0, 14_000) },

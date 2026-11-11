@@ -8,6 +8,7 @@ import { canonicalDomain, createDomainRegistry } from "../storage/domain-registr
 import { assess } from "../domain/language.js";
 import { classifyDiscoveryLanguage } from "../discovery/language-prior.js";
 import { RESOLUTION_STATUS, cleanArchiveOrgText } from "../discovery/source-resolver.js";
+import { gateFocusCandidate } from "../discovery/mission-profile.js";
 import { COMPLIANCE, DECISION, OUTCOME } from "../gateway/admission-store.js";
 import { AdmissionPolicyManager } from "../gateway/admission-policy.js";
 import { AcquisitionGateway } from "../gateway/acquisition-gateway.js";
@@ -271,6 +272,7 @@ export async function runCrawlCycle(ctx = {}) {
     maxLinksPerPage = config.crawlMaxLinksPerPage,
     languageFilter = null,
     discoveryLanguagePrior = null,
+    missionFocus = null,
     rediscoveryEnabled = config.rediscoveryEnabled,
     rediscoveryTtlMs = config.rediscoveryTtlMs,
     admissionGateway = null,
@@ -315,6 +317,7 @@ export async function runCrawlCycle(ctx = {}) {
     archiveUnverifiedLanguage: 0,
     archiveResolutionRetries: 0,
     sourceRejections: [],
+    focus: { focus: 0, broad: 0, rejected: 0 },
     documents: [],
     failures: [],
     discovered: [],
@@ -673,6 +676,14 @@ export async function runCrawlCycle(ctx = {}) {
       let enqueuedThisPage = 0;
       for (const linkUrl of discoveredUrls) {
         if (linkDepth > maxDepth) break;
+        const focusDecision = gateFocusCandidate(missionFocus, {
+          url: linkUrl,
+          counts: summary.focus,
+        });
+        if (!focusDecision.allow) {
+          summary.discovered.push({ url: linkUrl, accepted: false, reason: "mission-focus" });
+          continue;
+        }
         if (enqueuedThisPage >= maxLinksPerPage) break;
         const linkDecision = decideUrl(linkUrl);
         if (!linkDecision.allowed) {
@@ -778,6 +789,7 @@ export async function runCrawlBatches({
   maxLinksPerPage = config.crawlMaxLinksPerPage,
   languageFilter = null,
   discoveryLanguagePrior = null,
+  missionFocus = null,
   rediscoveryEnabled = config.rediscoveryEnabled,
   rediscoveryTtlMs = config.rediscoveryTtlMs,
   admissionGateway = null,
@@ -799,6 +811,7 @@ let totalPagesFetched = 0;
   let languageFiltered = 0;
   let languagePriorWarned = 0;
   let languagePriorRejected = 0;
+  let focus = { focus: 0, broad: 0, rejected: 0 };
   let notModified = 0;
   let rediscoveries = 0;
   let admissionRejected = 0;
@@ -843,6 +856,7 @@ let totalPagesFetched = 0;
       maxLinksPerPage,
       languageFilter,
       discoveryLanguagePrior,
+      missionFocus,
       rediscoveryEnabled,
       rediscoveryTtlMs,
       admissionGateway,
@@ -863,6 +877,11 @@ let totalPagesFetched = 0;
     languageFiltered += cycleResult.languageFiltered ?? 0;
     languagePriorWarned += cycleResult.languagePriorWarned ?? 0;
     languagePriorRejected += cycleResult.languagePriorRejected ?? 0;
+    if (cycleResult.focus) {
+      focus.focus += cycleResult.focus.focus ?? 0;
+      focus.broad += cycleResult.focus.broad ?? 0;
+      focus.rejected += cycleResult.focus.rejected ?? 0;
+    }
     notModified += cycleResult.notModified ?? 0;
     rediscoveries += cycleResult.rediscoveries ?? 0;
     admissionRejected += cycleResult.admissionRejected ?? 0;
@@ -920,6 +939,7 @@ let totalPagesFetched = 0;
     languageFiltered,
     languagePriorWarned,
     languagePriorRejected,
+    focus,
     notModified,
     rediscoveries,
     admissionRejected,

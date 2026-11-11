@@ -261,6 +261,11 @@ export async function executeFullRun({
     let { rows } = collected;
     let { freshArticleIds, replayArticleIds, validationArticleIds } = collected;
     let corpusStats = collected.stats;
+    if (corpusStats?.replayHealth?.targetPercent > 0 && corpusStats.replayHealth.selectedRows === 0) {
+      logger?.warn?.(
+        `[lifecycle] replay selected 0 rows (${corpusStats.replayHealth.zeroReason ?? "unknown"}); eligible pool ${corpusStats.replayHealth.eligiblePool ?? 0}`,
+      );
+    }
     // Refuse BEFORE baking an artifact when there is nothing to collect: a
     // continuous job treats this as a wait condition and polls, so an empty
     // snapshot manifest must not be appended on every cycle.

@@ -15,6 +15,12 @@ export const DEFAULT_STRATEGY = Object.freeze({
   focusDomains: config.allowedCategories,
   reviewSampleRate: config.review.sampleRate,
   reviewInterval: config.reviewInterval,
+  focus: {
+    mode: config.missionFocus.mode,
+    languageShare: config.missionFocus.languageShare,
+    broadShare: config.missionFocus.broadShare,
+    minScore: config.missionFocus.minScore,
+  },
   note: "initial collection strategy",
 });
 

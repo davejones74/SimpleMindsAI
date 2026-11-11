@@ -285,19 +285,27 @@ export function assessContentQuality(text, {
   const referenceLines = lines.filter((l) => CONTENT_REFERENCE_LINE.test(l)).length;
   const listLines = lines.filter((l) => CONTENT_LIST_LINE.test(l.trim())).length;
   const navLines = lines.filter((l) => { NAV_MARKERS.lastIndex = 0; return NAV_MARKERS.test(l); }).length;
+  const proseLines = lines.filter((l) => l.split(/\s+/).length >= 5 && !CONTENT_REFERENCE_LINE.test(l) && !CONTENT_LIST_LINE.test(l.trim())).length;
   const refRatio = lines.length ? referenceLines / lines.length : 0;
   const listRatio = lines.length ? listLines / lines.length : 0;
   const navRatio = lines.length ? navLines / lines.length : 0;
-  const metrics = { chars: trimmed.length, words, sentences, lines: lines.length, referenceLines, refRatio, listLines, listRatio, navLines, navRatio };
+  const proseLineRatio = lines.length ? proseLines / lines.length : 0;
+  const metrics = { chars: trimmed.length, words, sentences, lines: lines.length, referenceLines, refRatio, listLines, listRatio, navLines, navRatio, proseLineRatio };
 
   if (words < Math.max(1, Number(minWords) || 0)) {
     return { decision: "reject", reason: `content: fragment too short (${words} word(s), need ${minWords})`, metrics };
   }
-  if (lines.length >= 3 && refRatio >= referenceLineRatio && referenceLines >= 3) {
+  if (lines.length >= 2 && refRatio >= referenceLineRatio && referenceLines >= 2) {
     return { decision: "reject", reason: `content: reference/citation list (${referenceLines}/${lines.length} lines)`, metrics };
   }
-  if (lines.length >= 3 && listRatio >= listLineRatio && sentences <= 3) {
+  if (referenceLines >= 3 && words < 160) {
+    return { decision: "reject", reason: `content: citation-heavy fragment (${referenceLines} reference lines, ${words} words)`, metrics };
+  }
+  if (lines.length >= 2 && listRatio >= listLineRatio && sentences <= 3) {
     return { decision: "reject", reason: `content: list/table without prose (${listLines}/${lines.length} lines)`, metrics };
+  }
+  if (lines.length >= 4 && proseLineRatio < 0.4 && words < 400) {
+    return { decision: "reject", reason: `content: mostly references/lists/navigation (prose line ratio ${proseLineRatio.toFixed(2)})`, metrics };
   }
   const firstLine = lines[0]?.trim() ?? "";
   if ((firstLine.length <= 60 && CONTENT_NAV_START.test(firstLine)) || (lines.length >= 8 && navRatio >= navDensity)) {
