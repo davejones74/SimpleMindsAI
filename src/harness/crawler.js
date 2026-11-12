@@ -733,6 +733,7 @@ export async function runCrawlCycle(ctx = {}) {
           parent: record.url,
           seed: record.seed,
           discoveryProvenance: { type: "link_extraction", parentUrl: record.url, depth: urlDepth, trust: linkDecision.trust },
+          focusClass: focusDecision.kind === "focus" ? "focus" : "broad",
         });
         if (enqueued) {
           enqueuedThisPage++;

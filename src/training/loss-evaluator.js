@@ -415,6 +415,55 @@ export function decidePromotionByLoss(parent, candidate, {
   return { ...withEval, decision: "promoted", reason: `loss improved by ${improvement.toFixed(4)} on ${parent.datasetHash}` };
 }
 
+
+/**
+ * Broad-set non-inferiority guard.
+ *
+ * The primary eval-002 gate remains authoritative: it must still show a paired
+ * improvement. The broad set is deliberately treated as a guard, not a second
+ * promotion signal, because its confidence interval is wider and a positive
+ * broad CI would reject practically useful candidates on sampling noise.
+ *
+ * A candidate passes when its broad loss is no more than `maxRegressionNats`
+ * worse than the stable parent. A material broad regression is rejected.
+ */
+export function decideBroadNonInferiority(parent, candidate, {
+  maxRegressionNats = config.promoteBroadMaxRegressionNats,
+} = {}) {
+  const base = {
+    parentLoss: parent?.loss ?? null,
+    candidateLoss: candidate?.loss ?? null,
+    regression: null,
+    maxRegressionNats,
+    datasetHash: null,
+    comparable: false,
+    evaluated: false,
+  };
+  if (!parent?.ok || !candidate?.ok) {
+    return { ...base, decision: "not_evaluated", reason: `invalid broad evaluation (parent: ${parent?.error ?? "ok"}, candidate: ${candidate?.error ?? "ok"})` };
+  }
+  if (!Number.isFinite(parent.loss) || !Number.isFinite(candidate.loss)) {
+    return { ...base, decision: "not_evaluated", reason: "non-finite broad loss" };
+  }
+  if (parent.datasetHash == null || parent.datasetHash !== candidate.datasetHash) {
+    return { ...base, decision: "not_evaluated", reason: "parent and candidate were not scored on the same broad evaluation set" };
+  }
+  const regression = candidate.loss - parent.loss;
+  const withEval = { ...base, regression, datasetHash: parent.datasetHash, comparable: true, evaluated: true };
+  if (regression > maxRegressionNats) {
+    return {
+      ...withEval,
+      decision: "rejected",
+      reason: `broad regression ${regression.toFixed(4)} nats exceeds the non-inferiority margin ${maxRegressionNats}`,
+    };
+  }
+  return {
+    ...withEval,
+    decision: "accepted",
+    reason: `broad non-inferior (regression ${regression.toFixed(4)} nats, margin ${maxRegressionNats})`,
+  };
+}
+
 function fmtCI(paired) {
   const lo = Number.isFinite(paired?.ciLow) ? paired.ciLow.toFixed(4) : "?";
   const hi = Number.isFinite(paired?.ciHigh) ? paired.ciHigh.toFixed(4) : "?";

@@ -8,7 +8,7 @@ import { buildPartition, InsufficientValidationError } from "../dataset/partitio
 import { loadEvaluationSet, makeEvalGuard } from "../dataset/evaluation-set.js";
 import { validateCurriculum, fallbackCurriculum } from "../curriculum/validation.js";
 import { Evaluator, decidePromotion } from "./evaluator.js";
-import { decidePromotionByLoss, evaluateVersionLoss } from "./loss-evaluator.js";
+import { decidePromotionByLoss, decideBroadNonInferiority, evaluateVersionLoss } from "./loss-evaluator.js";
 import { setActiveVersion } from "./python-promotion.js";
 import { assertTrainer } from "./trainer-interface.js";
 import { modelHandle } from "./model-handle.js";
@@ -427,44 +427,78 @@ export async function executeFullRun({
           replayPercent: config.trainReplayPercent,
         });
         if (!selected.keptRows.length) {
-          const err = new Error(
-            `replay composition ${(check.share * 100).toFixed(2)}% exceeds ${config.trainReplayPercent}% ` +
-              `(+${config.trainReplayTolerancePoints} points) and no replay row fits the token budget`,
+          // No replay row fits the target budget. Dropping replay entirely is
+          // better than stalling training indefinitely: the fresh delta is the
+          // actual new knowledge, and the skipped rows remain available for a
+          // later replay. The snapshot is rebuilt with zero replay so the final
+          // trainer preflight can proceed.
+          const withoutReplay = snapshot.rows.filter((row) => row.corpusRole !== "replay");
+          const validationCount = withoutReplay.filter((row) => row.corpusRole === "validation").length;
+          const newStats = {
+            ...corpusStats,
+            collected: withoutReplay.length,
+            replay: 0,
+            validation: validationCount,
+            retained: validationCount,
+            estimatedReplayShare: 0,
+            replayHealth: {
+              ...(corpusStats?.replayHealth ?? {}),
+              selectedRows: 0,
+              selectedTokens: 0,
+              zeroReason: "no-replay-row-fits-token-budget",
+            },
+          };
+          replayArticleIds = [];
+          snapshot = await buildSnapshot({
+            registry,
+            rowsRaw: withoutReplay,
+            freshArticleIds,
+            dir: options.paths?.snapshots,
+            evalGuard,
+            replayArticleIds,
+            validationArticleIds,
+            partition,
+            corpusMode: config.trainCorpusMode,
+            corpusStats: newStats,
+            corpusPolicy,
+          });
+          corpusStats = newStats;
+          logger?.warn?.(
+            `[lifecycle] no replay row fits the ${config.trainReplayPercent}% token budget ` +
+              `(${(check.share * 100).toFixed(2)}% selected); dropping replay for this run`,
           );
-          err.code = "REPLAY_SHARE_EXCEEDED";
-          err.replayShare = check.share;
-          throw err;
+        } else {
+          const keptIds = new Set(selected.keptRows.map((row) => row.articleId));
+          const trimmedRows = snapshot.rows.filter((row) => row.corpusRole !== "replay" || keptIds.has(row.articleId));
+          const validationCount = trimmedRows.filter((row) => row.corpusRole === "validation").length;
+          const newStats = {
+            ...corpusStats,
+            collected: trimmedRows.length,
+            replay: selected.keptRows.length,
+            validation: validationCount,
+            retained: selected.keptRows.length + validationCount,
+            estimatedReplayShare: selected.replayShare,
+          };
+          replayArticleIds = selected.keptRows.map((row) => row.articleId);
+          snapshot = await buildSnapshot({
+            registry,
+            rowsRaw: trimmedRows,
+            freshArticleIds,
+            dir: options.paths?.snapshots,
+            evalGuard,
+            replayArticleIds,
+            validationArticleIds,
+            partition,
+            corpusMode: config.trainCorpusMode,
+            corpusStats: newStats,
+            corpusPolicy,
+          });
+          corpusStats = newStats;
+          logger?.warn?.(
+            `[lifecycle] tokenizer replay budget removed ${selected.removedRows} replay row(s): ` +
+              `${(check.share * 100).toFixed(2)}% -> ${(selected.replayShare * 100).toFixed(2)}%`,
+          );
         }
-        const keptIds = new Set(selected.keptRows.map((row) => row.articleId));
-        const trimmedRows = snapshot.rows.filter((row) => row.corpusRole !== "replay" || keptIds.has(row.articleId));
-        const validationCount = trimmedRows.filter((row) => row.corpusRole === "validation").length;
-        const newStats = {
-          ...corpusStats,
-          collected: trimmedRows.length,
-          replay: selected.keptRows.length,
-          validation: validationCount,
-          retained: selected.keptRows.length + validationCount,
-          estimatedReplayShare: selected.replayShare,
-        };
-        replayArticleIds = selected.keptRows.map((row) => row.articleId);
-        snapshot = await buildSnapshot({
-          registry,
-          rowsRaw: trimmedRows,
-          freshArticleIds,
-          dir: options.paths?.snapshots,
-          evalGuard,
-          replayArticleIds,
-          validationArticleIds,
-          partition,
-          corpusMode: config.trainCorpusMode,
-          corpusStats: newStats,
-          corpusPolicy,
-        });
-        corpusStats = newStats;
-        logger?.warn?.(
-          `[lifecycle] tokenizer replay budget removed ${selected.removedRows} replay row(s): ` +
-            `${(check.share * 100).toFixed(2)}% -> ${(selected.replayShare * 100).toFixed(2)}%`,
-        );
       }
     }
 
@@ -771,14 +805,94 @@ export async function executeFullRun({
         tolerancePoints: config.trainReplayTolerancePoints,
       });
       if (!check.withinTolerance) {
-        const err = new Error(
-          `replay composition ${(check.share * 100).toFixed(2)}% exceeds ${config.trainReplayPercent}% ` +
-            `(+${config.trainReplayTolerancePoints} points) in the final trainer preflight`,
+        // The tokenizer budget above measured the snapshot before the trainer
+        // packed it. Fragment packing can drop fresh material and push the
+        // realized replay share over tolerance even when the snapshot looked
+        // compliant. Rebuild once without replay and re-run the authoritative
+        // preflight; a fresh-only run is preferable to a perpetual wait.
+        const withoutReplay = snapshot.rows.filter((row) => row.corpusRole !== "replay");
+        if (withoutReplay.length === snapshot.rows.length) {
+          const err = new Error(
+            `replay composition ${(check.share * 100).toFixed(2)}% exceeds ${config.trainReplayPercent}% ` +
+              `(+${config.trainReplayTolerancePoints} points) in the final trainer preflight`,
+          );
+          err.code = "REPLAY_SHARE_EXCEEDED";
+          err.replayShare = check.share;
+          err.corpusPreflight = corpusPreflight;
+          throw err;
+        }
+        const validationCount = withoutReplay.filter((row) => row.corpusRole === "validation").length;
+        const newStats = {
+          ...corpusStats,
+          collected: withoutReplay.length,
+          replay: 0,
+          validation: validationCount,
+          retained: validationCount,
+          estimatedReplayShare: 0,
+          replayHealth: {
+            ...(corpusStats?.replayHealth ?? {}),
+            selectedRows: 0,
+            selectedTokens: 0,
+            zeroReason: "final-preflight-replay-share",
+          },
+        };
+        replayArticleIds = [];
+        snapshot = await buildSnapshot({
+          registry,
+          rowsRaw: withoutReplay,
+          freshArticleIds,
+          dir: options.paths?.snapshots,
+          evalGuard,
+          replayArticleIds,
+          validationArticleIds,
+          partition,
+          corpusMode: config.trainCorpusMode,
+          corpusStats: newStats,
+          corpusPolicy,
+        });
+        corpusStats = newStats;
+        const retryInfo = await t.preflight({
+          datasetFile: snapshot.manifest.file,
+          parentVersion: trainingBaseline?.version ?? null,
+          valBlocks: config.trainValBlocks,
+        });
+        if (retryInfo && retryInfo.ok === false) {
+          const err = new Error(retryInfo.error ?? "insufficient corpus after replay trim");
+          err.code = retryInfo.code ?? "INSUFFICIENT_CORPUS";
+          err.blockCount = retryInfo.blockCount ?? 0;
+          throw err;
+        }
+        corpusPreflight = retryInfo ?? null;
+        const retryFresh = Number(retryInfo?.freshTokensSeen ?? 0);
+        const retryReplay = Number(retryInfo?.replayTokensSeen ?? 0);
+        const retryCheck = replayShareWithinTolerance({
+          freshTokens: retryFresh,
+          replayTokens: retryReplay,
+          replayPercent: config.trainReplayPercent,
+          tolerancePoints: config.trainReplayTolerancePoints,
+        });
+        if (!retryCheck.withinTolerance) {
+          const err = new Error(
+            `replay composition ${(retryCheck.share * 100).toFixed(2)}% still exceeds tolerance after replay trim`,
+          );
+          err.code = "REPLAY_SHARE_EXCEEDED";
+          err.replayShare = retryCheck.share;
+          err.corpusPreflight = retryInfo;
+          throw err;
+        }
+        if (config.trainMinFreshTokens > 0 && retryFresh < config.trainMinFreshTokens) {
+          const err = new Error(
+            `fresh training delta has ${retryFresh} token(s), below the minimum of ${config.trainMinFreshTokens}`,
+          );
+          err.code = "INSUFFICIENT_FRESH_DATA";
+          err.tokens = retryFresh;
+          err.minFreshTokens = config.trainMinFreshTokens;
+          throw err;
+        }
+        logger?.warn?.(
+          `[lifecycle] final replay preflight ${(check.share * 100).toFixed(2)}% > tolerance; ` +
+            `rebuilt snapshot without replay (${(retryCheck.share * 100).toFixed(2)}%)`,
         );
-        err.code = "REPLAY_SHARE_EXCEEDED";
-        err.replayShare = check.share;
-        err.corpusPreflight = corpusPreflight;
-        throw err;
       }
     }
     // The fixed cadence was sized for 60-step runs. Tighten it to the ACTUAL
@@ -1112,7 +1226,7 @@ export async function executeFullRun({
         bin: config.pythonBin ?? undefined,
         device: config.studentDevice,
       });
-      broadDecision = decidePromotionByLoss(broadBaselineResult, broadCandidateResult, {});
+      broadDecision = decideBroadNonInferiority(broadBaselineResult, broadCandidateResult, {});
       await recordPythonEvaluation(registry, {
         runId,
         kind: "baseline-broad",
@@ -1135,15 +1249,16 @@ export async function executeFullRun({
         trainingResult,
       });
       const primaryDecision = decision;
-      decision = broadDecision.decision === "promoted"
+      decision = broadDecision.decision === "accepted"
         ? {
             ...primaryDecision,
-            reason: `primary + broad eval improved: ${primaryDecision.reason}; ${broadDecision.reason}`,
+            reason: `primary improved and broad is non-inferior: ${primaryDecision.reason}; ${broadDecision.reason}`,
             primaryDecision,
             broadDecision,
           }
         : {
             ...broadDecision,
+            decision: broadDecision.decision === "not_evaluated" ? "not_evaluated" : "rejected",
             reason: `broad evaluation blocked promotion: ${broadDecision.reason}; primary: ${primaryDecision.reason}`,
             primaryDecision,
             broadDecision,

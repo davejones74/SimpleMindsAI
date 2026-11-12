@@ -442,6 +442,7 @@ export class DiscoveryService {
         const enqueued = await this.frontier.enqueue(url, {
           depth: 0,
           discoveryProvenance: cand.provenance ?? null,
+          focusClass: focusDecision.kind === "focus" ? "focus" : "broad",
         });
         if (enqueued) report.enqueued++;
         else report.duplicate++;

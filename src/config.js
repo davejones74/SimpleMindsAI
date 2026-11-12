@@ -337,6 +337,9 @@ export const config = {
   // guards against narrow-source overfitting.
   broadEvalDatasetId: env("EVAL_BROAD_DATASET_ID", "eval-broad-001"),
   promoteBroadEvalSet: env("PROMOTE_BROAD_EVAL_SET", null),
+  // Broad evaluation is a non-inferiority guard, not a second positive-CI gate.
+  // A candidate may be slightly worse on the broad set within this margin.
+  promoteBroadMaxRegressionNats: num("PROMOTE_BROAD_MAX_REGRESSION_NATS", 0.02),
   // Advisory floors on a frozen evaluation set. A set smaller than the operator
   // expects is recorded and surfaced as a `warnings` entry on the run record and
   // in the Observatory, but promotion is never blocked — the causal-LM loss gate

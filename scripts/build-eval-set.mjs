@@ -30,13 +30,13 @@ const USER_AGENT = "SimpleMindsAI-eval-builder/1.0 (frozen evaluation corpus; lo
 // Domain-stratified, stable educational titles. Kept deliberately narrow to
 // long-lived articles so the corpus is reproducible across rebuilds.
 const BROAD_DOMAINS = {
-  history: ["Nubia", "Mughal Empire", "Meiji Restoration", "Spanish Empire", "Aztecs", "Inca Empire", "Mesopotamia", "Indus Valley Civilisation", "Han dynasty", "Tang dynasty"],
-  science: ["Thermodynamics", "Genetics", "Ecology", "Neuroscience", "Plate tectonics", "Organic chemistry", "Electromagnetism", "Quantum mechanics"],
-  technology: ["Machine learning", "Programming language", "Linux", "Data warehouse", "Internet protocol suite", "Public-key cryptography", "Mechatronics", "Numerical control"],
-  geography: ["Amazon rainforest", "Gobi Desert", "Caspian Sea", "Mississippi River", "Rocky Mountains", "Great Rift Valley", "Antarctica", "Arctic"],
-  arts: ["Baroque", "Cubism", "Opera", "Poetry", "Novel", "Film", "Dance", "Theatre"],
-  life: ["Nutrition", "Circulatory system", "Nervous system", "Endocrine system", "Plant", "Animal", "Bacteria", "Virus"],
-  society: ["Law", "Psychology", "Sociology", "Anthropology", "Political science", "International relations", "Philosophy", "Pedagogy"],
+  history: ["Nubia", "Mughal Empire", "Meiji Restoration", "Portuguese Empire", "Aztecs", "Inca Empire", "Mesopotamia", "Indus Valley Civilisation", "Han dynasty", "Tang dynasty", "Crusades", "Mongol Empire", "Viking Age", "Mali Empire", "Kingdom of Kush"],
+  science: ["Thermodynamics", "Genetics", "Ecology", "Neuroscience", "Plate tectonics", "Organic chemistry", "Electromagnetism", "Quantum mechanics", "Cell theory", "Germ theory of disease", "Genetic engineering", "Molecular biology", "Astrobiology", "Climate change"],
+  technology: ["Machine learning", "Programming language", "Linux", "Data warehouse", "Internet protocol suite", "Public-key cryptography", "Mechatronics", "Numerical control", "Computer hardware", "Telecommunications", "Satellite", "Microprocessor", "Grid computing", "Virtual reality", "Access control", "Information theory"],
+  geography: ["Amazon rainforest", "Gobi Desert", "Caspian Sea", "Mississippi River", "Rocky Mountains", "Great Rift Valley", "Antarctica", "Arctic", "Mediterranean Sea", "Red Sea", "Bay of Bengal", "Coral reef", "Volcano", "Earthquake", "Monsoon", "Tundra"],
+  arts: ["Baroque", "Cubism", "Opera", "Poetry", "Novel", "Film", "Dance", "Theatre", "Minimalism", "Surrealism", "Typography", "Calligraphy", "Mosaic", "Pottery", "Textile", "Origami"],
+  life: ["Nutrition", "Circulatory system", "Nervous system", "Endocrine system", "Plant", "Animal", "Bacteria", "Virus", "Zoology", "Mycology", "Entomology", "Marine biology", "Biochemistry", "Immunology", "Pharmacology"],
+  society: ["Law", "Psychology", "Sociology", "Anthropology", "Political science", "International relations", "Aesthetics", "Pedagogy", "Criminology", "Social work", "Public health", "Urban studies", "Journalism", "Library science", "Museum studies", "Tourism"],
 };
 
 const DOMAINS = {

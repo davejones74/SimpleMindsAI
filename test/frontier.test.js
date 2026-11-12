@@ -121,3 +121,16 @@ test("requeueVisited refuses terminal records and is idempotent for queued work"
   assert.equal(f.state.get(queued).state, "queued");
   assert.equal((f.state.get(queued).requeues ?? []).length, 0);
 });
+
+
+test("focus annotation makes language-mechanics queue entries claimable before broad work", async () => {
+  const f = new Frontier({ dir: tmp() });
+  await f.init();
+  await f.enqueue("https://example.org/sports/football", { depth: 0 });
+  await f.enqueue("https://example.org/grammar/sentence-structure", { depth: 0 });
+  const counts = await f.annotateFocus({ terms: ["grammar", "sentence", "language"], phrases: ["sentence structure"], minScore: 0.08 });
+  assert.equal(counts.examined, 2);
+  assert.equal(counts.focus, 1);
+  const claimed = await f.claimNext();
+  assert.match(claimed.record.url, /grammar\/sentence-structure/);
+});

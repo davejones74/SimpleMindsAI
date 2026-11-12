@@ -1,6 +1,7 @@
 import { appendFile, mkdir, writeFile, readFile, rename, unlink, copyFile } from "node:fs/promises";
 import path from "node:path";
 import { contentHashFor } from "./harness/fetcher.js";
+import { scoreFocusText } from "./discovery/mission-profile.js";
 
 const FRONTIER_DIR = "data/frontier";
 export const FRONTIER_FILE = "frontier.ndjson";
@@ -77,6 +78,7 @@ function makeFrontierRecord(url, state, depth, parent, seed, metadata = {}) {
     lastResolvedUrl: metadata.lastResolvedUrl ?? null,
     resolution: metadata.resolution ?? null,
     requeues: metadata.requeues ?? [],
+    focusClass: metadata.focusClass ?? null,
   };
 }
 
@@ -121,7 +123,7 @@ export class Frontier {
   // Idempotent enqueue: returns the canonical key; if URL already tracked,
   // does not re-enqueue. If URL failed with exhausted retries, may re-enqueue
   // only when `force` is set.
-  async enqueue(url, { depth = 0, parent = null, seed = null, force = false, maxRetries = 2, discoveryProvenance = null } = {}) {
+  async enqueue(url, { depth = 0, parent = null, seed = null, force = false, maxRetries = 2, discoveryProvenance = null, focusClass = null } = {}) {
     if (!this.initialized) await this.init();
     const canonical = canonicalURL(url);
     if (!canonical) return null;
@@ -155,6 +157,7 @@ export class Frontier {
       payloadDigest: existing?.payloadDigest ?? null,
       lastResolvedUrl: existing?.lastResolvedUrl ?? null,
       requeues: Array.isArray(existing?.requeues) ? existing.requeues : [],
+      focusClass: focusClass ?? existing?.focusClass ?? null,
     });
     this.state.set(canonical, record);
     await this.persist();
@@ -191,10 +194,15 @@ export class Frontier {
       return { canonical, record, rediscovery };
     };
 
-    // 1) Brand-new work.
+    // 1) Brand-new work. Mission-focused queued URLs go first; broad URLs follow,
+    // so an operator focus backfill actually changes what is fetched next.
+    let firstBroad = null;
     for (const [canonical, record] of this.state.entries()) {
-      if (record.state === URL_STATE.QUEUED) return claim(canonical, record, false);
+      if (record.state !== URL_STATE.QUEUED) continue;
+      if (record.focusClass === "focus") return claim(canonical, record, false);
+      if (!firstBroad) firstBroad = [canonical, record];
     }
+    if (firstBroad) return claim(firstBroad[0], firstBroad[1], false);
     // 2) Due retries with retries remaining.
     for (const [canonical, record] of this.state.entries()) {
       if (record.state === URL_STATE.DEFERRED && (record.retries ?? 0) < maxRetries) {
@@ -309,6 +317,33 @@ export class Frontier {
     record.payloadDigest = null;
     await this.persist();
     return true;
+  }
+
+  /**
+   * Annotate existing QUEUED frontier records with a mission-focus class. New
+   * discovery candidates are already gated before enqueue; this closes the gap
+   * for the large pre-existing broad queue.
+   */
+  async annotateFocus({ terms = [], phrases = [], minScore = 0.08, dryRun = false, at = null } = {}) {
+    if (!this.initialized) await this.init();
+    const profile = { mode: "enforce", terms, phrases, minScore };
+    const counts = { examined: 0, focus: 0, broad: 0, changed: 0 };
+    for (const record of this.state.values()) {
+      if (record.state !== URL_STATE.QUEUED) continue;
+      counts.examined++;
+      const score = scoreFocusText(record.url, profile);
+      const focusClass = score >= minScore ? "focus" : "broad";
+      if (focusClass === "focus") counts.focus++;
+      else counts.broad++;
+      if (record.focusClass !== focusClass) {
+        record.focusClass = focusClass;
+        record.focusScoredAt = at ?? new Date().toISOString();
+        record.focusScore = score;
+        counts.changed++;
+      }
+    }
+    if (!dryRun && counts.changed > 0) await this.persist();
+    return counts;
   }
 
   // Mark URL as gateway-rejected. This is terminal and cannot be re-enqueued.
@@ -668,6 +703,9 @@ export class Frontier {
         resolvedUrl: record.resolvedUrl ?? null,
         lastResolvedUrl: record.lastResolvedUrl ?? null,
         resolution: record.resolution ?? null,
+        focusClass: record.focusClass ?? null,
+        focusScore: record.focusScore ?? null,
+        focusScoredAt: record.focusScoredAt ?? null,
         ...(Array.isArray(record.requeues) && record.requeues.length ? { requeues: record.requeues } : {}),
         ...(Array.isArray(record.recoveryHistory) && record.recoveryHistory.length
           ? { recoveryHistory: record.recoveryHistory }

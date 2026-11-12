@@ -15,6 +15,7 @@
     "score": "node src/reward/reward-scorer.js",
     "review": "node src/cli/review.js",
     "review:triage": "node src/cli/review-triage.js",
+    "frontier:focus": "node src/cli/frontier-focus.js",
     "admission": "node src/cli/admission.js",
     "eval-cache": "node src/cli/eval-cache.js",
     "plan": "node src/services/planner.js",
