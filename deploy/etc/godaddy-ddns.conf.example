@@ -1,0 +1,6 @@
+# GoDaddy DDNS configuration for /usr/local/bin/godaddy-ddns.
+# Install to /etc/godaddy-ddns/config (mode 0600, owned by root) and fill in real values.
+GODADDY_DOMAIN="runningcode.dev"
+GODADDY_HOST="x1pro"
+GODADDY_API_KEY=""
+GODADDY_PAT=""

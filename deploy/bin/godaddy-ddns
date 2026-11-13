@@ -1,0 +1,40 @@
+#!/bin/bash
+
+set -euo pipefail
+
+CONFIG="/etc/godaddy-ddns/config"
+
+source "$CONFIG"
+
+PUBLIC_IP=$(curl -4 -fsS https://api.ipify.org)
+
+RECORD=$(
+    curl -fsS \
+        -H "Authorization: Bearer $GODADDY_PAT" \
+        "https://api.godaddy.com/v3/domains/zones/${GODADDY_DOMAIN}/dns-records?type=A&name=${GODADDY_HOST}"
+)
+
+CURRENT_IP=$(echo "$RECORD" | jq -r '.items[0].data')
+RECORD_ID=$(echo "$RECORD" | jq -r '.items[0].recordId')
+TTL=$(echo "$RECORD" | jq -r '.items[0].ttl')
+
+echo "Public IP : $PUBLIC_IP"
+echo "DNS IP    : $CURRENT_IP"
+echo "Record ID : $RECORD_ID"
+
+if [[ "$PUBLIC_IP" == "$CURRENT_IP" ]]; then
+    echo "No change required."
+    exit 0
+fi
+
+echo "IP addresses differ."
+echo "Updating ${GODADDY_HOST}.${GODADDY_DOMAIN} to $PUBLIC_IP..."
+
+curl -fsS -X PUT \
+    -H "Authorization: Bearer $GODADDY_PAT" \
+    -H "Content-Type: application/json" \
+    "https://api.godaddy.com/v3/domains/zones/${GODADDY_DOMAIN}/dns-records/${RECORD_ID}" \
+    -d "{\"name\":\"${GODADDY_HOST}\",\"type\":\"A\",\"data\":\"${PUBLIC_IP}\",\"ttl\":${TTL}}"
+
+echo
+echo "DNS update successful."

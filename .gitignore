@@ -15,6 +15,7 @@ out/
 bin/
 !**/src/main/**/bin/
 !**/src/test/**/bin/
+!deploy/bin/
 
 ### NetBeans ###
 /nbproject/private/
