@@ -31,6 +31,22 @@ const state = {
   // needs; defaulting to the first entry keeps the initial render unchanged.
   historyTab: "runs",
   trendsTab: "trend",
+  // Trends & Metrics view state. Kept outside the DOM so a live SSE refresh or
+  // a sub-tab switch never discards an operator's filters or expanded run.
+  trendsView: {
+    runQuery: "",
+    runOutcome: "",
+    runVersion: "",
+    runSort: "newest",
+    runPage: 1,
+    runPageSize: 50,
+    runExpanded: null,
+    xMode: "sequence",
+    connectValidation: false,
+  },
+  trendsExtras: null, // { history, byRun, pyByVersion } from /training-history
+  trendsExtrasLoading: false,
+  trendsExtrasError: null,
   control: null, // { jobs, eligibility, teacher, versions }
   // Persisted Learning & Training form selections, so a re-render (from SSE,
   // polling, or after Start/Stop) never silently resets the operator's choice
@@ -186,6 +202,20 @@ function selectWorkspace(id) {
   state.cycles = null;
   state.history = null;
   state.trends = null;
+  state.trendsExtras = null;
+  state.trendsExtrasLoading = false;
+  state.trendsExtrasError = null;
+  state.trendsView = {
+    runQuery: "",
+    runOutcome: "",
+    runVersion: "",
+    runSort: "newest",
+    runPage: 1,
+    runPageSize: 50,
+    runExpanded: null,
+    xMode: "sequence",
+    connectValidation: false,
+  };
   state.control = null;
   state.jobDetail = null;
   state.versions = [];
@@ -286,6 +316,7 @@ const main = document.getElementById("main");
 
 function setTab(tab) {
   state.tab = tab;
+  hideChartTooltip();
   for (const b of document.querySelectorAll("#tabs button")) b.classList.toggle("active", b.dataset.tab === tab);
   render();
   refresh();
@@ -1189,28 +1220,44 @@ function evalSetPanel(evalSet) {
 }
 
 // ------------------------------------------------------- trends & metrics
-async function loadTrends() {
-  state.trends = await api(`/metrics${state.selectedVersion ? `?version=${encodeURIComponent(state.selectedVersion)}` : ""}`);
-  renderTrends();
+// The view model is a pure ES module so chart geometry, verdict arithmetic and
+// run filtering are testable without a DOM. It is loaded lazily (dynamic import
+// keeps app.js parseable as a classic script by the portal asset test).
+let trendsModel = null;
+async function ensureTrendsModel() {
+  if (!trendsModel) trendsModel = await import("./trends-model.js");
+  return trendsModel;
 }
 
-const TREND_LABEL = {
-  insufficient_evidence: "Insufficient evidence",
-  improving: "Improving",
-  plateauing: "Plateauing",
-  potentially_overfitting: "Potentially overfitting",
-  worsening: "Worsening",
-};
-const TREND_BADGE = {
-  insufficient_evidence: "PENDING_REVIEW",
-  improving: "REVIEWED",
-  plateauing: "PENDING_REVIEW",
-  potentially_overfitting: "overfit",
-  worsening: "REJECTED",
-};
+async function loadTrends() {
+  await ensureTrendsModel();
+  state.trends = await api(`/metrics${state.selectedVersion ? `?version=${encodeURIComponent(state.selectedVersion)}` : ""}`);
+  state.trendsExtrasError = null;
+  renderTrends();
+  if (state.trendsTab === "events") ensureTrendExtras();
+}
 
-function trendCard(k, vHtml) {
-  return `<div class="card"><div class="k">${esc(k)}</div><div class="v">${vHtml}</div></div>`;
+function outcomeBadge(outcome) {
+  const meta = trendsModel?.outcomeMeta(outcome);
+  if (!meta) return badge("PENDING_REVIEW", outcome ?? "?");
+  return `<span class="outcome-badge ${esc(meta.className)}"><span class="outcome-glyph" aria-hidden="true">${esc(meta.glyph)}</span>${esc(meta.label)}</span>`;
+}
+
+function trendBadge(verdict) {
+  const meta = trendsModel?.trendMeta(verdict) ?? { label: "Insufficient evidence", className: "trend-insufficient" };
+  return `<span class="trend-badge ${esc(meta.className)}">${esc(meta.label)}</span>`;
+}
+
+function metricCard(k, vHtml, hint = "") {
+  return `<div class="metric-card">
+    <div class="k">${esc(k)}</div>
+    <div class="metric-value">${vHtml}</div>
+    ${hint ? `<div class="metric-hint">${hint}</div>` : ""}
+  </div>`;
+}
+
+function metricPair(first, second) {
+  return `<span class="metric-pair"><span>${first}</span><span class="metric-arrow">→</span><span>${second}</span></span>`;
 }
 
 /**
@@ -1262,14 +1309,16 @@ function shortHash(h) {
 function renderTrends() {
   const m = state.trends;
   if (!m) return;
+  hideChartTooltip();
   const body =
     !m.available
       ? `<div class="panel notice"><div class="title bad">Store unavailable</div><div class="muted">${esc(m.reason ?? "python store unavailable")}</div></div>`
       : m.reason
         ? `<div class="panel notice"><div class="muted">${esc(m.reason)}</div></div>`
         : trendsBody(m);
-  main.innerHTML = `<h2 class="section-title">Trends & Metrics <span class="sm">${versionScope()}</span></h2>${body}`;
+  main.innerHTML = `<h2 class="section-title">Trends &amp; Metrics <span class="sm">${versionScope()}</span></h2>${body}`;
   bindSubtabs();
+  wireTrends();
 }
 
 // --------------------------------------------------------- sources & domains
@@ -1461,16 +1510,6 @@ function wireDomainActions() {
 }
 
 function trendsBody(m) {
-  const t = m.trend ?? {};
-  const verdict = t.verdict ?? "insufficient_evidence";
-  const label = TREND_LABEL[verdict] ?? verdict;
-  const seg = (m.segments ?? []).find((s) => s.version === m.effectiveVersion);
-  const ev = t.evidence ?? {};
-  const valLost = ev.first == null && ev.last == null ? "—" : `${fmt(ev.first)} → ${fmt(ev.last)}`;
-  // ONE checkpoint, comparable to this lineage. `best` is per-dataset-hash, so
-  // rendering it here would list every version on a multi-corpus store.
-  const best = m.bestInLineage && Number.isFinite(m.bestInLineage.loss) ? [m.bestInLineage] : [];
-  const thresholds = m.thresholds ?? {};
   const tab = state.trendsTab;
   return `
     ${subtabs("trendsTab", [
@@ -1479,211 +1518,799 @@ function trendsBody(m) {
       ["lineage", `Lineage segments (${(m.segments ?? []).length})`],
       ["events", `Run events (${(m.events ?? []).length})`],
     ])}
-
-    ${tab === "trend" ? `
-      <div class="grid">
-        ${trendCard("Trend", badge(TREND_BADGE[verdict] ?? "PENDING_REVIEW", label))}
-        ${trendCard("Validation loss", `${valLost}${ev.best == null ? "" : ` <span class="muted small">best ${fmt(ev.best)}</span>`}`)}
-        ${trendCard("Steps covered", m.chain?.fromStep == null ? "—" : `${fmt(m.chain.fromStep)} → ${fmt(m.chain.toStep)}`)}
-        ${trendCard("Effective version", `${esc(m.effectiveVersion ?? "—")} ${samplingLabel(seg?.sampling)}`)}
-        ${trendCard(
-          "Best checkpoint",
-          best.length
-            ? `${esc(best[0].version ?? best[0].runId ?? "?")} <span class="muted small">${fmt(best[0].loss)} <span title="dataset hash ${esc(best[0].datasetHash ?? "")}">${esc(shortHash(best[0].datasetHash) ?? "unkeyed")}</span></span>`
-            : "—",
-        )}
-      </div>
-      <div class="panel">
-        <div class="k">Why ${label.toLowerCase()}</div>
-        <div class="prose">${esc(t.reason ?? "No classification reason recorded.")}</div>
-        <div class="small muted" style="margin-top:6px">
-          Evidence: ${fmt(ev.points)} finite validation sample(s) · first step ${fmt(ev.firstStep)} → last step ${fmt(ev.lastStep)} ·
-          thresholds minPoints ${fmt(thresholds.minPoints)} · improve ≥ ${fmt(thresholds.improveDrop)} · worsen ≥ ${fmt(thresholds.worsenRise)} · overfit val ≥ ${fmt(thresholds.overfitValRise)}
-        </div>
-      </div>` : ""}
-
-    ${tab === "chart" ? `
-      <div class="panel">
-        <div class="k">Loss over training steps ${m.datasetHash ? `<span class="small muted">(dataset ${esc(shortHash(m.datasetHash))})</span>` : ""}</div>
-        ${lossSvg(m)}
-        ${m.chain?.collisions ? `<div class="small bad" style="margin-top:6px">⚠ ${m.chain.collisions} step(s) overlap between lineage segments and were overwritten on the shared axis; treat the step axis as approximate.</div>` : ""}
-        <div class="small muted" style="margin-top:8px">
-          Validation is measured on the held-out tail of the SAME corpus (token-weighted mean cross-entropy over the full vocabulary); training loss is the in-run mean per step. They share the left axis. Frozen-eval-set run markers use the right axis because that is a different corpus. ${seg?.sampling !== "periodic" ? `This version recorded only the opening and closing validations — set <code>TRAIN_EVAL_EVERY</code> ≥ 1 to sample a full curve.` : ""}
-        </div>
-      </div>` : ""}
-
-    ${tab === "lineage" ? `
-      <div class="panel">
-        <div class="k">Lineage segments <span class="sm">${eventsSummary(m)}</span></div>
-        ${segmentsTable(m)}
-      </div>` : ""}
-
-    ${tab === "events" ? `
-      <div class="panel">
-        <div class="k">Run events <span class="sm">${eventsSummary(m)}</span></div>
-        ${eventsTable(m)}
-      </div>` : ""}
+    ${tab === "trend" ? renderVerdictTab(m) : ""}
+    ${tab === "chart" ? renderLossCharts(m) : ""}
+    ${tab === "lineage" ? renderLineageTab(m) : ""}
+    ${tab === "events" ? renderRunEventsTab(m) : ""}
   `;
 }
 
-function segmentsTable(m) {
-  const segs = m.segments ?? [];
-  if (!segs.length) return `<div class="muted small">No trained segments in this lineage.</div>`;
-  return `<table><tr><th>Version</th><th>Sampling</th><th>Eval every</th><th>Steps</th><th>Val loss init → final</th><th>Committed</th></tr>
-    ${segs.map((s) => `
-      <tr>
-        <td>${esc(s.version)}${s.version === m.effectiveVersion ? ` ${badge("REVIEWED", "effective")}` : ""}${s.resumedFromStep != null ? ` <span class="small muted" title="resumed from ${s.resumedFromStep}">↳</span>` : ""}</td>
-        <td>${samplingLabel(s.sampling)}</td>
-        <td>${fmt(s.evalEvery)}</td>
-        <td>${fmt(s.stepsCompleted)}</td>
-        <td>${s.initialValidationLoss == null && s.finalValidationLoss == null ? "—" : `${fmt(s.initialValidationLoss)} → ${fmt(s.finalValidationLoss)}`}</td>
-        <td class="small">${when(s.committedAt)}</td>
-      </tr>`).join("")}</table>`;
-}
-
-const RUN_EVENT_LABEL = {
-  promoted: "Promoted",
-  rejected: "Rejected",
-  inconclusive: "Inconclusive",
-  not_evaluated: "Not evaluated",
-  failed: "Failed",
-  in_progress: "In progress",
-};
-
-const RUN_EVENT_BADGE = {
-  promoted: "REVIEWED",
-  rejected: "REJECTED",
-  inconclusive: "PENDING_REVIEW",
-  not_evaluated: "PENDING_REVIEW",
-  failed: "REJECTED",
-  in_progress: "INGESTED",
-};
-
-/** Outcome-aware colour. A run with no recorded loss is drawn hollow, so an
- * unmeasured event never looks like a low one. */
-const RUN_EVENT_FILL = {
-  promoted: "var(--good)",
-  rejected: "var(--bad)",
-  inconclusive: "var(--warn)",
-  not_evaluated: "var(--warn)",
-  failed: "var(--bad)",
-  in_progress: "var(--accent)",
-};
-
 function eventsSummary(m) {
-  const ev = m.events ?? [];
-  if (!ev.length) return `<span class="small muted">(none recorded)</span>`;
-  const counts = {};
-  for (const e of ev) counts[e.outcome] = (counts[e.outcome] ?? 0) + 1;
-  return `<span class="small muted">${ev.length} run(s) — ${Object.entries(RUN_EVENT_LABEL).map(([k, l]) => `${counts[k] ?? 0} ${l.toLowerCase()}`).join(" · ")}</span>`;
+  const health = trendsModel?.summarizeEvents(m.events ?? []);
+  if (!health?.total) return `<span class="small muted">(none recorded)</span>`;
+  const parts = trendsModel.OUTCOMES.map((outcome) => {
+    const meta = trendsModel.outcomeMeta(outcome);
+    return `${meta.label.toLowerCase()} ${trendsModel.fmtCount(health.counts[outcome] ?? 0)}`;
+  });
+  return `<span class="small muted">${trendsModel.fmtCount(health.total)} run(s) · ${parts.join(" · ")}</span>`;
 }
 
-function eventsTable(m) {
-  const ev = m.events ?? [];
-  if (!ev.length) return `<div class="muted small">No runs recorded for this store yet.</div>`;
-  return `<table><tr><th>Run</th><th>Loss</th><th>Outcome</th><th>When</th></tr>
-    ${ev.map((x) => `
-      <tr><td class="small">${esc(x.runId)}${x.version ? ` <span class="muted">${esc(x.version)}</span>` : ""}</td>
-      <td>${x.loss == null ? `<span class="muted">not recorded</span>` : fmt(x.loss)}</td>
-      <td>${badge(RUN_EVENT_BADGE[x.outcome] ?? "PENDING_REVIEW", RUN_EVENT_LABEL[x.outcome] ?? x.outcome ?? "?")}</td>
-      <td class="small">${when(x.trainedAt)}</td></tr>`).join("")}</table>`;
+function outcomeCountPills(health) {
+  return trendsModel.OUTCOMES.map((outcome) => {
+    const meta = trendsModel.outcomeMeta(outcome);
+    return `<span class="outcome-count ${esc(meta.className)}" title="${esc(meta.label)}">
+      <span class="outcome-glyph" aria-hidden="true">${esc(meta.glyph)}</span>
+      <span>${esc(meta.label)}</span><strong>${trendsModel.fmtCount(health.counts[outcome] ?? 0)}</strong>
+    </span>`;
+  }).join("");
 }
 
-function lossSvg(m) {
-  const W = 760, H = 320, P = { l: 64, r: 64, t: 18, b: 40 };
-  const valPts = (m.chain?.points ?? []).filter((p) => Number.isFinite(p.loss));
-  const trainPts = (m.training ?? []).flatMap((s) => (s.points ?? []).filter((p) => Number.isFinite(p.loss)));
-  // Every recorded run is plotted. One without a finite loss is still placed
-  // (at its own final step when the version survives, else at the end of the
-  // lineage) but drawn hollow, so its position claims a step, not a loss.
-  const events = (m.events ?? [])
-    .map((e) => ({ ...e, step: Number.isInteger(e.step) ? e.step : null }))
-    .filter((e) => e.step !== null);
-  const measured = events.filter((e) => e.loss != null && Number.isFinite(e.loss));
-  const unmeasured = events.filter((e) => !(e.loss != null && Number.isFinite(e.loss)));
-  if (![...valPts, ...trainPts, ...measured].some((p) => Number.isFinite(p.loss))) {
-    return `<div class="empty">No finite loss series recorded for this version. Train with <code>config.trainEvalEvery ≥ 1</code> to record a curve.</div>`;
-  }
-  const steps = [...valPts, ...trainPts, ...events].map((p) => p.step).filter((s) => Number.isInteger(s));
-  if (!steps.length) return `<div class="empty">No step axis recorded.</div>`;
-  const xMin = Math.min(...steps), xMax = Math.max(...steps);
-  const xSpan = xMax - xMin || 1;
-  const sx = (s) => P.l + ((s - xMin) / xSpan) * (W - P.l - P.r);
+function lossCell(value) {
+  return Number.isFinite(value)
+    ? `<span class="num">${trendsModel.fmtLoss(value)}</span>`
+    : `<span class="muted" title="not recorded">—</span>`;
+}
 
-  // Two independent y-scales. LEFT: in-run training loss and held-out validation
-  // loss (same corpus, comparable). RIGHT: frozen evaluation-set run markers (a
-  // DIFFERENT, smaller corpus that scores in its own band). Forcing all three
-  // onto one axis compressed the validation band into a near-flat line; separate
-  // axes let each measurement use the full plot height. Falls back to local
-  // ranges when the server did not supply `scales` (old payloads).
-  const localSpan = (vals) => {
-    const xs = vals.filter(Number.isFinite);
-    if (!xs.length) return null;
-    let min = Math.min(...xs), max = Math.max(...xs);
-    if (!(max > min)) { const pad = Math.max(Math.abs(max) * 0.02, 1e-4); min -= pad; max += pad; }
-    return { min, max };
-  };
-  const left = (m.scales?.left && m.scales.left.min !== null) ? m.scales.left : localSpan([...valPts, ...trainPts].map((p) => p.loss));
-  const right = (m.scales?.right && m.scales.right.min !== null) ? m.scales.right : localSpan(measured.map((p) => p.loss));
-  const makeScale = (band) => {
-    if (!band) return null;
-    const { min, max } = band;
-    return (v) => P.t + ((max - v) / (max - min || 1)) * (H - P.t - P.b);
-  };
-  const syLeft = makeScale(left);
-  const syRight = makeScale(right);
-  const path = (pts, sy) => pts.map((p, i) => `${i ? "L" : "M"}${sx(p.step).toFixed(1)},${sy(p.loss).toFixed(1)}`).join(" ");
-  const diamond = (x, y) => `${x},${(y - 5).toFixed(1)} ${(x + 5).toFixed(1)},${y.toFixed(1)} ${x},${(y + 5).toFixed(1)} ${(x - 5).toFixed(1)},${y.toFixed(1)}`;
-  const tooltip = (e) => {
-    const parts = [`run ${esc(e.runId)}`, `${RUN_EVENT_LABEL[e.outcome] ?? e.outcome}`];
-    parts.push(e.version ? esc(e.version) : "no version");
-    parts.push(e.loss == null ? "loss not recorded" : `frozen-set loss ${fmt(e.loss)}`);
-    if (e.evaluationDelta != null) parts.push(`improvement ${fmt(e.evaluationDelta)}`);
-    if (e.tokensSeen != null) parts.push(`${fmt(e.tokensSeen)} tokens`);
-    if (e.activatedVersion) parts.push(`active ${esc(e.activatedVersion)}`);
-    if (e.stepBasis === "lineage-end") parts.push("plotted at the lineage's final step (own step not recorded)");
-    if (!e.inLineage) parts.push(`outside this dataset lineage (${esc(shortHash(e.datasetHash) ?? "unkeyed")})`);
-    return parts.join(" · ");
-  };
-  const xTicks = xMax === xMin ? [xMin] : [0, 0.25, 0.5, 0.75, 1].map((f) => xMin + f * xSpan);
-  const fracs = [0, 0.25, 0.5, 0.75, 1];
-  const leftTicks = left ? fracs.map((f) => left.max - f * (left.max - left.min)) : [];
-  const rightTicks = right ? fracs.map((f) => right.max - f * (right.max - right.min)) : [];
-  const yTop = P.t, yBottom = H - P.b;
-  // Unmeasured events sit on the TOP EDGE of the plot band, above every data
-  // point and never on either curve: the position states "this run happened",
-  // and only the tooltip explains that it has no loss.
-  const unmeasuredY = P.t + 4;
-  const legend = (x, y, fill, label) =>
-    `<polygon points="${diamond(x, y)}" fill="${fill}"/><text x="${x + 9}" y="${(y + 3.5).toFixed(1)}" font-size="10" fill="var(--muted)">${label}</text>`;
+function hashChip(hash) {
+  if (!hash) return `<span class="muted">not recorded</span>`;
+  return `<code class="hash-chip" title="${esc(hash)}">${esc(shortHash(hash))}</code>`;
+}
+
+function samplingText(kind) {
+  if (kind === "periodic") return "Periodic validation";
+  if (kind === "endpoints") return "Opening/closing endpoints only";
+  if (kind === "none" || kind == null) return "No validation recorded";
+  return String(kind);
+}
+
+// ------------------------------------------------------------------ verdict
+function renderVerdictTab(m) {
+  const v = trendsModel.buildVerdict(m);
+  const validation = v.validation;
+  const health = v.runHealth;
+  const bestValidation = v.bestValidation;
+  const bestFrozen = v.bestFrozen;
+  const latestVsBest = validation.lastVsBestRel == null
+    ? "—"
+    : Math.abs(validation.lastVsBestRel) < 1e-9
+      ? "at the best observation"
+      : `${trendsModel.fmtPct(Math.abs(validation.lastVsBestRel))} ${validation.lastVsBestRel > 0 ? "above" : "below"} best`;
+  const gapText = v.gap == null
+    ? "Not available (no training sample at the latest validation step)"
+    : `${trendsModel.fmtLoss(v.gap.value)} <span class="muted small">(validation ${trendsModel.fmtLoss(v.gap.validation)} − training ${trendsModel.fmtLoss(v.gap.training)} at step ${trendsModel.fmtCount(v.gap.step)})</span>`;
+  const improvement = validation.improvementRel == null
+    ? "—"
+    : `${trendsModel.fmtPct(validation.improvementRel)}`;
+  const evidence = v.evidence ?? {};
+  const thresholds = v.thresholds ?? {};
+
   return `
-    <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="In-run/held-out loss (left axis) and frozen evaluation-set loss (right axis) over training steps" style="width:100%;height:auto">
-      ${leftTicks.map((v) => `<line x1="${P.l}" y1="${syLeft(v).toFixed(1)}" x2="${W - P.r}" y2="${syLeft(v).toFixed(1)}" stroke="var(--border)" stroke-dasharray="2 4"/><text x="${P.l - 8}" y="${(syLeft(v) + 3.5).toFixed(1)}" text-anchor="end" font-size="10" fill="var(--muted)">${v.toFixed(2)}</text>`).join("")}
-      ${right && syRight ? rightTicks.map((v) => `<text x="${W - P.r + 8}" y="${(syRight(v) + 3.5).toFixed(1)}" text-anchor="start" font-size="10" fill="var(--muted)">${v.toFixed(2)}</text>`).join("") : ""}
-      ${xTicks.map((s) => `<text x="${sx(s).toFixed(1)}" y="${H - 10}" text-anchor="middle" font-size="10" fill="var(--muted)">${Math.round(s)}</text>`).join("")}
-      <text x="${P.l}" y="${H - 26}" font-size="10" fill="var(--muted)">step</text>
-      <text x="${P.l}" y="12" font-size="10" fill="var(--muted)">◀ in-run + held-out loss</text>
-      ${right && syRight ? `<text x="${W - P.r}" y="12" text-anchor="end" font-size="10" fill="var(--muted)">frozen eval-set loss ▶</text>` : ""}
-      ${trainPts.length && syLeft ? `<path d="${path(trainPts, syLeft)}" fill="none" stroke="var(--accent-2)" stroke-width="1.2" stroke-dasharray="4 3"/>` : ""}
-      ${trainPts.map((p) => `<circle cx="${sx(p.step).toFixed(1)}" cy="${syLeft(p.loss).toFixed(1)}" r="1.4" fill="var(--accent-2)"><title>training step ${p.step}: loss ${fmt(p.loss)}</title></circle>`).join("")}
-      ${valPts.length && syLeft ? `<path d="${path(valPts, syLeft)}" fill="none" stroke="var(--accent)" stroke-width="2"/>` : ""}
-      ${valPts.map((p) => `<circle cx="${sx(p.step).toFixed(1)}" cy="${syLeft(p.loss).toFixed(1)}" r="2" fill="var(--accent)"><title>validation step ${p.step}: loss ${fmt(p.loss)}${p.version ? ` · ${esc(p.version)}` : ""}</title></circle>`).join("")}
-      ${unmeasured.map((e) => `<polygon points="${diamond(sx(e.step), unmeasuredY)}" fill="var(--panel)" stroke="${RUN_EVENT_FILL[e.outcome] ?? "var(--muted)"}" stroke-width="1.6" stroke-dasharray="2 2"><title>${tooltip(e)}</title></polygon>`).join("")}
-      ${measured.map((e) => `<polygon points="${diamond(sx(e.step), syRight(e.loss))}" fill="${RUN_EVENT_FILL[e.outcome] ?? "var(--muted)"}"><title>${tooltip(e)}</title></polygon>`).join("")}
-      <rect x="${W - 306}" y="0" width="306" height="80" fill="var(--panel)" opacity="0.92"/>
-      <line x1="${W - 296}" y1="12" x2="${W - 280}" y2="12" stroke="var(--accent)" stroke-width="2"/><text x="${W - 272}" y="16" font-size="10" fill="var(--muted)">validation (left axis)</text>
-      <line x1="${W - 296}" y1="28" x2="${W - 280}" y2="28" stroke="var(--accent-2)" stroke-width="1.2" stroke-dasharray="4 3"/><text x="${W - 272}" y="32" font-size="10" fill="var(--muted)">training (left axis)</text>
-      <text x="${W - 296}" y="46" font-size="10" fill="var(--muted)">◆ runs = frozen eval-set (right axis)</text>
-      ${legend(W - 296, 64, "var(--good)", "promoted")}
-      ${legend(W - 152, 64, "var(--bad)", "rejected / failed")}
-      ${legend(W - 296, 78, "var(--warn)", "not evaluated")}
-      ${legend(W - 152, 78, "var(--accent)", "in progress")}
-      <line x1="${P.l}" y1="${yTop}" x2="${P.l}" y2="${yBottom}" stroke="var(--border)"/>
-      ${right ? `<line x1="${W - P.r}" y1="${yTop}" x2="${W - P.r}" y2="${yBottom}" stroke="var(--border)"/>` : ""}
-    </svg>
-    <div class="small muted" style="margin-top:8px">
-      Two axes, because there are two different measurements. <strong>Left</strong>: in-run training loss and held-out validation loss share the SAME corpus and tokenizer, so they share an axis. <strong>Right</strong>: each ◆ is a recorded run's frozen evaluation-set loss — a small, separate corpus that scores in its own band, so plotting it on the left would compress the curve. A hollow ◆ has no recorded loss and sits on the top edge (a position, not a value). Dataset ${esc(shortHash(m.datasetHash) ?? "unkeyed")}.
+    <div class="trend-hero ${esc(v.className)}">
+      <div class="trend-hero-top">
+        ${trendBadge(v.verdict)}
+        <span class="trend-hero-context">
+          ${v.sufficient
+            ? `${trendsModel.fmtCount(validation.points)} held-out validation observation${validation.points === 1 ? "" : "s"}`
+            : `Only ${trendsModel.fmtCount(validation.points)} validation observation${validation.points === 1 ? "" : "s"} — insufficient evidence to classify`}
+          ${v.effectiveVersion ? ` · ${esc(v.effectiveVersion)}` : ""}
+        </span>
+      </div>
+      <div class="trend-hero-reason">${esc(v.reason)}</div>
+      <div class="trend-hero-note">
+        Held-out validation is the verdict basis. Training loss is shown for context; frozen evaluation-set scores remain a separate measurement.
+      </div>
+    </div>
+
+    <div class="metric-grid">
+      ${metricCard("Held-out validation", validation.first == null && validation.latest == null ? "—" : metricPair(trendsModel.fmtLoss(validation.first), trendsModel.fmtLoss(validation.latest)), `${improvement} from first to latest · ${trendsModel.fmtCount(validation.points)} samples`)}
+      ${metricCard("Best held-out validation", trendsModel.fmtLoss(validation.best), bestValidation ? `Step ${trendsModel.fmtCount(validation.bestStep)} · ${esc(validation.bestVersion ?? "version not recorded")}` : "No finite validation observation")}
+      ${metricCard("Latest vs best", latestVsBest, "Compared within held-out validation only")}
+      ${metricCard("Steps covered", v.steps.from == null ? "—" : `${trendsModel.fmtCount(v.steps.from)} → ${trendsModel.fmtCount(v.steps.to)}`, v.sampling ? samplingText(v.sampling) : "")}
+      ${metricCard("Training loss", v.training.first == null && v.training.latest == null ? "—" : metricPair(trendsModel.fmtLoss(v.training.first), trendsModel.fmtLoss(v.training.latest)), `${trendsModel.fmtCount(v.training.points)} recorded samples · context only`)}
+      ${metricCard("Generalisation gap", gapText, "Diagnostic only: validation and training are different splits of the same corpus")}
+      ${metricCard("Best frozen evaluation", bestFrozen ? trendsModel.fmtLoss(bestFrozen.loss) : "—", bestFrozen ? `${esc(bestFrozen.runId)}${bestFrozen.version ? ` · ${esc(bestFrozen.version)}` : ""} · separate evaluation set` : "No frozen evaluation recorded")}
+      ${metricCard("Effective version", esc(v.effectiveVersion ?? "—"), v.activeVersion ? `Serving pointer: ${esc(v.activeVersion)}${v.activeModel?.modelId ? ` · ${esc(v.activeModel.modelId)}` : ""}` : "No active version recorded")}
+    </div>
+
+    <div class="panel trends-health">
+      <div class="panel-heading">
+        <div>
+          <div class="k">Run health</div>
+          <div class="small muted">Every recorded run, including runs that never became a version.</div>
+        </div>
+        <div class="small muted">${trendsModel.fmtCount(health.total)} total</div>
+      </div>
+      <div class="outcome-counts">${outcomeCountPills(health)}</div>
+      <div class="health-facts">
+        <div><span class="k">Promotion rate</span><strong>${trendsModel.fmtRate(health.promotionRate)}</strong><span class="small muted">${trendsModel.fmtCount(health.counts.promoted)} promoted / ${trendsModel.fmtCount(health.terminalEvaluated)} gate decisions</span></div>
+        <div><span class="k">Evaluation coverage</span><strong>${trendsModel.fmtRate(health.evaluationCoverage)}</strong><span class="small muted">${trendsModel.fmtCount(health.evaluated)} runs with a finite frozen evaluation / ${trendsModel.fmtCount(health.total)}</span></div>
+        <div><span class="k">Lineage scope</span><strong>${trendsModel.fmtCount(v.segments)} segment${v.segments === 1 ? "" : "s"}</strong><span class="small muted">Same training-corpus hash · ${hashChip(v.datasetHash)}</span></div>
+      </div>
+    </div>
+
+    <details class="panel trend-evidence">
+      <summary><span class="k">Evidence and thresholds</span></summary>
+      <div class="evidence-grid">
+        <div><span class="k">Finite validation samples</span><strong>${trendsModel.fmtCount(evidence.points)}</strong></div>
+        <div><span class="k">Step range</span><strong>${evidence.firstStep == null ? "—" : `${trendsModel.fmtCount(evidence.firstStep)} → ${trendsModel.fmtCount(evidence.lastStep)}`}</strong></div>
+        <div><span class="k">minimum samples</span><strong>${trendsModel.fmtCount(thresholds.minPoints)}</strong></div>
+        <div><span class="k">improving drop ≥</span><strong>${trendsModel.fmtRate(thresholds.improveDrop ?? 0)}</strong></div>
+        <div><span class="k">worsening rise ≥</span><strong>${trendsModel.fmtRate(thresholds.worsenRise ?? 0)}</strong></div>
+        <div><span class="k">overfit from best ≥</span><strong>${trendsModel.fmtRate(thresholds.overfitValRise ?? 0)}</strong></div>
+      </div>
+      <div class="small muted evidence-note">
+        Verdict is a deterministic, threshold-based function of finite held-out validation observations. Training loss is never compared with frozen evaluation-set loss.
+      </div>
+    </details>
+  `;
+}
+
+// ------------------------------------------------------------------- charts
+function chartTip(lines) {
+  return lines.filter(Boolean).join("\n");
+}
+
+function trainingTip(point, kind) {
+  return chartTip([
+    kind === "validation" ? "Held-out validation observation" : "In-run training sample",
+    `Step ${trendsModel.fmtCount(point.step)}`,
+    `Loss ${trendsModel.fmtLoss(point.loss)}`,
+    point.version ? `Version ${point.version}` : "Version not recorded",
+    "Timestamp not recorded for this sample",
+  ]);
+}
+
+function runTip(event, m) {
+  const detail = trendsModel.buildRunDetail(event, {
+    ...(state.trendsExtras ?? {}),
+    evaluationSet: m?.evaluationSet ?? null,
+  });
+  return chartTip([
+    `Run ${detail.runId}`,
+    detail.meta?.label ?? detail.outcome,
+    detail.version ? `Version ${detail.version}` : "Version not recorded",
+    Number.isFinite(detail.loss) ? `Frozen evaluation loss ${trendsModel.fmtLoss(detail.loss)}` : "Frozen evaluation loss not recorded",
+    detail.evaluationDatasetHash ? `Evaluation set ${shortHash(detail.evaluationDatasetHash)}` : "Evaluation-set identity not recorded",
+    `When ${trendsModel.formatDateTime(detail.trainedAt ?? detail.startedAt)}`,
+    Number.isFinite(detail.trainingSteps) ? `Training steps ${trendsModel.fmtCount(detail.trainingSteps)}` : null,
+    Number.isFinite(detail.tokensSeen) ? `Tokens ${trendsModel.fmtCount(detail.tokensSeen)}` : null,
+    detail.datasetHash ? `Training corpus ${shortHash(detail.datasetHash)}` : null,
+    detail.inLineage ? "Inside selected lineage" : "Outside selected lineage",
+  ]);
+}
+
+function svgOutcomeShape(meta, x, y, radius = 4.6) {
+  const r = radius;
+  const cls = `outcome-mark ${meta.className}`;
+  const cx = Number(x).toFixed(1);
+  const cy = Number(y).toFixed(1);
+  if (meta.shape === "square") {
+    return `<rect class="${cls}" x="${(x - r).toFixed(1)}" y="${(y - r).toFixed(1)}" width="${2 * r}" height="${2 * r}" rx="1"/>`;
+  }
+  if (meta.shape === "diamond") {
+    return `<polygon class="${cls}" points="${cx},${(y - r).toFixed(1)} ${(x + r).toFixed(1)},${cy} ${cx},${(y + r).toFixed(1)} ${(x - r).toFixed(1)},${cy}"/>`;
+  }
+  if (meta.shape === "triangle") {
+    return `<polygon class="${cls}" points="${cx},${(y - r).toFixed(1)} ${(x + r).toFixed(1)},${(y + r).toFixed(1)} ${(x - r).toFixed(1)},${(y + r).toFixed(1)}"/>`;
+  }
+  return `<circle class="${cls}" cx="${cx}" cy="${cy}" r="${r}"/>`;
+}
+
+function trainingChartSvg(model) {
+  if (model.empty) {
+    return `<div class="chart-empty">${esc(model.reason)}</div>`;
+  }
+  const { width, height, padding, plot } = model;
+  const trainPath = model.training.length
+    ? model.training.map((p, i) => `${i ? "L" : "M"}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ")
+    : "";
+  const guide = state.trendsView.connectValidation && model.validation.length > 1
+    ? model.validation.map((p, i) => `${i ? "L" : "M"}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ")
+    : "";
+  const trainDots = model.training.length <= 260
+    ? model.training.map((p) => `<circle class="chart-training-dot" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="1.6"><title>${esc(trainingTip(p, "training"))}</title></circle>`).join("")
+    : "";
+  const best = model.bestValidation;
+  const bestLabelX = best ? (best.x > width * 0.72 ? best.x - 10 : best.x + 10) : 0;
+  return `
+    <div class="chart-scroll">
+      <svg class="chart-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Training loss and discrete held-out validation observations over recorded training steps">
+        <defs><clipPath id="trainingPlotClip"><rect x="${plot.left}" y="${plot.top}" width="${plot.right - plot.left}" height="${plot.bottom - plot.top}"/></clipPath></defs>
+        <g class="chart-grid">
+          ${model.yTicks.map((tick) => `<line x1="${plot.left}" y1="${tick.y.toFixed(1)}" x2="${plot.right}" y2="${tick.y.toFixed(1)}"/>`).join("")}
+        </g>
+        <g class="chart-axis-labels">
+          ${model.yTicks.map((tick) => `<text x="${plot.left - 10}" y="${(tick.y + 4).toFixed(1)}" text-anchor="end">${trendsModel.fmtLoss(tick.value)}</text>`).join("")}
+          ${model.xTicks.map((tick) => `<text x="${tick.x.toFixed(1)}" y="${plot.bottom + 22}" text-anchor="middle">${trendsModel.fmtCount(tick.value)}</text>`).join("")}
+          <text x="${plot.left}" y="${height - 8}" class="axis-title">${model.segmentCount > 1 ? "cumulative lineage step" : "training step"}</text>
+          <text x="${plot.left}" y="14" class="axis-title">loss (nats)</text>
+        </g>
+        <line class="chart-axis" x1="${plot.left}" y1="${plot.top}" x2="${plot.left}" y2="${plot.bottom}"/>
+        <line class="chart-axis" x1="${plot.left}" y1="${plot.bottom}" x2="${plot.right}" y2="${plot.bottom}"/>
+        <g clip-path="url(#trainingPlotClip)">
+          ${guide ? `<path class="chart-validation-guide" d="${guide}"/>` : ""}
+          ${trainPath ? `<path class="chart-training-line" d="${trainPath}"/>` : ""}
+          ${trainDots}
+          ${model.validation.map((p) => `<g class="chart-mark" tabindex="0" data-tip="${esc(trainingTip(p, "validation"))}" aria-label="${esc(trainingTip(p, "validation").replace(/\n/g, ", "))}"><circle class="chart-validation-dot" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="4"/></g>`).join("")}
+          ${best ? `<line class="chart-best-line" x1="${best.x.toFixed(1)}" y1="${plot.top}" x2="${best.x.toFixed(1)}" y2="${plot.bottom}"/>` : ""}
+        </g>
+        ${best ? `<g class="chart-best-label">
+          <circle class="chart-best-dot" cx="${best.x.toFixed(1)}" cy="${best.y.toFixed(1)}" r="6"/>
+          <text x="${bestLabelX.toFixed(1)}" y="${Math.max(plot.top + 12, best.y - 12).toFixed(1)}" text-anchor="${best.x > width * 0.72 ? "end" : "start"}">best ${trendsModel.fmtLoss(best.loss)} · step ${trendsModel.fmtCount(best.step)}${best.version ? ` · ${esc(best.version)}` : ""}</text>
+        </g>` : ""}
+      </svg>
     </div>`;
+}
+
+function runOutcomeChartSvg(model) {
+  if (model.empty) {
+    return `<div class="chart-empty">${esc(model.reason)}</div>${model.unmeasured?.length ? unmeasuredStrip(model) : ""}`;
+  }
+  const { width, height, padding, plot, strip } = model;
+  const best = model.best;
+  const markerRadius = model.total > 400 ? 2.7 : model.total > 150 ? 3.4 : 4.6;
+  return `
+    <div class="chart-scroll">
+      <svg class="chart-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Frozen evaluation-set loss by run, with outcomes distinguished by shape and colour">
+        <defs><clipPath id="runPlotClip"><rect x="${plot.left}" y="${plot.top}" width="${plot.right - plot.left}" height="${plot.bottom - plot.top}"/></clipPath></defs>
+        <g class="chart-grid">
+          ${model.yTicks.map((tick) => `<line x1="${plot.left}" y1="${tick.y.toFixed(1)}" x2="${plot.right}" y2="${tick.y.toFixed(1)}"/>`).join("")}
+        </g>
+        <g class="chart-axis-labels">
+          ${model.yTicks.map((tick) => `<text x="${plot.left - 10}" y="${(tick.y + 4).toFixed(1)}" text-anchor="end">${trendsModel.fmtLoss(tick.value)}</text>`).join("")}
+          ${model.xTicks.map((tick) => `<text x="${tick.x.toFixed(1)}" y="${plot.bottom + 22}" text-anchor="middle">${esc(tick.label)}</text>`).join("")}
+          <text x="${plot.left}" y="14" class="axis-title">frozen evaluation-set loss (nats)</text>
+          <text x="${plot.left}" y="${height - 8}" class="axis-title">${model.xMode === "time" ? "run timestamp" : "run sequence (oldest → newest)"}</text>
+        </g>
+        <line class="chart-axis" x1="${plot.left}" y1="${plot.top}" x2="${plot.left}" y2="${plot.bottom}"/>
+        <line class="chart-axis" x1="${plot.left}" y1="${plot.bottom}" x2="${plot.right}" y2="${plot.bottom}"/>
+        <g clip-path="url(#runPlotClip)">
+          ${model.measured.map((p) => `<g class="chart-mark" tabindex="0" data-tip="${esc(runTip(p.event, state.trends))}" aria-label="${esc(runTip(p.event, state.trends).replace(/\n/g, ", "))}">${svgOutcomeShape(p.meta, p.x, p.y, markerRadius)}</g>`).join("")}
+          ${best ? `<circle class="chart-best-ring" cx="${best.x.toFixed(1)}" cy="${best.y.toFixed(1)}" r="9"/>` : ""}
+        </g>
+        ${strip ? unmeasuredStripSvg(model) : ""}
+      </svg>
+    </div>`;
+}
+
+function unmeasuredStripSvg(model) {
+  const { plot, strip, width } = model;
+  return `<g class="chart-unmeasured-strip">
+    <line class="chart-strip-axis" x1="${plot.left}" y1="${strip.top.toFixed(1)}" x2="${width - model.padding.right}" y2="${strip.top.toFixed(1)}"/>
+    <text x="${plot.left}" y="${(strip.top + 13).toFixed(1)}" class="axis-title">no frozen evaluation recorded (${trendsModel.fmtCount(model.unmeasuredCount)})</text>
+    ${model.unmeasured.map((p) => `<g class="chart-mark" tabindex="0" data-tip="${esc(runTip(p.event, state.trends))}" aria-label="${esc(runTip(p.event, state.trends).replace(/\n/g, ", "))}">${svgOutcomeShape(p.meta, p.x, strip.y, 3.4)}</g>`).join("")}
+  </g>`;
+}
+
+function unmeasuredStrip(model) {
+  if (!model.unmeasured?.length) return "";
+  return `<div class="small muted chart-strip-note">${trendsModel.fmtCount(model.unmeasuredCount)} run(s) have no recorded frozen evaluation-set loss. They are listed here and remain visible in Run events; they are not plotted on the loss axis.</div>`;
+}
+
+function outcomeLegend(events) {
+  const health = trendsModel.summarizeEvents(events);
+  return trendsModel.OUTCOMES.map((outcome) => {
+    const meta = trendsModel.outcomeMeta(outcome);
+    return `<span class="legend-item outcome-legend ${esc(meta.className)}" title="${esc(meta.label)}">
+      <span class="legend-glyph" aria-hidden="true">${esc(meta.glyph)}</span>
+      ${esc(meta.label)} <strong>${trendsModel.fmtCount(health.counts[outcome] ?? 0)}</strong>
+    </span>`;
+  }).join("");
+}
+
+function renderLossCharts(m) {
+  const training = trendsModel.buildTrainingChart(m);
+  const runs = trendsModel.buildRunOutcomeChart(m, { xMode: state.trendsView.xMode });
+  const effective = (m.segments ?? []).find((s) => s.version === m.effectiveVersion) ?? (m.segments ?? [])[0] ?? null;
+  const collisions = m.chain?.collisions ?? 0;
+  const trainingTotal = training.trainingTotal ?? training.trainingCount ?? 0;
+  const validationTotal = training.validationTotal ?? training.validationCount ?? 0;
+  const identityRecorded = runs.identityRecorded ?? 0;
+  const citedHashes = runs.citedHashCount ?? 0;
+  return `
+    <div class="panel chart-panel">
+      <div class="panel-heading">
+        <div>
+          <div class="k">Training &amp; held-out validation</div>
+          <div class="small muted">In-run training samples and discrete held-out observations on the same corpus. No interpolation.</div>
+        </div>
+        <div class="chart-controls">
+          <label class="small muted"><input type="checkbox" data-trends-action="toggle-guide" ${state.trendsView.connectValidation ? "checked" : ""}/> connect validation samples (guide only)</label>
+        </div>
+      </div>
+      <div class="chart-legend">
+        <span class="legend-item"><span class="legend-line training"></span>Training loss (measured per step)</span>
+        <span class="legend-item"><span class="legend-dot validation"></span>Held-out validation observation</span>
+        ${training.bestValidation ? `<span class="legend-item"><span class="legend-dot best"></span>Best validation · ${trendsModel.fmtLoss(training.bestValidation.loss)}</span>` : ""}
+      </div>
+      ${trainingChartSvg(training)}
+      <div class="chart-caption small muted">
+        ${training.empty ? "" : `${trendsModel.fmtCount(trainingTotal)} training sample${trainingTotal === 1 ? "" : "s"} and ${trendsModel.fmtCount(validationTotal)} validation observation${validationTotal === 1 ? "" : "s"}.`}
+        ${training.trainingCount < trainingTotal || training.validationCount < validationTotal ? ` Showing ${trendsModel.fmtCount(training.trainingCount)} training and ${trendsModel.fmtCount(training.validationCount)} validation points after render decimation.` : ""}
+        ${training.sampling && training.sampling !== "periodic" ? ` ${esc(samplingText(training.sampling))} — set <code>TRAIN_EVAL_EVERY ≥ 1</code> to record a denser curve.` : ""}
+        ${training.segmentCount > 1 ? ` This lineage has ${trendsModel.fmtCount(training.segmentCount)} segments; the x-axis is a cumulative lineage sequence because each segment starts at its own step 0.` : ""}
+        ${collisions ? `<span class="bad"> ${trendsModel.fmtCount(collisions)} step collision(s) remain between lineage segments; treat the sequence axis as approximate.</span>` : ""}
+      </div>
+    </div>
+
+    <div class="panel chart-panel">
+      <div class="panel-heading">
+        <div>
+          <div class="k">Frozen evaluation-set runs</div>
+          <div class="small muted">Each point is one recorded run. No line is drawn between evaluations.</div>
+        </div>
+        <div class="chart-controls">
+          <div class="segmented">
+            <button type="button" class="${state.trendsView.xMode === "sequence" ? "active" : ""}" data-trends-action="x-mode" data-mode="sequence">Run sequence</button>
+            <button type="button" class="${state.trendsView.xMode === "time" ? "active" : ""}" data-trends-action="x-mode" data-mode="time">Timestamp</button>
+          </div>
+        </div>
+      </div>
+      <div class="chart-legend run-legend">
+        ${outcomeLegend(m.events ?? [])}
+        ${runs.best ? `<span class="legend-item best-frozen"><span class="legend-dot best"></span>Best frozen ${trendsModel.fmtLoss(runs.best.event.loss)} · ${esc(runs.best.event.runId)}${runs.best.event.version ? ` / ${esc(runs.best.event.version)}` : ""}</span>` : ""}
+      </div>
+      ${runOutcomeChartSvg(runs)}
+      <div class="chart-caption small muted">
+        ${runs.empty ? "" : `${trendsModel.fmtCount(runs.measuredCount)} measured run(s) across ${trendsModel.fmtCount(runs.total)} recorded runs.`}
+        ${runs.unmeasuredCount ? ` ${trendsModel.fmtCount(runs.unmeasuredCount)} run(s) without a recorded frozen evaluation remain visible in the strip below.` : ""}
+        ${identityRecorded ? ` Evaluation-set identity is recorded for ${trendsModel.fmtCount(identityRecorded)} run(s).` : " Per-run evaluation-set identity is not recorded as a field in the current ledger."}
+        ${citedHashes ? ` ${trendsModel.fmtCount(citedHashes)} run(s) cite an evaluation-set hash in the stored decision reason; open a run to see it.` : ""}
+        ${runs.tieGroups ? ` ${trendsModel.fmtCount(runs.tieGroups)} timestamp group(s) share an instant and are spread horizontally for visibility only.` : ""}
+        Training-step placement is intentionally not offered for runs: most runs have no recorded step in the selected lineage, which is what previously compressed every marker at the lineage end.
+      </div>
+    </div>
+  `;
+}
+
+// ------------------------------------------------------------------ lineage
+function segmentBestValidation(m, version) {
+  return (m.chain?.points ?? [])
+    .filter((p) => p.version === version && Number.isFinite(p.loss))
+    .reduce((best, p) => (best === null || p.loss < best.loss ? p : best), null);
+}
+
+function segmentTrainingEnds(segment) {
+  if (Number.isFinite(segment.initialTrainLoss) || Number.isFinite(segment.finalTrainLoss)) {
+    return { first: segment.initialTrainLoss ?? null, last: segment.finalTrainLoss ?? null };
+  }
+  return { first: null, last: null };
+}
+
+function segmentRunHealth(m, segment) {
+  const events = (m.events ?? []).filter((e) => e.version === segment.version);
+  return trendsModel.summarizeEvents(events);
+}
+
+function segmentCard(m, segment) {
+  const best = segmentBestValidation(m, segment.version);
+  const train = segmentTrainingEnds(segment);
+  const health = segment.runs ?? segmentRunHealth(m, segment);
+  const effective = segment.isEffective || segment.version === m.effectiveVersion;
+  return `<article class="segment-card ${effective ? "effective" : ""}">
+    <header>
+      <div>
+        <div class="segment-version">${esc(segment.version)} ${effective ? `<span class="pill on">effective</span>` : ""}</div>
+        <div class="small muted">${segment.committedAt ? when(segment.committedAt) : "commit time not recorded"}</div>
+      </div>
+      <div class="segment-actions">
+        <button type="button" data-trends-action="show-chart">View chart</button>
+        <button type="button" data-trends-action="show-runs" data-version="${esc(segment.version)}">View runs</button>
+      </div>
+    </header>
+    <div class="segment-facts">
+      <div><span class="k">Sampling</span><strong>${esc(samplingText(segment.sampling))}</strong><span class="small muted">${Number.isFinite(segment.evalEvery) && segment.evalEvery > 0 ? `every ${trendsModel.fmtCount(segment.evalEvery)} steps` : "no cadence recorded"}</span></div>
+      <div><span class="k">Steps</span><strong>${trendsModel.fmtCount(segment.stepsCompleted)}</strong><span class="small muted">${segment.resumedFromStep ? `resumed from ${trendsModel.fmtCount(segment.resumedFromStep)}` : "trained from step 0"}</span></div>
+      <div><span class="k">Validation</span><strong>${segment.initialValidationLoss == null && segment.finalValidationLoss == null ? "—" : `${trendsModel.fmtLoss(segment.initialValidationLoss)} → ${trendsModel.fmtLoss(segment.finalValidationLoss)}`}</strong><span class="small muted">${best ? `best ${trendsModel.fmtLoss(best.loss)} · step ${trendsModel.fmtCount(best.step)}` : "no finite observation"}</span></div>
+      <div><span class="k">Training</span><strong>${train.first == null && train.last == null ? "—" : `${trendsModel.fmtLoss(train.first)} → ${trendsModel.fmtLoss(train.last)}`}</strong><span class="small muted">recorded endpoints</span></div>
+      <div><span class="k">Tokens seen</span><strong>${trendsModel.fmtCount(segment.tokensSeen)}</strong><span class="small muted">${Number.isFinite(segment.wallSeconds) ? `${trendsModel.formatDuration(segment.wallSeconds * 1000)} wall time` : "wall time not recorded"}</span></div>
+      <div><span class="k">Parent version</span><strong>${esc(segment.parentVersion ?? "—")}</strong><span class="small muted">recorded parent, not necessarily same corpus</span></div>
+    </div>
+    <div class="segment-runs">
+      <div class="k">Runs linked to this version <span class="muted small">${trendsModel.fmtCount(health.total)}</span></div>
+      <div class="outcome-counts compact">${outcomeCountPills(health)}</div>
+    </div>
+    ${segment.stopReason ? `<div class="small muted">Stop reason: ${esc(segment.stopReason)}</div>` : ""}
+    ${segment.stoppedEarly ? `<div class="small warn">Training stopped early.</div>` : ""}
+  </article>`;
+}
+
+function renderLineageTab(m) {
+  const segments = m.segments ?? [];
+  const lineage = m.lineage ?? {};
+  const runs = lineage.runs ?? trendsModel.summarizeEvents((m.events ?? []).filter((e) => e.inLineage));
+  if (!segments.length) {
+    return `<div class="panel"><div class="k">Lineage segments</div><div class="empty">No trained segments share this training-corpus hash.</div></div>`;
+  }
+  const single = segments.length === 1;
+  const stepFrom = lineage.fromStep ?? m.chain?.fromStep ?? null;
+  const stepTo = lineage.toStep ?? m.chain?.toStep ?? null;
+  const committedFrom = lineage.committedFrom ?? segments.map((s) => s.committedAt).filter(Boolean).sort()[0] ?? null;
+  const committedTo = lineage.committedTo ?? segments.map((s) => s.committedAt).filter(Boolean).sort().at(-1) ?? null;
+  const outside = Number.isFinite(lineage.otherVersionsOutsideLineage) ? lineage.otherVersionsOutsideLineage : null;
+  return `
+    <div class="panel">
+      <div class="panel-heading">
+        <div>
+          <div class="k">Lineage overview</div>
+          <div class="small muted">A segment is a training session on the same recorded corpus hash. Different hashes are different measurements, not omitted segments.</div>
+        </div>
+        <div class="lineage-scope">${hashChip(m.datasetHash)}</div>
+      </div>
+      <div class="lineage-facts">
+        <div><span class="k">Segments</span><strong>${trendsModel.fmtCount(segments.length)}</strong><span class="small muted">${single ? "single genuine segment" : "sequential trainings"}</span></div>
+        <div><span class="k">Steps covered</span><strong>${stepFrom == null ? "—" : `${trendsModel.fmtCount(stepFrom)} → ${trendsModel.fmtCount(stepTo)}`}</strong><span class="small muted">cumulative lineage sequence</span></div>
+        <div><span class="k">Committed</span><strong>${committedFrom ? when(committedFrom) : "—"}</strong><span class="small muted">${committedTo ? `to ${when(committedTo)}` : ""}</span></div>
+        <div><span class="k">Runs in lineage</span><strong>${trendsModel.fmtCount(runs.total)}</strong><span class="small muted">${trendsModel.fmtCount(runs.counts?.promoted ?? 0)} promoted</span></div>
+        ${Number.isFinite(lineage.committedVersionCount) ? `<div><span class="k">Committed versions</span><strong>${trendsModel.fmtCount(lineage.committedVersionCount)}</strong><span class="small muted">${Number.isFinite(lineage.distinctDatasetHashes) ? `${trendsModel.fmtCount(lineage.distinctDatasetHashes)} distinct corpus hashes` : ""}</span></div>` : ""}
+      </div>
+      <div class="lineage-note small muted">
+        ${single
+          ? `Only one committed version shares this training-corpus hash, so this is a genuine single-segment lineage rather than missing data.${Number.isFinite(outside) ? ` ${trendsModel.fmtCount(outside)} other committed version${outside === 1 ? "" : "s"} trained on a different corpus hash and are outside this segment.` : ""}`
+          : `${trendsModel.fmtCount(segments.length)} segments share this corpus hash. Each trained from its own step 0; the chart uses a cumulative sequence axis so they do not overwrite each other.`}
+      </div>
+      <div class="segment-timeline ${single ? "single" : ""}">
+        ${segments.map((segment) => segmentCard(m, segment)).join("")}
+      </div>
+    </div>`;
+}
+
+// ---------------------------------------------------------------- run events
+function ensureTrendExtras({ force = false } = {}) {
+  if (state.trendsExtrasLoading) return;
+  if (!state.trends && !force) return;
+  if (state.trendsExtras && !force) return;
+  const m = state.trends;
+  if (!m) return;
+  if (!force && !trendsModel.runDetailsNeedHistory(m.events ?? [])) return;
+  state.trendsExtrasLoading = true;
+  state.trendsExtrasError = null;
+  const box = document.getElementById("trendsRunExtrasStatus");
+  if (box) box.innerHTML = `<span class="spinner"></span> Loading durable run details…`;
+  api("/training-history")
+    .then((history) => {
+      state.trendsExtras = trendsModel.indexHistory(history);
+      state.trendsExtrasError = null;
+    })
+    .catch((err) => {
+      state.trendsExtrasError = err.message;
+    })
+    .finally(() => {
+      state.trendsExtrasLoading = false;
+      const status = document.getElementById("trendsRunExtrasStatus");
+      if (status) {
+        status.innerHTML = state.trendsExtrasError
+          ? `<span class="warn">Run details unavailable: ${esc(state.trendsExtrasError)}</span>`
+          : `<span class="ok">Durable run details loaded.</span>`;
+      }
+      refreshRunTable();
+    });
+}
+
+function enrichedRunEvents(m) {
+  const extras = {
+    ...(state.trendsExtras ?? {}),
+    evaluationSet: m?.evaluationSet ?? null,
+  };
+  return (m?.events ?? []).map((event) => trendsModel.buildRunDetail(event, extras));
+}
+
+function refreshRunTable() {
+  const box = document.getElementById("trendsRunTable");
+  if (!box || !state.trends) return;
+  box.innerHTML = runTableMarkup(state.trends);
+  const sort = document.getElementById("trendRunSort");
+  if (sort) sort.value = state.trendsView.runSort;
+  const pageSize = document.getElementById("trendRunPageSize");
+  if (pageSize) pageSize.value = String(state.trendsView.runPageSize);
+}
+
+function nextSort(kind) {
+  const current = state.trendsView.runSort;
+  if (kind === "timestamp") return current === "newest" ? "oldest" : "newest";
+  if (kind === "loss") return current === "loss-asc" ? "loss-desc" : "loss-asc";
+  if (kind === "validation") return current === "validation-asc" ? "validation-desc" : "validation-asc";
+  return "run-asc";
+}
+
+function sortButton(label, kind) {
+  const active = kind === "timestamp"
+    ? (state.trendsView.runSort === "newest" || state.trendsView.runSort === "oldest")
+    : kind === "loss"
+      ? (state.trendsView.runSort === "loss-asc" || state.trendsView.runSort === "loss-desc")
+      : kind === "validation"
+        ? (state.trendsView.runSort === "validation-asc" || state.trendsView.runSort === "validation-desc")
+        : state.trendsView.runSort === "run-asc";
+  const arrow = active
+    ? (state.trendsView.runSort.endsWith("-desc") || state.trendsView.runSort === "newest" ? " ↓" : " ↑")
+    : "";
+  return `<button type="button" class="th-sort ${active ? "active" : ""}" data-trends-action="run-sort" data-sort="${esc(kind)}">${esc(label)}${arrow}</button>`;
+}
+
+function runDetailPanel(detail, m) {
+  const row = (label, value) => `<div class="run-detail-item"><span class="k">${esc(label)}</span><span>${value}</span></div>`;
+  const statusNote = detail.statusNote && (!detail.decisionReason || detail.outcome === "failed")
+    ? `<div class="run-detail-reason"><div class="k">Stored run-event note</div><div class="prose">${esc(detail.statusNote)}</div></div>`
+    : "";
+  return `<div class="run-detail">
+    <div class="run-detail-grid">
+      ${row("Run ID", esc(detail.runId))}
+      ${row("Model", esc(detail.modelId ?? "—"))}
+      ${row("Version", esc(detail.version ?? "—"))}
+      ${row("Parent version", esc(detail.parentVersion ?? "—"))}
+      ${row("Outcome", outcomeBadge(detail.outcome))}
+      ${row("Dataset", esc(detail.datasetId ?? "—"))}
+      ${row("Started", when(detail.startedAt))}
+      ${row("Ended", when(detail.endedAt))}
+      ${row("Duration", trendsModel.formatDuration(detail.durationMs))}
+      ${row("Frozen evaluation loss", lossCell(detail.loss))}
+      ${row("Evaluation delta", Number.isFinite(detail.evaluationDelta) ? trendsModel.fmtLoss(detail.evaluationDelta) : "—")}
+      ${row("Held-out validation loss", lossCell(detail.validationLoss))}
+      ${row("Training steps", Number.isFinite(detail.trainingSteps) ? trendsModel.fmtCount(detail.trainingSteps) : "—")}
+      ${row("Tokens seen", Number.isFinite(detail.tokensSeen) ? trendsModel.fmtCount(detail.tokensSeen) : "—")}
+      ${row("Activated version", esc(detail.activatedVersion ?? "—"))}
+      ${row("Checkpoint", detail.checkpointPath ? `<code class="path-chip" title="${esc(detail.checkpointPath)}">${esc(detail.checkpointPath)}</code>` : "—")}
+      ${row("Training corpus", hashChip(detail.datasetHash))}
+      ${row("Lineage", detail.inLineage ? "Inside selected lineage" : "Outside selected lineage")}
+      ${row("Evaluation-set hash", detail.evaluationDatasetHash
+        ? hashChip(detail.evaluationDatasetHash)
+        : detail.citedHashes?.length
+          ? `<span class="muted">not recorded as a field; ${trendsModel.fmtCount(detail.citedHashes.length)} hash(es) cited in the reason</span>`
+          : `<span class="muted">not recorded</span>`)}
+    </div>
+    <div class="run-detail-reason"><div class="k">Stored decision reason</div>${detail.decisionReason ? `<div class="prose">${esc(detail.decisionReason)}</div>` : `<div class="muted">No stored decision reason for this run.</div>`}</div>
+    ${statusNote}
+    ${detail.citedHashes?.length ? `<div class="run-detail-hashes"><div class="k">Hashes cited in the recorded reason</div>${detail.citedHashes.map((h) => `<span class="hash-chip" title="${esc(h)}">${esc(shortHash(h))}</span>`).join(" ")}</div>` : ""}
+    ${m?.evaluationSet?.files?.length ? `<div class="small muted run-detail-evalset">Current configured frozen evaluation set: ${m.evaluationSet.files.map((f) => `<code title="${esc(f.sha256)}">${esc(f.file)}</code>`).join(" · ")}. This is the current configuration, not necessarily this run's identity.</div>` : ""}
+  </div>`;
+}
+
+function runTableMarkup(m) {
+  const events = enrichedRunEvents(m);
+  const filtered = trendsModel.filterRuns(events, state.trendsView);
+  const sorted = trendsModel.sortRuns(filtered, state.trendsView.runSort);
+  const page = trendsModel.paginateRuns(sorted, state.trendsView.runPage, state.trendsView.runPageSize);
+  state.trendsView.runPage = page.page;
+  const hasValidation = events.some((e) => Number.isFinite(e.validationLoss));
+  const hasSteps = events.some((e) => Number.isFinite(e.trainingSteps));
+  const hasDuration = events.some((e) => Number.isFinite(e.durationMs));
+  const columns = 6 + (hasValidation ? 1 : 0) + (hasSteps ? 1 : 0);
+  if (!events.length) {
+    return `<div class="empty">No runs recorded for this store yet.</div>`;
+  }
+  const rows = page.items.map((detail) => {
+    const expanded = state.trendsView.runExpanded === detail.runId;
+    return `<tr class="run-row ${expanded ? "expanded" : ""}" data-run-id="${esc(detail.runId)}" data-trends-action="toggle-run">
+      <td class="small">${esc(detail.runId)}${detail.modelId ? `<div class="muted">${esc(detail.modelId)}</div>` : ""}</td>
+      <td class="small">${esc(detail.version ?? "—")}${detail.parentVersion ? `<div class="muted">← ${esc(detail.parentVersion)}</div>` : ""}</td>
+      <td>${outcomeBadge(detail.outcome)}</td>
+      <td class="num">${lossCell(detail.loss)}</td>
+      ${hasValidation ? `<td class="num">${lossCell(detail.validationLoss)}</td>` : ""}
+      ${hasSteps ? `<td class="num">${Number.isFinite(detail.trainingSteps) ? trendsModel.fmtCount(detail.trainingSteps) : `<span class="muted">—</span>`}</td>` : ""}
+      <td class="small">${when(detail.trainedAt ?? detail.startedAt)}${hasDuration && Number.isFinite(detail.durationMs) ? `<div class="muted">${trendsModel.formatDuration(detail.durationMs)}</div>` : ""}</td>
+      <td class="run-expand-cell"><span class="run-expand" aria-hidden="true">${expanded ? "▾" : "▸"}</span></td>
+    </tr>
+    ${expanded ? `<tr class="run-detail-row"><td colspan="${columns}">${runDetailPanel(detail, m)}</td></tr>` : ""}`;
+  }).join("");
+
+  return `<div class="run-table-wrap">
+    <table class="data run-table">
+      <thead><tr>
+        <th>${sortButton("Run", "run")}</th>
+        <th>Version</th>
+        <th>Outcome</th>
+        <th>${sortButton("Frozen loss", "loss")}</th>
+        ${hasValidation ? `<th>${sortButton("Held-out validation", "validation")}</th>` : ""}
+        ${hasSteps ? `<th>Steps</th>` : ""}
+        <th>${sortButton("Timestamp", "timestamp")}</th>
+        <th></th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  </div>
+  <div class="run-pagination">
+    <span class="small muted">Showing ${trendsModel.fmtCount(page.start)}–${trendsModel.fmtCount(page.end)} of ${trendsModel.fmtCount(page.total)}${filtered.length !== events.length ? ` (filtered from ${trendsModel.fmtCount(events.length)})` : ""}</span>
+    <span class="pagination-controls">
+      <button type="button" data-trends-action="run-page" data-page="prev" ${page.page <= 1 ? "disabled" : ""}>← Prev</button>
+      <span class="small muted">Page ${trendsModel.fmtCount(page.page)} of ${trendsModel.fmtCount(page.pages)}</span>
+      <button type="button" data-trends-action="run-page" data-page="next" ${page.page >= page.pages ? "disabled" : ""}>Next →</button>
+    </span>
+  </div>`;
+}
+
+function renderRunEventsTab(m) {
+  const versions = [...new Set((m.events ?? []).map((e) => e.version).filter(Boolean))].sort();
+  const view = state.trendsView;
+  const needsHistory = trendsModel.runDetailsNeedHistory(m.events ?? []);
+  if (!state.trendsExtras && !state.trendsExtrasLoading && needsHistory) {
+    setTimeout(() => ensureTrendExtras(), 0);
+  }
+  const extrasStatus = state.trendsExtrasLoading
+    ? `<span class="spinner"></span> Loading durable run details…`
+    : state.trendsExtrasError
+      ? `<span class="warn">Run details unavailable: ${esc(state.trendsExtrasError)}</span>`
+      : state.trendsExtras
+        ? `<span class="ok">Durable run details loaded.</span>`
+        : needsHistory
+          ? `<span class="muted">Durable reasons/steps load on demand.</span>`
+          : `<span class="ok">Durable details included in this response.</span>`;
+  return `<div class="panel">
+    <div class="panel-heading">
+      <div>
+        <div class="k">Run events <span class="sm">${eventsSummary(m)}</span></div>
+        <div class="small muted">Every recorded run, including runs that were rejected, failed or never produced a version.</div>
+      </div>
+      <div class="small" id="trendsRunExtrasStatus">${extrasStatus}</div>
+    </div>
+    <div class="run-toolbar">
+      <input type="search" id="trendRunSearch" placeholder="Search run, version, model or dataset…" value="${esc(view.runQuery)}" />
+      <select id="trendRunOutcome">
+        <option value="">All outcomes</option>
+        ${trendsModel.OUTCOMES.map((outcome) => `<option value="${esc(outcome)}" ${view.runOutcome === outcome ? "selected" : ""}>${esc(trendsModel.outcomeMeta(outcome).label)}</option>`).join("")}
+      </select>
+      <select id="trendRunVersion">
+        <option value="">All versions</option>
+        ${versions.map((version) => `<option value="${esc(version)}" ${view.runVersion === version ? "selected" : ""}>${esc(version)}</option>`).join("")}
+      </select>
+      <select id="trendRunSort" title="Sort runs">
+        <option value="newest" ${view.runSort === "newest" ? "selected" : ""}>Newest first</option>
+        <option value="oldest" ${view.runSort === "oldest" ? "selected" : ""}>Oldest first</option>
+        <option value="loss-asc" ${view.runSort === "loss-asc" ? "selected" : ""}>Frozen loss ↑</option>
+        <option value="loss-desc" ${view.runSort === "loss-desc" ? "selected" : ""}>Frozen loss ↓</option>
+        <option value="validation-asc" ${view.runSort === "validation-asc" ? "selected" : ""}>Validation loss ↑</option>
+        <option value="validation-desc" ${view.runSort === "validation-desc" ? "selected" : ""}>Validation loss ↓</option>
+        <option value="run-asc" ${view.runSort === "run-asc" ? "selected" : ""}>Run ID ascending</option>
+      </select>
+      <select id="trendRunPageSize" title="Rows per page">
+        ${[25, 50, 100, 250].map((size) => `<option value="${size}" ${view.runPageSize === size ? "selected" : ""}>${size} / page</option>`).join("")}
+      </select>
+      <button type="button" data-trends-action="run-clear">Clear filters</button>
+      <button type="button" data-trends-action="run-refresh-details" ${state.trendsExtrasLoading ? "disabled" : ""}>Reload details</button>
+    </div>
+    <div id="trendsRunTable">${runTableMarkup(m)}</div>
+  </div>`;
+}
+
+// ---------------------------------------------------------------- wiring
+let trendsWired = false;
+let trendsSearchTimer = null;
+
+function ensureChartTooltip() {
+  let el = document.getElementById("chartTooltip");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "chartTooltip";
+    el.className = "chart-tooltip hidden";
+    document.body.appendChild(el);
+  }
+  return el;
+}
+
+function showChartTooltip(target, x, y) {
+  const text = target?.getAttribute("data-tip");
+  if (!text) return;
+  const el = ensureChartTooltip();
+  el.textContent = text;
+  el.classList.remove("hidden");
+  const pad = 14;
+  const rect = el.getBoundingClientRect();
+  const left = Math.min(window.innerWidth - rect.width - 8, Math.max(8, x + pad));
+  const top = Math.min(window.innerHeight - rect.height - 8, Math.max(8, y + pad));
+  el.style.left = `${left}px`;
+  el.style.top = `${top}px`;
+}
+
+function hideChartTooltip() {
+  document.getElementById("chartTooltip")?.classList.add("hidden");
+}
+
+function wireTrends() {
+  if (trendsWired) return;
+  trendsWired = true;
+  main.addEventListener("click", (event) => {
+    const action = event.target.closest("[data-trends-action]");
+    if (!action) return;
+    const kind = action.dataset.trendsAction;
+    if (kind === "show-runs") {
+      state.trendsTab = "events";
+      state.trendsView.runVersion = action.dataset.version ?? "";
+      state.trendsView.runPage = 1;
+      renderTrends();
+      ensureTrendExtras();
+      return;
+    }
+    if (kind === "show-chart") {
+      state.trendsTab = "chart";
+      renderTrends();
+      return;
+    }
+    if (kind === "toggle-guide") {
+      state.trendsView.connectValidation = !state.trendsView.connectValidation;
+      const y = window.scrollY;
+      renderTrends();
+      window.scrollTo(0, y);
+      return;
+    }
+    if (kind === "x-mode") {
+      state.trendsView.xMode = action.dataset.mode === "time" ? "time" : "sequence";
+      const y = window.scrollY;
+      renderTrends();
+      window.scrollTo(0, y);
+      return;
+    }
+    if (kind === "run-sort") {
+      state.trendsView.runSort = nextSort(action.dataset.sort);
+      state.trendsView.runPage = 1;
+      refreshRunTable();
+      return;
+    }
+    if (kind === "run-page") {
+      state.trendsView.runPage += action.dataset.page === "next" ? 1 : -1;
+      refreshRunTable();
+      return;
+    }
+    if (kind === "run-clear") {
+      state.trendsView.runQuery = "";
+      state.trendsView.runOutcome = "";
+      state.trendsView.runVersion = "";
+      state.trendsView.runSort = "newest";
+      state.trendsView.runPage = 1;
+      state.trendsView.runExpanded = null;
+      renderTrends();
+      return;
+    }
+    if (kind === "run-refresh-details") {
+      ensureTrendExtras({ force: true });
+      return;
+    }
+    if (kind === "toggle-run") {
+      if (event.target.closest("button, a, input, select, textarea") && !event.target.closest(".run-expand-cell")) return;
+      const row = event.target.closest("tr[data-run-id]");
+      const runId = row?.dataset.runId;
+      if (!runId) return;
+      state.trendsView.runExpanded = state.trendsView.runExpanded === runId ? null : runId;
+      refreshRunTable();
+    }
+  });
+
+  main.addEventListener("input", (event) => {
+    if (event.target.id !== "trendRunSearch") return;
+    state.trendsView.runQuery = event.target.value;
+    state.trendsView.runPage = 1;
+    clearTimeout(trendsSearchTimer);
+    trendsSearchTimer = setTimeout(refreshRunTable, 140);
+  });
+
+  main.addEventListener("change", (event) => {
+    if (event.target.id === "trendRunOutcome") state.trendsView.runOutcome = event.target.value;
+    else if (event.target.id === "trendRunVersion") state.trendsView.runVersion = event.target.value;
+    else if (event.target.id === "trendRunSort") state.trendsView.runSort = event.target.value;
+    else if (event.target.id === "trendRunPageSize") state.trendsView.runPageSize = Number(event.target.value) || 50;
+    else return;
+    state.trendsView.runPage = 1;
+    refreshRunTable();
+  });
+
+  main.addEventListener("pointerover", (event) => {
+    const target = event.target.closest("[data-tip]");
+    if (target) showChartTooltip(target, event.clientX, event.clientY);
+  });
+  main.addEventListener("pointermove", (event) => {
+    const target = event.target.closest("[data-tip]");
+    if (target) showChartTooltip(target, event.clientX, event.clientY);
+  });
+  main.addEventListener("pointerout", (event) => {
+    if (event.target.closest("[data-tip]")) hideChartTooltip();
+  });
+  main.addEventListener("focusin", (event) => {
+    const target = event.target.closest("[data-tip]");
+    if (!target) return;
+    const rect = target.getBoundingClientRect();
+    showChartTooltip(target, rect.left + rect.width / 2, rect.top + rect.height / 2);
+  });
+  main.addEventListener("focusout", (event) => {
+    if (event.target.closest("[data-tip]")) hideChartTooltip();
+  });
 }
 
 // ------------------------------------------------------- learning & training
@@ -2110,7 +2737,28 @@ function connectSSE() {
 }
 
 // -------------------------------------------------------------------- boot
+/**
+ * Optional deep link for screenshots and operator links:
+ *   /admin/?tab=trends&sub=chart
+ * The URL only affects the initial view; normal navigation is unchanged.
+ */
+function applyInitialView() {
+  const params = new URLSearchParams(window.location.search);
+  const tab = params.get("tab");
+  const sub = params.get("sub");
+  if (tab && [...document.querySelectorAll("#tabs button")].some((b) => b.dataset.tab === tab)) {
+    state.tab = tab;
+  }
+  if (state.tab === "trends" && ["trend", "chart", "lineage", "events"].includes(sub)) {
+    state.trendsTab = sub;
+  }
+  for (const b of document.querySelectorAll("#tabs button")) {
+    b.classList.toggle("active", b.dataset.tab === state.tab);
+  }
+}
+
 // Restore job selection from URL hash on initial page load
+applyInitialView();
 restoreJobFromHashIfValid();
 watchJobHash();
 

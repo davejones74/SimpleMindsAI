@@ -9,6 +9,9 @@ import {
   selectEffectiveVersion,
   bestCheckpoint,
   bestCheckpointForHash,
+  bestValidationPoint,
+  bestFrozenEvaluation,
+  summarizeRunOutcomes,
   RUN_OUTCOME,
   resolveRunOutcome,
   deriveRunEvents,
@@ -496,4 +499,134 @@ test("computeContributionSummary is safe on empty and legacy ledgers", () => {
     freshTokensConsumed: null, replayTokensConsumed: 0, trainTokensSeen: 0, validationTokensSeen: 0,
     eligibleUniqueArticles: 0,
   });
+});
+
+
+// ------------------------------------------------ validation/frozen separation
+
+test("classifyTrend evidence names the best observation and its finite-only ratios", () => {
+  const pts = [
+    { step: 0, loss: 5.0, version: "v001" },
+    { step: 10, loss: 4.2, version: "v002" },
+    { step: 20, loss: 4.6, version: "v002" },
+    { step: 30, loss: null, version: "v003" },
+  ];
+  const r = classifyTrend(pts, null, DEFAULTS);
+  assert.equal(r.evidence.best, 4.2);
+  assert.equal(r.evidence.bestStep, 10);
+  assert.equal(r.evidence.bestVersion, "v002");
+  assert.ok(r.evidence.improvementRel < 0);
+  assert.ok(r.evidence.lastVsBestRel > 0);
+  assert.equal(r.evidence.sufficient, true);
+});
+
+test("bestValidationPoint returns the lowest finite held-out observation with provenance", () => {
+  const best = bestValidationPoint([
+    { step: 0, loss: 5, version: "v001" },
+    { step: 10, loss: null, version: "v002" },
+    { step: 20, loss: 4.1, version: "v003" },
+    { step: 30, loss: 4.5, version: "v003" },
+  ]);
+  assert.deepEqual(best, { step: 20, loss: 4.1, version: "v003" });
+  assert.equal(bestValidationPoint([]), null);
+});
+
+test("bestFrozenEvaluation ignores missing and non-finite losses, never treating them as zero", () => {
+  const best = bestFrozenEvaluation([
+    { runId: "r1", outcome: "failed", loss: null },
+    { runId: "r2", outcome: "rejected", loss: Number.NaN },
+    { runId: "r3", outcome: "promoted", loss: 6.7 },
+    { runId: "r4", outcome: "rejected", loss: 6.9 },
+  ]);
+  assert.equal(best.runId, "r3");
+  assert.equal(best.loss, 6.7);
+  assert.equal(bestFrozenEvaluation([]), null);
+});
+
+test("summarizeRunOutcomes counts every outcome and separates evaluation coverage from the promotion denominator", () => {
+  const health = summarizeRunOutcomes([
+    { runId: "r1", outcome: "promoted", loss: 6.7 },
+    { runId: "r2", outcome: "rejected", loss: 6.9 },
+    { runId: "r3", outcome: "inconclusive" },
+    { runId: "r4", outcome: "failed", loss: null },
+    { runId: "r5", outcome: "not_evaluated", loss: null },
+    { runId: "r6", outcome: "in_progress", loss: null },
+  ]);
+  assert.equal(health.total, 6);
+  assert.deepEqual(health.counts, {
+    promoted: 1,
+    rejected: 1,
+    inconclusive: 1,
+    not_evaluated: 1,
+    failed: 1,
+    in_progress: 1,
+  });
+  assert.equal(health.evaluated, 2);
+  assert.equal(health.evaluationCoverage, 2 / 6);
+  assert.equal(health.terminalEvaluated, 3);
+  assert.equal(health.promotionRate, 1 / 3);
+  assert.equal(summarizeRunOutcomes([]).promotionRate, null);
+});
+
+// ------------------------------------------------- run-event durable details
+
+test("deriveRunEvents carries durable reasons, timing and checkpoint provenance", () => {
+  const events = deriveRunEvents(
+    [
+      {
+        runId: "r1",
+        status: "promoted",
+        startedAt: "2026-11-12T10:00:00.000Z",
+        completedAt: null,
+        events: [
+          { status: "created", at: "2026-11-12T10:00:00.000Z", note: "created" },
+          { status: "promoted", at: "2026-11-12T10:03:00.000Z", note: "promotion gate accepted" },
+        ],
+        runLinkage: { pythonVersion: "v749", checkpointPath: "/store/v749.tmp", datasetHash: "train-hash" },
+      },
+    ],
+    [
+      {
+        modelId: "model-644",
+        trainingRunId: "r1",
+        status: "promoted",
+        evaluationScore: 6.657,
+        checkpointPath: "/store/v749.tmp",
+        datasetId: "dataset-1",
+        note: "paired improvement 0.0724 exceeds 0 on eval-hash",
+        meta: { pythonVersion: "v749", datasetHash: "train-hash" },
+      },
+    ],
+  );
+  assert.equal(events.length, 1);
+  const e = events[0];
+  assert.equal(e.decisionReason, "paired improvement 0.0724 exceeds 0 on eval-hash");
+  assert.equal(e.statusNote, "promotion gate accepted");
+  assert.equal(e.terminalStatus, "promoted");
+  assert.equal(e.endedAt, "2026-11-12T10:03:00.000Z");
+  assert.equal(e.durationMs, 180000);
+  assert.equal(e.checkpointPath, "/store/v749.tmp");
+  assert.equal(e.modelId, "model-644");
+  assert.equal(e.datasetId, "dataset-1");
+});
+
+test("deriveRunEvents leaves missing durable fields null rather than fabricating them", () => {
+  const events = deriveRunEvents([{ runId: "r1", status: "failed", startedAt: "2026-11-12T10:00:00Z" }]);
+  const e = events[0];
+  assert.equal(e.decisionReason, null);
+  assert.equal(e.statusNote, null);
+  assert.equal(e.checkpointPath, null);
+  assert.equal(e.durationMs, null);
+  assert.equal(e.loss, null);
+});
+
+test("deriveRunEvents keeps runs that share a step or timestamp individually identifiable", () => {
+  const runs = [
+    { runId: "r1", status: "rejected", startedAt: "2026-11-12T10:00:00.000Z", promotionStatus: "rejected", runLinkage: { pythonVersion: "v001" } },
+    { runId: "r2", status: "rejected", startedAt: "2026-11-12T10:00:00.000Z", promotionStatus: "rejected", runLinkage: { pythonVersion: "v002" } },
+  ];
+  const events = deriveRunEvents(runs, []);
+  assert.equal(events.length, 2);
+  assert.notEqual(events[0].runId, events[1].runId);
+  assert.equal(events[0].trainedAt, events[1].trainedAt);
 });

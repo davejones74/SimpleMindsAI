@@ -10,6 +10,8 @@ import { probeTeacher } from "./teacher.js";
 import {
   bestCheckpoint,
   bestCheckpointForHash,
+  bestFrozenEvaluation,
+  bestValidationPoint,
   classifyTrend,
   computeChartScales,
   computeContributionSummary,
@@ -18,6 +20,7 @@ import {
   downsample,
   mergeChain,
   selectEffectiveVersion,
+  summarizeRunOutcomes,
 } from "./metrics.js";
 import { config } from "../config.js";
 import { validateBlueprint } from "./public/brain/schema.js";
@@ -399,9 +402,11 @@ export function attachAdmin({ app, store, registry, governance, chat, conversati
     const selected = py.versions.find((v) => v.version === sel.effective);
     const thresholds = config.trend;
     const maxPoints = 1000;
+    const pyByVersion = new Map(py.versions.map((v) => [v.version, v]));
+    const finiteNum = (value) => (Number.isFinite(value) ? value : null);
 
     const chainHash = selected?.trainState?.datasetHash ?? null;
-    const lineage = py.versions.filter(
+    const lineageVersions = py.versions.filter(
       (v) => v.committed && v.trainState?.datasetHash === chainHash,
     );
     // Each lineage member trained from step 0. Without an offset, a later
@@ -409,12 +414,20 @@ export function attachAdmin({ app, store, registry, governance, chat, conversati
     // each segment a cumulative step offset so the chain is a readable SEQUENCE
     // of trainings, and report any residual same-step overlap honestly.
     let runningOffset = 0;
-    const segments = lineage.map((v) => {
-      const series = deriveSeries(readPythonTrainState(v.version, w.pythonStorePath) ?? null);
+    const segments = lineageVersions.map((v) => {
+      const trainState = readPythonTrainState(v.version, w.pythonStorePath) ?? null;
+      const series = deriveSeries(trainState);
       const seg = {
         version: v.version,
         committedAt: v.committedAt ?? null,
         stepOffset: runningOffset,
+        parentVersion: trainState?.parentVersion ?? null,
+        tokensSeen: finiteNum(trainState?.tokensSeen),
+        initialTrainLoss: finiteNum(trainState?.initialTrainLoss),
+        finalTrainLoss: finiteNum(trainState?.finalTrainLoss),
+        wallSeconds: finiteNum(trainState?.runtime?.wallSeconds),
+        stoppedEarly: trainState?.stoppedEarly ?? null,
+        stopReason: trainState?.stopReason ?? null,
         ...series,
       };
       const span = Number.isInteger(series.stepsCompleted) && series.stepsCompleted > 0 ? series.stepsCompleted : 0;
@@ -422,6 +435,16 @@ export function attachAdmin({ app, store, registry, governance, chat, conversati
       return seg;
     });
     const versionOffset = new Map(segments.map((s) => [s.version, s.stepOffset]));
+
+    // Full, un-downsampled observation sets. The chart chain is decimated for
+    // rendering; the verdict must still see every finite observation so a best
+    // value cannot disappear between sampled points.
+    const validationAll = segments
+      .flatMap((s) => s.validationSeries.map((p) => ({ step: p.step + s.stepOffset, loss: p.loss, version: s.version })))
+      .sort((a, b) => a.step - b.step);
+    const trainingAll = segments
+      .flatMap((s) => s.trainingSeries.map((p) => ({ step: p.step + s.stepOffset, loss: p.loss, version: s.version })))
+      .sort((a, b) => a.step - b.step);
 
     const validationChain = mergeChain(
       segments.map((s) => ({ version: s.version, series: s.validationSeries, stepOffset: s.stepOffset })),
@@ -440,19 +463,25 @@ export function attachAdmin({ app, store, registry, governance, chat, conversati
       w.services.registry.listModels().filter((m) => m.trainingRunId).map((m) => [m.trainingRunId, m]),
     );
     const events = deriveRunEvents(w.services.registry.listRuns(), [...modelsByRun.values()]);
+    for (const e of events) {
+      const pv = e.version ? pyByVersion.get(e.version) : null;
+      // Only published versions have a readable train-state. Rejected candidates
+      // deliberately have no version directory, so these stay null rather than
+      // being inferred from the frozen evaluation score.
+      e.trainingSteps = pv?.trainState?.stepsCompleted ?? null;
+      e.validationLoss = pv?.trainState?.finalValidationLoss ?? null;
+      e.versionCommittedAt = pv?.committedAt ?? null;
+      if (e.tokensSeen == null && Number.isFinite(pv?.trainState?.tokensSeen)) {
+        e.tokensSeen = pv.trainState.tokensSeen;
+      }
+    }
 
-    // Step placement. A run whose candidate still exists in the lineage plots at
-    // that candidate's own final step; anything else (a rejected or discarded
-    // candidate, a run that failed before training) has no recorded step of its
-    // own and plots at the end of the lineage's recorded range, labelled as such
-    // in the tooltip so the position is never read as a measurement.
-    const stepsByVersion = new Map(lineage.map((v) => [v.version, v]));
-    // Fallback end of the lineage: the last step any version actually recorded,
-    // used only for events that have no step of their own. The chain's own `to`
-    // is preferred, but a lineage whose series are all empty (no validation
-    // history, endpoint-only runs) must still have an integer fallback so an
-    // unmeasured run stays plottable rather than dropping out of `markers`.
-    const lineageStepsEnd = lineage.reduce((acc, v) => {
+    // Step placement is retained for backward compatibility with older clients
+    // and with `markers`. It is NOT a measurement for runs outside the selected
+    // lineage: every such run receives the same lineage-end fallback. The new
+    // run-events chart therefore uses run sequence/timestamp, never this field.
+    const stepsByVersion = new Map(lineageVersions.map((v) => [v.version, v]));
+    const lineageStepsEnd = lineageVersions.reduce((acc, v) => {
       const s = v.trainState?.stepsCompleted;
       return Number.isInteger(s) && s > 0 ? Math.max(acc, s - 1) : acc;
     }, null);
@@ -468,10 +497,9 @@ export function attachAdmin({ app, store, registry, governance, chat, conversati
       e.inLineage = Boolean(e.version && stepsByVersion.has(e.version));
     }
 
-    // `markers` is the frozen-eval-set subset (a finite loss, plottable on the
-    // SEPARATE right-hand loss axis, because it is a different measurement from
-    // the in-run/held-out curve). The graph draws from `events` so unmeasured
-    // runs stay visible.
+    // `markers` is the frozen-eval-set subset. It remains for backward
+    // compatibility, but the new chart draws from `events` so runs without a
+    // recorded loss stay visible in a dedicated strip instead of on a fake y.
     const markers = events
       .filter((e) => Number.isFinite(e.loss) && Number.isInteger(e.step))
       .map((e) => ({
@@ -483,6 +511,7 @@ export function attachAdmin({ app, store, registry, governance, chat, conversati
         activatedVersion: e.activatedVersion,
         trainedAt: e.trainedAt,
         datasetHash: e.datasetHash,
+        evaluationDatasetHash: e.evaluationDatasetHash ?? null,
         tokensSeen: e.tokensSeen,
         step: e.step,
       }));
@@ -501,7 +530,66 @@ export function attachAdmin({ app, store, registry, governance, chat, conversati
       markers,
     });
 
+    const eventsByVersion = new Map();
+    for (const e of events) {
+      if (!e.version) continue;
+      const list = eventsByVersion.get(e.version) ?? [];
+      list.push(e);
+      eventsByVersion.set(e.version, list);
+    }
+    const runHealth = summarizeRunOutcomes(events);
+    const lineageRunHealth = summarizeRunOutcomes(events.filter((e) => e.inLineage));
+
+    let bestValidation = bestValidationPoint(validationAll);
+    if (!bestValidation) {
+      // A version may record only its closing validation loss (no periodic
+      // history). That is still a real measurement; keep it, but its step is
+      // unknown rather than invented.
+      bestValidation = segments
+        .filter((s) => Number.isFinite(s.finalValidationLoss))
+        .reduce((best, s) => {
+          const point = { version: s.version, loss: s.finalValidationLoss, step: null };
+          return best === null || point.loss < best.loss ? point : best;
+        }, null);
+    }
+    if (bestValidation) {
+      bestValidation.datasetHash = chainHash;
+      bestValidation.source = "held-out-validation";
+    }
+    const bestFrozen = bestFrozenEvaluation(events);
+    const validationEntries = segments.map((s) => ({
+      version: s.version,
+      loss: s.finalValidationLoss,
+      datasetHash: chainHash,
+      stepsCompleted: s.stepsCompleted,
+    }));
+    // The legacy `best` summary remains per-dataset-hash across both measurement
+    // bases. `bestInLineage` is now validation-only: comparing a held-out
+    // validation loss with a frozen evaluation-set loss would be invalid.
+    const comparableEntries = validationEntries.concat(
+      markers.map((m) => ({ version: m.version, loss: m.loss, datasetHash: m.datasetHash, runId: m.runId, source: "frozen-eval-set" })),
+    );
+    const committed = py.versions.filter((v) => v.committed);
+    const committedTimes = segments.map((s) => s.committedAt).filter(Boolean).sort();
+    const lineage = {
+      datasetHash: chainHash,
+      scope: "same-training-corpus-hash",
+      segmentCount: segments.length,
+      committedVersionCount: committed.length,
+      distinctDatasetHashes: new Set(committed.map((v) => v.trainState?.datasetHash).filter(Boolean)).size,
+      otherVersionsOutsideLineage: chainHash
+        ? committed.filter((v) => v.trainState?.datasetHash && v.trainState.datasetHash !== chainHash).length
+        : null,
+      fromStep: validationChain.from ?? trainingChain.from ?? null,
+      toStep: validationChain.to ?? trainingChain.to ?? null,
+      committedFrom: committedTimes[0] ?? null,
+      committedTo: committedTimes[committedTimes.length - 1] ?? null,
+      runs: lineageRunHealth,
+    };
+    const activeModel = w.services.registry.getActiveModel();
+
     ok(res, {
+      schema: "sma/trends@2",
       workspace: identity(w, py),
       available: true,
       generatedAt: new Date().toISOString(),
@@ -514,54 +602,53 @@ export function attachAdmin({ app, store, registry, governance, chat, conversati
       segments: segments.map((s) => ({
         version: s.version,
         committedAt: s.committedAt,
+        stepOffset: s.stepOffset,
+        parentVersion: s.parentVersion,
+        tokensSeen: s.tokensSeen,
+        initialTrainLoss: s.initialTrainLoss,
+        finalTrainLoss: s.finalTrainLoss,
+        wallSeconds: s.wallSeconds,
+        stoppedEarly: s.stoppedEarly,
+        stopReason: s.stopReason,
         stepsCompleted: s.stepsCompleted,
         resumedFromStep: s.resumedFromStep,
         evalEvery: s.evalEvery,
         sampling: s.sampling,
+        trainingSamples: s.trainingSeries.length,
+        validationSamples: s.validationSeries.length,
         initialValidationLoss: s.initialValidationLoss,
         finalValidationLoss: s.finalValidationLoss,
+        isEffective: s.version === sel.effective,
+        runs: summarizeRunOutcomes(eventsByVersion.get(s.version) ?? []),
       })),
       chain: {
         points: validationChain.points,
         fromStep: validationChain.from,
         toStep: validationChain.to,
         collisions: validationChain.collisions,
+        stepBasis: "cumulative-lineage-step",
       },
       scales,
       training,
       markers,
       events,
-      best: bestCheckpoint(
-        segments
-          .map((s) => {
-            const ts = readPythonTrainState(s.version, w.pythonStorePath) ?? {};
-            return {
-              version: s.version,
-              loss: s.finalValidationLoss,
-              datasetHash: ts?.packing?.datasetHash ?? null,
-              stepsCompleted: s.stepsCompleted,
-            };
-          })
-          .concat(markers.map((m) => ({ version: m.version, loss: m.loss, datasetHash: m.datasetHash, runId: m.runId, source: "frozen-eval-set" }))),
-      ),
-      // The card labelled "Best checkpoint" must be ONE checkpoint. `best` is
-      // per-dataset-hash, so on a multi-corpus store it is every version; this
-      // is the best of the entries comparable to the selected lineage.
-      bestInLineage: bestCheckpointForHash(
-        segments
-          .map((s) => {
-            const ts = readPythonTrainState(s.version, w.pythonStorePath) ?? {};
-            return {
-              version: s.version,
-              loss: s.finalValidationLoss,
-              datasetHash: ts?.packing?.datasetHash ?? null,
-              stepsCompleted: s.stepsCompleted,
-            };
-          })
-          .concat(markers.map((m) => ({ version: m.version, loss: m.loss, datasetHash: m.datasetHash, runId: m.runId, source: "frozen-eval-set" }))),
-        chainHash,
-      ),
-      trend: classifyTrend(validationChain.points, trainingChain.points, thresholds),
+      lineage,
+      runHealth,
+      bestValidation,
+      bestFrozenEvaluation: bestFrozen,
+      evaluationSet: evaluationSetSummary(w),
+      activeModel: activeModel
+        ? {
+            modelId: activeModel.modelId,
+            status: activeModel.status,
+            createdAt: activeModel.createdAt ?? null,
+            pythonVersion: activeModel.meta?.pythonVersion ?? null,
+          }
+        : null,
+      best: bestCheckpoint(comparableEntries),
+      // One validation-based checkpoint comparable to the selected lineage.
+      bestInLineage: bestCheckpointForHash(validationEntries, chainHash),
+      trend: classifyTrend(validationAll, trainingAll, thresholds),
     });
   }));
 

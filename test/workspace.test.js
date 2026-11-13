@@ -332,6 +332,35 @@ test("workspaces: training-history + metrics load the trial from persisted artif
     assert.equal(m.body.events.find((e) => e.outcome === "promoted").stepBasis, "run-final-step");
     assert.equal(m.body.events.find((e) => e.outcome === "failed").stepBasis, "lineage-end");
 
+    // Additive semantic fields: run health, lineage scope, and the two
+    // measurement-specific "best" values are distinct.
+    assert.equal(m.body.schema, "sma/trends@2");
+    assert.equal(m.body.runHealth.total, 4);
+    assert.deepEqual(m.body.runHealth.counts, { promoted: 1, rejected: 1, inconclusive: 0, failed: 1, not_evaluated: 0, in_progress: 1 });
+    assert.equal(m.body.runHealth.evaluated, 2);
+    assert.equal(m.body.runHealth.evaluationCoverage, 0.5);
+    assert.equal(m.body.runHealth.terminalEvaluated, 2);
+    assert.equal(m.body.runHealth.promotionRate, 0.5);
+    assert.equal(m.body.lineage.segmentCount, 1);
+    assert.equal(m.body.lineage.scope, "same-training-corpus-hash");
+    assert.equal(m.body.lineage.committedVersionCount, 1);
+    assert.equal(m.body.lineage.otherVersionsOutsideLineage, 0);
+    assert.ok(m.body.bestValidation);
+    assert.equal(m.body.bestValidation.loss, 2.5);
+    assert.equal(m.body.bestValidation.source, "held-out-validation");
+    assert.ok(m.body.bestFrozenEvaluation);
+    assert.equal(m.body.bestFrozenEvaluation.runId, byOutcome.promoted.runId);
+    assert.equal(m.body.bestFrozenEvaluation.loss, 11.380511601765951);
+    // The promoted event exposes its durable decision reason and the published
+    // version's held-out validation loss/steps. The rejected run has no
+    // published version directory, so those stay null rather than being inferred.
+    assert.match(byOutcome.promoted.decisionReason, /11\.8392 -> 11\.3805/);
+    assert.equal(byOutcome.promoted.validationLoss, 2.5);
+    assert.equal(byOutcome.promoted.trainingSteps, 60);
+    assert.equal(byOutcome.rejected.validationLoss, null);
+    assert.equal(byOutcome.rejected.trainingSteps, null);
+    assert.equal(byOutcome.failed.loss, null);
+
     // The same run id exists in development with a DIFFERENT python version.
     const devHist = await jget(`${h.base}/api/admin/training-history?workspace=development`);
     const devRun = devHist.body.registry.runs.find((r) => r.runId === "run-1");

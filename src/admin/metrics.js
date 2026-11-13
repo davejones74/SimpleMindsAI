@@ -43,7 +43,13 @@ function finitePoints(series, field = "loss") {
     if (raw === null || raw === undefined || (typeof raw === "string" && raw.trim() === "")) continue;
     const loss = Number(raw);
     if (!Number.isFinite(loss)) continue;
-    pts.push({ step: p?.step ?? i, loss });
+    const point = { step: p?.step ?? i, loss };
+    // Keep provenance that belongs to the observation itself. The merged chart
+    // chain carries `version`; preserving it here is what lets the verdict name
+    // the checkpoint responsible for the best held-out observation instead of
+    // reporting a context-free number.
+    if (p?.version !== undefined) point.version = p.version;
+    pts.push(point);
   }
   pts.sort((a, b) => a.step - b.step);
   return pts;
@@ -105,13 +111,24 @@ export function classifyTrend(validation, training = null, thresholds = {}) {
     overfitValRise: thresholds.overfitValRise ?? 0.02,
   };
   const v = finitePoints(validation);
+  const bestPoint = v.length
+    ? v.reduce((best, p) => (p.loss < best.loss ? p : best), v[0])
+    : null;
   const evidence = () => ({
     points: v.length,
     first: v[0]?.loss ?? null,
     last: v[v.length - 1]?.loss ?? null,
-    best: v.length ? Math.min(...v.map((p) => p.loss)) : null,
+    best: bestPoint?.loss ?? null,
+    bestStep: bestPoint?.step ?? null,
+    bestVersion: bestPoint?.version ?? null,
     firstStep: v[0]?.step ?? null,
     lastStep: v[v.length - 1]?.step ?? null,
+    // Relative first→last change (negative is an improvement) and the latest
+    // observation's distance above the best one. Both are null unless they are
+    // mathematically defined; the UI must never coerce them to zero.
+    improvementRel: v.length >= 2 ? relChange(v[0].loss, v[v.length - 1].loss) : null,
+    lastVsBestRel: bestPoint && v.length ? relChange(bestPoint.loss, v[v.length - 1].loss) : null,
+    sufficient: v.length >= t.minPoints,
   });
   if (v.length === 0) {
     return { verdict: VERDICT.INSUFFICIENT_EVIDENCE, thresholds: t, evidence: evidence(), reason: "No recorded validation losses." };
@@ -334,6 +351,65 @@ export function bestCheckpointForHash(entries, datasetHash) {
   return best;
 }
 
+/**
+ * Lowest FINITE held-out validation observation, with its version and step.
+ * This is a different measurement from a frozen evaluation-set score and must
+ * never be compared with one; the caller keeps them on separate cards.
+ */
+export function bestValidationPoint(points) {
+  let best = null;
+  for (const p of finitePoints(points)) {
+    if (best === null || p.loss < best.loss) best = { ...p };
+  }
+  return best;
+}
+
+/**
+ * Lowest FINITE frozen evaluation-set loss among recorded run events, or null.
+ * Runs without a recorded evaluation are ignored, never treated as zero.
+ */
+export function bestFrozenEvaluation(events) {
+  let best = null;
+  for (const e of events ?? []) {
+    if (!e || !Number.isFinite(e.loss)) continue;
+    if (best === null || e.loss < best.loss) best = { ...e };
+  }
+  return best;
+}
+
+/**
+ * Counts and rates over persisted run events. Every outcome is reported, even
+ * when its count is zero, and a run with no finite frozen evaluation is counted
+ * as unevaluated rather than silently dropped.
+ *
+ * `terminalEvaluated` is the denominator for the promotion rate: promoted,
+ * rejected and inconclusive are actual gate decisions. Failed / not-evaluated /
+ * in-progress runs are health categories, not promotion decisions.
+ */
+export function summarizeRunOutcomes(events) {
+  const list = Array.isArray(events) ? events.filter((e) => e && e.runId) : [];
+  const counts = {};
+  for (const outcome of Object.values(RUN_OUTCOME)) counts[outcome] = 0;
+  let evaluated = 0;
+  let terminalEvaluated = 0;
+  for (const e of list) {
+    if (Object.prototype.hasOwnProperty.call(counts, e.outcome)) counts[e.outcome] += 1;
+    if (Number.isFinite(e.loss)) evaluated += 1;
+    if (e.outcome === RUN_OUTCOME.PROMOTED || e.outcome === RUN_OUTCOME.REJECTED || e.outcome === RUN_OUTCOME.INCONCLUSIVE) {
+      terminalEvaluated += 1;
+    }
+  }
+  const total = list.length;
+  return {
+    total,
+    counts,
+    evaluated,
+    evaluationCoverage: total > 0 ? evaluated / total : null,
+    terminalEvaluated,
+    promotionRate: terminalEvaluated > 0 ? counts[RUN_OUTCOME.PROMOTED] / terminalEvaluated : null,
+  };
+}
+
 // --------------------------------------------------------------- run events
 //
 // A diamond on the Trends graph is a RUN, not a version. That distinction
@@ -486,6 +562,14 @@ export function deriveRunEvents(runs, models = []) {
       [run.trainedEvaluation?.loss, "run.trainedEvaluation"],
       [candidate?.evaluationScore, "modelEvent.evaluationScore"],
     ]);
+    const runEvents = Array.isArray(run.events) ? run.events : [];
+    const lastEvent = runEvents.length ? runEvents[runEvents.length - 1] : null;
+    const endedAt = run.completedAt ?? lastEvent?.at ?? null;
+    const startMs = run.startedAt ? Date.parse(run.startedAt) : NaN;
+    const endMs = endedAt ? Date.parse(endedAt) : NaN;
+    const durationMs = Number.isFinite(startMs) && Number.isFinite(endMs) && endMs >= startMs
+      ? endMs - startMs
+      : null;
     events.push({
       runId: run.runId,
       outcome,
@@ -501,8 +585,20 @@ export function deriveRunEvents(runs, models = []) {
       promoted: outcome === RUN_OUTCOME.PROMOTED,
       startedAt: run.startedAt ?? null,
       completedAt: run.completedAt ?? null,
-      trainedAt: run.completedAt ?? run.startedAt ?? null,
+      lastEventAt: lastEvent?.at ?? null,
+      endedAt,
+      durationMs,
+      terminalStatus: lastEvent?.status ?? null,
+      trainedAt: endedAt ?? run.startedAt ?? null,
+      // The durable decision rationale lives on the candidate model event. The
+      // run-event note is separate: it records interruptions/failures and the
+      // generic terminal transition, not the promotion-gate arithmetic.
+      decisionReason: candidate?.note ?? null,
+      statusNote: lastEvent?.note ?? null,
       note: run.trainerNotes?.note ?? null,
+      modelId: candidate?.modelId ?? null,
+      datasetId: run.datasetId ?? candidate?.datasetId ?? null,
+      checkpointPath: run.runLinkage?.checkpointPath ?? candidate?.checkpointPath ?? null,
     });
   }
 

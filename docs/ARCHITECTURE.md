@@ -662,35 +662,39 @@ exposes it deliberately.
 | Training History | **both** sources — the Node registry (orchestration/audit) and the read-only Python `SMA_STORE` (committed versions, `active.json`, provenance, metrics); unavailable metrics are reported as unavailable, never as zero |
 | Trends & Metrics | deterministic trend classification (improving / worsening / plateauing / potentially-overfitting / insufficient evidence) over recorded, comparable losses. The classifier in `src/admin/metrics.js` is a pure function — no I/O, no randomness — fed from train-state files and frozen eval-set records; validation and training losses are only ever compared within the same dataset hash. |
 
-#### A diamond is a run, not a version
+#### Two charts, because there are two measurement families
 
-Every marker on the Trends graph is a **recorded run**, derived from the
-persisted `run-events`/`model-events` by `deriveRunEvents`
-(`src/admin/metrics.js`), never from the in-memory completion patch — which is
-why an outcome stays readable after the process that produced it is gone. All
-five outcomes are drawn: promoted, rejected, `not_evaluated`, failed and
-in-progress. Only a minority of runs ever become versions, so hiding the rest
-would draw an unbroken line of successes out of a lineage that also had
-rejections, failures and abandoned attempts.
+Trends & Metrics keeps training/held-out validation and frozen evaluation-set
+measurements on separate charts. The training chart uses recorded steps and
+draws held-out observations as discrete points (an optional guide line is not a
+measurement). The run chart uses run sequence or timestamp as its x axis and
+frozen evaluation-set loss as its y axis; points are not connected, and runs
+with no recorded loss stay in a separate "no frozen evaluation recorded" strip
+rather than being plotted at a fake y value. Per-run evaluation-set identity is
+shown where the ledger recorded it; hashes cited in a stored decision reason are
+surfaced separately rather than being treated as a field.
+
+Every run point is derived from the persisted `run-events`/`model-events` by
+`deriveRunEvents` (`src/admin/metrics.js`), never from the in-memory completion
+patch. All outcomes remain distinguishable: promoted, rejected, inconclusive,
+`not_evaluated`, failed and in-progress, using text plus shape plus colour.
 
 Two honesty rules are load-bearing, and both are pinned by tests:
 
 - **A missing metric stays missing.** `finiteOrNull` rejects
   `null` / `undefined` / `""` / booleans *before* coercion, because
   `Number(null)`, `Number("")` and `Number(false)` are all `0` — a missing loss
-  would otherwise plot as a loss of exactly nothing. An event with no recorded
-  loss is drawn hollow, on the top edge of the plot band, with the tooltip
-  saying `loss not recorded`.
+  would otherwise plot as a loss of exactly nothing. A run with no recorded
+  loss is not placed on the loss axis at all.
 - **A run's loss is never the parent's.** Only candidate losses are read
   (`run.trainedEvaluation.loss`, then the durable
   `modelEvent.evaluationScore`). `baselineEvaluation` is deliberately never
-  consulted, so no diamond can claim an improvement that did not happen.
+  consulted, so no point can claim an improvement that did not happen.
 
-Position: an event whose candidate still exists in the lineage plots at that
-candidate's own final step (`stepBasis: "run-final-step"`). Anything else — a
-rejected candidate, a run that failed before training — has no step of its own
-and plots at the lineage's final recorded step, labelled `lineage-end` in the
-tooltip so the placement is never read as a measurement.
+The legacy `events[].step`/`stepBasis` fields remain on the API for
+backward compatibility, but they are not used for run positioning: most runs
+have no recorded step in the selected lineage, and the old lineage-end fallback
+is exactly what compressed every marker at the right edge of the old chart.
 
 REST surface (all under `/api/admin`): `overview`, `metrics`, `articles` (+`/:id`),
 `articles/select-for-review`, `articles/:id/request-review`,

@@ -171,25 +171,30 @@ test("training history and trends are tabbed so wide tables get full width", asy
   assert.ok(/\.panel\s*\{[^}]*overflow-x:\s*auto/.test(css.replace(/\n/g, " ")), "panel does not contain a wide table");
 });
 
-test("the best-checkpoint card renders one checkpoint, not a per-corpus list", async () => {
+test("verdict and chart keep validation, training and frozen evaluation measurements separate", async () => {
   const app = await readFile(path.join(PUBLIC, "app.js"), "utf8");
+  const model = await readFile(path.join(PUBLIC, "trends-model.js"), "utf8");
   const routes = await readFile(path.join(REPO, "src", "admin", "routes.js"), "utf8");
   const metrics = await readFile(path.join(REPO, "src", "admin", "metrics.js"), "utf8");
 
-  // `bestCheckpoint` is a per-dataset-hash summary, so on a store where every
-  // version trained on its own corpus it returns every version. A card labelled
-  // "Best checkpoint" must not render that.
+  // `bestCheckpointForHash` remains the one-lineage helper, but the verdict no
+  // longer compares held-out validation with frozen evaluation-set losses.
   assert.ok(metrics.includes("export function bestCheckpointForHash("), "no single-lineage best helper");
+  assert.ok(metrics.includes("export function bestValidationPoint("), "no validation-only best helper");
+  assert.ok(metrics.includes("export function bestFrozenEvaluation("), "no frozen-only best helper");
   assert.ok(routes.includes("bestInLineage:"), "route does not expose bestInLineage");
-  assert.ok(app.includes("m.bestInLineage"), "the card does not read bestInLineage");
+  assert.ok(routes.includes("bestValidation,"), "route does not expose bestValidation");
+  assert.ok(routes.includes("bestFrozenEvaluation:"), "route does not expose bestFrozenEvaluation");
+  assert.ok(model.includes("metrics?.bestValidation"), "verdict does not read bestValidation");
+  assert.ok(model.includes("metrics?.bestFrozenEvaluation"), "run chart does not read bestFrozenEvaluation");
+  assert.ok(app.includes("buildVerdict"), "verdict view model is not used");
 
-  // The card's value must be DERIVED from bestInLineage, and there must be no
-  // fallback to the per-hash list.
-  assert.ok(
-    /const best = m\.bestInLineage/.test(app),
-    "the card's `best` is not derived from bestInLineage",
-  );
-  assert.ok(!/best\s*=\s*\(m\.best/.test(app), "the card still falls back to the per-corpus list");
+  // The new loss chart is two separate panels: no embedded SVG legend, and no
+  // validation line drawn by default.
+  assert.ok(app.includes("Training &amp; held-out validation"), "training chart panel missing");
+  assert.ok(app.includes("Frozen evaluation-set runs"), "run-outcome chart panel missing");
+  assert.ok(!/lossSvg/.test(app), "the old overloaded lossSvg is still present");
+  assert.ok(!/rect x="\$\{W - 306\}"/.test(app), "in-plot legend still drawn");
 });
 
 /**
