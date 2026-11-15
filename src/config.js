@@ -162,6 +162,7 @@ export const config = {
     registry: env("REGISTRY_DIR", "data/registry"),
     snapshots: env("SNAPSHOT_DIR", "data/snapshots"),
     evaluation: env("EVALUATION_DIR", "data/evaluation"),
+    validationBanks: env("VALIDATION_BANK_DIR", "data/validation-banks"),
     plans: env("PLAN_DIR", "data/plans"),
     models: env("MODEL_DIR", "data/models"),
     governance: env("GOVERNANCE_DIR", env("REGISTRY_DIR", "data/registry")),
@@ -472,6 +473,9 @@ export const config = {
   trainMinDistinctSources: num("TRAIN_MIN_DISTINCT_SOURCES", 0),
   // Minimum tokenizer-fresh tokens before training. 0 disables (legacy tests).
   trainMinFreshTokens: num("TRAIN_MIN_FRESH_TOKENS", 0),
+  trainPreflightTokenizer: bool("TRAIN_PREFLIGHT_TOKENIZER", false),
+  trainRequireMissionFocus: bool("TRAIN_REQUIRE_MISSION_FOCUS", false),
+  trainRequireProseQuality: bool("TRAIN_REQUIRE_PROSE_QUALITY", false),
   // Replay share of the training corpus by token estimate. 0 disables replay.
   // Target replay share by estimated tokens. The tokenizer reports the actual
   // share; tune this only after the per-run replay diagnostics have been audited.
@@ -514,6 +518,22 @@ export const config = {
   // Held-out validation blocks for monitoring. These are packed from appended
   // consumed rows when available, so they do not consume training material.
   trainValBlocks: num("TRAIN_VAL_BLOCKS", 32),
+  missionEval: {
+    enabled: bool("MISSION_EVAL_ENABLED", false),
+    datasetId: env("MISSION_EVAL_DATASET_ID", "eval-language-002"),
+    taskDatasetId: env("MISSION_TASK_DATASET_ID", "eval-language-tasks-001"),
+    freshHoldoutId: env("MISSION_FRESH_HOLDOUT_ID", "eval-fresh-002"),
+    shadow: bool("MISSION_EVAL_SHADOW", true),
+  },
+  validationBank: {
+    enabled: bool("VALIDATION_BANK_ENABLED", false),
+    targetBlocks: num("VALIDATION_BANK_TARGET_BLOCKS", 32),
+    marginBlocks: num("VALIDATION_BANK_MARGIN_BLOCKS", 8),
+    rotationRuns: num("VALIDATION_BANK_ROTATION_RUNS", 25),
+    minSources: num("VALIDATION_BANK_MIN_SOURCES", 3),
+    maxCandidates: num("VALIDATION_BANK_MAX_CANDIDATES", 2000),
+    maxUnitsPerSource: num("VALIDATION_BANK_MAX_UNITS_PER_SOURCE", 6),
+  },
   // Deterministic training seed. It is part of the candidate identity and is
   // recorded in provenance; it is NOT a manually maintained version label.
   trainSeed: num("TRAIN_SEED", 0),
@@ -783,11 +803,18 @@ export const config = {
   // articles. weighted = 80/20 language-mechanics / broad quota by default.
   missionFocus: {
     mode: oneOf("MISSION_FOCUS_MODE", "off", ["off", "shadow", "weighted", "enforce"]),
+    policyVersion: env("MISSION_FOCUS_POLICY_VERSION", "focus-v2"),
     languageShare: num("MISSION_FOCUS_LANGUAGE_SHARE", 0.8),
     broadShare: num("MISSION_FOCUS_BROAD_SHARE", 0.2),
     minScore: num("MISSION_FOCUS_MIN_SCORE", 0.08),
+    requireStrongSignal: bool("MISSION_FOCUS_REQUIRE_STRONG", true),
     topics: env("MISSION_FOCUS_TOPICS", "").split(",").map((s) => s.trim()).filter(Boolean),
     phrases: env("MISSION_FOCUS_PHRASES", "").split(",").map((s) => s.trim()).filter(Boolean),
+    strongTerms: env("MISSION_FOCUS_STRONG_TERMS", "").split(",").map((s) => s.trim()).filter(Boolean),
+    weakTerms: env("MISSION_FOCUS_WEAK_TERMS", "").split(",").map((s) => s.trim()).filter(Boolean),
+    strongPhrases: env("MISSION_FOCUS_STRONG_PHRASES", "").split(",").map((s) => s.trim()).filter(Boolean),
+    negativeTerms: env("MISSION_FOCUS_NEGATIVE_TERMS", "").split(",").map((s) => s.trim()).filter(Boolean),
+    negativePhrases: env("MISSION_FOCUS_NEGATIVE_PHRASES", "").split(",").map((s) => s.trim()).filter(Boolean),
   },
   missionQueryMax: num("MISSION_QUERY_MAX", 8),
   // Advisory mission relevance (P4): compute a lexical overlap score between an
@@ -904,6 +931,7 @@ export const config = {
       // SOURCE KNOWLEDGE: the material is never retired, never deleted, and can
       // be replayed under an improved strategy. Default 2 fresh attempts.
       maxRejectedRetries: num("TRAIN_MAX_REJECTED_RETRIES", 2),
+      preflightBeforeLock: bool("TRAIN_PREFLIGHT_BEFORE_LOCK", false),
     },
   },
 };

@@ -89,6 +89,8 @@ export const QUARANTINE_REASON = Object.freeze({
   CORRUPTED_TEXT: "corrupted-text", // encoding damage / mojibake / truncation that survived cleaning
   MACHINE_TRANSLATED: "machine-translated", // low-quality translated material (not merely foreign-sourced)
   REVIEW_HOT_LOOP: "review-hot-loop", // re-scored indefinitely before bounded review was enforced
+  COMMERCIAL_SEO: "commercial-seo", // product/SEO/affiliate material unsuitable for training
+  MISSION_IRRELEVANT: "mission-irrelevant", // structurally valid prose with no meaningful mission subject
 });
 export const QUARANTINE_REASONS = Object.freeze(Object.values(QUARANTINE_REASON));
 
@@ -145,7 +147,7 @@ export function inDeferralCooldown(article, now = Date.now()) {
  * deleted, but are no longer treated as the fresh delta).
  */
 export function isTrainable(article, now = Date.now()) {
-  return Boolean(article) && article.status === STATUS.REVIEWED && !article.consumedAt && article.status !== STATUS.RETIRED && article.replayOnly !== true && !inDeferralCooldown(article, now);
+  return Boolean(article) && article.status === STATUS.REVIEWED && !article.consumedAt && article.status !== STATUS.RETIRED && article.replayOnly !== true && article.validationOnly !== true && !inDeferralCooldown(article, now);
 }
 
 /**
@@ -174,6 +176,7 @@ export function isReplayEligible(article) {
   if (article.licence?.decision === "deny" || article.licence?.status === "restricted") return false;
   if (article.status === STATUS.REJECTED || article.status === STATUS.QUARANTINED || article.status === STATUS.UNRESOLVED) return false;
   if (article.quarantined === true) return false;
+  if (article.validationOnly === true) return false;
   if (article.excludedReason) return false;
   if (article.replayEligible === true) return true;
   if (article.replayEligible === false) return false;

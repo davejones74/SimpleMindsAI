@@ -734,6 +734,7 @@ export async function runCrawlCycle(ctx = {}) {
           seed: record.seed,
           discoveryProvenance: { type: "link_extraction", parentUrl: record.url, depth: urlDepth, trust: linkDecision.trust },
           focusClass: focusDecision.kind === "focus" ? "focus" : "broad",
+          focusAudit: focusDecision.audit ?? null,
         });
         if (enqueued) {
           enqueuedThisPage++;

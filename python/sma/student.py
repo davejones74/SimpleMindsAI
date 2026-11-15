@@ -138,9 +138,35 @@ class StudentWorker:
             return {"loaded": True, **self._describe(self.model)}
         if op == "generate":
             return self.generate(request)
+        if op == "score":
+            return self.score(request)
         if op == "shutdown":
             return {"shutdown": True}
         raise ValueError(f"unknown op: {op!r}")
+
+    def score(self, request: Dict[str, Any]) -> Dict[str, Any]:
+        requested = request.get("version")
+        if requested is not None:
+            if not isinstance(requested, str) or not requested:
+                raise ValueError("`version` must be a non-empty string when provided")
+            if requested != self.version:
+                self.load(requested, verify=bool(request.get("verify", True)))
+        if self.model is None:
+            raise RuntimeError("no version loaded; send a `load` request first")
+        prompt = request.get("prompt")
+        continuation = request.get("continuation")
+        if not isinstance(prompt, str) or not prompt:
+            raise ValueError("`score` requires a non-empty string `prompt`")
+        if not isinstance(continuation, str) or not continuation:
+            raise ValueError("`score` requires a non-empty string `continuation`")
+        result = brain_mod.score_continuation(
+            self.model,
+            self.tokenizer,
+            prompt=prompt,
+            continuation=continuation,
+            device=self.device,
+        )
+        return {"version": self.version, "artifactName": self.artifact_name, "integrity": self.last_integrity, **result}
 
     def generate(self, request: Dict[str, Any]) -> Dict[str, Any]:
         # Version-aware serving: if the caller pins a version, load it as part of

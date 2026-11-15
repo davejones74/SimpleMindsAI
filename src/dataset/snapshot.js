@@ -7,6 +7,9 @@ import { config } from "../config.js";
 import { contentHash, isTrainable } from "../domain/article.js";
 import { licenceSnapshotFields } from "../domain/licence.js";
 import { preScreen } from "../domain/review-gates.js";
+import { assessContentQuality, isContentEligible } from "../domain/content-quality.js";
+import { explainFocusText, LANGUAGE_MECHANICS_STRONG_TERMS, LANGUAGE_MECHANICS_WEAK_TERMS, LANGUAGE_MECHANICS_STRONG_PHRASES, COMMERCIAL_NEGATIVE_TERMS, COMMERCIAL_NEGATIVE_PHRASES, TECHNICAL_NEGATIVE_TERMS, TECHNICAL_NEGATIVE_PHRASES } from "../discovery/mission-profile.js";
+import { isTrainingProseEligible } from "../domain/training-prose.js";
 import { buildCommonLines, corpusRowForArticle, corpusTextForArticle } from "./corpus-text.js";
 import { applyDiversityCaps, computeCorpusDiversity } from "./diversity.js";
 import { normalizeSourceUrl } from "./partition.js";
@@ -76,8 +79,29 @@ export function estimateTokenCount(text) {
  * validation. The fresh delta is filtered at ingest; this is the same policy
  * applied on the way back in, so historical material cannot bypass it.
  */
+const TRAINING_FOCUS_PROFILE = Object.freeze({
+  mode: "enforce",
+  policyVersion: "training-focus-v1",
+  minScore: 0.08,
+  requireStrongSignal: true,
+  strongTerms: LANGUAGE_MECHANICS_STRONG_TERMS,
+  weakTerms: LANGUAGE_MECHANICS_WEAK_TERMS,
+  strongPhrases: LANGUAGE_MECHANICS_STRONG_PHRASES,
+  negativeTerms: [...COMMERCIAL_NEGATIVE_TERMS, ...TECHNICAL_NEGATIVE_TERMS],
+  negativePhrases: [...COMMERCIAL_NEGATIVE_PHRASES, ...TECHNICAL_NEGATIVE_PHRASES],
+});
+
+export function isTrainingFocusEligible(article) {
+  return explainFocusText(`${article.sourceUrl ?? ""} ${article.title ?? ""} ${article.text ?? ""}`, TRAINING_FOCUS_PROFILE).qualified;
+}
+
 export function reuseEligible(article) {
   if (!article || typeof article.text !== "string") return false;
+  if (!isContentEligible({ url: article.sourceUrl ?? "", title: article.title ?? "", text: article.text ?? "" })) {
+    return false;
+  }
+  if (config.trainRequireMissionFocus && !isTrainingFocusEligible(article)) return false;
+  if (config.trainRequireProseQuality && !isTrainingProseEligible(article)) return false;
   const gate = preScreen(article.text, {
     sourceUrl: article.sourceUrl ?? null,
     htmlLang: article.htmlLang ?? null,
@@ -251,6 +275,7 @@ export function collectRowsFromArticles(
   let replayCapRemoved = 0;
   let fresh = 0;
   let retained = 0;
+  const qualityExcludedReasons = new Map();
 
   const drain = (consumed, target, { replayOnlyOnly = false, preferUnexposed = null } = {}) => {
     const preferred = [];
@@ -272,6 +297,21 @@ export function collectRowsFromArticles(
         // REVIEWED rows whose fresh retries are exhausted (they re-enter only
         // through the replay pool); a consumed row is REVIEWED by status filter.
         if (!consumed && !replayOnlyOnly && !isTrainable(a)) continue;
+        if (!consumed && !replayOnlyOnly) {
+          const quality = assessContentQuality({ url: a.sourceUrl ?? "", title: a.title ?? "", text: a.text ?? "" });
+          if (quality.decision !== "allow") {
+            for (const reason of quality.reasons) qualityExcludedReasons.set(reason, (qualityExcludedReasons.get(reason) ?? 0) + 1);
+            continue;
+          }
+          if (config.trainRequireMissionFocus && !isTrainingFocusEligible(a)) {
+            qualityExcludedReasons.set("mission-focus", (qualityExcludedReasons.get("mission-focus") ?? 0) + 1);
+            continue;
+          }
+          if (config.trainRequireProseQuality && !isTrainingProseEligible(a)) {
+            qualityExcludedReasons.set("training-prose", (qualityExcludedReasons.get("training-prose") ?? 0) + 1);
+            continue;
+          }
+        }
         if (priority && !priority.has(a.articleId)) preferred.push(a);
         else fallback.push(a);
         if (priority && preferred.length >= target) break;
@@ -376,25 +416,25 @@ export function collectRowsFromArticles(
   const freshTopSourceShare = freshTotalTokens
     ? Math.max(...freshSourceTokens.values()) / freshTotalTokens
     : 0;
-  const capped = applyDiversityCaps(rows, {
+  const trainingRows = rows.filter((row) => row.corpusRole !== "validation");
+  const capped = applyDiversityCaps(trainingRows, {
     maxFallbackTokenShare: config.trainCorpusMaxFallbackTokenShare,
     maxSourceTokenShare: config.trainMaxSourceTokenShare,
     maxPublisherTokenShare: config.trainMaxPublisherTokenShare,
+    maxUnitsPerSource: config.curatorMaxUnitsPerSource,
   });
   if (capped.removed.length) {
-    rows = capped.kept;
-    const keptIds = new Set(rows.map((row) => row.articleId));
+    const keptIds = new Set(capped.kept.map((row) => row.articleId));
+    rows = rows.filter((row) => row.corpusRole === "validation" || keptIds.has(row.articleId));
+    const keptTrainingIds = new Set(capped.kept.map((row) => row.articleId));
     const replayBeforeCap = replayRows.length;
     for (const list of [freshArticleIds]) {
-      for (let i = list.length - 1; i >= 0; i -= 1) if (!keptIds.has(list[i])) list.splice(i, 1);
+      for (let i = list.length - 1; i >= 0; i -= 1) if (!keptTrainingIds.has(list[i])) list.splice(i, 1);
     }
     for (let i = replayRows.length - 1; i >= 0; i -= 1) {
-      if (!keptIds.has(replayRows[i].articleId)) replayRows.splice(i, 1);
+      if (!keptTrainingIds.has(replayRows[i].articleId)) replayRows.splice(i, 1);
     }
     replayCapRemoved = replayBeforeCap - replayRows.length;
-    for (let i = validationRows.length - 1; i >= 0; i -= 1) {
-      if (!keptIds.has(validationRows[i].articleId)) validationRows.splice(i, 1);
-    }
     fresh = freshArticleIds.length;
     retained = rows.filter((row) => row.corpusRole !== "train").length;
   }
@@ -420,6 +460,12 @@ export function collectRowsFromArticles(
       freshDistinctSources,
       freshTopSourceShare,
       sourceCapRemoved: capped.removed.length,
+      ...([...qualityExcludedReasons.values()].reduce((n, v) => n + v, 0) > 0
+        ? {
+            contentQualityExcluded: [...qualityExcludedReasons.values()].reduce((n, v) => n + v, 0),
+            contentQualityExcludedReasons: Object.fromEntries(qualityExcludedReasons),
+          }
+        : {}),
       replayHealth: {
         targetPercent: pct,
         eligiblePool: replayPoolSize,

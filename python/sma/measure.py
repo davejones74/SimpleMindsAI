@@ -17,6 +17,12 @@ from typing import Any, Dict, Iterable, List
 from tokenizers import Tokenizer
 
 
+def safe_text(value: Any) -> str:
+    """Replace unpaired surrogates before the Rust tokenizer sees the text."""
+    text = str(value or "")
+    return text.encode("utf-8", errors="replace").decode("utf-8")
+
+
 def measure_documents(
     documents: Iterable[Dict[str, Any]],
     tokenizer_path: str | Path,
@@ -28,7 +34,7 @@ def measure_documents(
     rows: List[Dict[str, Any]] = []
     total = 0
     for index, doc in enumerate(documents):
-        text = str(doc.get("text") or doc.get("completion") or "")
+        text = safe_text(doc.get("text") or doc.get("completion") or "")
         if not text.strip():
             continue
         tokens = len(tokenizer.encode(text, add_special_tokens=False).ids)

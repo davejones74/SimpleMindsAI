@@ -8,6 +8,9 @@
 export const DIVERSITY_POLICY_VERSION = "corpus-diversity-v1";
 
 function tokenEstimate(row) {
+  for (const key of ["measuredTokens", "actualTokens", "tokenCount"]) {
+    if (Number.isFinite(Number(row?.[key])) && Number(row[key]) > 0) return Number(row[key]);
+  }
   if (Number.isFinite(Number(row?.estimatedTokens))) return Number(row.estimatedTokens);
   return Math.max(0, Math.ceil(String(row?.text ?? "").length / 4));
 }
@@ -96,6 +99,7 @@ export function applyDiversityCaps(rows, {
   maxFallbackTokenShare = 0,
   maxSourceTokenShare = 0,
   maxPublisherTokenShare = 0,
+  maxUnitsPerSource = 0,
 } = {}) {
   const kept = [...rows];
   const removed = [];
@@ -118,6 +122,26 @@ export function applyDiversityCaps(rows, {
         remove(row, "fallback-cap");
         fallbackTokens -= tokenEstimate(row);
         allTokens -= tokenEstimate(row);
+      }
+    }
+  }
+
+  if (maxUnitsPerSource > 0) {
+    const units = new Map();
+    for (const row of [...kept]) {
+      const key = row.sourceId ?? row.fetchedContentHash ?? row.articleId ?? "unknown";
+      const list = units.get(key) ?? [];
+      list.push(row);
+      units.set(key, list);
+    }
+    for (const list of units.values()) {
+      if (list.length <= maxUnitsPerSource) continue;
+      for (const row of list.slice(maxUnitsPerSource)) {
+        const index = kept.indexOf(row);
+        if (index >= 0) {
+          kept.splice(index, 1);
+          remove(row, "source-unit-cap");
+        }
       }
     }
   }

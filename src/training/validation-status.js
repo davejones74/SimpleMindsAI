@@ -5,8 +5,60 @@ import { collectRowsFromArticles } from "../dataset/snapshot.js";
 import { loadEvaluationSet, makeEvalGuard } from "../dataset/evaluation-set.js";
 import { buildPartition } from "../dataset/partition.js";
 import { historicallyExposedArticleIds } from "./exposure.js";
+import { loadActiveValidationBank } from "../dataset/validation-bank.js";
 
 export async function validationAvailability(store, registry, cfg = defaultConfig) {
+  if (cfg.validationBank?.enabled) {
+    let bank = null;
+    try { bank = loadActiveValidationBank({ dir: cfg.paths.validationBanks }); } catch (err) {
+      return {
+        schema: "sma/validation-availability@1",
+        at: new Date().toISOString(),
+        available: false,
+        waiting: true,
+        error: { name: err.name, code: err.code ?? null, message: err.message },
+        source: "validation-bank",
+        targetTokens: Math.max(0, cfg.trainValBlocks * cfg.trainSeqLen),
+        validationArticleCount: 0,
+        validationClusterCount: 0,
+        validationArticleIds: [],
+      };
+    }
+    if (bank) {
+      return {
+        schema: "sma/validation-availability@1",
+        at: new Date().toISOString(),
+        available: bank.manifest.selectedBlocks >= cfg.trainValBlocks,
+        waiting: bank.manifest.selectedBlocks < cfg.trainValBlocks,
+        error: null,
+        source: "validation-bank",
+        bankVersion: bank.manifest.bankVersion,
+        bankManifestHash: bank.manifest.manifestHash,
+        bankContentHash: bank.manifest.contentHash,
+        targetTokens: Math.max(0, cfg.trainValBlocks * cfg.trainSeqLen),
+        targetBlocks: cfg.trainValBlocks,
+        actualTokens: bank.manifest.tokens,
+        actualBlocks: bank.manifest.selectedBlocks,
+        validationArticleCount: bank.manifest.articleIds.length,
+        validationClusterCount: bank.manifest.clusterIds.length,
+        validationArticleIds: bank.manifest.articleIds,
+        sourceIds: bank.manifest.sourceIds,
+        splitHash: bank.manifest.manifestHash,
+      };
+    }
+    return {
+      schema: "sma/validation-availability@1",
+      at: new Date().toISOString(),
+      available: false,
+      waiting: true,
+      error: { name: "ValidationBankMissing", code: "INSUFFICIENT_VALIDATION_BANK", message: "validation bank is enabled but no active bank exists" },
+      source: "validation-bank",
+      targetTokens: Math.max(0, cfg.trainValBlocks * cfg.trainSeqLen),
+      validationArticleCount: 0,
+      validationClusterCount: 0,
+      validationArticleIds: [],
+    };
+  }
   const exposed = historicallyExposedArticleIds(registry, store);
   const collected = collectRowsFromArticles(store, {
     limit: cfg.snapshotLimit,

@@ -1533,6 +1533,45 @@ def generate_text(
     }
 
 
+def score_continuation(
+    model: Any,
+    tokenizer: Any,
+    *,
+    prompt: str,
+    continuation: str,
+    device: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Conditional mean loss of `continuation` given `prompt`.
+
+    The prompt tokens are masked out of the loss, so this is a conditional
+    likelihood over the continuation only. The mean (per continuation token) is
+    returned alongside the sum so callers can choose explicit length
+    normalisation; they must not compare raw sums across different lengths.
+    """
+    import torch
+
+    boundary_prompt = prompt if prompt.endswith((" ", "\n", "\t")) else f"{prompt} "
+    prompt_ids = tokenizer(boundary_prompt, add_special_tokens=False).input_ids
+    continuation_ids = tokenizer(continuation, add_special_tokens=False).input_ids
+    if not prompt_ids or not continuation_ids:
+        raise ValueError("score_continuation requires non-empty prompt and continuation tokens")
+    input_ids = torch.tensor([prompt_ids + continuation_ids], dtype=torch.long, device=model.device)
+    labels = input_ids.clone()
+    labels[:, : len(prompt_ids)] = -100
+    model.eval()
+    with torch.no_grad():
+        out = model(input_ids=input_ids, labels=labels)
+    loss = float(out.loss)
+    tokens = len(continuation_ids)
+    return {
+        "loss": loss,
+        "sumLoss": loss * tokens,
+        "tokens": tokens,
+        "promptTokens": len(prompt_ids),
+        "continuationTokens": tokens,
+    }
+
+
 DEFAULT_DIAGNOSTIC_POSITIONS = (0, 1, 2, 4, 8, 16, 31)
 
 

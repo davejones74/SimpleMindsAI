@@ -68,3 +68,22 @@ test("language eligibility is explicit for English, non-English and unknown", ()
   const allowed = evaluateCorpusLanguage("x y z", { supportedLanguages: ["en"], unknownPolicy: "allow" });
   assert.equal(allowed.eligible, true);
 });
+
+test("measured tokenizer counts drive concentration caps, not character estimates", () => {
+  const rows = [
+    { articleId: "a", sourceId: "s1", publisherId: "p1", text: "x".repeat(10), measuredTokens: 900 },
+    { articleId: "b", sourceId: "s2", publisherId: "p2", text: "y".repeat(10), measuredTokens: 100 },
+  ];
+  const capped = applyDiversityCaps(rows, { maxSourceTokenShare: 0.5 });
+  assert.deepEqual(capped.kept.map((r) => r.articleId), ["b"]);
+  assert.equal(capped.removedByReason["source-cap"], 1);
+});
+
+test("maxUnitsPerSource is enforced as a deterministic unit cap", () => {
+  const rows = Array.from({ length: 4 }, (_, i) => ({
+    articleId: `a${i}`, sourceId: "s1", publisherId: "p1", text: "prose", measuredTokens: 10,
+  }));
+  const capped = applyDiversityCaps(rows, { maxUnitsPerSource: 2 });
+  assert.equal(capped.kept.length, 2);
+  assert.equal(capped.removedByReason["source-unit-cap"], 2);
+});

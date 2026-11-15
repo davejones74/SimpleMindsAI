@@ -308,13 +308,23 @@ export class DiscoveryService {
     // empty frontier forever, no matter the target.
     if (this.discoverySeeds.length) {
       await seedFrontierFromConfig(this.frontier, this.discoverySeeds);
+      let seedFocusChanged = false;
       for (const s of this.discoverySeeds) {
+        if (typeof this.frontier.setFocusClass === "function") {
+          const changed = await this.frontier.setFocusClass(s, {
+            focusClass: "focus",
+            audit: { policyVersion: "operator-seed-focus-v1", signals: ["seed"], negativeSignals: [], strongSignals: 1, weakSignals: 0, threshold: 0.08 },
+            persist: false,
+          });
+          seedFocusChanged = seedFocusChanged || changed;
+        }
         const o = originOf(s) ?? null;
         if (o) {
           roots.push(o);
           bootstrap.bootstrapSeeds++;
         }
       }
+      if (seedFocusChanged) await this.frontier.persist();
     }
 
     // Registry-first bootstrap: eligible registered domains become roots. This
@@ -443,6 +453,7 @@ export class DiscoveryService {
           depth: 0,
           discoveryProvenance: cand.provenance ?? null,
           focusClass: focusDecision.kind === "focus" ? "focus" : "broad",
+          focusAudit: focusDecision.audit ?? null,
         });
         if (enqueued) report.enqueued++;
         else report.duplicate++;

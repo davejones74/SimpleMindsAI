@@ -191,6 +191,18 @@ if [[ -f "${REPO_ROOT}/data/evaluation/eval-broad-002.jsonl" ]]; then
   fi
 fi
 
+# Mission/fresh evaluation assets (loss set, deterministic task set, fresh-domain
+# holdout) and their provenance sidecars. These are frozen application assets.
+for id in eval-language-001 eval-language-002 eval-language-tasks-001 eval-language-tasks-002 eval-fresh-001 eval-fresh-002; do
+  for suffix in .jsonl .manifest.json .provenance.json; do
+    if [[ -f "${REPO_ROOT}/data/evaluation/${id}${suffix}" ]]; then
+      run sudo rsync -a --chown="${SERVICE_USER}:${SERVICE_USER}" \
+        "${REPO_ROOT}/data/evaluation/${id}${suffix}" \
+        "${DEST}/data/evaluation/${id}${suffix}"
+    fi
+  done
+done
+
 for req in requirements.txt requirements-cuda.txt requirements-rocm.txt; do
   if [[ -f "${REPO_ROOT}/python/${req}" ]]; then
     run sudo rsync -a --chown="${SERVICE_USER}:${SERVICE_USER}" \

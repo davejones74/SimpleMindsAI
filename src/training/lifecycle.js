@@ -4,6 +4,8 @@ import { existsSync, readFileSync } from "node:fs";
 import { config } from "../config.js";
 import { createHash } from "node:crypto";
 import { collectRowsFromArticles, buildSnapshot, trimReplayToFreshTarget } from "../dataset/snapshot.js";
+import { applyDiversityCaps } from "../dataset/diversity.js";
+import { loadActiveValidationBank, assertValidationBankDisjoint } from "../dataset/validation-bank.js";
 import { buildPartition, InsufficientValidationError } from "../dataset/partition.js";
 import { loadEvaluationSet, makeEvalGuard } from "../dataset/evaluation-set.js";
 import { validateCurriculum, fallbackCurriculum } from "../curriculum/validation.js";
@@ -208,7 +210,11 @@ export async function executeFullRun({
   // sequence from the persisted manifest without re-running training.
   let evalSet = null;
   let broadEvalSet = null;
+  let missionEvalSet = null;
+  let missionTaskSet = null;
+  let missionFreshSet = null;
   let evalGuard = null;
+  let validationBank = null;
   let snapshot = null;
   let trainingResult = null;
   let baselineResult = null;
@@ -217,6 +223,11 @@ export async function executeFullRun({
   let broadBaselineResult = null;
   let broadCandidateResult = null;
   let broadDecision = null;
+  let missionBaselineResult = null;
+  let missionCandidateResult = null;
+  let missionFreshBaselineResult = null;
+  let missionFreshCandidateResult = null;
+  let missionShadow = null;
   let decision = null;
   let manifest = null;
   let manifestPath = null;
@@ -239,7 +250,52 @@ export async function executeFullRun({
         broadEvalSet = null;
       }
     }
-    evalGuard = makeEvalGuard([evalSet, broadEvalSet].filter(Boolean));
+    if (config.missionEval?.enabled) {
+      missionEvalSet = await loadEvaluationSet({
+        datasetId: options.missionEvalDatasetId ?? config.missionEval.datasetId,
+        dir: options.paths?.evaluation,
+        seed: null,
+      });
+      if (!missionEvalSet.items?.length) {
+        logger?.warn?.(`[lifecycle] mission evaluation set '${config.missionEval.datasetId}' is empty; shadow mission metrics disabled`);
+        missionEvalSet = null;
+      }
+      try {
+        missionTaskSet = await loadEvaluationSet({
+          datasetId: options.missionTaskDatasetId ?? config.missionEval.taskDatasetId,
+          dir: options.paths?.evaluation,
+          seed: null,
+        });
+        if (!missionTaskSet.items?.length) missionTaskSet = null;
+      } catch { missionTaskSet = null; }
+      try {
+        missionFreshSet = await loadEvaluationSet({
+          datasetId: options.missionFreshDatasetId ?? config.missionEval.freshHoldoutId,
+          dir: options.paths?.evaluation,
+          seed: null,
+        });
+        if (!missionFreshSet.items?.length) missionFreshSet = null;
+      } catch { missionFreshSet = null; }
+    }
+    evalGuard = makeEvalGuard([evalSet, broadEvalSet, missionEvalSet, missionTaskSet, missionFreshSet].filter(Boolean));
+
+    if (config.validationBank?.enabled) {
+      validationBank = loadActiveValidationBank({
+        dir: options.paths?.validationBanks ?? config.paths.validationBanks,
+      });
+      if (!validationBank?.rows?.length) {
+        const err = new Error("validation bank is enabled but no complete active bank is available");
+        err.code = "INSUFFICIENT_VALIDATION_BANK";
+        throw err;
+      }
+      for (const row of validationBank.rows) {
+        if (evalGuard.contains(row)) {
+          const err = new Error(`validation bank article ${row.articleId} overlaps the evaluation set`);
+          err.code = "INVALID_VALIDATION_BANK";
+          throw err;
+        }
+      }
+    }
 
     // ---- immutable, capped, leak-guarded snapshot ----
     // Prospective validation requires an unexposed holdout. Compute exposure
@@ -261,6 +317,41 @@ export async function executeFullRun({
     let { rows } = collected;
     let { freshArticleIds, replayArticleIds, validationArticleIds } = collected;
     let corpusStats = collected.stats;
+    if (validationBank) {
+      const reservedIds = new Set(validationBank.manifest.articleIds);
+      const reservedSources = new Set(validationBank.manifest.sourceIds);
+      const removed = new Set();
+      rows = rows.filter((row) => {
+        const drop = reservedIds.has(row.articleId) || (row.sourceId && reservedSources.has(row.sourceId));
+        if (drop) removed.add(row.articleId);
+        return !drop;
+      });
+      freshArticleIds = freshArticleIds.filter((id) => !removed.has(id));
+      replayArticleIds = replayArticleIds.filter((id) => !removed.has(id));
+      rows = [...rows, ...validationBank.rows.map((row) => ({ ...row, corpusRole: "validation" }))];
+      validationArticleIds = validationBank.manifest.articleIds;
+      corpusStats = {
+        ...corpusStats,
+        collected: rows.length,
+        fresh: freshArticleIds.length,
+        replay: replayArticleIds.length,
+        validation: validationArticleIds.length,
+        retained: replayArticleIds.length + validationArticleIds.length,
+        validationBank: {
+          bankVersion: validationBank.manifest.bankVersion,
+          manifestHash: validationBank.manifest.manifestHash,
+          contentHash: validationBank.manifest.contentHash,
+          blocks: validationBank.manifest.selectedBlocks,
+          tokens: validationBank.manifest.tokens,
+          sourceIds: validationBank.manifest.sourceIds,
+          clusterIds: validationBank.manifest.clusterIds,
+        },
+      };
+      assertValidationBankDisjoint({
+        bankRows: validationBank.rows,
+        trainingRows: rows.filter((row) => row.corpusRole !== "validation"),
+      });
+    }
     if (corpusStats?.replayHealth?.targetPercent > 0 && corpusStats.replayHealth.selectedRows === 0) {
       logger?.warn?.(
         `[lifecycle] replay selected 0 rows (${corpusStats.replayHealth.zeroReason ?? "unknown"}); eligible pool ${corpusStats.replayHealth.eligiblePool ?? 0}`,
@@ -276,8 +367,7 @@ export async function executeFullRun({
     // ordinary lifecycle calls keep the fresh-delta guard unchanged.
     if (!freshArticleIds.length && !corpusOnly) throw noEligibleMaterial();
     const freshDistinctSources = Number(
-      collected.stats?.freshDistinctSources ??
-        new Set(rows.filter((r) => freshArticleIds.includes(r.articleId)).map((r) => r.sourceId ?? r.articleId)).size,
+      new Set(rows.filter((r) => freshArticleIds.includes(r.articleId)).map((r) => r.sourceId ?? r.articleId)).size,
     );
     if (config.trainMinDistinctSources > 0 && freshDistinctSources < config.trainMinDistinctSources) {
       const err = new Error(
@@ -293,7 +383,7 @@ export async function executeFullRun({
     const freshForPartition = new Set(freshArticleIds);
 
     let partition = null;
-    if (pythonMode && validationPolicy === "document-source-disjoint") {
+    if (pythonMode && !validationBank && validationPolicy === "document-source-disjoint") {
       const freshIds = new Set(freshArticleIds);
       const historicalArticleIds = new Set(priorExposed ?? []);
       // Replay/retained rows were not part of the fresh delta, so they are
@@ -502,6 +592,84 @@ export async function executeFullRun({
       }
     }
 
+    // ---- tokenizer-authoritative source/publisher/unit caps ----
+    // Snapshot selection uses character estimates while choosing rows. Those
+    // estimates are not the training denominator, so re-check the caps on the
+    // exact rows with the student tokenizer before the run is created. Caps are
+    // reported, never silently exceeded: a shortfall fails closed and lets the
+    // continuous job wait for more diverse material.
+    if (
+      pythonMode &&
+      !corpusOnly &&
+      !config.snapshotIncludeConsumed &&
+      (config.trainMaxSourceTokenShare > 0 || config.trainMaxPublisherTokenShare > 0)
+    ) {
+      const tokenizerPath = resolveTokenizerPath();
+      if (!tokenizerPath) {
+        const err = new Error("cannot verify corpus concentration: tokenizer unavailable");
+        err.code = "CONCENTRATION_UNVERIFIABLE";
+        throw err;
+      }
+      const trainingRows = snapshot.rows.filter((row) => row.corpusRole !== "validation");
+      const measured = await measure(
+        trainingRows.map((row) => ({ itemId: row.articleId, text: row.text })),
+        { tokenizerPath, seqLen: config.trainSeqLen },
+      );
+      const tokenById = new Map((measured.documents ?? []).map((row) => [row.itemId, row.tokens]));
+      const measuredRows = trainingRows.map((row) => ({
+        ...row,
+        measuredTokens: Number(tokenById.get(row.articleId) ?? 0),
+      }));
+      const capped = applyDiversityCaps(measuredRows, {
+        maxSourceTokenShare: config.trainMaxSourceTokenShare,
+        maxPublisherTokenShare: config.trainMaxPublisherTokenShare,
+        maxUnitsPerSource: config.curatorMaxUnitsPerSource,
+      });
+      if (capped.removed.length) {
+        const keptIds = new Set(capped.kept.map((row) => row.articleId));
+        const removedIds = new Set(capped.removed.map((row) => row.articleId));
+        const nextRows = snapshot.rows.filter((row) => row.corpusRole === "validation" || keptIds.has(row.articleId));
+        freshArticleIds = freshArticleIds.filter((id) => !removedIds.has(id));
+        replayArticleIds = replayArticleIds.filter((id) => !removedIds.has(id));
+        if (!freshArticleIds.length) throw noEligibleMaterial();
+        const validationCount = nextRows.filter((row) => row.corpusRole === "validation").length;
+        corpusStats = {
+          ...corpusStats,
+          collected: nextRows.length,
+          fresh: freshArticleIds.length,
+          replay: replayArticleIds.length,
+          validation: validationCount,
+          retained: replayArticleIds.length + validationCount,
+          sourceCapRemoved: (corpusStats?.sourceCapRemoved ?? 0) + capped.removed.length,
+          capRemovedByReason: capped.removedByReason,
+          capMeasuredWith: "student-tokenizer",
+        };
+        snapshot = await buildSnapshot({
+          registry,
+          rowsRaw: nextRows,
+          freshArticleIds,
+          dir: options.paths?.snapshots,
+          evalGuard,
+          replayArticleIds,
+          validationArticleIds,
+          partition,
+          corpusMode: config.trainCorpusMode,
+          corpusStats,
+          corpusPolicy,
+        });
+        logger?.warn?.(
+          `[lifecycle] tokenizer diversity caps removed ${capped.removed.length} row(s): ` +
+            JSON.stringify(capped.removedByReason),
+        );
+      } else {
+        corpusStats = {
+          ...corpusStats,
+          capMeasuredWith: "student-tokenizer",
+          capShortfall: null,
+        };
+      }
+    }
+
     // ---- tokenizer-authoritative validation capacity ----
     // The partition target is only an estimate. Measure the actual holdout with
     // the student tokenizer and, when it cannot form the requested blocks,
@@ -510,6 +678,7 @@ export async function executeFullRun({
     // closed; continuous jobs then wait for more material.
     if (
       pythonMode &&
+      !validationBank &&
       validationPolicy === "document-source-disjoint" &&
       typeof t.preflight === "function" &&
       partition
@@ -1264,6 +1433,102 @@ export async function executeFullRun({
             broadDecision,
           };
     }
+    // ---- mission evaluation shadow measurement ----
+    // These metrics are recorded for calibration. They do NOT alter the stable
+    // promotion gate in this phase.
+    if (pythonMode && config.missionEval?.enabled && missionEvalSet) {
+      missionBaselineResult = await evaluateLoss({
+        version: stableBaseline.version,
+        evalSetFile: missionEvalSet.file,
+        store: config.pythonStore ?? undefined,
+        bin: config.pythonBin ?? undefined,
+        device: config.studentDevice,
+      });
+      missionCandidateResult = await evaluateLoss({
+        version: trainingResult.version,
+        evalSetFile: missionEvalSet.file,
+        staged: trainingResult.staged === true,
+        store: config.pythonStore ?? undefined,
+        bin: config.pythonBin ?? undefined,
+        device: config.studentDevice,
+      });
+      await recordPythonEvaluation(registry, {
+        runId,
+        kind: "baseline-mission",
+        version: stableBaseline.version,
+        modelId: stableModel.modelId,
+        result: missionBaselineResult,
+        evalSet: missionEvalSet,
+        identity: options.candidateIdentity ?? null,
+      });
+      await recordPythonEvaluation(registry, {
+        runId,
+        kind: "candidate-mission",
+        version: trainingResult.version,
+        modelId: candidate.modelId,
+        result: missionCandidateResult,
+        evalSet: missionEvalSet,
+        identity: options.candidateIdentity ?? null,
+        baselineResult: missionBaselineResult,
+        trainingResult,
+      });
+      missionShadow = {
+        datasetId: missionEvalSet.datasetId,
+        datasetVersion: missionEvalSet.datasetVersion,
+        baselineLoss: missionBaselineResult.loss,
+        candidateLoss: missionCandidateResult.loss,
+        improvement: Number.isFinite(missionBaselineResult.loss) && Number.isFinite(missionCandidateResult.loss)
+          ? missionBaselineResult.loss - missionCandidateResult.loss
+          : null,
+        shadow: true,
+      };
+      if (missionFreshSet) {
+        missionFreshBaselineResult = await evaluateLoss({
+          version: stableBaseline.version,
+          evalSetFile: missionFreshSet.file,
+          store: config.pythonStore ?? undefined,
+          bin: config.pythonBin ?? undefined,
+          device: config.studentDevice,
+        });
+        missionFreshCandidateResult = await evaluateLoss({
+          version: trainingResult.version,
+          evalSetFile: missionFreshSet.file,
+          staged: trainingResult.staged === true,
+          store: config.pythonStore ?? undefined,
+          bin: config.pythonBin ?? undefined,
+          device: config.studentDevice,
+        });
+        await recordPythonEvaluation(registry, {
+          runId,
+          kind: "baseline-fresh-holdout",
+          version: stableBaseline.version,
+          modelId: stableModel.modelId,
+          result: missionFreshBaselineResult,
+          evalSet: missionFreshSet,
+          identity: options.candidateIdentity ?? null,
+        });
+        await recordPythonEvaluation(registry, {
+          runId,
+          kind: "candidate-fresh-holdout",
+          version: trainingResult.version,
+          modelId: candidate.modelId,
+          result: missionFreshCandidateResult,
+          evalSet: missionFreshSet,
+          identity: options.candidateIdentity ?? null,
+          baselineResult: missionFreshBaselineResult,
+          trainingResult,
+        });
+        missionShadow.freshHoldout = {
+          datasetId: missionFreshSet.datasetId,
+          datasetVersion: missionFreshSet.datasetVersion,
+          baselineLoss: missionFreshBaselineResult.loss,
+          candidateLoss: missionFreshCandidateResult.loss,
+          improvement: Number.isFinite(missionFreshBaselineResult.loss) && Number.isFinite(missionFreshCandidateResult.loss)
+            ? missionFreshBaselineResult.loss - missionFreshCandidateResult.loss
+            : null,
+        };
+      }
+    }
     let workingDecision = null;
     if (pythonMode && workingSupported) {
       if (decision.decision === "promoted") {
@@ -1316,6 +1581,13 @@ export async function executeFullRun({
         broadBaselineLoss: broadBaselineResult?.loss ?? null,
         broadCandidateLoss: broadCandidateResult?.loss ?? null,
         broadDecision: broadDecision?.decision ?? null,
+        missionEvaluationSetHash: missionEvalSet ? computeFileHash(missionEvalSet.file) : null,
+        missionBaselineLoss: missionBaselineResult?.loss ?? null,
+        missionCandidateLoss: missionCandidateResult?.loss ?? null,
+        missionShadow,
+        missionFreshHoldoutSetHash: missionFreshSet ? computeFileHash(missionFreshSet.file) : null,
+        missionFreshBaselineLoss: missionFreshBaselineResult?.loss ?? null,
+        missionFreshCandidateLoss: missionFreshCandidateResult?.loss ?? null,
         workingDecision: workingDecision?.decision ?? null,
         workingGuard: workingDecision ?? null,
         stableBaselineVersion: stableBaseline?.version ?? null,

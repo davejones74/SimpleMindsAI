@@ -1,6 +1,6 @@
 import { Frontier } from "../frontier.js";
 import { config } from "../config.js";
-import { LANGUAGE_MECHANICS_TERMS, LANGUAGE_MECHANICS_PHRASES } from "../discovery/mission-profile.js";
+import { LANGUAGE_MECHANICS_TERMS, LANGUAGE_MECHANICS_PHRASES, LANGUAGE_MECHANICS_STRONG_TERMS, LANGUAGE_MECHANICS_STRONG_PHRASES, LANGUAGE_MECHANICS_WEAK_TERMS, COMMERCIAL_NEGATIVE_TERMS, COMMERCIAL_NEGATIVE_PHRASES } from "../discovery/mission-profile.js";
 
 /**
  * One-off focus annotation for the existing frontier.
@@ -29,6 +29,11 @@ await frontier.init();
 const result = await frontier.annotateFocus({
   terms: LANGUAGE_MECHANICS_TERMS,
   phrases: LANGUAGE_MECHANICS_PHRASES,
+  strongTerms: LANGUAGE_MECHANICS_STRONG_TERMS,
+  weakTerms: LANGUAGE_MECHANICS_WEAK_TERMS,
+  strongPhrases: LANGUAGE_MECHANICS_STRONG_PHRASES,
+  negativeTerms: COMMERCIAL_NEGATIVE_TERMS,
+  negativePhrases: COMMERCIAL_NEGATIVE_PHRASES,
   minScore: 0.08,
   dryRun: args.dryRun,
 });

@@ -267,6 +267,15 @@ export class ArticleStore {
     } else if (rec.type === "quarantine-released") {
       a.quarantined = false;
       a.quarantineReleasedAt = rec.at ?? null;
+    } else if (rec.type === "validation-reserve") {
+      a.validationOnly = true;
+      a.validationBankVersion = rec.bankVersion ?? null;
+      a.validationReservedAt = rec.at ?? null;
+      a.validationReservationReason = rec.reason ?? null;
+    } else if (rec.type === "validation-release") {
+      a.validationOnly = false;
+      a.validationReleasedAt = rec.at ?? null;
+      a.validationReleaseReason = rec.reason ?? null;
     } else if (rec.type === "replay-eligibility") {
       // Durable, independent of the review status. A RETIRED article can be
       // replay-eligible; an explicit false always wins over the legacy fallback.
@@ -854,6 +863,37 @@ const rec = {
     });
     article.updatedAt = new Date().toISOString();
     return { ...article, retired: true };
+  }
+
+  /** Reserve articles exclusively for a validation-bank version. */
+  async reserveValidation(articleIds = [], { bankVersion = null, reason = "validation-bank", actor = AUTHORITY.AUTOMATION, now = new Date().toISOString() } = {}) {
+    this.#assertWritable();
+    const reserved = [];
+    const skipped = [];
+    for (const articleId of articleIds ?? []) {
+      const article = this.articles.get(articleId);
+      if (!article) { skipped.push({ articleId, reason: "unknown-article" }); continue; }
+      if (article.validationOnly === true && article.validationBankVersion === bankVersion) {
+        skipped.push({ articleId, reason: "already-reserved" });
+        continue;
+      }
+      await this.#event({ type: "validation-reserve", articleId, bankVersion, reason, actor, at: now });
+      reserved.push(articleId);
+    }
+    return { reserved, skipped };
+  }
+
+  /** Release a validation reservation without deleting the article. */
+  async releaseValidation(articleIds = [], { reason = "validation-bank-release", actor = AUTHORITY.HUMAN, now = new Date().toISOString() } = {}) {
+    this.#assertWritable();
+    const released = [];
+    for (const articleId of articleIds ?? []) {
+      const article = this.articles.get(articleId);
+      if (!article || article.validationOnly !== true) continue;
+      await this.#event({ type: "validation-release", articleId, reason, actor, at: now });
+      released.push(articleId);
+    }
+    return { released };
   }
 
   // ------------------------------------------------------------- quarantine

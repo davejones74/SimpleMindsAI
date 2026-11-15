@@ -225,6 +225,19 @@ export class StudentWorker extends EventEmitter {
     return this._send("version", {}, { timeoutMs: 10_000 });
   }
 
+  async score(prompt, continuation, opts = {}) {
+    const out = await this._send("score", { prompt, continuation, ...opts });
+    return {
+      loss: out.loss,
+      sumLoss: out.sumLoss,
+      tokens: out.tokens,
+      promptTokens: out.promptTokens,
+      version: out.version,
+      artifactName: out.artifactName,
+      integrity: out.integrity,
+    };
+  }
+
   async generate(prompt, opts = {}) {
     const out = await this._send("generate", { prompt, ...opts });
     return {

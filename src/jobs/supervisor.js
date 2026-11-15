@@ -1,6 +1,7 @@
 import { JobStore, JOB_STATUS, isTerminal, validateTransition } from "./job-store.js";
 import { runLearningCycle } from "./learning.js";
 import { runTrainingOnce } from "./training.js";
+import { preflightMaterial } from "../training/material-preflight.js";
 import { createFreshBrain } from "./fresh-brain.js";
 import { reviewPendingArticles } from "./review-pass.js";
 import { selectTrainer } from "../training/trainer-interface.js";
@@ -78,6 +79,9 @@ const NO_MATERIAL_CODES = new Set([
   "INSUFFICIENT_TRAINING_STEPS",
   "INSUFFICIENT_SOURCE_DIVERSITY",
   "INSUFFICIENT_FRESH_DATA",
+  "INSUFFICIENT_VALIDATION_BANK",
+  "INVALID_VALIDATION_BANK",
+  "VALIDATION_BANK_OVERLAP",
 ]);
 
 const MATERIAL_WAIT = {
@@ -90,6 +94,9 @@ const MATERIAL_WAIT = {
   INSUFFICIENT_TRAINING_STEPS: { phase: "waiting-for-training-steps", reason: "insufficient-training-steps" },
   INSUFFICIENT_SOURCE_DIVERSITY: { phase: "waiting-for-diverse-material", reason: "insufficient-source-diversity" },
   INSUFFICIENT_FRESH_DATA: { phase: "waiting-for-fresh-data", reason: "insufficient-fresh-tokens" },
+  INSUFFICIENT_VALIDATION_BANK: { phase: "waiting-for-validation-bank", reason: "insufficient-validation-bank" },
+  INVALID_VALIDATION_BANK: { phase: "waiting-for-validation-bank", reason: "invalid-validation-bank" },
+  VALIDATION_BANK_OVERLAP: { phase: "waiting-for-validation-bank", reason: "validation-bank-overlap" },
 };
 
 /**
@@ -897,6 +904,31 @@ export class JobSupervisor {
         await this.#gate(jobId, config.jobs.pollIntervalMs);
         continue;
       }
+      // Avoid RUN.lock churn for a batch that is already known to be below the
+      // fresh-token floor or missing a complete validation bank. The lifecycle
+      // remains authoritative; this is a cheap pre-lock gate only.
+      if (config.jobs.training.preflightBeforeLock) {
+        try {
+          await preflightMaterial({ store: this.store, config });
+        } catch (err) {
+          if (!NO_MATERIAL_CODES.has(err?.code)) throw err;
+          const wait = MATERIAL_WAIT[err.code] ?? MATERIAL_WAIT.INSUFFICIENT_ELIGIBLE;
+          await this.#event(jobId, {
+            status: JOB_STATUS.WAITING,
+            phase: wait.phase,
+            note: err.message,
+            meta: {
+              waitingReason: wait.reason,
+              tokens: err.tokens ?? null,
+              minFreshTokens: err.minFreshTokens ?? null,
+              blockCount: err.blocks ?? null,
+            },
+          });
+          await this.#gate(jobId, config.jobs.pollIntervalMs);
+          continue;
+        }
+      }
+
       // Continuous training checks RUN.lock BEFORE announcing a training phase,
       // so a contended job parks visibly at waiting-for-lock instead of
       // flickering between "training" and a wait on every poll. One-shot keeps

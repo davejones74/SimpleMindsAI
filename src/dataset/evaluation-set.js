@@ -93,6 +93,17 @@ export async function loadEvaluationSet({ dir = config.paths.evaluation, dataset
   // token count is the trainer's `tokensSeen`, recorded on the evaluation.
   const estimatedTokens = Math.round(charCount / 4);
   const domains = items.reduce((m, r) => ((m[r.domain ?? "general"] = (m[r.domain ?? "general"] ?? 0) + 1), m), {});
+  const sourceIds = [...new Set(items.map((r) => r.sourceId).filter(Boolean))].sort();
+  const sourceUrls = [...new Set(items.map((r) => r.sourceUrl).filter(Boolean))].sort();
+  const licences = [...new Set(items.map((r) => r.licence).filter(Boolean))].sort();
+  const provenanceRows = items.map((r) => ({
+    articleId: r.articleId ?? null,
+    sourceId: r.sourceId ?? null,
+    sourceUrl: r.sourceUrl ?? null,
+    licence: r.licence ?? null,
+    provenance: r.provenance ?? null,
+  }));
+  const provenanceHash = createHash("sha256").update(JSON.stringify(provenanceRows)).digest("hex");
 
   const warnings = [];
   const docFloor = Number.isFinite(Number(minDocuments)) && Number(minDocuments) > 0 ? Number(minDocuments) : 0;
@@ -136,6 +147,10 @@ export async function loadEvaluationSet({ dir = config.paths.evaluation, dataset
     domains,
     articleIds: items.map((r) => r.articleId ?? null),
     contentHashes: items.map((r) => contentHash(evalText(r))),
+    sourceIds,
+    sourceUrls,
+    licences,
+    provenanceHash,
     metric,
     source,
     createdAt: new Date().toISOString(),

@@ -1,7 +1,7 @@
 import { appendFile, mkdir, writeFile, readFile, rename, unlink, copyFile } from "node:fs/promises";
 import path from "node:path";
 import { contentHashFor } from "./harness/fetcher.js";
-import { scoreFocusText } from "./discovery/mission-profile.js";
+import { explainFocusText } from "./discovery/mission-profile.js";
 
 const FRONTIER_DIR = "data/frontier";
 export const FRONTIER_FILE = "frontier.ndjson";
@@ -79,6 +79,7 @@ function makeFrontierRecord(url, state, depth, parent, seed, metadata = {}) {
     resolution: metadata.resolution ?? null,
     requeues: metadata.requeues ?? [],
     focusClass: metadata.focusClass ?? null,
+    focusAudit: metadata.focusAudit ?? null,
   };
 }
 
@@ -123,7 +124,7 @@ export class Frontier {
   // Idempotent enqueue: returns the canonical key; if URL already tracked,
   // does not re-enqueue. If URL failed with exhausted retries, may re-enqueue
   // only when `force` is set.
-  async enqueue(url, { depth = 0, parent = null, seed = null, force = false, maxRetries = 2, discoveryProvenance = null, focusClass = null } = {}) {
+  async enqueue(url, { depth = 0, parent = null, seed = null, force = false, maxRetries = 2, discoveryProvenance = null, focusClass = null, focusAudit = null } = {}) {
     if (!this.initialized) await this.init();
     const canonical = canonicalURL(url);
     if (!canonical) return null;
@@ -158,10 +159,28 @@ export class Frontier {
       lastResolvedUrl: existing?.lastResolvedUrl ?? null,
       requeues: Array.isArray(existing?.requeues) ? existing.requeues : [],
       focusClass: focusClass ?? existing?.focusClass ?? null,
+      focusAudit: focusAudit ?? existing?.focusAudit ?? null,
     });
     this.state.set(canonical, record);
     await this.persist();
     return canonical;
+  }
+
+  /**
+   * Set mission focus metadata on an existing QUEUED record. Used for operator
+   * seed URLs that were enqueued before the focus profile existed, so a priority
+   * seed is not stranded behind a large broad queue.
+   */
+  async setFocusClass(url, { focusClass = "focus", audit = null, persist = true } = {}) {
+    if (!this.initialized) await this.init();
+    const canonical = canonicalURL(url);
+    if (!canonical) return false;
+    const record = this.state.get(canonical);
+    if (!record || record.state !== URL_STATE.QUEUED) return false;
+    record.focusClass = focusClass;
+    record.focusAudit = audit ?? record.focusAudit ?? null;
+    if (persist) await this.persist();
+    return true;
   }
 
   /** True when the URL is already tracked in the frontier (any state). */
@@ -331,14 +350,23 @@ export class Frontier {
     for (const record of this.state.values()) {
       if (record.state !== URL_STATE.QUEUED) continue;
       counts.examined++;
-      const score = scoreFocusText(record.url, profile);
-      const focusClass = score >= minScore ? "focus" : "broad";
+      const decision = explainFocusText(record.url, { ...profile, policyVersion: "frontier-focus-v2" });
+      const score = decision.score;
+      const focusClass = decision.qualified && score >= minScore ? "focus" : "broad";
       if (focusClass === "focus") counts.focus++;
       else counts.broad++;
       if (record.focusClass !== focusClass) {
         record.focusClass = focusClass;
         record.focusScoredAt = at ?? new Date().toISOString();
         record.focusScore = score;
+        record.focusAudit = {
+          policyVersion: decision.policyVersion,
+          signals: decision.signals,
+          negativeSignals: decision.negativeSignals,
+          strongSignals: decision.strongSignals,
+          weakSignals: decision.weakSignals,
+          threshold: decision.threshold,
+        };
         counts.changed++;
       }
     }
@@ -704,6 +732,7 @@ export class Frontier {
         lastResolvedUrl: record.lastResolvedUrl ?? null,
         resolution: record.resolution ?? null,
         focusClass: record.focusClass ?? null,
+        focusAudit: record.focusAudit ?? null,
         focusScore: record.focusScore ?? null,
         focusScoredAt: record.focusScoredAt ?? null,
         ...(Array.isArray(record.requeues) && record.requeues.length ? { requeues: record.requeues } : {}),

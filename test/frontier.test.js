@@ -134,3 +134,13 @@ test("focus annotation makes language-mechanics queue entries claimable before b
   const claimed = await f.claimNext();
   assert.match(claimed.record.url, /grammar\/sentence-structure/);
 });
+
+test("setFocusClass promotes an existing queued seed above broad work", async () => {
+  const f = new Frontier({ dir: tmp() });
+  await f.init();
+  await f.enqueue("https://example.org/grammar/seed", { depth: 0 });
+  await f.enqueue("https://example.org/commercial/page", { depth: 0 });
+  assert.equal(await f.setFocusClass("https://example.org/grammar/seed"), true);
+  const first = await f.claimNext();
+  assert.equal(first.record.url, "https://example.org/grammar/seed");
+});
