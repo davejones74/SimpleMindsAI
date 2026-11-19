@@ -273,3 +273,23 @@ test("search adapter: a partially failing pool reports degraded (not idle/error)
   assert.equal(res.diagnostics.health.failed, 1);
   assert.equal(res.diagnostics.health.ok, 1);
 });
+
+test("sitemap adapter applies per-root and per-publisher candidate budgets without excluding roots", async () => {
+  const fetchText = fakeFetch({
+    "https://a.test/robots.txt": "User-agent: *\nDisallow:\n",
+    "https://a.test/sitemap.xml": `<urlset>${Array.from({ length: 5 }, (_, i) => `<url><loc>https://a.test/p${i}</loc></url>`).join("")}</urlset>`,
+    "https://science.nasa.gov/robots.txt": "User-agent: *\nDisallow:\n",
+    "https://science.nasa.gov/sitemap.xml": `<urlset>${Array.from({ length: 5 }, (_, i) => `<url><loc>https://science.nasa.gov/p${i}</loc></url>`).join("")}</urlset>`,
+    "https://www.nasa.gov/robots.txt": "User-agent: *\nDisallow:\n",
+    "https://www.nasa.gov/sitemap.xml": `<urlset>${Array.from({ length: 5 }, (_, i) => `<url><loc>https://www.nasa.gov/p${i}</loc></url>`).join("")}</urlset>`,
+  });
+  const adapter = createSitemapAdapter({
+    fetchText,
+    maxCandidatesPerRoot: 2,
+    maxCandidatesPerPublisher: 2,
+  });
+  const res = await adapter.discover({ roots: ["https://a.test/", "https://science.nasa.gov/", "https://www.nasa.gov/"] });
+  assert.equal(res.status, "ok");
+  assert.ok(res.candidates.filter((c) => c.url.includes("a.test")).length <= 2);
+  assert.equal(res.candidates.filter((c) => c.url.includes("nasa.gov")).length, 2, "NASA subdomains share one publisher budget");
+});

@@ -7,6 +7,9 @@ import { mergeAdjacentUnits, planCuration, segmentationStats, capSourceUnits } f
 import { prefilterReview } from "../domain/review-prefilter.js";
 import { assessContentQuality } from "../domain/review-gates.js";
 import { cleanRawText } from "../dataset/corpus-text.js";
+import { canonicalSourceUrl } from "../dataset/source-identity.js";
+import { curationCacheKey, openCurationCache } from "../services/curation-cache.js";
+import path from "node:path";
 
 /**
  * One acquisition cycle: harvest configured sources → curate (teacher) →
@@ -18,11 +21,36 @@ import { cleanRawText } from "../dataset/corpus-text.js";
  * (everything deduped, or the fetches failed), `sourceExhausted` is true and the
  * caller must NOT claim the target was reached.
  */
+function isTransientCuratorError(err) {
+  return /(timed out|timeout|abort|econn|enotfound|eai_again|etimedout|socket|fetch failed|network|refused|repeat limit|429|5\d\d)/i.test(String(err?.message ?? err));
+}
+
+async function cleanChunkWithRetry(ollama, chunk, { focus, retries, delayMs, log, docIndex, chunkCount } = {}) {
+  const attempts = Math.max(0, Number(retries) || 0) + 1;
+  let lastError = null;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      return await ollama.clean(chunk.text, { focus: focus ?? null });
+    } catch (err) {
+      lastError = err;
+      if (attempt >= attempts || !isTransientCuratorError(err)) break;
+      log?.("err", `curate transient failure doc ${docIndex + 1} chunk ${chunk.index + 1}/${chunkCount} attempt ${attempt}/${attempts}: ${err.message.slice(0, 140)}; retrying`);
+      if (delayMs > 0) await new Promise((resolve) => setTimeout(resolve, Math.min(delayMs * attempt, 5_000)));
+    }
+  }
+  throw lastError;
+}
+
 export async function runLearningCycle(ctx) {
   const { store, ollama, scorer, signal } = ctx;
   const onPhase = ctx.onPhase ?? (() => {});
   const onProgress = ctx.onProgress ?? (() => {});
   const log = ctx.log ?? (() => {});
+  const curationCache = await openCurationCache(
+    path.join(path.dirname(config.paths.articles), "curation-cache.ndjson"),
+    { logger: console },
+  );
+  await curationCache.load();
   const collect = ctx.collectDocuments ?? collectDocuments;
 
   throwIfAborted(signal);
@@ -55,6 +83,8 @@ export async function runLearningCycle(ctx) {
   let deduped = 0;
   let skippedUnchanged = 0;
   let languageSkipped = 0;
+  let curationCacheHits = 0;
+  let curationCacheMisses = 0;
 
   onPhase("curate");
   const maxPendingReview = Number(config.jobs.learning.maxPendingReview) || 0;
@@ -83,12 +113,47 @@ export async function runLearningCycle(ctx) {
       targetChars: config.curatorChunkTargetChars,
     });
     const stats = segmentationStats(plan, doc.text);
+    const sourceIdentity = canonicalSourceUrl(doc.requestedUrl ?? doc.url) ?? doc.contentHash ?? doc.url ?? "";
     let units = [];
     let chunkErrors = 0;
     for (const chunk of plan) {
       throwIfAborted(signal);
+      const cacheKey = curationCacheKey({
+        sourceIdentity,
+        sourceContentHash: doc.contentHash ?? "",
+        chunkIndex: chunk.index,
+        chunkText: chunk.text,
+        chunkMaxChars: config.curatorChunkMaxChars,
+        chunkMinChars: config.curatorChunkMinChars,
+        chunkTargetChars: config.curatorChunkTargetChars,
+        strategy: config.curatorStrategy,
+        teacherModel: ollama.model,
+        focus: ctx.missionFocus ?? null,
+      });
+      const cacheEligible = Boolean(doc.contentHash);
+      const cached = cacheEligible ? curationCache.get(cacheKey) : null;
+      if (cached) {
+        curationCacheHits += 1;
+        for (const unit of cached) units.push({ ...unit, sourceChunk: chunk.index, fromCurationCache: true });
+        continue;
+      }
+      curationCacheMisses += 1;
       try {
-        const cleaned = await ollama.clean(chunk.text, { focus: ctx.missionFocus ?? null });
+        const cleaned = await cleanChunkWithRetry(ollama, chunk, {
+          focus: ctx.missionFocus ?? null,
+          retries: config.curatorChunkRetries,
+          delayMs: config.curatorChunkRetryDelayMs,
+          log,
+          docIndex: i,
+          chunkCount: plan.length,
+        });
+        if (cacheEligible) {
+          await curationCache.set(cacheKey, cleaned, {
+            sourceIdentity,
+            sourceContentHash: doc.contentHash ?? null,
+            chunkIndex: chunk.index,
+          });
+        }
         for (const unit of cleaned) units.push({ ...unit, sourceChunk: chunk.index });
       } catch (err) {
         chunkErrors += 1;
@@ -213,9 +278,10 @@ export async function runLearningCycle(ctx) {
     } else if (chunkErrors > 0) {
       log("out", `partial curation for ${doc.url ?? doc.contentHash}: ${chunkErrors}/${plan.length} chunk(s) failed; source not marked complete`);
     }
-    onProgress({ phase: "curate", processedRawDocs: i + 1, rawDocs: cap, ingested, deduped, skippedUnchanged });
+    onProgress({ phase: "curate", processedRawDocs: i + 1, rawDocs: cap, ingested, deduped, skippedUnchanged, curationCache: curationCache.stats() });
   }
 
+  log("out", `curation cache entries=${curationCache.stats().entries} hits=${curationCacheHits} misses=${curationCacheMisses}`);
   onPhase("review");
   // Autonomously queue anything the policy selects, then run the SHARED bounded
   // review pass: cooldowns, attempt caps, auditable retires and cross-process

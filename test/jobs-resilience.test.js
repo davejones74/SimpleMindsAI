@@ -140,7 +140,7 @@ const rejectingEval = async ({ version }) => {
   };
 };
 
-test("continuous training keeps running through a rejection streak instead of stopping", async () => {
+test("continuous training waits for new material after a rejection streak instead of hot-looping", async () => {
   const prevMax = config.jobs.training.maxConsecutiveRejections;
   const prevPoll = config.jobs.pollIntervalMs;
   config.jobs.training.maxConsecutiveRejections = 3;
@@ -173,11 +173,13 @@ test("continuous training keeps running through a rejection streak instead of st
 
     const cap = config.jobs.training.maxConsecutiveRejections;
     const job = await sup.startTraining({ mode: "continuous", minEligible: 1 });
-    // Keep training well past the rejection cap: the old behaviour stopped at `cap`.
-    await waitFor(() => trainCalls > cap + 2, 10000);
+    await waitFor(() => sup.getJob(job.jobId).phase === "repeated-rejection", 10000);
     const mid = sup.getJob(job.jobId);
     assert.equal(mid.terminal, false, "continuous training must not terminate on a rejection streak");
-    assert.ok(trainCalls > cap, "it must keep training past the configured rejection cap");
+    assert.ok(trainCalls >= cap, "it must reach the configured rejection cap");
+    const callsAtCap = trainCalls;
+    await new Promise((r) => setTimeout(r, 150));
+    assert.equal(trainCalls, callsAtCap, "it must not hot-loop on the same ready material");
 
     await sup.stop(job.jobId);
     const done = await waitTerminal(sup, job.jobId);

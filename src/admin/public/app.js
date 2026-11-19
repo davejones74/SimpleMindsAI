@@ -6,6 +6,7 @@ const state = {
   workspace: null, // selected workspace id
   workspaceInfo: null, // descriptor for the selected workspace
   overview: null,
+  pipeline: null,
   articles: { items: [], nextCursor: null, filters: {} },
   selectedArticle: null,
   chat: {
@@ -195,6 +196,7 @@ function selectWorkspace(id) {
   if (sel && id) sel.value = id;
   // Reset every per-workspace cache so nothing can bleed across stores.
   state.overview = null;
+  state.pipeline = null;
   state.articles = { items: [], nextCursor: null, filters: {} };
   state.selectedArticle = null;
   state.mission = null;
@@ -332,6 +334,7 @@ async function refresh() {
       return;
     }
     state.overview = await api("/overview");
+    state.pipeline = await api("/knowledge-pipeline");
     state.seq = Math.max(state.seq, state.overview.changeSeq ?? 0);
     updatePills();
     if (state.tab === "dashboard") renderDashboard();
@@ -393,44 +396,68 @@ function statCard(k, v) {
 function renderDashboard() {
   const o = state.overview;
   if (!o) return;
+  const p = state.pipeline;
   const a = o.articles;
-  const s = a.byStatus;
-  const legacy = o.legacy?.present ?? [];
+  const q = p?.queues ?? {};
+  const r = p?.readiness ?? null;
+  const f = p?.funnel ?? null;
+  const integrity = p?.integrity;
+  const limiting = r?.limitingCondition === "fresh-tokens"
+    ? `Waiting for ${fmt(r.missingFreshTokens)} additional fresh trainable tokens.`
+    : r?.limitingCondition === "validation-bank"
+      ? "Waiting for the validation bank to satisfy the required block count."
+      : r?.ready ? "Ready for training." : "Pipeline readiness unavailable.";
   main.innerHTML = `
-    <h2 class="section-title">Dashboard <span class="sm">${versionScope()}</span></h2>
+    <h2 class="section-title">Knowledge pipeline <span class="sm">${versionScope()}</span></h2>
     <div class="grid">
-      ${statCard("Total articles", a.totalArticles)}
-      ${statCard("Pending review", a.pendingReview)}
-      ${statCard("Reviewed", a.reviewed)}
-      ${statCard("Rejected", a.rejected)}
-      ${statCard("Ingested (unselected)", a.ingested)}
-      ${statCard("Fresh trainable", a.trainable)}
-      ${statCard("Unique consumed", a.uniqueConsumed)}
-      ${statCard("Training appearances", a.totalAppearances)}
-      ${statCard("Avg review score", a.avgReviewScore)}
-      ${statCard("Duplication index", a.duplicationIndex)}
-      ${statCard("Registry runs", o.registry.runCount)}
-      ${statCard("Snapshots", o.registry.snapshotCount)}
+      ${pipelineCard("Collected", q.collected, "collected")}
+      ${pipelineCard("Awaiting review", q.awaitingReview, "awaiting")}
+      ${pipelineCard("Reviewed", q.reviewed, "reviewed")}
+      ${pipelineCard("Fresh trainable", q.freshTrainable, "fresh")}
+      ${pipelineCard("Replay eligible", q.replayEligible, "replay")}
+      ${pipelineCard("Deferred", q.deferred, "deferred")}
+      ${pipelineCard("Quarantined", q.quarantined, "quarantined")}
+      ${pipelineCard("Rejected", q.rejected, "rejected")}
     </div>
+    <div class="panel" style="margin-top:16px">
+      <div class="k">Ready for training ${r?.ready ? badge("REVIEWED", "READY") : badge("PENDING_REVIEW", "WAITING")}</div>
+      ${r ? `
+        <div class="grid" style="margin-top:10px">
+          <div class="card"><div class="k">Fresh articles</div><div class="v">${fmt(r.freshArticles)}</div></div>
+          <div class="card"><div class="k">Fresh tokens</div><div class="v">${fmt(r.freshTokens)} / ${fmt(r.requiredFreshTokens)}</div></div>
+          <div class="card"><div class="k">Missing fresh tokens</div><div class="v">${fmt(r.missingFreshTokens)}</div></div>
+          <div class="card"><div class="k">Replay articles / tokens</div><div class="v">${fmt(r.replayArticles)} / ${fmt(r.replayTokens)}</div></div>
+          <div class="card"><div class="k">Validation bank</div><div class="v">${fmt(r.validationBank.blocks)} / ${fmt(r.validationBank.requiredBlocks)} blocks</div><div class="small muted">${esc(r.validationBank.bankVersion ?? "not configured")}</div></div>
+          <div class="card"><div class="k">Batch tokens</div><div class="v">${fmt(r.combinedTokens)}</div><div class="small muted">${r.measuredWithTokenizer ? "tokenizer-authoritative" : "estimated — tokenizer unavailable"}</div></div>
+          ${r.trainingPreflightTokens != null ? `<div class="card"><div class="k">Training preflight</div><div class="v">${fmt(r.trainingPreflightTokens)}</div><div class="small muted">${r.trainingPreflightMissingTokens ? `${fmt(r.trainingPreflightMissingTokens)} short` : "ready"}</div></div>` : ""}
+        </div>
+        <div class="small ${r.ready ? "" : "warn"}" style="margin-top:10px">${esc(limiting)}</div>
+        ${r.measurementReason ? `<div class="small muted">${esc(r.measurementReason)}</div>` : ""}
+      ` : `<div class="muted">Authoritative readiness is unavailable.</div>`}
+    </div>
+    ${integrity && !integrity.ok ? `<div class="panel notice"><div class="title warn">Queue reconciliation warnings</div><ul class="small">${integrity.warnings.map((w) => `<li>${esc(w)}</li>`).join("")}</ul></div>` : ""}
     <div class="cols" style="margin-top:16px">
       <div class="panel">
         <div class="k">Articles by status</div>
         <table><tr><th>Status</th><th>Count</th></tr>
-          ${Object.entries(s).map(([k, v]) => `<tr><td>${badge(k, k)}</td><td>${fmt(v)}</td></tr>`).join("")}
+          ${Object.entries(a.byStatus ?? {}).map(([k, v]) => `<tr><td>${badge(k, k)}</td><td>${fmt(v)}</td></tr>`).join("")}
         </table>
-        <div class="small muted" style="margin-top:8px">Only REVIEWED &amp; unconsumed articles are fresh-trainable. The training snapshot additionally applies source-diversity caps, so its fresh-token batch may be smaller than this article count.</div>
+        <div class="small muted" style="margin-top:8px">Fresh trainable is the authoritative selector-derived count, not “reviewed and unconsumed”.</div>
       </div>
       <div class="panel">
-        <div class="k">By domain / importance</div>
-        <table><tr><th>Domain</th><th>Count</th></tr>
-          ${(a.byDomain ?? []).slice(0, 12).map((d) => `<tr><td>${esc(d.domain)}</td><td>${fmt(d.count)}</td></tr>`).join("") || `<tr><td colspan="2" class="muted">no data</td></tr>`}
+        <div class="k">Acquisition funnel</div>
+        ${f ? `<table>
+          <tr><th>Stage</th><th>Count / status</th></tr>
+          <tr><td>Discovered frontier</td><td>${fmt(f.discovered)}</td></tr>
+          <tr><td>Raw docs this cycle</td><td>${fmt(f.rawDocs)}</td></tr>
+          <tr><td>Ingested</td><td>${fmt(f.ingested)}</td></tr>
+          <tr><td>Reviewed</td><td>${fmt(f.reviewed)}</td></tr>
+          <tr><td>Store “trainable”</td><td>${fmt(f.trainableReported)}</td></tr>
+          <tr><td>Prose/content eligible</td><td>${fmt(f.proseAndContentEligible)}</td></tr>
+          <tr><td>Cap-eligible fresh</td><td>${fmt(f.capEligible)}</td></tr>
+          <tr><td>Fresh tokens</td><td>${fmt(f.freshTokens)}</td></tr>
         </table>
-        <div class="small" style="margin-top:8px">
-          Normal ${fmt(a.byImportance.Normal)} · Important ${fmt(a.byImportance.Important)} · Critical ${fmt(a.byImportance.Critical)}
-        </div>
-        <div class="small muted" style="margin-top:4px">
-          classification source: default ${fmt(a.byImportanceSource?.default)} · teacher ${fmt(a.byImportanceSource?.teacher)} · automation ${fmt(a.byImportanceSource?.automation)} · operator ${fmt(a.byImportanceSource?.operator)}
-        </div>
+        <div class="small muted" style="margin-top:6px">${p?.exclusions ? Object.entries(p.exclusions.contentQuality ?? {}).sort((x,y)=>y[1]-x[1]).slice(0,8).map(([k,v])=>`${esc(k)} ${fmt(v)}`).join(" · ") : ""}</div>` : `<div class="muted">Funnel unavailable.</div>`}
       </div>
     </div>
     <div class="cols">
@@ -448,6 +475,10 @@ function renderDashboard() {
       </div>
     </div>
     <div class="panel">
+      <div class="k">Pipeline jobs & stalls</div>
+      ${p ? renderPipelineJobs(p) : `<div class="muted">pipeline status unavailable</div>`}
+    </div>
+    <div class="panel">
       <div class="k">Acquisition (frontier)</div>
       ${renderFrontier(o.frontier)}
     </div>
@@ -455,10 +486,43 @@ function renderDashboard() {
       <div class="k">Python brain store</div>
       ${renderPythonStore(o.pythonStore)}
     </div>
-    ${legacy.length ? `<div class="panel notice"><div class="title warn">Legacy pair-buffer files detected</div>
-      <div class="small muted">Read-only, never a source of truth:</div>
-      <ul class="small">${legacy.map((l) => `<li>${esc(l.file)} — ${l.count ?? "?"} line(s)</li>`).join("")}</ul></div>` : ""}
   `;
+  wireDashboard();
+}
+
+function pipelineCard(label, value, queue) {
+  return `<a class="card queue-card" href="#" data-queue="${esc(queue)}"><div class="k">${esc(label)}</div><div class="v">${fmt(value)}</div></a>`;
+}
+
+function renderPipelineJobs(p) {
+  const rows = [];
+  for (const [kind, job] of Object.entries(p.jobs ?? {})) {
+    if (!job) { rows.push(`<tr><td>${esc(kind)}</td><td colspan="3" class="muted">not running</td></tr>`); continue; }
+    rows.push(`<tr><td>${esc(kind)}</td><td>${jobBadge(job)}</td><td>${esc(job.phase ?? "—")}</td><td class="wrap">${esc(job.note ?? "")}</td></tr>`);
+  }
+  const stalls = (p.stalls ?? []).filter((s) => s.limitingCondition || s.noProgressStreak || s.pending).slice(0, 6);
+  return `<table><tr><th>Stage</th><th>Status</th><th>Phase</th><th>Detail</th></tr>${rows.join("")}</table>
+    ${stalls.length ? `<div class="small warn" style="margin-top:8px">${stalls.map((s) => `${esc(s.stage)}: ${esc(s.limitingCondition ?? (s.noProgressStreak ? `${s.noProgressStreak} no-progress cycles` : `${s.pending ?? 0} pending`))}`).join(" · ")}</div>` : ""}`;
+}
+
+function wireDashboard() {
+  for (const el of main.querySelectorAll("[data-queue]")) {
+    el.addEventListener("click", (e) => {
+      e.preventDefault();
+      openQueue(el.dataset.queue);
+    });
+  }
+}
+
+function openQueue(queue) {
+  const filters = { status: "", consumed: "", domain: "", importance: "" };
+  if (queue === "awaiting") filters.status = "PENDING_REVIEW";
+  else if (queue === "reviewed") filters.status = "REVIEWED";
+  else if (queue === "fresh") { filters.status = "REVIEWED"; filters.consumed = "false"; }
+  else if (queue === "rejected") filters.status = "REJECTED";
+  else if (queue === "quarantined") filters.status = "QUARANTINED";
+  state.articles = { items: [], nextCursor: null, filters };
+  setTab("articles");
 }
 
 /** Acquisition observability: live frontier counts incl. due retries/rediscoveries. */

@@ -225,3 +225,73 @@ The organic review pipeline then produced a cleaner candidate:
 - `run-726` / v838 was rejected; working stayed v837.
 
 Current state: active v749, working v837, last-good v834. The training corpus is now mainly grammar/linguistics/prose sources rather than programming-language or retail pages, but the stable primary evaluation still prevents promotion.
+
+## 13. Generic mission and cadence trial (2026-11-15)
+
+Mission and strategy were updated through the admin APIs:
+
+- Primary mission now asks for a broadly capable language model trained on complete, coherent English articles across general knowledge, science, history, technology and culture.
+- Secondary mission now prioritises substantive, self-contained English articles with complete sentences and paragraphs, explicitly rejecting snippets, fragments, titles, navigation, promotional and technical reference copy.
+- Strategy focus mode is now `off`; generic clean ingestion replaces topical language-mechanics weighting.
+
+Configuration changes:
+
+- `TRAIN_MIN_FRESH_TOKENS`: 16,000 → 12,000 → temporarily 5,000.
+- `REVIEW_COOLDOWN_MS`: 6h → 2h.
+- Curator chunk minimum/target: 2,000/6,000 chars.
+- Prose minimum: 200 words / 4 sentences.
+- `TRAIN_CORPUS_MODE` was tested as `raw-text`; it produced too few post-cap rows in the live path and was reverted to `fragment`.
+
+Candidates:
+
+- `run-730` / v842, parent v834: rejected, improvement −0.0220; 12,873 fresh tokens.
+- `run-731` / v843, parent v749: rejected, improvement −0.0597; small ~5.8k-token batch.
+- `run-730` had a clean 8-document grammar/prose batch but still regressed against stable.
+- Working remains v837; last-good v834; stable remains v749.
+
+Conclusion: cadence and generic ingestion are restored, but a 5k batch is too small and produced a poorer candidate. The 12k batch also did not improve stable. The next candidate should use a larger clean batch (≥12k, preferably ≥16k) and compare v834/v837/stable parents only after the batch reaches that size. No stable promotion or working advance occurred from these two trials.
+
+## 14. Generic mission trial status (2026-11-15, later)
+
+- Mission primary/secondary updated to generic complete-article ingestion, and strategy focus is `off`.
+- Production cadence was temporarily lowered to 5k fresh tokens, then restored to 12k after two small-batch candidates regressed.
+- Corpus mode was tested as `raw-text`; the live path produced too few post-cap training rows and was reverted to `fragment`.
+- Training-prose minimum was adjusted from 200 to 150 words / 3 sentences to admit fleshed-out but not excessively long articles.
+- Working is **v840** (advanced from v837 by run-728); last-good is v837; stable remains v749.
+- v840 is the best measured working candidate:
+  - primary 6.65949 vs stable 6.65735 (+0.00214)
+  - broad 6.74551 vs 6.76060 (improved)
+  - mission 7.45425 vs 7.74501 (improved)
+  - fresh 6.77460 vs 6.87593 (improved)
+- Post-mission-update candidates:
+  - run-730/v842 from v834: rejected (−0.0220)
+  - run-731/v843 from v749: rejected (−0.0597)
+  - run-732/v844 from v840: rejected (−0.0291)
+- Training is currently waiting for a 12k-token batch; review has three cooling items and acquisition continues.
+
+The generic mission and prose gate are functioning, but no new stable promotion has occurred. v840 is the closest working candidate and should remain the parent for the next adequately sized clean batch.
+
+## 15. Successful stable promotion (2026-11-15)
+
+The generic clean-article mission, prose gate, cadence changes and low-LR/one-epoch experiment produced a stable promotion.
+
+- `run-741` / **v853**, parent v840:
+  - promoted by the existing stable gate
+  - primary paired improvement **+0.0145** (95% CI **+0.0087..+0.0201**) vs v749
+  - broad regression **−0.0165 nats** (improvement; within 0.02 non-inferiority)
+  - candidate loss 6.646668 vs stable baseline 6.659492
+- Active pointer advanced v749 → **v853**.
+- Working pointer was repaired through the normal Python working CLI to **v853**; working-last-good is **v840**. This was necessary because the promotion used an explicit parent and did not automatically advance the working pointer.
+- Optimizer/weight hashes:
+  - v853 weights `b1312fa6...`
+  - v853 optimizer state `4112d7bc...`
+- Service is active and serving v853.
+- `job-111` is the new continuous training job from working v853.
+
+Supporting experiment:
+
+- Lowered `TRAIN_LR` from 7.5e-5 to **3e-5**, epochs from 2 to **1**, replay from 22% to **30%**.
+- Fresh threshold was lowered to **6,000** to test smaller clean batches; the successful candidate used a 6,040-token fresh batch.
+- Earlier close candidates v850 (6.65565) and v851 (6.65834) were inconclusive; v853 crossed the stable CI threshold.
+
+Tests: 951 Node tests, 944 passed, 7 skipped, 0 failed.

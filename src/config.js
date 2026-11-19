@@ -652,6 +652,10 @@ export const config = {
   curatorChunkMaxChars: num("CURATOR_CHUNK_MAX_CHARS", 12_000),
   curatorChunkTargetChars: num("CURATOR_CHUNK_TARGET_CHARS", 4_000),
   curatorChunkMinChars: num("CURATOR_CHUNK_MIN_CHARS", 1_000),
+  // Bounded retries for transient teacher failures. Only the failed chunk is
+  // retried; successful chunks remain in the current curation result.
+  curatorChunkRetries: num("CURATOR_CHUNK_RETRIES", 2),
+  curatorChunkRetryDelayMs: num("CURATOR_CHUNK_RETRY_DELAY_MS", 750),
   curatorMergeUnits: bool("CURATOR_MERGE_UNITS", true),
   curatorMergeMinChars: num("CURATOR_MERGE_MIN_CHARS", 800),
   curatorMergeMaxChars: num("CURATOR_MERGE_MAX_CHARS", 6_000),
@@ -759,6 +763,10 @@ export const config = {
   // Bounds so a discovery pass stays cheap and testable.
   crawlDiscoveryMaxRoots: num("CRAWL_DISCOVERY_MAX_ROOTS", 25),
   crawlDiscoveryMaxCandidates: num("CRAWL_DISCOVERY_MAX_CANDIDATES", 500),
+  // Per-root/per-publisher fairness budgets. They bound one large sitemap or
+  // one multi-subdomain publisher without excluding it or dropping its URLs.
+  crawlDiscoveryMaxCandidatesPerRoot: num("CRAWL_DISCOVERY_MAX_CANDIDATES_PER_ROOT", 100),
+  crawlDiscoveryMaxCandidatesPerPublisher: num("CRAWL_DISCOVERY_MAX_CANDIDATES_PER_PUBLISHER", 200),
   crawlDiscoveryMaxSitemaps: num("CRAWL_DISCOVERY_MAX_SITEMAPS", 50),
   crawlDiscoverySitemapMaxDepth: num("CRAWL_DISCOVERY_SITEMAP_MAX_DEPTH", 3),
   // Governed discovery operations. These are adapter network calls (robots,
@@ -881,6 +889,11 @@ export const config = {
     pollIntervalMs: num("JOBS_POLL_INTERVAL_MS", 60_000),
     // Cooperative-cancel window before the child process tree is force-killed.
     stopGraceMs: num("JOB_STOP_GRACE_MS", 15_000),
+    // Automatic, idempotent recovery for long-running knowledge work. It only
+    // starts a job when no job of that kind is active and the most recent job of
+    // that kind was not explicitly stopped by an operator.
+    autoRecovery: bool("JOBS_AUTO_RECOVERY", true),
+    autoRecoveryIntervalMs: num("JOBS_AUTO_RECOVERY_INTERVAL_MS", 60_000),
     // Runtime safety bound for ANY managed job (ms; 0 = unbounded). A continuous
     // job that reaches it stops with outcome `max-runtime` instead of running
     // forever, so an operator can see the bound was the reason and restart.

@@ -196,7 +196,36 @@ const httpServer = app.listen(config.port, config.host, () =>
   console.log(`GraphQL -> http://${config.host}:${config.port}/graphql   portal -> http://${config.host}:${config.port}/admin`),
 );
 
+// Acquire/review must keep moving while training waits. This is idempotent:
+// supervisor.activeJobOfKind() prevents duplicate jobs, and an explicit
+// operator stop is respected rather than overridden.
 let shuttingDown = false;
+let recoveryTimer = null;
+async function recoverKnowledgeWork() {
+  if (shuttingDown || !config.jobs.autoRecovery) return;
+  try {
+    const jobs = supervisor.listJobs();
+    const latest = (kind) => jobs.filter((j) => j.kind === kind)
+      .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))[0] ?? null;
+    const operatorStopped = (job) => job?.status === "stopped" && /operator|stopped by/i.test(String(job.note ?? ""));
+    if (!supervisor.activeJobOfKind("learning") && !operatorStopped(latest("learning"))) {
+      const job = await supervisor.startLearning({ mode: "continuous" });
+      console.log(`[recovery] started learning ${job.jobId}`);
+    }
+    if (!supervisor.activeJobOfKind("review") && store.getStats().pendingReview > 0 && !operatorStopped(latest("review"))) {
+      const job = await supervisor.startReview({ mode: "continuous" });
+      console.log(`[recovery] started review ${job.jobId}`);
+    }
+  } catch (err) {
+    if (err?.name !== "JobConflictError") console.error("[recovery] failed:", err?.message ?? err);
+  }
+}
+if (config.jobs.autoRecovery) {
+  recoveryTimer = setInterval(() => { void recoverKnowledgeWork(); }, config.jobs.autoRecoveryIntervalMs);
+  recoveryTimer.unref?.();
+  void recoverKnowledgeWork();
+}
+
 async function shutdown(signal) {
   if (shuttingDown) return;
   shuttingDown = true;
@@ -207,6 +236,7 @@ async function shutdown(signal) {
   }, Math.min(15_000, config.jobs.stopGraceMs + 8_000));
   hardExit.unref?.();
 
+  clearInterval(recoveryTimer);
   try {
     await supervisor.close({ graceMs: Math.min(config.jobs.stopGraceMs, 10_000) });
   } catch (err) {

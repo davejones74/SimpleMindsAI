@@ -2,9 +2,11 @@ import { appendFile, mkdir, writeFile, readFile, rename, unlink, copyFile } from
 import path from "node:path";
 import { contentHashFor } from "./harness/fetcher.js";
 import { explainFocusText } from "./discovery/mission-profile.js";
+import { publisherIdentity } from "./dataset/source-identity.js";
 
 const FRONTIER_DIR = "data/frontier";
 export const FRONTIER_FILE = "frontier.ndjson";
+const FRONTIER_DELTA_FILE = "frontier-delta.ndjson";
 
 // Canonical URL: lowercase scheme+host, sort path segments, preserve query params as-is
 // (no removal, no reordering assumption). Deterministic form for deduplication.
@@ -89,6 +91,10 @@ export class Frontier {
     this.dir = opts.dir ?? FRONTIER_DIR;
     this.state = opts.state ?? new Map(); // in-memory Map<url, record>
     this.initialized = false;
+    // Per-publisher claim counters for fairness. Process-local observation and
+    // scheduling state only: it is never persisted and never excludes a host.
+    this.publisherClaims = new Map();
+    this.lastClaimedPublisher = null;
   }
 
   async init() {
@@ -118,6 +124,21 @@ export class Frontier {
     } catch {
       // no frontier file yet — first run
     }
+    // Hot-path mutations are appended here so a claim/visit does not rewrite
+    // the entire 400MB frontier. Replay them after the base file on startup.
+    try {
+      const delta = await readFile(path.join(this.dir, FRONTIER_DELTA_FILE), "utf8");
+      for (const line of delta.split("\n")) {
+        if (!line.trim()) continue;
+        try {
+          const record = JSON.parse(line);
+          if (record.url && record.state) {
+            const canonical = canonicalURL(record.url);
+            if (canonical) this.state.set(canonical, record);
+          }
+        } catch { /* skip corrupt delta line */ }
+      }
+    } catch { /* no delta */ }
     this.initialized = true;
   }
 
@@ -162,7 +183,7 @@ export class Frontier {
       focusAudit: focusAudit ?? existing?.focusAudit ?? null,
     });
     this.state.set(canonical, record);
-    await this.persist();
+    await this.#appendDelta([record]);
     return canonical;
   }
 
@@ -209,19 +230,50 @@ export class Frontier {
       record.state = URL_STATE.IN_PROGRESS;
       record.claimedAt = new Date(now).toISOString();
       record.rediscovery = rediscovery;
-      await this.persist();
+      await this.#appendDelta([record]);
       return { canonical, record, rediscovery };
     };
 
     // 1) Brand-new work. Mission-focused queued URLs go first; broad URLs follow,
     // so an operator focus backfill actually changes what is fetched next.
+    // Broad work is selected by least-claimed canonical publisher, with the
+    // previous publisher used only as a tie-breaker. This is a fairness hint, not
+    // an exclusion: a single-publisher frontier still progresses.
+    const publisherOf = (url) => publisherIdentity(url)?.publisherDomain
+      ?? publisherIdentity(url)?.host
+      ?? "unknown";
+    const registerClaim = (record) => {
+      const publisher = publisherOf(record.url);
+      this.publisherClaims.set(publisher, (this.publisherClaims.get(publisher) ?? 0) + 1);
+      this.lastClaimedPublisher = publisher;
+    };
     let firstBroad = null;
+    const firstByPublisher = new Map();
     for (const [canonical, record] of this.state.entries()) {
       if (record.state !== URL_STATE.QUEUED) continue;
-      if (record.focusClass === "focus") return claim(canonical, record, false);
+      if (record.focusClass === "focus") {
+        registerClaim(record);
+        return claim(canonical, record, false);
+      }
       if (!firstBroad) firstBroad = [canonical, record];
+      const publisher = publisherOf(record.url);
+      if (!firstByPublisher.has(publisher)) firstByPublisher.set(publisher, [canonical, record]);
     }
-    if (firstBroad) return claim(firstBroad[0], firstBroad[1], false);
+    let broad = null;
+    let broadScore = Infinity;
+    for (const [publisher, candidate] of firstByPublisher) {
+      const claims = this.publisherClaims.get(publisher) ?? 0;
+      const score = claims * 2 + (publisher === this.lastClaimedPublisher ? 1 : 0);
+      if (score < broadScore) {
+        broad = candidate;
+        broadScore = score;
+      }
+    }
+    broad = broad ?? firstBroad;
+    if (broad) {
+      registerClaim(broad[1]);
+      return claim(broad[0], broad[1], false);
+    }
     // 2) Due retries with retries remaining.
     for (const [canonical, record] of this.state.entries()) {
       if (record.state === URL_STATE.DEFERRED && (record.retries ?? 0) < maxRetries) {
@@ -251,7 +303,7 @@ export class Frontier {
     if (!record) return false;
     if (typeof requestId === "string") record.requestId = requestId;
     if (typeof payloadDigest === "string") record.payloadDigest = payloadDigest;
-    await this.persist();
+    await this.#appendDelta([record]);
     return true;
   }
 
@@ -282,7 +334,7 @@ export class Frontier {
       cleanText: Boolean(cleanText),
       at: now,
     };
-    await this.persist();
+    await this.#appendDelta([record]);
     return true;
   }
 
@@ -628,7 +680,7 @@ export class Frontier {
       record.requestId = null;
       record.payloadDigest = null;
     }
-    await this.persist();
+    await this.#appendDelta([record]);
     return true;
   }
 
@@ -675,7 +727,7 @@ export class Frontier {
       record.state = URL_STATE.FAILED;
       record.nextAttemptAt = null;
     }
-    await this.persist();
+    await this.#appendDelta([record]);
     return true;
   }
 
@@ -696,6 +748,20 @@ export class Frontier {
       }
     }
     if (changed) await this.persist();
+  }
+
+  // Append changed records without rewriting the whole frontier. The base file
+  // remains a valid checkpoint; the delta is replayed on startup and compacted
+  // by the next explicit full persist().
+  async #appendDelta(records) {
+    const list = (Array.isArray(records) ? records : [records]).filter(Boolean);
+    if (!list.length) return;
+    await mkdir(this.dir, { recursive: true });
+    await appendFile(
+      path.join(this.dir, FRONTIER_DELTA_FILE),
+      list.map((record) => JSON.stringify(record)).join("\n") + "\n",
+      "utf8",
+    );
   }
 
   // Persist frontier to NDJSON (atomic write via temp + rename, Windows-compatible)
@@ -756,6 +822,7 @@ export class Frontier {
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
         await rename(tmpFile, file);
+        try { await unlink(path.join(this.dir, FRONTIER_DELTA_FILE)); } catch { /* no delta */ }
         return;
       } catch (err) {
         if (attempt === maxAttempts) throw err;
@@ -780,6 +847,12 @@ export class Frontier {
   }
 
   // State summary for diagnostics
+  publisherClaimSummary() {
+    return [...this.publisherClaims.entries()]
+      .map(([publisher, claims]) => ({ publisher, claims }))
+      .sort((a, b) => b.claims - a.claims || a.publisher.localeCompare(b.publisher));
+  }
+
   summary() {
     const counts = {
       queued: 0,

@@ -103,6 +103,8 @@ export function buildAdapters({ fetchText, opts = {} } = {}) {
         maxSitemaps: opts.maxSitemaps ?? config.crawlDiscoveryMaxSitemaps,
         maxSitemapDepth: opts.sitemapMaxDepth ?? config.crawlDiscoverySitemapMaxDepth,
         maxCandidates: opts.maxCandidates ?? config.crawlDiscoveryMaxCandidates,
+        maxCandidatesPerRoot: opts.maxCandidatesPerRoot ?? config.crawlDiscoveryMaxCandidatesPerRoot,
+        maxCandidatesPerPublisher: opts.maxCandidatesPerPublisher ?? config.crawlDiscoveryMaxCandidatesPerPublisher,
         knownUrls: opts.knownUrls ?? null,
       }),
     );

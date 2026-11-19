@@ -1,4 +1,5 @@
 import { parseSitemap, sitemapsFromRobots, resolveHttpUrl } from "./parse.js";
+import { publisherIdentity } from "../../dataset/source-identity.js";
 
 /**
  * Sitemap discovery adapter.
@@ -21,6 +22,8 @@ export function createSitemapAdapter({
   maxSitemaps = 50,
   maxSitemapDepth = 3,
   maxCandidates = 500,
+  maxCandidatesPerRoot = 0,
+  maxCandidatesPerPublisher = 0,
   knownUrls = null,
 } = {}) {
   return {
@@ -29,6 +32,7 @@ export function createSitemapAdapter({
     async discover({ roots = [] } = {}) {
       const diagnostics = { rootsTried: 0, sitemapsFetched: 0, errors: 0, budgetExhausted: false };
       const candidates = [];
+      const publisherCandidates = new Map();
       const seenSitemaps = new Set();
       const seenPages = new Set();
       const isBudgetExhausted = (err) => err?.code === "DISCOVERY_BUDGET_EXHAUSTED";
@@ -39,6 +43,8 @@ export function createSitemapAdapter({
         if (!rootUrl) continue;
         diagnostics.rootsTried++;
         const origin = new URL(rootUrl).origin;
+        const rootPublisher = publisherIdentity(rootUrl)?.publisherDomain ?? origin;
+        let rootCandidates = 0;
 
         // 1. Prefer the sitemaps the origin advertises in robots.txt.
         const seedSitemaps = [];
@@ -86,13 +92,19 @@ export function createSitemapAdapter({
           } else if (parsed.type === "urlset") {
             for (const page of parsed.urls) {
               if (candidates.length >= maxCandidates) break;
+              if (maxCandidatesPerRoot > 0 && rootCandidates >= maxCandidatesPerRoot) break;
               if (seenPages.has(page)) continue;
               // Deduplicate against the frontier BEFORE the cap: a URL already
               // tracked (visited/queued/deferred/failed) is skipped so the cap
               // counts genuinely-new candidates and later sitemap entries are
               // reached instead of replaying the same leading page every cycle.
               if (knownUrls && knownUrls(page)) continue;
+              const publisher = publisherIdentity(page)?.publisherDomain ?? rootPublisher;
+              const publisherCount = publisherCandidates.get(publisher) ?? 0;
+              if (maxCandidatesPerPublisher > 0 && publisherCount >= maxCandidatesPerPublisher) continue;
               seenPages.add(page);
+              publisherCandidates.set(publisher, publisherCount + 1);
+              rootCandidates += 1;
               candidates.push({ url: page, provenance: { type: "sitemap", sitemapUrl, root: rootUrl } });
             }
           }

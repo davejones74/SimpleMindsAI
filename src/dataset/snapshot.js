@@ -7,12 +7,14 @@ import { config } from "../config.js";
 import { contentHash, isTrainable } from "../domain/article.js";
 import { licenceSnapshotFields } from "../domain/licence.js";
 import { preScreen } from "../domain/review-gates.js";
+import { assess as assessLanguage, detectLanguage } from "../domain/language.js";
 import { assessContentQuality, isContentEligible } from "../domain/content-quality.js";
 import { explainFocusText, LANGUAGE_MECHANICS_STRONG_TERMS, LANGUAGE_MECHANICS_WEAK_TERMS, LANGUAGE_MECHANICS_STRONG_PHRASES, COMMERCIAL_NEGATIVE_TERMS, COMMERCIAL_NEGATIVE_PHRASES, TECHNICAL_NEGATIVE_TERMS, TECHNICAL_NEGATIVE_PHRASES } from "../discovery/mission-profile.js";
 import { isTrainingProseEligible } from "../domain/training-prose.js";
 import { buildCommonLines, corpusRowForArticle, corpusTextForArticle } from "./corpus-text.js";
 import { applyDiversityCaps, computeCorpusDiversity } from "./diversity.js";
 import { normalizeSourceUrl } from "./partition.js";
+import { canonicalSourceUrl, captureIdentity, isArchiveCapture, originalSourceUrl, publisherIdentity, sourcePublisher } from "./source-identity.js";
 
 /**
  * Immutable article snapshots (requirement #2 + #17).
@@ -55,9 +57,13 @@ export function rowForArticle(article, { corpusRole = "train" } = {}) {
     // hash) and the teacher that transformed it. Absent fields are omitted so
     // rows written before this existed serialise identically.
     ...(article.sourceUrl ? { sourceUrl: article.sourceUrl } : {}),
-    // Stable source/publisher identities used by corpus diversity caps.
+    ...(originalSourceUrl(article) && originalSourceUrl(article) !== article.sourceUrl ? { originalSourceUrl: originalSourceUrl(article) } : {}),
+    ...(canonicalSourceUrl(article) ? { canonicalSourceUrl: canonicalSourceUrl(article) } : {}),
+    // Stable source/publisher identities used by corpus diversity caps. The
+    // sourceId stays the exact fetched representation for replay/provenance;
+    // publisherId is the underlying publisher, never the archive host.
     sourceId: article.fetchedContentHash ?? normalizeSourceUrl(article.sourceUrl) ?? article.articleId,
-    publisherId: article.sourceDomain ?? article.source ?? "unknown",
+    publisherId: publisherIdentity(article)?.publisherDomain ?? sourcePublisher(article) ?? article.sourceDomain ?? article.source ?? "unknown",
     ...(article.fetchedContentHash ? { fetchedContentHash: article.fetchedContentHash } : {}),
     ...(article.model ? { teacherModel: article.model } : {}),
     ...licenceSnapshotFields(article.licence),
@@ -90,6 +96,23 @@ const TRAINING_FOCUS_PROFILE = Object.freeze({
   negativeTerms: [...COMMERCIAL_NEGATIVE_TERMS, ...TECHNICAL_NEGATIVE_TERMS],
   negativePhrases: [...COMMERCIAL_NEGATIVE_PHRASES, ...TECHNICAL_NEGATIVE_PHRASES],
 });
+
+function passesTrainingLanguageGate(article, text) {
+  const filter = config.languageFilter;
+  if (!filter?.enabled || filter.shadow) return true;
+  const sourceUrl = article?.sourceUrl ?? null;
+  const htmlLang = article?.htmlLang ?? null;
+  const decision = assessLanguage(text, {
+    minConfidence: Number.isFinite(filter.minConfidence) ? filter.minConfidence : 0.8,
+    htmlLang,
+    sourceUrl,
+  });
+  if (decision.verdict !== "non-english") return true;
+  // Preserve the valid-English-translation rule: a foreign declaration alone is
+  // not decisive when the actual body text leans English.
+  const detection = detectLanguage(text, { htmlLang });
+  return detection.englishRatio !== null && detection.englishRatio >= 0.5;
+}
 
 export function isTrainingFocusEligible(article) {
   return explainFocusText(`${article.sourceUrl ?? ""} ${article.title ?? ""} ${article.text ?? ""}`, TRAINING_FOCUS_PROFILE).qualified;
@@ -250,6 +273,7 @@ export function collectRowsFromArticles(
     corpusMode = config.trainCorpusMode,
     deferValidationPartition = false,
     historicalArticleIds = null,
+    evalGuard = null,
   } = {},
 ) {
   const historicallyExposed = historicalArticleIds instanceof Set
@@ -276,14 +300,16 @@ export function collectRowsFromArticles(
   let fresh = 0;
   let retained = 0;
   const qualityExcludedReasons = new Map();
+  const qualityExcludedSamples = [];
 
   const drain = (consumed, target, { replayOnlyOnly = false, preferUnexposed = null } = {}) => {
     const preferred = [];
     const fallback = [];
     const priority = preferUnexposed instanceof Set && preferUnexposed.size > 0 ? preferUnexposed : null;
+    const freshCandidates = [];
     let cursor = null;
     let guard = 0;
-    while ((priority ? preferred.length : fallback.length) < target && guard++ < 200) {
+    while (guard++ < 200) {
       const { items, nextCursor } = store.articlesPage({
         after: cursor,
         limit: 200,
@@ -297,27 +323,94 @@ export function collectRowsFromArticles(
         // REVIEWED rows whose fresh retries are exhausted (they re-enter only
         // through the replay pool); a consumed row is REVIEWED by status filter.
         if (!consumed && !replayOnlyOnly && !isTrainable(a)) continue;
+        if (evalGuard?.contains?.(a)) continue;
         if (!consumed && !replayOnlyOnly) {
-          const quality = assessContentQuality({ url: a.sourceUrl ?? "", title: a.title ?? "", text: a.text ?? "" });
-          if (quality.decision !== "allow") {
-            for (const reason of quality.reasons) qualityExcludedReasons.set(reason, (qualityExcludedReasons.get(reason) ?? 0) + 1);
-            continue;
-          }
-          if (config.trainRequireMissionFocus && !isTrainingFocusEligible(a)) {
-            qualityExcludedReasons.set("mission-focus", (qualityExcludedReasons.get("mission-focus") ?? 0) + 1);
-            continue;
-          }
-          if (config.trainRequireProseQuality && !isTrainingProseEligible(a)) {
-            qualityExcludedReasons.set("training-prose", (qualityExcludedReasons.get("training-prose") ?? 0) + 1);
-            continue;
-          }
+          freshCandidates.push(a);
+        } else if (priority && !priority.has(a.articleId)) {
+          preferred.push(a);
+        } else {
+          fallback.push(a);
         }
-        if (priority && !priority.has(a.articleId)) preferred.push(a);
-        else fallback.push(a);
-        if (priority && preferred.length >= target) break;
       }
       if (!nextCursor) break;
       cursor = nextCursor;
+      if (!consumed && !replayOnlyOnly && !priority && freshCandidates.length >= target * 8) break;
+    }
+
+    if (consumed || replayOnlyOnly) {
+      if (!priority) return fallback.slice(0, target);
+      if (preferred.length >= target) return preferred.slice(0, target);
+      return [...preferred, ...fallback].slice(0, target);
+    }
+
+    // Curated extraction emits a page as many paragraph-sized units. Judging
+    // each unit alone wrongly rejects a long, coherent article as a pile of
+    // sub-150-word fragments. Judge prose/quality ONCE per source page, then
+    // retain the individual units (preserving their provenance and IDs).
+    const groups = new Map();
+    for (const a of freshCandidates) {
+      const key = canonicalSourceUrl(a) || captureIdentity(a) || a.articleId;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(a);
+    }
+    for (const originalGroup of groups.values()) {
+      // Several archive captures can represent the same underlying page. Keep
+      // the units of ONE capture per canonical source in this batch; other
+      // captures remain in the ledger and replay pool for future batches.
+      let group = originalGroup;
+      const captures = new Map();
+      for (const a of originalGroup) {
+        const capture = captureIdentity(a);
+        if (!captures.has(capture)) captures.set(capture, []);
+        captures.get(capture).push(a);
+      }
+      if (captures.size > 1) {
+        const ranked = [...captures.values()].sort((a, b) => {
+          const archiveA = isArchiveCapture(a[0]) ? 1 : 0;
+          const archiveB = isArchiveCapture(b[0]) ? 1 : 0;
+          if (archiveA !== archiveB) return archiveA - archiveB;
+          const charsA = a.reduce((n, x) => n + String(x.text ?? "").length, 0);
+          const charsB = b.reduce((n, x) => n + String(x.text ?? "").length, 0);
+          return charsB - charsA;
+        });
+        group = ranked[0];
+      }
+      const source = group[0];
+      const groupText = group
+        .map((a) => String(a.text ?? "").trim())
+        .filter(Boolean)
+        .join("\n\n");
+      const candidate = { ...source, text: groupText };
+      const quality = assessContentQuality({ url: candidate.sourceUrl ?? "", title: candidate.title ?? "", text: groupText });
+      let excludedReasons = null;
+      if (quality.decision !== "allow") excludedReasons = quality.reasons;
+      else if (!passesTrainingLanguageGate(candidate, groupText)) excludedReasons = ["training-language"];
+      else if (config.trainRequireMissionFocus && !isTrainingFocusEligible(candidate)) excludedReasons = ["mission-focus"];
+      else if (config.trainRequireProseQuality && !isTrainingProseEligible(candidate)) excludedReasons = ["training-prose"];
+      if (excludedReasons) {
+        for (const reason of excludedReasons) qualityExcludedReasons.set(reason, (qualityExcludedReasons.get(reason) ?? 0) + group.length);
+        if (qualityExcludedSamples.length < 200) {
+          qualityExcludedSamples.push({
+            articleId: source.articleId,
+            articleIds: group.map((a) => a.articleId),
+            reasons: excludedReasons,
+            sourceUrl: source.sourceUrl ?? null,
+            title: source.title ?? null,
+            words: (groupText.match(/[A-Za-z0-9']+/g) ?? []).length,
+            sentences: (groupText.match(/[.!?]+(?=\s|$)/g) ?? []).length,
+            units: group.length,
+            htmlLang: source.htmlLang ?? null,
+            publisher: source.publisherId ?? source.publisher ?? null,
+            excerpt: groupText.replace(/\s+/g, " ").slice(0, 360),
+          });
+        }
+        continue;
+      }
+      for (const a of group) {
+        if (priority && !priority.has(a.articleId)) preferred.push(a);
+        else fallback.push(a);
+      }
+      if (preferred.length >= target && (!priority || priority.size === 0)) break;
     }
     if (!priority) return fallback.slice(0, target);
     if (preferred.length >= target) return preferred.slice(0, target);
@@ -355,7 +448,7 @@ export function collectRowsFromArticles(
   let validationRows = [];
   if (includeConsumed) {
     const remaining = Math.max(0, limit - rows.length);
-    for (const a of drainReplayPool(store, { target: remaining }).filter(reuseEligible)) {
+    for (const a of drainReplayPool(store, { target: remaining }).filter(reuseEligible).filter((a) => !evalGuard?.contains?.(a))) {
       rows.push(rowForArticle(a));
       retained += 1;
     }
@@ -370,7 +463,9 @@ export function collectRowsFromArticles(
       // deterministic gates on the text before any of it can re-enter training:
       // a historical non-English or corrupted article must not bypass the policy
       // merely because it was consumed (or deferred) before the gate existed.
-      const pool = drainReplayPool(store, { target: poolLimit }).filter(reuseEligible);
+      const pool = drainReplayPool(store, { target: poolLimit })
+        .filter(reuseEligible)
+        .filter((a) => !evalGuard?.contains?.(a));
       replayPoolSize = pool.length;
       if (needReplay) {
         replayRows = selectReplayRows(chosenFresh.map(rowForArticle), pool, {
@@ -464,6 +559,7 @@ export function collectRowsFromArticles(
         ? {
             contentQualityExcluded: [...qualityExcludedReasons.values()].reduce((n, v) => n + v, 0),
             contentQualityExcludedReasons: Object.fromEntries(qualityExcludedReasons),
+            contentQualityExcludedSamples: qualityExcludedSamples,
           }
         : {}),
       replayHealth: {
@@ -590,7 +686,9 @@ export function collectRawTextRowsFromArticles(
     const pct = Math.max(0, Math.min(99, Number(replayPercent) || 0));
     if (pct > 0 || validationBlocks > 0) {
       const poolLimit = Math.max(512, limit * 4);
-      const pool = drainReplayPool(store, { target: poolLimit }).filter(reuseEligible);
+      const pool = drainReplayPool(store, { target: poolLimit })
+        .filter(reuseEligible)
+        .filter((a) => !evalGuard?.contains?.(a));
       if (pct > 0) {
         const chosen = selectReplayRows(
           freshPool.map((article) => ({ articleId: article.articleId, text: article.rawText ?? article.text ?? "" })),
@@ -679,6 +777,22 @@ export function collectRawTextRowsFromArticles(
     for (const article of pool) {
       const representative = mergeSourceRawText ? rawTextRepresentative.get(sourceKey(article)) : null;
       const suppressRawText = Boolean(representative && representative.articleId !== article.articleId);
+      if (role !== "validation") {
+        const sourceText = article.text ?? article.rawText ?? "";
+        const quality = assessContentQuality({ url: article.sourceUrl ?? "", title: article.title ?? "", text: sourceText });
+        if (quality.decision !== "allow") {
+          for (const reason of quality.reasons) bump(`quality:${reason}`);
+          continue;
+        }
+        if (config.trainRequireMissionFocus && !isTrainingFocusEligible(article)) {
+          bump("quality:mission-focus");
+          continue;
+        }
+        if (config.trainRequireProseQuality && !isTrainingProseEligible({ sourceUrl: article.sourceUrl, title: article.title, text: sourceText })) {
+          bump("quality:training-prose");
+          continue;
+        }
+      }
       const { row, selected, gate } = corpusRowForArticle(article, {
         mode: corpusMode,
         corpusRole: role,
@@ -828,6 +942,7 @@ export async function buildSnapshot({
   corpusMode = config.trainCorpusMode,
   corpusPolicy = "fresh-delta",
   corpusStats = null,
+  selectionVersion = "training-selection-v2",
 }) {
   await mkdir(dir, { recursive: true });
 
@@ -925,6 +1040,9 @@ export async function buildSnapshot({
   const replayIds = (replayArticleIds ?? []).filter((id) => keptIds.has(id));
   const validationIds = (validationArticleIds ?? []).filter((id) => keptIds.has(id));
 
+  const selectionHash = createHash("sha256")
+    .update(JSON.stringify({ version: selectionVersion, freshIds, replayIds, validationIds }), "utf8")
+    .digest("hex");
   const manifest = await registry.createSnapshot({
     datasetId,
     datasetVersion,
@@ -949,6 +1067,8 @@ export async function buildSnapshot({
     corpusDiversity: corpusStats?.diversity ?? null,
     partition: partitionSummary,
     builderVersion: "snapshot-article-v2",
+    selectionVersion,
+    selectionHash,
   });
   return { manifest, file, rows, excluded, datasetVersion, hash: digest };
 }

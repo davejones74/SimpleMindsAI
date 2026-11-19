@@ -61,3 +61,18 @@ test("retail host paths, marketing use-case pages and technical hosts are exclud
     assert.ok(out.reasons.length > 0, url);
   }
 });
+
+test("licence and legal pages are non-substantive even when captured by the Wayback Machine", () => {
+  const text = "This licence grants permission to share and adapt the material under the stated terms. Attribution is required. ".repeat(20);
+  for (const url of [
+    "https://creativecommons.org/licenses/by/4.0/",
+    "https://web.archive.org/web/20171016050101/https://creativecommons.org/licenses/by/4.0/",
+    "https://example.org/privacy-policy",
+    "https://example.org/terms-of-use",
+  ]) {
+    const out = assessContentQuality({ url, text });
+    assert.equal(out.decision, "exclude", url);
+    assert.ok(out.reasons.includes("legal-admin-page"), url);
+  }
+  assert.equal(assessContentQuality({ url: "https://en.wikipedia.org/wiki/Cell_(biology)", text }).decision, "allow");
+});

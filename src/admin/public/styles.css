@@ -430,3 +430,8 @@ header.top select { max-width: 260px; }
 .chart-mark:focus .outcome-mark { opacity: 1; }
 .chart-unmeasured-strip text,
 .chart-unmeasured-strip .axis-title { font-size: 11px; }
+
+/* Authoritative knowledge-pipeline queue cards */
+.queue-card { color: inherit; text-decoration: none; transition: border-color .15s ease, transform .15s ease; }
+.queue-card:hover { border-color: var(--accent, #6aa9ff); transform: translateY(-1px); }
+.queue-card:focus-visible { outline: 2px solid var(--accent, #6aa9ff); outline-offset: 2px; }

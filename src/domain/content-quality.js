@@ -26,6 +26,21 @@ const RETAIL_HOST_PATH = /(?:^|\/)(?:guides|style|shopping|fashion|beauty|review
 const MARKETING_PATH = /(?:^|\/)(?:use-cases?|resources?|solutions?|platforms?|products?)(?:\/|$|-)/i;
 const TECHNICAL_HOSTS = new Set(["geeksforgeeks.org", "www.geeksforgeeks.org", "atscale.com", "www.atscale.com"]);
 const PRICE = /(?:[$£€]\s?\d|\b\d+\s?(?:usd|gbp|eur)\b|\/\s?(?:mo|month|year|yr)\b)/i;
+const LEGAL_PATH = /(?:^|\/)(?:licen[cs]es?|terms(?:-of-(?:use|service))?|privacy(?:-policy)?|copyright|legal|dmca|trademark|acceptable-use)(?:\/|$|-)/i;
+const ARCHIVE_WEB_PATH = /^\/(?:web|wayback)\/(?:\d{8,14}(?:id_)?\/)?(.+)$/i;
+
+function originalUrlPath(rawUrl) {
+  try {
+    const outer = new URL(String(rawUrl ?? ""));
+    if (!/^(?:web\.)?archive\.org$/i.test(outer.hostname)) return `${outer.pathname}${outer.search}`;
+    const match = outer.pathname.match(ARCHIVE_WEB_PATH);
+    if (!match) return outer.pathname;
+    const inner = match[1].startsWith("http") ? match[1] : `http://${match[1]}`;
+    return `${new URL(inner).pathname}${new URL(inner).search}`;
+  } catch {
+    return String(rawUrl ?? "");
+  }
+}
 
 function normalize(value) {
   return String(value ?? "").toLowerCase().replace(/\s+/g, " ").trim();
@@ -81,7 +96,9 @@ export function assessContentQuality({ url = "", title = "", text = "" } = {}) {
   const retailHostPath = /(?:^|\.)businessinsider\.com$/.test(host) && RETAIL_HOST_PATH.test(path);
   const marketingPath = MARKETING_PATH.test(path);
   const technicalHost = TECHNICAL_HOSTS.has(host);
-  const pathHit = COMMERCIAL_PATH.test(path) || TTS_PATH.test(path) || retailHostPath || marketingPath || technicalHost;
+  const originalPath = originalUrlPath(rawUrl);
+  const legalPath = LEGAL_PATH.test(originalPath);
+  const pathHit = COMMERCIAL_PATH.test(path) || TTS_PATH.test(path) || retailHostPath || marketingPath || technicalHost || legalPath;
   const strongPathHit = STRONG_COMMERCIAL_PATH.test(path) || TTS_PATH.test(path) || retailHostPath || marketingPath || technicalHost;
   const ttsPath = TTS_PATH.test(path);
   const priceHit = PRICE.test(body);
@@ -101,7 +118,10 @@ export function assessContentQuality({ url = "", title = "", text = "" } = {}) {
       metrics: { words: countWords(body), lines: 0, linkCount: 0, ctaLines: 0 },
     };
   }
-  if (strongPathHit) {
+  if (legalPath) {
+    score += 0.8;
+    reasons.push("legal-admin-page");
+  } else if (strongPathHit) {
     score += ttsPath ? 0.55 : 0.6;
     reasons.push(ttsPath ? "commercial-tts-path" : retailHostPath ? "retail-host-path" : marketingPath ? "marketing-path" : technicalHost ? "technical-host" : "commercial-url-path");
   } else if (pathHit) {
@@ -138,7 +158,7 @@ export function assessContentQuality({ url = "", title = "", text = "" } = {}) {
   }
 
   score = Math.max(0, Math.min(1, score));
-  const hardCommercial = strongPathHit || (pathHit && titleHits.length > 0) || (ttsPath && (phraseHits.length > 0 || words < 250));
+  const hardCommercial = legalPath || strongPathHit || (pathHit && titleHits.length > 0) || (ttsPath && (phraseHits.length > 0 || words < 250));
   const decision = score >= 0.55 || hardCommercial ? "exclude" : "allow";
   return {
     policyVersion: CONTENT_QUALITY_POLICY_VERSION,
@@ -147,6 +167,7 @@ export function assessContentQuality({ url = "", title = "", text = "" } = {}) {
     reasons: [...new Set(reasons)],
     signals: {
       pathHit,
+      legalPath,
       ttsPath,
       titleHit: titleHits.length > 0,
       phraseHits,

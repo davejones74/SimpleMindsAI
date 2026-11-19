@@ -219,3 +219,12 @@ test("DiscoveryService: a degraded search provider counts as available (not no-s
   assert.equal(res.discovery.providerAvailable, true);
   assert.equal(res.discovery.bootstrap.adapters[0].status, "degraded");
 });
+
+test("rotatePublisherRoots treats NASA subdomains as one publisher while keeping other publishers", async () => {
+  const { rotatePublisherRoots } = await import("../src/discovery/discovery-service.js");
+  const roots = ["https://science.nasa.gov/", "https://www.nasa.gov/", "https://www.wired.com/", "https://example.org/"];
+  const r = rotatePublisherRoots(roots, 0, 10);
+  assert.equal(r.roots.length, 3);
+  assert.equal(r.roots.filter((x) => x.includes("nasa.gov")).length, 1);
+  assert.ok(r.roots.includes("https://www.wired.com/"));
+});

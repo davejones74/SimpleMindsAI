@@ -10,6 +10,7 @@ import { resolveSearchQueries } from "./mission-queries.js";
 import { classifyDiscoveryLanguage, DISCOVERY_LANGUAGE_PRIORS } from "./language-prior.js";
 import { createArchiveOrgResolver } from "./source-resolver.js";
 import { createMissionProfile, gateFocusCandidate } from "./mission-profile.js";
+import { publisherIdentity } from "../dataset/source-identity.js";
 
 /**
  * Round-robin window over a root pool. When there are more roots than the
@@ -28,6 +29,32 @@ export function rotateRoots(roots, cursor = 0, maxRoots = 0) {
   const window = [];
   for (let i = 0; i < maxRoots; i++) window.push(list[(start + i) % list.length]);
   return { roots: window, nextCursor: (start + maxRoots) % list.length };
+}
+
+/**
+ * Rotate roots at publisher granularity. Multiple hosts under one registrable
+ * publisher (e.g. science.nasa.gov and www.nasa.gov) share one fairness slot;
+ * different subdomains remain available on later rotations rather than being
+ * treated as independent publishers in one cycle.
+ */
+export function rotatePublisherRoots(roots, cursor = 0, maxRoots = 0) {
+  const list = [...new Set((roots ?? []).filter(Boolean))];
+  const groups = new Map();
+  for (const root of list) {
+    const key = publisherIdentity(root)?.publisherDomain ?? publisherIdentity(root)?.host ?? root;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(root);
+  }
+  const keys = [...groups.keys()];
+  const rotation = rotateRoots(keys, cursor, maxRoots);
+  const cycle = keys.length ? Math.floor(Math.max(0, cursor) / keys.length) : 0;
+  return {
+    roots: rotation.roots.map((key, index) => {
+      const variants = groups.get(key) ?? [];
+      return variants[(cycle + index) % variants.length] ?? key;
+    }),
+    nextCursor: rotation.nextCursor,
+  };
 }
 
 /**
@@ -367,7 +394,7 @@ export class DiscoveryService {
 
     // Rotate the adapter window across cycles (root rotation). The policy trusts
     // the ENTIRE pool; only the adapters see the rotating window.
-    const rotation = rotateRoots(uniqueRoots, this.rootCursor, this.maxRoots);
+    const rotation = rotatePublisherRoots(uniqueRoots, this.rootCursor, this.maxRoots);
     this.rootCursor = rotation.nextCursor;
     const adapterRoots = rotation.roots;
     bootstrap.rootRotation = {

@@ -22,6 +22,7 @@ import {
   isReplayExcluded,
 } from "../domain/article.js";
 import { canonicalDomain } from "../storage/domain-registry.js";
+import { canonicalSourceUrl as deriveCanonicalSourceUrl, originalSourceUrl as deriveOriginalSourceUrl, publisherIdentity, sourcePublisher } from "../dataset/source-identity.js";
 import { DEFAULT_POLICY, evaluateVerdict, selectionDecision } from "../domain/review-policy.js";
 import { assess } from "../domain/language.js";
 import { scoreMissionRelevance } from "../domain/mission-relevance.js";
@@ -486,7 +487,13 @@ const rec = {
       rawText,
       // Only present when the caller supplied them, so records from the
       // GraphQL/curator path (and every existing test) stay byte-identical.
-      ...(sourceUrl ? { sourceUrl } : {}),
+      ...(sourceUrl ? {
+        sourceUrl,
+        ...(deriveOriginalSourceUrl(sourceUrl) && deriveOriginalSourceUrl(sourceUrl) !== sourceUrl ? { originalSourceUrl: deriveOriginalSourceUrl(sourceUrl) } : {}),
+        ...(deriveCanonicalSourceUrl(sourceUrl) ? { canonicalSourceUrl: deriveCanonicalSourceUrl(sourceUrl) } : {}),
+        ...(sourcePublisher(sourceUrl) ? { sourcePublisher: sourcePublisher(sourceUrl) } : {}),
+        ...(publisherIdentity(sourceUrl)?.publisherDomain ? { publisherDomain: publisherIdentity(sourceUrl).publisherDomain } : {}),
+      } : {}),
       ...(fetchedUrl ? { fetchedUrl } : {}),
       ...(htmlLang ? { htmlLang } : {}),
       ...(fetchedContentHash ? { fetchedContentHash } : {}),

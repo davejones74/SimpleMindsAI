@@ -1058,12 +1058,22 @@ export class JobSupervisor {
         // not consumed, so it stays eligible alongside new material until the
         // retry limit retires it. Surface the streak for the operator and reset
         // the counter so the job keeps running instead of stopping.
+        const baselineTrainable = Number(this.store?.getStats?.().trainable ?? 0);
         await this.#safeEvent(jobId, {
-          status: JOB_STATUS.RUNNING,
+          status: JOB_STATUS.WAITING,
           phase: "repeated-rejection",
-          note: `${consecutiveRejections} consecutive run(s) were not promoted (TRAIN_MAX_CONSECUTIVE_REJECTIONS=${maxRejections}); continuing to wait for new material`,
+          note: `${consecutiveRejections} consecutive run(s) were not promoted (TRAIN_MAX_CONSECUTIVE_REJECTIONS=${maxRejections}); waiting for new material`,
         });
         consecutiveRejections = 0;
+        // Do not hot-loop on the same ready batch. Wait for genuinely new
+        // reviewed material before allowing another training attempt.
+        for (;;) {
+          if (this.#shouldStop(jobId)) break;
+          const current = this.store?.getStats?.() ?? {};
+          if (Number(current.pendingReview ?? 0) > 0 || Number(current.trainable ?? 0) > baselineTrainable) break;
+          await this.#gate(jobId, config.jobs.pollIntervalMs);
+        }
+        if (this.#shouldStop(jobId)) break;
       }
       if (this.#runtimeExceeded(startedAt)) {
         await this.#safeEvent(jobId, {

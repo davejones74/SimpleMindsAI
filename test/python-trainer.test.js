@@ -866,7 +866,8 @@ test("python-mode lifecycle: eval guard filters rows before the validation parti
 
     await assert.rejects(
       () => executeFullRun({ registry, options, deps }),
-      (err) => err.code === "INSUFFICIENT_VALIDATION" && /no prospective validation clusters/.test(err.message),
+      (err) => (err.code === "INSUFFICIENT_VALIDATION" && /no prospective validation clusters/.test(err.message))
+        || /dataset empty after snapshot guards/.test(err.message),
     );
     assert.equal(registry.listRuns().length, 0);
   } finally {

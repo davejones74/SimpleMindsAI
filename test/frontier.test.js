@@ -144,3 +144,31 @@ test("setFocusClass promotes an existing queued seed above broad work", async ()
   const first = await f.claimNext();
   assert.equal(first.record.url, "https://example.org/grammar/seed");
 });
+
+test("broad claims rotate across hosts without excluding a single-host frontier", async () => {
+  const Fresh = (await import("../src/frontier.js")).Frontier;
+  const f = new Fresh({ dir: tmp() });
+  await f.enqueue("https://a.example/1", { depth: 0 });
+  await f.enqueue("https://a.example/2", { depth: 0 });
+  await f.enqueue("https://b.example/1", { depth: 0 });
+  const first = await f.claimNext();
+  const second = await f.claimNext();
+  assert.notEqual(new URL(first.record.url).hostname, new URL(second.record.url).hostname);
+  const third = await f.claimNext();
+  assert.equal(new URL(third.record.url).hostname, "a.example");
+});
+
+test("broad claims rotate by canonical publisher, not just hostname", async () => {
+  const Fresh = (await import("../src/frontier.js")).Frontier;
+  const f = new Fresh({ dir: tmp() });
+  await f.enqueue("https://science.nasa.gov/a", { depth: 0 });
+  await f.enqueue("https://www.nasa.gov/b", { depth: 0 });
+  await f.enqueue("https://wired.example/c", { depth: 0 });
+  const first = await f.claimNext();
+  const second = await f.claimNext();
+  assert.notEqual(
+    (await import("../src/dataset/source-identity.js")).publisherIdentity(first.record.url).publisherDomain,
+    (await import("../src/dataset/source-identity.js")).publisherIdentity(second.record.url).publisherDomain,
+  );
+  assert.equal(f.publisherClaimSummary().length, 2);
+});

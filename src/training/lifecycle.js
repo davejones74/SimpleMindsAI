@@ -313,6 +313,7 @@ export async function executeFullRun({
       corpusMode: config.trainCorpusMode,
       deferValidationPartition: pythonMode && validationPolicy === "document-source-disjoint",
       historicalArticleIds: priorExposed,
+      evalGuard,
     });
     let { rows } = collected;
     let { freshArticleIds, replayArticleIds, validationArticleIds } = collected;

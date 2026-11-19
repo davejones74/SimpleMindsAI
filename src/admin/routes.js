@@ -23,6 +23,7 @@ import {
   summarizeRunOutcomes,
 } from "./metrics.js";
 import { config } from "../config.js";
+import { buildKnowledgePipeline, getRunMembership, getArticleTrainingHistory } from "./knowledge-pipeline.js";
 import { validateBlueprint } from "./public/brain/schema.js";
 import { buildKnowledgeAccumulation } from "./knowledge-accumulation.js";
 
@@ -178,6 +179,55 @@ export function attachAdmin({ app, store, registry, governance, chat, conversati
     });
   }));
 
+  // ------------------------------------------------------ knowledge pipeline
+  let pipelineCache = { at: 0, key: null, value: null };
+  router.get("/knowledge-pipeline", asyncRoute(async (req, res) => {
+    const w = req.workspace;
+    const refresh = req.query?.refresh === "1";
+    const key = `${w.id}:${w.services.store.getStats().totalArticles}:${w.services.store.getStats().trainable}`;
+    if (!refresh && pipelineCache.key === key && Date.now() - pipelineCache.at < 15_000) {
+      return ok(res, { ...pipelineCache.value, cached: true });
+    }
+    const value = await buildKnowledgePipeline({
+      store: w.services.store,
+      registry: w.services.registry,
+      frontier,
+      supervisor,
+      config,
+      pythonStorePath: w.pythonStorePath ?? pythonStorePath,
+      snapshotsDir: w.paths?.snapshots ?? config.paths.snapshots,
+    });
+    pipelineCache = { at: Date.now(), key, value };
+    ok(res, value);
+  }));
+
+  router.post("/knowledge-pipeline/recover", blockWrites, asyncRoute(async (req, res) => {
+    const w = req.workspace;
+    const sup = requireSupervisor(res);
+    if (!sup) return;
+    const actions = [];
+    const learning = sup.activeJobOfKind("learning");
+    if (!learning) {
+      actions.push({ action: "start-learning", job: await sup.startLearning({ mode: "continuous" }) });
+    }
+    const stats = w.services.store.getStats();
+    const review = sup.activeJobOfKind("review");
+    if (!review && (stats.pendingReview ?? 0) > 0) {
+      actions.push({ action: "start-review", job: await sup.startReview({ mode: "continuous" }) });
+    }
+    ok(res, { actions, note: "recovery uses normal supervisor job creation; training thresholds were not changed" });
+  }));
+
+  router.get("/training-runs/:runId/articles", asyncRoute(async (req, res) => {
+    const w = req.workspace;
+    ok(res, getRunMembership({
+      store: w.services.store,
+      registry: w.services.registry,
+      runId: req.params.runId,
+      snapshotsDir: w.paths?.snapshots ?? config.paths.snapshots,
+    }));
+  }));
+
   // ------------------------------------------------- knowledge accumulation
   router.get("/knowledge-accumulation", asyncRoute(async (req, res) => {
     const w = req.workspace;
@@ -205,6 +255,10 @@ export function attachAdmin({ app, store, registry, governance, chat, conversati
       domain: domain || undefined,
       order,
     }));
+  }));
+
+  router.get("/articles/:articleId/training-history", asyncRoute(async (req, res) => {
+    ok(res, getArticleTrainingHistory({ store: req.workspace.services.store, articleId: req.params.articleId }));
   }));
 
   router.get("/articles/:articleId", asyncRoute(async (req, res) => {
